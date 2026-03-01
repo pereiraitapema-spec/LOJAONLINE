@@ -99,6 +99,28 @@ export default function Login() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast.error('Por favor, insira seu e-mail no campo acima para recuperar a senha.');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      
+      if (error) throw error;
+      
+      toast.success('Link de recuperação enviado! Verifique seu e-mail.');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao enviar link de recuperação.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <motion.div 
@@ -190,7 +212,7 @@ export default function Login() {
           </button>
           
           <p className="text-sm text-center text-slate-400">
-            Esqueceu sua senha? <span className="text-indigo-600 cursor-pointer hover:underline" onClick={() => toast('Funcionalidade de recuperação em breve!')}>Recuperar</span>
+            Esqueceu sua senha? <span className="text-indigo-600 cursor-pointer hover:underline" onClick={handleResetPassword}>Recuperar</span>
           </p>
         </form>
       </motion.div>
