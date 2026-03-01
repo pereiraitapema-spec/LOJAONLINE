@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { 
   LogOut, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, 
-  Megaphone, Plus, Edit2, Trash2, Save, X, Upload
+  Megaphone, Plus, Edit2, Trash2, Save, X, Upload, Link as LinkIcon
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -19,19 +19,97 @@ interface Campaign {
   is_highlight?: boolean;
   active: boolean;
   display_order: number;
+  badge_text?: string;
+  button_text?: string;
+  background_color?: string;
+  text_color?: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
 }
 
 export default function Campaigns() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [currentCampaign, setCurrentCampaign] = useState<Partial<Campaign>>({});
   const [uploading, setUploading] = useState(false);
+  const [linkType, setLinkType] = useState<'custom' | 'category' | 'product'>('custom');
+  const [selectedLinkId, setSelectedLinkId] = useState('');
+  const [sectionSettings, setSectionSettings] = useState({ title: '', subtitle: '' });
+  const [savingSettings, setSavingSettings] = useState(false);
+  
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchCampaigns();
+    fetchOptions();
+    fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const { data } = await supabase.from('store_settings').select('promotions_section_title, promotions_section_subtitle').maybeSingle();
+      if (data) {
+        setSectionSettings({
+          title: data.promotions_section_title || 'PROMOÇÕES DA SEMANA',
+          subtitle: data.promotions_section_subtitle || 'Aproveite nossas ofertas exclusivas'
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching settings', error);
+    }
+  };
+
+  const saveSectionSettings = async () => {
+    setSavingSettings(true);
+    try {
+      // First get the ID
+      const { data: existing } = await supabase.from('store_settings').select('id').maybeSingle();
+      
+      if (existing) {
+        const { error } = await supabase.from('store_settings').update({
+          promotions_section_title: sectionSettings.title,
+          promotions_section_subtitle: sectionSettings.subtitle
+        }).eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        // Create if not exists
+        const { error } = await supabase.from('store_settings').insert([{
+          promotions_section_title: sectionSettings.title,
+          promotions_section_subtitle: sectionSettings.subtitle,
+          payment_methods: [],
+          institutional_links: []
+        }]);
+        if (error) throw error;
+      }
+      toast.success('Título da seção atualizado!');
+    } catch (error: any) {
+      toast.error('Erro ao salvar título: ' + error.message);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const fetchOptions = async () => {
+    try {
+      const { data: cats } = await supabase.from('categories').select('id, name');
+      const { data: prods } = await supabase.from('products').select('id, name');
+      setCategories(cats || []);
+      setProducts(prods || []);
+    } catch (error) {
+      console.error('Error fetching options', error);
+    }
+  };
 
   const fetchCampaigns = async () => {
     try {
@@ -58,6 +136,13 @@ export default function Campaigns() {
     e.preventDefault();
     setLoading(true);
 
+    let finalLink = currentCampaign.link_url;
+    if (linkType === 'category') {
+      finalLink = `/category/${selectedLinkId}`;
+    } else if (linkType === 'product') {
+      finalLink = `/product/${selectedLinkId}`;
+    }
+
     try {
       if (currentCampaign.id) {
         const { error } = await supabase
@@ -67,14 +152,41 @@ export default function Campaigns() {
             subtitle: currentCampaign.subtitle,
             image_url: currentCampaign.image_url,
             rules_text: currentCampaign.rules_text,
-            link_url: currentCampaign.link_url,
+            link_url: finalLink,
             is_highlight: currentCampaign.is_highlight ?? false,
             active: currentCampaign.active,
             display_order: currentCampaign.display_order,
+            badge_text: currentCampaign.badge_text,
+            button_text: currentCampaign.button_text,
+            background_color: currentCampaign.background_color,
+            text_color: currentCampaign.text_color,
           })
           .eq('id', currentCampaign.id);
-        if (error) throw error;
-        toast.success('Campanha atualizada!');
+        
+        if (error) {
+          // Fallback se colunas novas não existirem
+          if (error.message.includes('column') && error.message.includes('does not exist')) {
+            const { error: retryError } = await supabase
+              .from('campaigns')
+              .update({
+                title: currentCampaign.title,
+                subtitle: currentCampaign.subtitle,
+                image_url: currentCampaign.image_url,
+                rules_text: currentCampaign.rules_text,
+                link_url: finalLink,
+                is_highlight: currentCampaign.is_highlight ?? false,
+                active: currentCampaign.active,
+                display_order: currentCampaign.display_order
+              })
+              .eq('id', currentCampaign.id);
+            if (retryError) throw retryError;
+            toast.success('Campanha salva (execute o SQL no Admin > Configurações para habilitar cores)');
+          } else {
+            throw error;
+          }
+        } else {
+          toast.success('Campanha atualizada!');
+        }
       } else {
         const { error } = await supabase
           .from('campaigns')
@@ -83,13 +195,39 @@ export default function Campaigns() {
             subtitle: currentCampaign.subtitle,
             image_url: currentCampaign.image_url,
             rules_text: currentCampaign.rules_text,
-            link_url: currentCampaign.link_url,
+            link_url: finalLink,
             is_highlight: currentCampaign.is_highlight ?? false,
             active: currentCampaign.active ?? true,
             display_order: currentCampaign.display_order ?? 0,
+            badge_text: currentCampaign.badge_text,
+            button_text: currentCampaign.button_text,
+            background_color: currentCampaign.background_color,
+            text_color: currentCampaign.text_color,
           }]);
-        if (error) throw error;
-        toast.success('Campanha criada!');
+          
+        if (error) {
+          // Fallback se colunas novas não existirem
+          if (error.message.includes('column') && error.message.includes('does not exist')) {
+            const { error: retryError } = await supabase
+              .from('campaigns')
+              .insert([{
+                title: currentCampaign.title,
+                subtitle: currentCampaign.subtitle,
+                image_url: currentCampaign.image_url,
+                rules_text: currentCampaign.rules_text,
+                link_url: finalLink,
+                is_highlight: currentCampaign.is_highlight ?? false,
+                active: currentCampaign.active ?? true,
+                display_order: currentCampaign.display_order ?? 0
+              }]);
+            if (retryError) throw retryError;
+            toast.success('Campanha criada (execute o SQL no Admin > Configurações para habilitar cores)');
+          } else {
+            throw error;
+          }
+        } else {
+          toast.success('Campanha criada!');
+        }
       }
 
       setIsEditing(false);
@@ -206,6 +344,46 @@ export default function Campaigns() {
             </button>
           </div>
 
+          {/* Section Settings Editor */}
+          {!isEditing && (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
+              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <Edit2 size={18} className="text-emerald-600" />
+                Editar Título da Seção na Loja
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Título (Ex: PROMOÇÕES DA SEMANA)</label>
+                  <input
+                    type="text"
+                    value={sectionSettings.title}
+                    onChange={(e) => setSectionSettings({ ...sectionSettings, title: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Subtítulo (Opcional)</label>
+                  <input
+                    type="text"
+                    value={sectionSettings.subtitle}
+                    onChange={(e) => setSectionSettings({ ...sectionSettings, subtitle: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div className="md:col-span-2 flex justify-end">
+                  <button
+                    onClick={saveSectionSettings}
+                    disabled={savingSettings}
+                    className="px-4 py-2 bg-slate-900 text-white font-medium rounded-xl hover:bg-slate-800 transition-colors flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {savingSettings ? <Loading message="" /> : <Save size={18} />}
+                    Salvar Títulos
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {isEditing ? (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <div className="flex justify-between items-center mb-6">
@@ -238,6 +416,65 @@ export default function Campaigns() {
                       className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Texto da Badge (Ex: OFERTA EXCLUSIVA)</label>
+                    <input
+                      type="text"
+                      value={currentCampaign.badge_text || ''}
+                      onChange={e => setCurrentCampaign({...currentCampaign, badge_text: e.target.value})}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Texto do Botão (Ex: VER AGORA)</label>
+                    <input
+                      type="text"
+                      value={currentCampaign.button_text || ''}
+                      onChange={e => setCurrentCampaign({...currentCampaign, button_text: e.target.value})}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                      placeholder="Padrão: VER AGORA"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Cor de Fundo (Hex)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={currentCampaign.background_color || '#000000'}
+                        onChange={e => setCurrentCampaign({...currentCampaign, background_color: e.target.value})}
+                        className="h-10 w-10 rounded-lg cursor-pointer border-none"
+                      />
+                      <input
+                        type="text"
+                        value={currentCampaign.background_color || ''}
+                        onChange={e => setCurrentCampaign({...currentCampaign, background_color: e.target.value})}
+                        className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                        placeholder="#000000"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Cor do Texto (Hex)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={currentCampaign.text_color || '#ffffff'}
+                        onChange={e => setCurrentCampaign({...currentCampaign, text_color: e.target.value})}
+                        className="h-10 w-10 rounded-lg cursor-pointer border-none"
+                      />
+                      <input
+                        type="text"
+                        value={currentCampaign.text_color || ''}
+                        onChange={e => setCurrentCampaign({...currentCampaign, text_color: e.target.value})}
+                        className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                        placeholder="#ffffff"
+                      />
+                    </div>
+                  </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-2">Regras / Texto do Popup</label>
                     <textarea
@@ -249,15 +486,65 @@ export default function Campaigns() {
                     />
                   </div>
                   
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Link de Direcionamento (Opcional)</label>
-                    <input
-                      type="text"
-                      value={currentCampaign.link_url || ''}
-                      onChange={e => setCurrentCampaign({...currentCampaign, link_url: e.target.value})}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
-                      placeholder="Ex: /produtos ou link externo"
-                    />
+                  <div className="md:col-span-2 space-y-4">
+                    <label className="block text-sm font-medium text-slate-700">Link de Direcionamento</label>
+                    <div className="flex flex-col md:flex-row gap-4">
+                      <div className="w-full md:w-1/3">
+                        <select
+                          value={linkType}
+                          onChange={(e) => {
+                            setLinkType(e.target.value as any);
+                            setSelectedLinkId('');
+                            if (e.target.value === 'custom') {
+                              setCurrentCampaign({...currentCampaign, link_url: ''});
+                            }
+                          }}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                        >
+                          <option value="custom">Link Personalizado / Externo</option>
+                          <option value="category">Categoria</option>
+                          <option value="product">Produto</option>
+                        </select>
+                      </div>
+
+                      <div className="w-full md:w-2/3">
+                        {linkType === 'custom' && (
+                          <input
+                            type="text"
+                            value={currentCampaign.link_url || ''}
+                            onChange={e => setCurrentCampaign({...currentCampaign, link_url: e.target.value})}
+                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                            placeholder="Ex: https://google.com ou /minha-pagina"
+                          />
+                        )}
+
+                        {linkType === 'category' && (
+                          <select
+                            value={selectedLinkId}
+                            onChange={(e) => setSelectedLinkId(e.target.value)}
+                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <option value="">Selecione uma categoria...</option>
+                            {categories.map(cat => (
+                              <option key={cat.id} value={cat.id}>{cat.name}</option>
+                            ))}
+                          </select>
+                        )}
+
+                        {linkType === 'product' && (
+                          <select
+                            value={selectedLinkId}
+                            onChange={(e) => setSelectedLinkId(e.target.value)}
+                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <option value="">Selecione um produto...</option>
+                            {products.map(prod => (
+                              <option key={prod.id} value={prod.id}>{prod.name}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   
                   <div className="md:col-span-2 flex items-center gap-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
@@ -340,66 +627,109 @@ export default function Campaigns() {
                   key={campaign.id}
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className={`bg-white rounded-2xl shadow-sm border ${campaign.active ? 'border-slate-200' : 'border-rose-200 opacity-75'} overflow-hidden flex flex-col`}
+                  className={`rounded-2xl shadow-sm border ${campaign.active ? 'border-slate-200' : 'border-rose-200 opacity-75'} overflow-hidden flex flex-col bg-white`}
                 >
-                  <div className="p-6 flex-1">
-                    <div className="flex items-start justify-between mb-4">
-                      {campaign.image_url ? (
-                        <img src={campaign.image_url} alt={campaign.title} className="w-12 h-12 object-cover rounded-lg" />
-                      ) : (
-                        <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center">
-                          <Megaphone size={24} />
-                        </div>
-                      )}
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            const link = `${window.location.origin}/?campaign=${campaign.id}`;
-                            navigator.clipboard.writeText(link);
-                            toast.success('Link de afiliado copiado!');
-                          }}
-                          title="Copiar Link de Afiliado"
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                        </button>
-                        <button
-                          onClick={() => {
-                            setCurrentCampaign(campaign);
-                            setIsEditing(true);
-                          }}
-                          className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(campaign.id)}
-                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
+                  {/* Preview Header / Actions */}
+                  <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-bold px-2 py-1 rounded-md ${campaign.active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                        {campaign.active ? 'Ativo' : 'Inativo'}
+                      </span>
+                      <span className="text-xs text-slate-500 font-medium">
+                        Ordem: {campaign.display_order}
+                      </span>
                     </div>
-                    
-                    <h3 className="text-lg font-bold text-slate-900 mb-1">
-                      {campaign.is_highlight && <span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded mr-2 align-middle">DESTAQUE</span>}
-                      {campaign.title}
-                    </h3>
-                    <p className="text-sm text-slate-600 mb-4">{campaign.subtitle}</p>
-                    
-                    <div className="bg-slate-50 p-3 rounded-lg">
-                      <p className="text-xs text-slate-500 font-medium mb-1">Regras:</p>
-                      <p className="text-sm text-slate-700 line-clamp-2">{campaign.rules_text}</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setCurrentCampaign(campaign);
+                          if (campaign.link_url?.startsWith('/category/')) {
+                            setLinkType('category');
+                            setSelectedLinkId(campaign.link_url.replace('/category/', ''));
+                          } else if (campaign.link_url?.startsWith('/product/')) {
+                            setLinkType('product');
+                            setSelectedLinkId(campaign.link_url.replace('/product/', ''));
+                          } else {
+                            setLinkType('custom');
+                            setSelectedLinkId('');
+                          }
+                          setIsEditing(true);
+                        }}
+                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(campaign.id)}
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                   </div>
-                  
-                  <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                    <span className={`text-xs font-bold px-2 py-1 rounded-md ${campaign.active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                      {campaign.active ? 'Ativo' : 'Inativo'}
-                    </span>
-                    <span className="text-xs text-slate-500 font-medium">
-                      Ordem: {campaign.display_order}
-                    </span>
+
+                  {/* Card Preview */}
+                  <div className="p-4">
+                    <p className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Visualização na Loja:</p>
+                    
+                    {campaign.is_highlight ? (
+                      // Estilo Benefício (Highlight)
+                      <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4">
+                        {campaign.image_url ? (
+                          <img src={campaign.image_url} alt={campaign.title} className="w-12 h-12 object-contain" />
+                        ) : (
+                          <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600">
+                            <Megaphone size={24} />
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="font-bold text-slate-900">{campaign.title}</h4>
+                          <p className="text-xs text-emerald-600 font-medium">{campaign.subtitle}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      // Estilo Promoção (Photo 2)
+                      <div 
+                        className="rounded-2xl overflow-hidden shadow-sm relative h-[160px] flex items-center"
+                        style={{ 
+                          backgroundColor: campaign.background_color || '#000000',
+                          color: campaign.text_color || '#ffffff'
+                        }}
+                      >
+                        <div className="w-1/2 p-4 relative z-10 flex flex-col justify-center h-full">
+                          {campaign.badge_text && (
+                            <div className="inline-block bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider mb-2 w-fit">
+                              {campaign.badge_text}
+                            </div>
+                          )}
+                          <h4 className="font-black italic uppercase text-lg leading-[0.9] mb-2 tracking-tighter">
+                            {campaign.title}
+                          </h4>
+                          {campaign.subtitle && (
+                            <p className="text-[10px] font-medium opacity-90 mb-3 leading-tight line-clamp-2">
+                              {campaign.subtitle}
+                            </p>
+                          )}
+                          <div className="bg-white text-black px-3 py-1 rounded-full font-black text-[8px] uppercase tracking-widest w-fit">
+                            {campaign.button_text || 'VER AGORA'}
+                          </div>
+                        </div>
+                        <div className="absolute right-0 top-0 w-1/2 h-full">
+                          {campaign.image_url ? (
+                            <img 
+                              src={campaign.image_url} 
+                              alt={campaign.title} 
+                              className="w-full h-full object-cover object-center" 
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-black/10">
+                              <ImageIcon size={24} className="opacity-20" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(to right, ${campaign.background_color || '#000000'} 10%, transparent 100%)` }}></div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))}

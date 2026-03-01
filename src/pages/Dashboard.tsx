@@ -109,7 +109,7 @@ export default function Dashboard() {
             Produtos
           </button>
           <button 
-            onClick={() => navigate('/profile')}
+            onClick={() => navigate('/settings')}
             className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
           >
             <Settings size={20} />

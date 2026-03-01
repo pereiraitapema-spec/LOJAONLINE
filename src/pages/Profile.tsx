@@ -92,8 +92,7 @@ export default function Profile() {
         .from('profiles')
         .update({
           full_name: profile.full_name,
-          avatar_url: profile.avatar_url,
-          updated_at: new Date().toISOString()
+          avatar_url: profile.avatar_url
         })
         .eq('id', user.id);
 

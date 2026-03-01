@@ -1,0 +1,1153 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { toast } from 'react-hot-toast';
+import { motion } from 'motion/react';
+import { Save, Plus, Trash2, Image as ImageIcon, Settings as SettingsIcon, Sparkles, Link as LinkIcon, CreditCard, Clock, FileText, ArrowLeft } from 'lucide-react';
+import { Loading } from '../components/Loading';
+import { GoogleGenAI } from "@google/genai";
+
+interface StoreSettings {
+  id: string;
+  company_name: string;
+  cnpj: string;
+  address: string;
+  cep: string;
+  phone: string;
+  whatsapp: string;
+  email: string;
+  instagram: string; // Mantendo para compatibilidade
+  facebook: string; // Mantendo para compatibilidade
+  social_links: { platform: string; url: string; active: boolean }[]; // Novo campo
+  business_hours: string;
+  business_hours_details: string;
+  payment_methods: { name: string; type: string; active: boolean }[];
+  institutional_links: { label: string; url: string; content: string }[];
+  affiliate_terms: string;
+  top_bar_text: string;
+  promotions_section_title?: string;
+  promotions_section_subtitle?: string;
+  products_section_title?: string;
+  products_section_subtitle?: string;
+}
+
+export default function Settings() {
+  const [settings, setSettings] = useState<StoreSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [activeTab, setActiveTab] = useState('general'); // general, institutional, payments, hours, footer
+  const [showSql, setShowSql] = useState(false);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        // Redirect handled by App.tsx but double check
+        return;
+      }
+      fetchSettings();
+    };
+    checkUser();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('store_settings')
+        .select('*')
+        .maybeSingle();
+
+      if (error) {
+        if (error.message.includes('does not exist') || error.code === '42P01') {
+          setShowSql(true);
+          toast.error('Tabela de configurações não encontrada. Execute o SQL de instalação.');
+          return;
+        }
+        throw error;
+      }
+
+      if (!data) {
+        try {
+          const { data: newData, error: insertError } = await supabase
+            .from('store_settings')
+            .insert([{
+              company_name: 'Minha Loja',
+              promotions_section_title: 'PROMOÇÕES DA SEMANA',
+              promotions_section_subtitle: 'Aproveite nossas ofertas exclusivas',
+              payment_methods: [],
+              institutional_links: []
+            }])
+            .select()
+            .single();
+            
+          if (insertError) throw insertError;
+          setSettings(newData);
+        } catch (insertError: any) {
+          console.error('Erro ao criar configurações iniciais:', insertError);
+          setShowSql(true);
+        }
+      } else {
+        // Migração automática de legado para novo formato
+        let socialLinks = data.social_links || [];
+        if (socialLinks.length === 0) {
+          if (data.instagram) socialLinks.push({ platform: 'Instagram', url: data.instagram, active: true });
+          if (data.facebook) socialLinks.push({ platform: 'Facebook', url: data.facebook, active: true });
+        }
+
+        setSettings({
+          ...data,
+          payment_methods: data.payment_methods || [],
+          institutional_links: data.institutional_links || [],
+          social_links: socialLinks,
+          promotions_section_title: data.promotions_section_title || 'CAMPANHAS E PROMOÇÕES',
+          promotions_section_subtitle: data.promotions_section_subtitle || 'Aproveite nossas ofertas exclusivas',
+          products_section_title: data.products_section_title || 'Novidades da Estação',
+          products_section_subtitle: data.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.'
+        });
+      }
+    } catch (error: any) {
+      console.error('Error fetching settings:', error);
+      toast.error('Erro ao carregar configurações: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (field: keyof StoreSettings, value: any) => {
+    if (settings) {
+      setSettings({ ...settings, [field]: value });
+    }
+  };
+
+  const handleSave = async () => {
+    if (!settings) return;
+    setSaving(true);
+    try {
+      const payload = {
+        company_name: settings.company_name,
+        cnpj: settings.cnpj,
+        address: settings.address,
+        cep: settings.cep,
+        phone: settings.phone,
+        whatsapp: settings.whatsapp,
+        email: settings.email,
+        instagram: settings.instagram,
+        facebook: settings.facebook,
+        social_links: settings.social_links,
+        business_hours: settings.business_hours,
+        business_hours_details: settings.business_hours_details,
+        payment_methods: settings.payment_methods,
+        institutional_links: settings.institutional_links,
+        affiliate_terms: settings.affiliate_terms,
+        top_bar_text: settings.top_bar_text,
+        promotions_section_title: settings.promotions_section_title,
+        promotions_section_subtitle: settings.promotions_section_subtitle,
+        products_section_title: settings.products_section_title,
+        products_section_subtitle: settings.products_section_subtitle
+      };
+
+      console.log('Salvando configurações:', payload);
+
+      const { error } = await supabase
+        .from('store_settings')
+        .update(payload)
+        .eq('id', settings.id);
+
+      if (error) throw error;
+      toast.success('Configurações salvas e aplicadas na loja!');
+    } catch (error: any) {
+      console.error('Error saving settings:', error);
+      toast.error('Erro ao salvar: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ... (renderização)
+
+  // Novo CRUD de Redes Sociais
+  const addSocialLink = () => {
+    if (!settings) return;
+    const newLinks = [...settings.social_links, { platform: '', url: '', active: true }];
+    handleChange('social_links', newLinks);
+  };
+
+  const removeSocialLink = (index: number) => {
+    if (!settings) return;
+    const newLinks = settings.social_links.filter((_, i) => i !== index);
+    handleChange('social_links', newLinks);
+  };
+
+  const updateSocialLink = (index: number, field: string, value: any) => {
+    if (!settings) return;
+    const newLinks = [...settings.social_links];
+    newLinks[index] = { ...newLinks[index], [field]: value };
+    handleChange('social_links', newLinks);
+  };
+
+  // ... (dentro do JSX, aba 'footer' ou 'general')
+  // Substituir inputs antigos por:
+  /*
+  <div className="md:col-span-2 pt-4 border-t border-slate-100 mt-4">
+    <h3 className="text-lg font-bold text-slate-900 mb-4">Redes Sociais</h3>
+    <div className="space-y-3">
+      {settings.social_links.map((link, index) => (
+        <div key={index} className="flex gap-3 items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
+           <select 
+             value={link.platform}
+             onChange={(e) => updateSocialLink(index, 'platform', e.target.value)}
+             className="p-2 border border-slate-300 rounded-lg bg-white"
+           >
+             <option value="">Selecione...</option>
+             <option value="Instagram">Instagram</option>
+             <option value="Facebook">Facebook</option>
+             <option value="TikTok">TikTok</option>
+             <option value="Twitter">Twitter</option>
+             <option value="Youtube">Youtube</option>
+             <option value="Linkedin">Linkedin</option>
+             <option value="Pinterest">Pinterest</option>
+             <option value="Outro">Outro</option>
+           </select>
+           <input
+             type="text"
+             placeholder="URL do Perfil"
+             value={link.url}
+             onChange={(e) => updateSocialLink(index, 'url', e.target.value)}
+             className="flex-1 p-2 border border-slate-300 rounded-lg"
+           />
+           <button
+             onClick={() => removeSocialLink(index)}
+             className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg"
+           >
+             <Trash2 size={20} />
+           </button>
+        </div>
+      ))}
+      <button
+        onClick={addSocialLink}
+        className="flex items-center gap-2 text-indigo-600 font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors"
+      >
+        <Plus size={20} /> Adicionar Rede Social
+      </button>
+    </div>
+  </div>
+  */
+
+  const generateAiText = async (field: keyof StoreSettings) => {
+    if (!aiPrompt) {
+      toast.error('Digite um prompt para a IA');
+      return;
+    }
+    setGeneratingAi(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: `Escreva um texto profissional para a seção "${field}" de uma loja virtual, sobre: ${aiPrompt}. O texto deve ser formatado em HTML simples se necessário.`,
+      });
+      const text = response.text || '';
+      handleChange(field, text);
+      toast.success('Texto gerado!');
+      setAiPrompt('');
+    } catch (error) {
+      toast.error('Erro na IA');
+    } finally {
+      setGeneratingAi(false);
+    }
+  };
+
+  // Estado para edição de link (CRUD estilo Card/Modal)
+  const [editingLinkIndex, setEditingLinkIndex] = useState<number | null>(null);
+  const [tempLink, setTempLink] = useState({ label: '', url: '', content: '' });
+
+  const startEditLink = (index: number) => {
+    setEditingLinkIndex(index);
+    setTempLink({ ...settings!.institutional_links[index] });
+  };
+
+  const cancelEditLink = () => {
+    setEditingLinkIndex(null);
+    setTempLink({ label: '', url: '', content: '' });
+  };
+
+  const saveLink = () => {
+    if (!settings) return;
+    const newLinks = [...settings.institutional_links];
+    if (editingLinkIndex !== null && editingLinkIndex >= 0) {
+      newLinks[editingLinkIndex] = tempLink;
+    } else {
+      newLinks.push(tempLink);
+    }
+    handleChange('institutional_links', newLinks);
+    setEditingLinkIndex(null);
+    setTempLink({ label: '', url: '', content: '' });
+  };
+
+  const removeLink = (index: number) => {
+    if (!settings) return;
+    if (window.confirm('Tem certeza que deseja remover este link?')) {
+      const newLinks = settings.institutional_links.filter((_, i) => i !== index);
+      handleChange('institutional_links', newLinks);
+    }
+  };
+
+  const generateAiTextForLink = async () => {
+    if (!aiPrompt) {
+      toast.error('Digite um prompt para a IA');
+      return;
+    }
+    setGeneratingAi(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: `Escreva um texto curto e profissional para uma seção institucional de site sobre: ${aiPrompt}. O texto deve ser em HTML simples (pode usar <p>, <strong>, <br>).`,
+      });
+      const text = response.text || '';
+      setTempLink(prev => ({ ...prev, content: text }));
+      toast.success('Texto gerado!');
+      setAiPrompt('');
+    } catch (error) {
+      toast.error('Erro na IA');
+    } finally {
+      setGeneratingAi(false);
+    }
+  };
+
+  if (loading) return <Loading message="Carregando configurações..." />;
+  
+  // Se não tem settings mas tem erro de tabela, mostra o SQL
+  if (!settings && showSql) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 text-center">
+          <h2 className="text-2xl font-bold text-rose-700 mb-4">Banco de Dados Incompleto</h2>
+          <p className="text-rose-600 mb-6">
+            As tabelas necessárias para as configurações da loja não foram encontradas.
+            Por favor, execute o comando SQL abaixo no Editor SQL do Supabase.
+          </p>
+          <div className="bg-slate-900 rounded-xl p-4 text-left overflow-x-auto mb-6">
+            <pre className="text-emerald-400 text-xs font-mono">
+{`-- Execute este SQL no Editor SQL do Supabase para corrigir os erros
+
+-- 0. Adicionar coluna social_links (Novo)
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'social_links') then
+        alter table public.store_settings add column social_links jsonb default '[]'::jsonb;
+    end if;
+end $$;
+
+-- 1. Atualizar tabela de categorias (Novo)
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'icon') then
+        alter table public.categories add column icon text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'image_url') then
+        alter table public.categories add column image_url text;
+    end if;
+end $$;
+
+-- 2. Criar tabela de configurações da loja se não existir
+create table if not exists public.store_settings (
+  id uuid default gen_random_uuid() primary key,
+  company_name text,
+  cnpj text,
+  address text,
+  cep text,
+  phone text,
+  whatsapp text,
+  email text,
+  instagram text,
+  facebook text,
+  business_hours text,
+  business_hours_details text,
+  payment_methods jsonb default '[]'::jsonb,
+  institutional_links jsonb default '[]'::jsonb,
+  affiliate_terms text,
+  top_bar_text text,
+  promotions_section_title text,
+  promotions_section_subtitle text,
+  products_section_title text,
+  products_section_subtitle text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 2. Adicionar colunas faltantes na tabela campaigns
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'text_color') then
+        alter table public.campaigns add column text_color text default '#ffffff';
+    end if;
+
+    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'background_color') then
+        alter table public.campaigns add column background_color text default '#000000';
+    end if;
+
+    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'badge_text') then
+        alter table public.campaigns add column badge_text text;
+    end if;
+
+    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'button_text') then
+        alter table public.campaigns add column button_text text;
+    end if;
+end $$;
+
+-- 3. Adicionar colunas faltantes na tabela categories (ícone e imagem)
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'icon') then
+        alter table public.categories add column icon text;
+    end if;
+    
+    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'image_url') then
+        alter table public.categories add column image_url text;
+    end if;
+end $$;
+
+-- 4. Adicionar colunas faltantes na tabela store_settings (se já existir)
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_title') then
+        alter table public.store_settings add column promotions_section_title text;
+    end if;
+
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_subtitle') then
+        alter table public.store_settings add column promotions_section_subtitle text;
+    end if;
+
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_title') then
+        alter table public.store_settings add column products_section_title text;
+    end if;
+
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_subtitle') then
+        alter table public.store_settings add column products_section_subtitle text;
+    end if;
+end $$;
+
+-- 5. Habilitar RLS e Políticas para store_settings
+alter table public.store_settings enable row level security;
+
+drop policy if exists "Enable read access for all users" on public.store_settings;
+create policy "Enable read access for all users" on public.store_settings for select using (true);
+
+drop policy if exists "Enable insert for authenticated users only" on public.store_settings;
+create policy "Enable insert for authenticated users only" on public.store_settings for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Enable update for authenticated users only" on public.store_settings;
+create policy "Enable update for authenticated users only" on public.store_settings for update using (auth.role() = 'authenticated');
+
+-- 6. Inserir configuração inicial se não existir
+insert into public.store_settings (
+    company_name, 
+    promotions_section_title, 
+    promotions_section_subtitle, 
+    products_section_title,
+    products_section_subtitle,
+    payment_methods, 
+    institutional_links
+)
+select 
+    'Minha Loja', 
+    'CAMPANHAS E PROMOÇÕES', 
+    'Aproveite nossas ofertas exclusivas', 
+    'Novidades da Estação',
+    'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
+    '[]'::jsonb, 
+    '[]'::jsonb
+where not exists (select 1 from public.store_settings);`}
+            </pre>
+          </div>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(`-- SQL Copiado --`);
+              toast.success('SQL copiado para a área de transferência!');
+            }}
+            className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
+          >
+            Copiar SQL
+          </button>
+          <button
+            onClick={() => window.location.reload()}
+            className="ml-4 bg-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-300 transition-colors"
+          >
+            Já executei, recarregar página
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!settings) return <div>Erro ao carregar configurações.</div>;
+
+  return (
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="flex justify-between items-center mb-8">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => window.location.href = '/dashboard'}
+            className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-600"
+            title="Voltar para Dashboard"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+            <SettingsIcon className="w-8 h-8 text-indigo-600" />
+            Configurações da Loja
+          </h1>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowSql(!showSql)}
+            className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold hover:bg-slate-200 transition-colors text-sm"
+          >
+            {showSql ? 'Ocultar SQL' : 'Ver SQL de Instalação'}
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            {saving ? <Loading message="" /> : <Save size={20} />}
+            Salvar Alterações
+          </button>
+        </div>
+      </div>
+      
+      {showSql && (
+        <div className="mb-8 bg-slate-900 rounded-xl p-4 overflow-hidden">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-slate-400 text-xs font-bold uppercase">SQL de Instalação / Correção</span>
+            <button 
+              onClick={() => {
+                navigator.clipboard.writeText(document.getElementById('sql-code')?.innerText || '');
+                toast.success('Copiado!');
+              }}
+              className="text-emerald-400 text-xs hover:underline"
+            >
+              Copiar
+            </button>
+          </div>
+          <pre id="sql-code" className="text-emerald-400 text-xs font-mono overflow-x-auto max-h-60">
+{`-- Execute este SQL no Editor SQL do Supabase para corrigir os erros
+
+-- 0. Adicionar coluna social_links (Novo)
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'social_links') then
+        alter table public.store_settings add column social_links jsonb default '[]'::jsonb;
+    end if;
+end $$;
+
+-- 1. Atualizar tabela de categorias (Novo)
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'icon') then
+        alter table public.categories add column icon text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'image_url') then
+        alter table public.categories add column image_url text;
+    end if;
+end $$;
+
+-- 2. Criar tabela de configurações da loja se não existir
+create table if not exists public.store_settings (
+  id uuid default gen_random_uuid() primary key,
+  company_name text,
+  cnpj text,
+  address text,
+  cep text,
+  phone text,
+  whatsapp text,
+  email text,
+  instagram text,
+  facebook text,
+  business_hours text,
+  business_hours_details text,
+  payment_methods jsonb default '[]'::jsonb,
+  institutional_links jsonb default '[]'::jsonb,
+  affiliate_terms text,
+  top_bar_text text,
+  promotions_section_title text,
+  promotions_section_subtitle text,
+  products_section_title text,
+  products_section_subtitle text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 2. Adicionar colunas faltantes na tabela campaigns
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'text_color') then
+        alter table public.campaigns add column text_color text default '#ffffff';
+    end if;
+
+    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'background_color') then
+        alter table public.campaigns add column background_color text default '#000000';
+    end if;
+
+    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'badge_text') then
+        alter table public.campaigns add column badge_text text;
+    end if;
+
+    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'button_text') then
+        alter table public.campaigns add column button_text text;
+    end if;
+end $$;
+
+-- 3. Adicionar colunas faltantes na tabela categories (ícone e imagem)
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'icon') then
+        alter table public.categories add column icon text;
+    end if;
+    
+    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'image_url') then
+        alter table public.categories add column image_url text;
+    end if;
+end $$;
+
+-- 4. Adicionar colunas faltantes na tabela store_settings (se já existir)
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_title') then
+        alter table public.store_settings add column promotions_section_title text;
+    end if;
+
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_subtitle') then
+        alter table public.store_settings add column promotions_section_subtitle text;
+    end if;
+
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_title') then
+        alter table public.store_settings add column products_section_title text;
+    end if;
+
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_subtitle') then
+        alter table public.store_settings add column products_section_subtitle text;
+    end if;
+end $$;
+
+-- 5. Habilitar RLS e Políticas para store_settings
+alter table public.store_settings enable row level security;
+
+drop policy if exists "Enable read access for all users" on public.store_settings;
+create policy "Enable read access for all users" on public.store_settings for select using (true);
+
+drop policy if exists "Enable insert for authenticated users only" on public.store_settings;
+create policy "Enable insert for authenticated users only" on public.store_settings for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Enable update for authenticated users only" on public.store_settings;
+create policy "Enable update for authenticated users only" on public.store_settings for update using (auth.role() = 'authenticated');
+
+-- 6. Inserir configuração inicial se não existir
+insert into public.store_settings (
+    company_name, 
+    promotions_section_title, 
+    promotions_section_subtitle, 
+    products_section_title,
+    products_section_subtitle,
+    payment_methods, 
+    institutional_links
+)
+select 
+    'Minha Loja', 
+    'CAMPANHAS E PROMOÇÕES', 
+    'Aproveite nossas ofertas exclusivas', 
+    'Novidades da Estação',
+    'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
+    '[]'::jsonb, 
+    '[]'::jsonb
+where not exists (select 1 from public.store_settings);`}
+          </pre>
+        </div>
+      )}
+
+      <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
+        {[
+          { id: 'general', label: 'Geral', icon: SettingsIcon },
+          { id: 'footer', label: 'Rodapé & Links', icon: LinkIcon },
+          { id: 'institutional', label: 'Termos & Conteúdo', icon: FileText },
+          { id: 'payments', label: 'Pagamentos', icon: CreditCard },
+          { id: 'hours', label: 'Horários', icon: Clock },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-colors whitespace-nowrap ${
+              activeTab === tab.id 
+                ? 'bg-indigo-600 text-white' 
+                : 'bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <tab.icon size={18} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-8">
+        {activeTab === 'general' && (
+          <>
+            {/* Informações da Empresa */}
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h2 className="text-xl font-bold text-slate-900 mb-4">Informações da Empresa</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Nome da Empresa</label>
+                  <input
+                    type="text"
+                    value={settings.company_name || ''}
+                    onChange={(e) => handleChange('company_name', e.target.value)}
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">CNPJ</label>
+                  <input
+                    type="text"
+                    value={settings.cnpj || ''}
+                    onChange={(e) => handleChange('cnpj', e.target.value)}
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Texto da Barra Superior</label>
+                  <input
+                    type="text"
+                    value={settings.top_bar_text || ''}
+                    onChange={(e) => handleChange('top_bar_text', e.target.value)}
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ex: Envio Brasil | 7 dias devolução | 10x sem juros"
+                  />
+                </div>
+                
+                <div className="md:col-span-2 pt-4 border-t border-slate-100">
+                  <h3 className="text-lg font-bold text-slate-900 mb-4">Seção de Campanhas (Banners)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Título da Seção</label>
+                      <input
+                        type="text"
+                        value={settings.promotions_section_title || ''}
+                        onChange={(e) => handleChange('promotions_section_title', e.target.value)}
+                        className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                        placeholder="Ex: CAMPANHAS E PROMOÇÕES"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Subtítulo (Opcional)</label>
+                      <input
+                        type="text"
+                        value={settings.promotions_section_subtitle || ''}
+                        onChange={(e) => handleChange('promotions_section_subtitle', e.target.value)}
+                        className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                        placeholder="Ex: Aproveite nossas ofertas exclusivas"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="md:col-span-2 pt-4 border-t border-slate-100">
+                  <h3 className="text-lg font-bold text-slate-900 mb-4">Seção de Produtos (Vitrine)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Título da Seção</label>
+                      <input
+                        type="text"
+                        value={settings.products_section_title || ''}
+                        onChange={(e) => handleChange('products_section_title', e.target.value)}
+                        className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                        placeholder="Ex: Novidades da Estação"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Subtítulo (Opcional)</label>
+                      <input
+                        type="text"
+                        value={settings.products_section_subtitle || ''}
+                        onChange={(e) => handleChange('products_section_subtitle', e.target.value)}
+                        className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                        placeholder="Ex: Confira as últimas tendências..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </>
+        )}
+
+        {activeTab === 'footer' && (
+          <>
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h2 className="text-xl font-bold text-slate-900 mb-4">Contato e Redes Sociais (Rodapé)</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Telefone Fixo</label>
+                  <input
+                    type="text"
+                    value={settings.phone || ''}
+                    onChange={(e) => handleChange('phone', e.target.value)}
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">WhatsApp</label>
+                  <input
+                    type="text"
+                    value={settings.whatsapp || ''}
+                    onChange={(e) => handleChange('whatsapp', e.target.value)}
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
+                  <input
+                    type="email"
+                    value={settings.email || ''}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Endereço Completo</label>
+                  <input
+                    type="text"
+                    value={settings.address || ''}
+                    onChange={(e) => handleChange('address', e.target.value)}
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">CEP</label>
+                  <input
+                    type="text"
+                    value={settings.cep || ''}
+                    onChange={(e) => handleChange('cep', e.target.value)}
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="md:col-span-2 pt-4 border-t border-slate-100 mt-4">
+                  <h3 className="text-lg font-bold text-slate-900 mb-4">Redes Sociais</h3>
+                  <div className="space-y-3">
+                    {settings.social_links.map((link, index) => (
+                      <div key={index} className="flex gap-3 items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <select 
+                          value={link.platform}
+                          onChange={(e) => updateSocialLink(index, 'platform', e.target.value)}
+                          className="p-2 border border-slate-300 rounded-lg bg-white"
+                        >
+                          <option value="">Selecione...</option>
+                          <option value="Instagram">Instagram</option>
+                          <option value="Facebook">Facebook</option>
+                          <option value="TikTok">TikTok</option>
+                          <option value="Twitter">Twitter</option>
+                          <option value="Youtube">Youtube</option>
+                          <option value="Linkedin">Linkedin</option>
+                          <option value="Pinterest">Pinterest</option>
+                          <option value="WhatsApp">WhatsApp</option>
+                          <option value="Outro">Outro</option>
+                        </select>
+                        <input
+                          type="text"
+                          placeholder="URL do Perfil"
+                          value={link.url}
+                          onChange={(e) => updateSocialLink(index, 'url', e.target.value)}
+                          className="flex-1 p-2 border border-slate-300 rounded-lg"
+                        />
+                        <button
+                          onClick={() => removeSocialLink(index)}
+                          className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={addSocialLink}
+                      className="flex items-center gap-2 text-indigo-600 font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors"
+                    >
+                      <Plus size={20} /> Adicionar Rede Social
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-6">
+              <h2 className="text-xl font-bold text-slate-900 mb-4">Links Institucionais (Rodapé)</h2>
+              
+              {/* Lista de Links (Cards) */}
+              <div className="space-y-4">
+                {settings.institutional_links.map((link, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors">
+                    <div>
+                      <h3 className="font-bold text-slate-900">{link.label || '(Sem título)'}</h3>
+                      <p className="text-sm text-slate-500">{link.url || '(Sem URL)'}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startEditLink(index)}
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Editar"
+                      >
+                        <SettingsIcon size={20} />
+                      </button>
+                      <button
+                        onClick={() => removeLink(index)}
+                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Remover"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {settings.institutional_links.length === 0 && (
+                  <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                    Nenhum link cadastrado.
+                  </div>
+                )}
+
+                <button
+                  onClick={() => {
+                    setEditingLinkIndex(-1); // -1 indica novo item
+                    setTempLink({ label: '', url: '', content: '' });
+                  }}
+                  className="w-full flex items-center justify-center gap-2 text-indigo-600 font-bold hover:bg-indigo-50 px-4 py-3 rounded-xl border border-dashed border-indigo-300 hover:border-indigo-500 transition-all"
+                >
+                  <Plus size={20} /> Adicionar Novo Link
+                </button>
+              </div>
+
+              {/* Modal / Card de Edição */}
+              {editingLinkIndex !== null && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                  >
+                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                      <h3 className="text-xl font-bold text-slate-900">
+                        {editingLinkIndex === -1 ? 'Novo Link Institucional' : 'Editar Link'}
+                      </h3>
+                      <button onClick={cancelEditLink} className="text-slate-400 hover:text-slate-600">
+                        <Trash2 size={24} className="rotate-45" /> {/* Usando Trash rotacionado como X improvisado ou importar X */}
+                      </button>
+                    </div>
+                    
+                    <div className="p-6 space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Nome do Link</label>
+                          <input
+                            type="text"
+                            value={tempLink.label}
+                            onChange={(e) => setTempLink({ ...tempLink, label: e.target.value })}
+                            className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Ex: Sobre Nós"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">URL (Opcional)</label>
+                          <input
+                            type="text"
+                            value={tempLink.url}
+                            onChange={(e) => setTempLink({ ...tempLink, url: e.target.value })}
+                            className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Ex: /sobre"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <label className="block text-sm font-medium text-slate-700">Conteúdo do Popup (HTML/Texto)</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="Prompt para IA..."
+                              value={aiPrompt}
+                              onChange={(e) => setAiPrompt(e.target.value)}
+                              className="w-48 p-1 px-2 border border-slate-300 rounded-lg text-xs"
+                            />
+                            <button
+                              onClick={generateAiTextForLink}
+                              disabled={generatingAi}
+                              className="px-3 py-1 bg-purple-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-purple-700 disabled:opacity-50"
+                            >
+                              <Sparkles size={14} />
+                              IA
+                            </button>
+                          </div>
+                        </div>
+                        <textarea
+                          value={tempLink.content}
+                          onChange={(e) => setTempLink({ ...tempLink, content: e.target.value })}
+                          rows={8}
+                          className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+                          placeholder="<p>Escreva aqui o conteúdo que aparecerá ao clicar no link...</p>"
+                        />
+                        <p className="text-xs text-slate-500 mt-2">
+                          Dica: Se preencher o conteúdo, o link abrirá um popup. Se deixar vazio e preencher a URL, navegará para a página.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50 rounded-b-2xl">
+                      <button
+                        onClick={cancelEditLink}
+                        className="px-6 py-2 text-slate-600 font-bold hover:bg-slate-200 rounded-xl transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={saveLink}
+                        className="px-6 py-2 bg-indigo-600 text-white font-bold hover:bg-indigo-700 rounded-xl transition-colors flex items-center gap-2"
+                      >
+                        <Save size={18} />
+                        {editingLinkIndex === -1 ? 'Adicionar Link' : 'Salvar Alterações'}
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {activeTab === 'institutional' && (
+          <>
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-6">
+              <h2 className="text-xl font-bold text-slate-900 mb-4">Termos e Condições de Afiliados</h2>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  placeholder="Digite um prompt para gerar os termos com IA..."
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  className="flex-1 p-2 border border-slate-300 rounded-lg text-sm"
+                />
+                <button
+                  onClick={() => generateAiText('affiliate_terms')}
+                  disabled={generatingAi}
+                  className="px-3 py-1 bg-purple-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-purple-700 disabled:opacity-50"
+                >
+                  <Sparkles size={14} />
+                  {generatingAi ? 'Gerando...' : 'Gerar IA'}
+                </button>
+              </div>
+              <textarea
+                value={settings.affiliate_terms || ''}
+                onChange={(e) => handleChange('affiliate_terms', e.target.value)}
+                rows={10}
+                className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                placeholder="Cole ou gere aqui os termos e condições..."
+              />
+            </section>
+          </>
+        )}
+
+        {activeTab === 'payments' && (
+          <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h2 className="text-xl font-bold text-slate-900 mb-4">Formas de Pagamento</h2>
+            <div className="space-y-4">
+              {settings.payment_methods.map((method, index) => (
+                <div key={index} className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input
+                      type="text"
+                      placeholder="Nome (Ex: Nubank)"
+                      value={method.name}
+                      onChange={(e) => {
+                        const newMethods = [...settings.payment_methods];
+                        newMethods[index].name = e.target.value;
+                        handleChange('payment_methods', newMethods);
+                      }}
+                      className="p-2 border border-slate-300 rounded-lg"
+                    />
+                    <select
+                      value={method.type}
+                      onChange={(e) => {
+                        const newMethods = [...settings.payment_methods];
+                        newMethods[index].type = e.target.value;
+                        handleChange('payment_methods', newMethods);
+                      }}
+                      className="p-2 border border-slate-300 rounded-lg"
+                    >
+                      <option value="pix">PIX</option>
+                      <option value="card">Cartão de Crédito</option>
+                      <option value="boleto">Boleto</option>
+                      <option value="bank">Transferência Bancária</option>
+                    </select>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={method.active}
+                        onChange={(e) => {
+                          const newMethods = [...settings.payment_methods];
+                          newMethods[index].active = e.target.checked;
+                          handleChange('payment_methods', newMethods);
+                        }}
+                        className="w-5 h-5 text-indigo-600 rounded"
+                      />
+                      <span className="text-sm font-medium">Ativo</span>
+                    </label>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const newMethods = settings.payment_methods.filter((_, i) => i !== index);
+                      handleChange('payment_methods', newMethods);
+                    }}
+                    className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => handleChange('payment_methods', [...settings.payment_methods, { name: '', type: 'pix', active: true }])}
+                className="flex items-center gap-2 text-indigo-600 font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors"
+              >
+                <Plus size={20} /> Adicionar Forma de Pagamento
+              </button>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'hours' && (
+          <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h2 className="text-xl font-bold text-slate-900 mb-4">Horário de Atendimento</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Resumo (Ex: Segunda a Sexta - 8h ás 18h)</label>
+                <input
+                  type="text"
+                  value={settings.business_hours || ''}
+                  onChange={(e) => handleChange('business_hours', e.target.value)}
+                  className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Detalhes Completos (Site 24h e Estabelecimento)</label>
+                <textarea
+                  value={settings.business_hours_details || ''}
+                  onChange={(e) => handleChange('business_hours_details', e.target.value)}
+                  rows={5}
+                  className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Descreva os horários detalhados..."
+                />
+              </div>
+            </div>
+          </section>
+        )}
+      </div>
+    </div>
+  );
+}

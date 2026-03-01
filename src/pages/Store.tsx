@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShoppingBag, ShieldCheck, User, ChevronLeft, ChevronRight, 
   Volume2, VolumeX, Image as ImageIcon, X, Search, Menu, 
-  Heart, Truck, CreditCard, Phone, Instagram, Facebook,
+  Heart, Truck, CreditCard, Phone, Instagram, Facebook, Twitter, Youtube, Linkedin,
   Star, Zap, Leaf, Droplets, Activity, Flame, Megaphone
 } from 'lucide-react';
 
@@ -34,6 +34,7 @@ interface Category {
   id: string;
   name: string;
   icon?: string;
+  image_url?: string;
 }
 
 interface Campaign {
@@ -46,6 +47,10 @@ interface Campaign {
   is_highlight?: boolean;
   active: boolean;
   display_order: number;
+  badge_text?: string;
+  button_text?: string;
+  background_color?: string;
+  text_color?: string;
 }
 
 interface Product {
@@ -61,6 +66,27 @@ interface Product {
   media: ProductMedia[];
 }
 
+interface StoreSettings {
+  company_name: string;
+  cnpj: string;
+  address: string;
+  cep: string;
+  phone: string;
+  whatsapp: string;
+  email: string;
+  instagram: string;
+  facebook: string;
+  social_links: { platform: string; url: string; active: boolean }[];
+  business_hours: string;
+  business_hours_details: string;
+  payment_methods: { name: string; type: string; active: boolean }[];
+  institutional_links: { label: string; url: string; content: string }[];
+  affiliate_terms: string;
+  top_bar_text: string;
+  promotions_section_title?: string;
+  promotions_section_subtitle?: string;
+}
+
 export default function Store() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [session, setSession] = useState<any>(null);
@@ -68,11 +94,13 @@ export default function Store() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isModalMuted, setIsModalMuted] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [selectedInstitutionalLink, setSelectedInstitutionalLink] = useState<{ label: string; content: string } | null>(null);
   
   // Carrinho
   const [cart, setCart] = useState<{ product: Product, quantity: number }[]>([]);
@@ -104,7 +132,7 @@ export default function Store() {
     };
     
     const fetchData = async () => {
-      const [bannerRes, prodRes, catRes, campRes] = await Promise.all([
+      const [bannerRes, prodRes, catRes, campRes, settingsRes] = await Promise.all([
         supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }),
         supabase.from('products')
           .select('*, tiers:product_tiers(*), media:product_media(*)')
@@ -112,13 +140,17 @@ export default function Store() {
           .order('created_at', { ascending: false })
           .order('position', { foreignTable: 'product_media', ascending: true }),
         supabase.from('categories').select('*').order('name'),
-        supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true })
+        supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }),
+        supabase.from('store_settings').select('*').maybeSingle()
       ]);
       
       setBanners(bannerRes.data || []);
       setProducts(prodRes.data || []);
       setCategories(catRes.data || []);
       setCampaigns(campRes.data || []);
+      if (settingsRes.data) {
+        setSettings(settingsRes.data);
+      }
       
       // Check for affiliate link
       const urlParams = new URLSearchParams(window.location.search);
@@ -224,7 +256,7 @@ export default function Store() {
     <div className="min-h-screen bg-slate-50 font-sans">
       {/* Top Bar */}
       <div className="bg-emerald-800 text-white text-[10px] md:text-xs font-medium py-2 px-4 text-center tracking-wide">
-        Envio Brasil | 7 dias devolução | 10x sem juros | WhatsApp (47)99660-9618
+        {settings?.top_bar_text || "Envio Brasil | 7 dias devolução | 10x sem juros | WhatsApp (47)99660-9618"}
       </div>
 
       {/* Header da Loja */}
@@ -352,8 +384,16 @@ export default function Store() {
                 onClick={() => setSearchTerm(isActive ? '' : cat.name)}
                 className={`flex flex-col items-center gap-2 group ${isActive ? 'text-emerald-600' : 'text-slate-500 hover:text-emerald-600'}`}
               >
-                <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${isActive ? 'bg-emerald-50 border-2 border-emerald-200' : 'bg-slate-50 border border-slate-100 group-hover:bg-emerald-50 group-hover:border-emerald-200'}`}>
-                  <IconComponent size={24} className={isActive ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-600'} />
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all overflow-hidden ${isActive ? 'bg-emerald-50 border-2 border-emerald-200' : 'bg-slate-50 border border-slate-100 group-hover:bg-emerald-50 group-hover:border-emerald-200'}`}>
+                  {cat.image_url ? (
+                    <img 
+                      src={cat.image_url} 
+                      alt={cat.name} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <IconComponent size={24} className={isActive ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-600'} />
+                  )}
                 </div>
                 <span className="text-xs font-bold uppercase tracking-wider">{cat.name}</span>
               </button>
@@ -465,18 +505,29 @@ export default function Store() {
                   key={campaign.id}
                   whileHover={{ y: -5, scale: 1.02 }}
                   onClick={() => setSelectedCampaign(campaign)}
-                  className="cursor-pointer bg-black text-white rounded-xl p-4 flex flex-col items-center justify-center text-center w-full sm:w-[calc(50%-1rem)] md:w-[calc(33.333%-1rem)] lg:w-[calc(20%-1rem)] min-h-[120px] shadow-lg border border-slate-800"
+                  className={`cursor-pointer rounded-xl flex flex-col items-center justify-center text-center w-full sm:w-[calc(50%-1rem)] md:w-[calc(33.333%-1rem)] lg:w-[calc(20%-1rem)] min-h-[120px] shadow-lg transition-all ${
+                    campaign.image_url 
+                      ? 'bg-transparent shadow-none border-none p-0' 
+                      : 'bg-black text-white p-4 border border-slate-800'
+                  }`}
                 >
-                  {campaign.image_url && (
-                    <img src={campaign.image_url} alt={campaign.title} className="w-8 h-8 object-contain mb-2" />
-                  )}
-                  <h4 className="font-black italic uppercase text-lg leading-tight mb-1">
-                    {campaign.title}
-                  </h4>
-                  {campaign.subtitle && (
-                    <p className="text-xs font-medium text-emerald-400">
-                      {campaign.subtitle}
-                    </p>
+                  {campaign.image_url ? (
+                    <img 
+                      src={campaign.image_url} 
+                      alt={campaign.title} 
+                      className="w-full h-full object-contain rounded-xl hover:shadow-xl transition-shadow" 
+                    />
+                  ) : (
+                    <>
+                      <h4 className="font-black italic uppercase text-lg leading-tight mb-1">
+                        {campaign.title}
+                      </h4>
+                      {campaign.subtitle && (
+                        <p className="text-xs font-medium text-emerald-400">
+                          {campaign.subtitle}
+                        </p>
+                      )}
+                    </>
                   )}
                 </motion.div>
               ))}
@@ -489,39 +540,69 @@ export default function Store() {
       {campaigns.filter(c => !c.is_highlight).length > 0 && (
         <section className="bg-slate-50 py-12 border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4">
-            <h3 className="text-center text-2xl md:text-3xl font-black italic uppercase tracking-tight text-slate-900 mb-8">
-              CAMPANHAS E PROMOÇÕES
+            <h3 className="text-center text-2xl md:text-3xl font-black italic uppercase tracking-tight text-slate-900 mb-2">
+              {settings?.promotions_section_title || 'CAMPANHAS E PROMOÇÕES'}
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {settings?.promotions_section_subtitle && (
+              <p className="text-center text-slate-500 mb-8">{settings.promotions_section_subtitle}</p>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {campaigns.filter(c => !c.is_highlight).map((campaign) => (
                 <motion.div
                   key={campaign.id}
                   whileHover={{ y: -5, scale: 1.02 }}
-                  onClick={() => setSelectedCampaign(campaign)}
-                  className="cursor-pointer bg-white rounded-2xl overflow-hidden shadow-lg border border-slate-100 group"
+                  onClick={() => {
+                    if (campaign.link_url) {
+                      window.location.href = campaign.link_url;
+                    } else {
+                      setSelectedCampaign(campaign);
+                    }
+                  }}
+                  className="cursor-pointer rounded-[32px] overflow-hidden shadow-lg relative h-[280px] flex items-center"
+                  style={{ 
+                    backgroundColor: campaign.background_color || '#000000',
+                    color: campaign.text_color || '#ffffff'
+                  }}
                 >
-                  {campaign.image_url ? (
-                    <div className="aspect-video w-full overflow-hidden">
-                      <img 
-                        src={campaign.image_url} 
-                        alt={campaign.title} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                      />
-                    </div>
-                  ) : (
-                    <div className="aspect-video w-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-                      <Megaphone size={48} />
-                    </div>
-                  )}
-                  <div className="p-6 text-center">
-                    <h4 className="font-black italic uppercase text-xl text-slate-900 mb-2">
+                  {/* Conteúdo Texto */}
+                  <div className="w-1/2 p-8 relative z-10 flex flex-col justify-center h-full">
+                    {campaign.badge_text && (
+                      <div className="inline-block bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-4 w-fit">
+                        {campaign.badge_text}
+                      </div>
+                    )}
+                    
+                    <h4 className="font-black italic uppercase text-4xl leading-[0.9] mb-4 tracking-tighter">
                       {campaign.title}
                     </h4>
+                    
                     {campaign.subtitle && (
-                      <p className="text-sm text-slate-600">
+                      <p className="text-sm font-medium opacity-90 mb-6 leading-tight">
                         {campaign.subtitle}
                       </p>
                     )}
+
+                    <button className="bg-white text-black px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest hover:scale-105 transition-transform w-fit">
+                      {campaign.button_text || 'VER AGORA'}
+                    </button>
+                  </div>
+
+                  {/* Imagem */}
+                  <div className="absolute right-0 top-0 w-1/2 h-full">
+                    {campaign.image_url ? (
+                      <img 
+                        src={campaign.image_url} 
+                        alt={campaign.title} 
+                        className="w-full h-full object-cover object-center" 
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-black/10">
+                        <Megaphone size={48} className="opacity-20" />
+                      </div>
+                    )}
+                    {/* Overlay gradiente para texto legível */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none" style={{ background: `linear-gradient(to right, ${campaign.background_color || '#000000'} 10%, transparent 100%)` }}></div>
                   </div>
                 </motion.div>
               ))}
@@ -534,10 +615,10 @@ export default function Store() {
       <main className="max-w-7xl mx-auto px-4 py-12">
         <div className="text-center mb-16">
           <h1 className="text-4xl md:text-6xl font-black text-slate-900 mb-4 italic uppercase tracking-tighter">
-            Novidades da Estação
+            {settings?.products_section_title || 'Novidades da Estação'}
           </h1>
           <p className="text-slate-500 text-lg max-w-2xl mx-auto">
-            Confira as últimas tendências e ofertas exclusivas que preparamos para você.
+            {settings?.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.'}
           </p>
         </div>
 
@@ -622,60 +703,6 @@ export default function Store() {
           </div>
         )}
       </main>
-
-      {/* Promoções da Semana */}
-      <section className="max-w-7xl mx-auto px-4 py-12 mb-12">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-5xl font-black text-slate-900 mb-2 italic uppercase tracking-tighter">
-            Promoções da Semana
-          </h2>
-          <div className="w-24 h-1 bg-pink-500 mx-auto rounded-full"></div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Banner 1 */}
-          <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-pink-600 to-pink-400 aspect-[21/9] md:aspect-[16/9] lg:aspect-[21/9] flex items-center shadow-lg group cursor-pointer">
-            <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors z-10"></div>
-            <div className="relative z-20 p-8 md:p-12 w-2/3">
-              <span className="inline-block px-3 py-1 bg-white/20 backdrop-blur-sm text-white text-xs font-bold uppercase tracking-widest rounded-full mb-4">
-                Oferta Exclusiva
-              </span>
-              <h3 className="text-3xl md:text-5xl font-black text-white italic uppercase tracking-tighter leading-none mb-2">
-                Até 33% <br/> OFF
-              </h3>
-              <p className="text-white/90 font-medium mb-6 text-sm md:text-base">
-                Em toda linha de suplementos e vitaminas.
-              </p>
-              <button className="bg-white text-pink-600 font-black px-6 py-3 rounded-full hover:bg-pink-50 transition-colors uppercase text-sm tracking-wider shadow-lg">
-                Ver Agora
-              </button>
-            </div>
-            {/* Imagem decorativa (placeholder) */}
-            <div className="absolute right-0 top-0 bottom-0 w-1/2 bg-[url('https://images.unsplash.com/photo-1593095948071-474c5cc2989d?q=80&w=800&auto=format&fit=crop')] bg-cover bg-center opacity-50 mix-blend-overlay group-hover:scale-105 transition-transform duration-700"></div>
-          </div>
-
-          {/* Banner 2 */}
-          <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-emerald-600 to-emerald-400 aspect-[21/9] md:aspect-[16/9] lg:aspect-[21/9] flex items-center shadow-lg group cursor-pointer">
-            <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors z-10"></div>
-            <div className="relative z-20 p-8 md:p-12 w-2/3">
-              <span className="inline-block px-3 py-1 bg-white/20 backdrop-blur-sm text-white text-xs font-bold uppercase tracking-widest rounded-full mb-4">
-                Lançamento
-              </span>
-              <h3 className="text-3xl md:text-5xl font-black text-white italic uppercase tracking-tighter leading-none mb-2">
-                Novos <br/> Combos
-              </h3>
-              <p className="text-white/90 font-medium mb-6 text-sm md:text-base">
-                Potencialize seus resultados com nossos kits.
-              </p>
-              <button className="bg-white text-emerald-600 font-black px-6 py-3 rounded-full hover:bg-emerald-50 transition-colors uppercase text-sm tracking-wider shadow-lg">
-                Aproveite Já
-              </button>
-            </div>
-            {/* Imagem decorativa (placeholder) */}
-            <div className="absolute right-0 top-0 bottom-0 w-1/2 bg-[url('https://images.unsplash.com/photo-1579722820308-d74e571900a9?q=80&w=800&auto=format&fit=crop')] bg-cover bg-center opacity-50 mix-blend-overlay group-hover:scale-105 transition-transform duration-700"></div>
-          </div>
-        </div>
-      </section>
 
       {/* Modal de Detalhes do Produto */}
       <AnimatePresence>
@@ -1221,6 +1248,208 @@ export default function Store() {
           </div>
         )}
       </AnimatePresence>
+      {/* Footer */}
+      <footer className="bg-white border-t border-slate-200 pt-16 pb-8">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+            
+            {/* Institucional */}
+            <div>
+              <h4 className="font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm">Institucional</h4>
+              <ul className="space-y-4">
+                {settings?.institutional_links?.map((link, idx) => (
+                  <li key={idx}>
+                    <button 
+                      onClick={() => {
+                        if (link.content) {
+                          setSelectedInstitutionalLink({ label: link.label, content: link.content });
+                        } else if (link.url) {
+                          window.location.href = link.url;
+                        }
+                      }}
+                      className="text-slate-600 hover:text-emerald-600 transition-colors text-sm text-left"
+                    >
+                      {link.label}
+                    </button>
+                  </li>
+                ))}
+                {!settings?.institutional_links?.length && (
+                  <>
+                    <li><a href="#" className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Sobre nós</a></li>
+                    <li><a href="#" className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Política de Frete</a></li>
+                  </>
+                )}
+                
+                {settings?.affiliate_terms && (
+                  <li>
+                    <button 
+                      onClick={() => setSelectedInstitutionalLink({ label: 'Termos de Afiliados', content: settings.affiliate_terms })}
+                      className="text-slate-600 hover:text-emerald-600 transition-colors text-sm text-left"
+                    >
+                      Termos e condições de afiliados
+                    </button>
+                  </li>
+                )}
+              </ul>
+              <div className="flex gap-4 mt-6 flex-wrap">
+                {settings?.social_links?.filter(l => l.active).map((link, idx) => {
+                  const Icon = link.platform === 'Instagram' ? Instagram :
+                               link.platform === 'Facebook' ? Facebook :
+                               link.platform === 'Twitter' ? Twitter :
+                               link.platform === 'Youtube' ? Youtube :
+                               link.platform === 'Linkedin' ? Linkedin :
+                               Megaphone; // Fallback
+                  
+                  return (
+                    <a key={idx} href={link.url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 hover:bg-emerald-600 hover:text-white transition-all shadow-sm hover:shadow-md">
+                      <Icon size={20} />
+                    </a>
+                  );
+                })}
+                
+                {/* Fallback para legado */}
+                {(!settings?.social_links || settings.social_links.length === 0) && (
+                  <>
+                    {settings?.instagram && (
+                      <a href={settings.instagram} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 rounded-xl flex items-center justify-center text-white hover:scale-110 transition-transform">
+                        <Instagram size={20} />
+                      </a>
+                    )}
+                    {settings?.facebook && (
+                      <a href={settings.facebook} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white hover:scale-110 transition-transform">
+                        <Facebook size={20} />
+                      </a>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Sua Conta */}
+            <div>
+              <h4 className="font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm">Sua Conta</h4>
+              <ul className="space-y-4">
+                <li><button onClick={() => navigate('/login')} className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Minha conta / Cadastro</button></li>
+                <li><button onClick={() => navigate('/profile')} className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Minhas compras</button></li>
+                <li><button onClick={() => setShowCart(true)} className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Meu carrinho</button></li>
+                <li><button onClick={() => navigate('/profile')} className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Meus produtos favoritos</button></li>
+              </ul>
+
+              <h4 className="font-bold text-slate-900 mb-6 mt-8 uppercase tracking-wider text-sm">Precisa de Ajuda?</h4>
+              <ul className="space-y-4">
+                <li><button onClick={() => window.open(`https://wa.me/${settings?.whatsapp?.replace(/\D/g, '')}`, '_blank')} className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Fale Conosco via WhatsApp</button></li>
+                <li><a href={`mailto:${settings?.email}`} className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Enviar E-mail</a></li>
+              </ul>
+            </div>
+
+            {/* Atendimento */}
+            <div>
+              <h4 className="font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm">Atendimento</h4>
+              <div className="space-y-4 text-sm text-slate-600">
+                <p className="font-bold text-slate-900">HORÁRIO DE ATENDIMENTO:</p>
+                <p className="italic">{settings?.business_hours || "Segunda a Sexta - 8h ás 18h"}</p>
+                
+                <p className="font-bold text-slate-900 mt-6">CONTATO:</p>
+                {settings?.whatsapp && <p>{settings.whatsapp} - Whatsapp</p>}
+                {settings?.phone && <p>{settings.phone} - Fixo</p>}
+                {settings?.email && <p>{settings.email}</p>}
+
+                {settings?.address && (
+                  <>
+                    <p className="font-bold text-slate-900 mt-6">ENDEREÇO:</p>
+                    <p>{settings.address}</p>
+                    {settings.cep && <p>CEP: {settings.cep}</p>}
+                  </>
+                )}
+                
+                {settings?.business_hours_details && (
+                  <div className="mt-4 text-xs whitespace-pre-wrap">
+                    {settings.business_hours_details}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Formas de Pagamento e Segurança */}
+            <div>
+              <h4 className="font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm">Formas de Pagamento</h4>
+              <div className="flex flex-wrap gap-2 mb-8">
+                {settings?.payment_methods?.filter(p => p.active).map((method, idx) => (
+                  <div key={idx} className="h-10 px-3 bg-slate-50 rounded border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 uppercase">
+                    {method.name}
+                  </div>
+                ))}
+                {!settings?.payment_methods?.length && (
+                  <>
+                    <div className="w-16 h-10 bg-slate-100 rounded border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-400">PIX</div>
+                    <div className="w-16 h-10 bg-slate-100 rounded border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-400">VISA</div>
+                  </>
+                )}
+              </div>
+
+              <h4 className="font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm">Segurança</h4>
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col items-center border border-slate-200 rounded-lg p-2">
+                  <div className="flex items-center gap-1 text-amber-400">
+                    <Star size={16} fill="currentColor" />
+                    <span className="font-bold text-slate-900">5.0</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500">Avaliações</span>
+                </div>
+                <div className="flex items-center gap-2 border border-slate-200 rounded-lg p-2">
+                  <ShieldCheck size={24} className="text-emerald-600" />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-900">Google</span>
+                    <span className="text-[10px] text-slate-500">Safe browsing</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Copyright */}
+        <div className="border-t border-slate-200 bg-slate-50 py-4">
+          <div className="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
+            {settings?.company_name || "MAGNIFIQUE 4LIFE"} ® - Todos os direitos reservados {settings?.cnpj && `- CNPJ ${settings.cnpj}`}
+          </div>
+        </div>
+      </footer>
+
+      {/* Modal de Link Institucional */}
+      {selectedInstitutionalLink && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+          >
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="text-xl font-bold text-slate-900">{selectedInstitutionalLink.label}</h3>
+              <button 
+                onClick={() => setSelectedInstitutionalLink(null)}
+                className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+              >
+                <X size={24} className="text-slate-500" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <div className="prose prose-slate max-w-none whitespace-pre-wrap text-slate-600">
+                {selectedInstitutionalLink.content}
+              </div>
+            </div>
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button 
+                onClick={() => setSelectedInstitutionalLink(null)}
+                className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors"
+              >
+                Fechar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

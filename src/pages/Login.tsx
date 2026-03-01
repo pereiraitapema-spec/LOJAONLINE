@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -213,6 +213,10 @@ export default function Login() {
           
           <p className="text-sm text-center text-slate-400">
             Esqueceu sua senha? <span className="text-indigo-600 cursor-pointer hover:underline" onClick={handleResetPassword}>Recuperar</span>
+          </p>
+
+          <p className="text-sm text-center text-slate-400 mt-4">
+            Não tem uma conta? <Link to="/register" className="text-indigo-600 font-semibold hover:underline">Cadastre-se</Link>
           </p>
         </form>
       </motion.div>

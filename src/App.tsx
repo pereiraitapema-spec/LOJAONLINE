@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { supabase } from './lib/supabase';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
@@ -10,11 +11,13 @@ import Store from './pages/Store';
 import Banners from './pages/Banners';
 import Campaigns from './pages/Campaigns';
 import Products from './pages/Products';
+import Settings from './pages/Settings';
 import { Loading } from './components/Loading';
 
-export default function App() {
+function AppContent() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // 1. Pegar sessão inicial
@@ -30,12 +33,12 @@ export default function App() {
       setLoading(false);
       
       if (event === 'PASSWORD_RECOVERY') {
-        window.location.href = '/reset-password';
+        navigate('/reset-password');
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   if (loading) {
     return (
@@ -46,7 +49,7 @@ export default function App() {
   }
 
   return (
-    <Router>
+    <>
       <Toaster position="top-right" />
       <Routes>
         {/* Loja Pública */}
@@ -56,6 +59,10 @@ export default function App() {
         <Route 
           path="/login" 
           element={session ? <Navigate to="/dashboard" replace /> : <Login />} 
+        />
+        <Route 
+          path="/register" 
+          element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
         />
         <Route path="/reset-password" element={<ResetPassword />} />
         
@@ -82,10 +89,22 @@ export default function App() {
           path="/products" 
           element={session ? <Products /> : <Navigate to="/login" replace />} 
         />
+        <Route 
+          path="/settings" 
+          element={session ? <Settings /> : <Navigate to="/login" replace />} 
+        />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <AppContent />
     </Router>
   );
 }

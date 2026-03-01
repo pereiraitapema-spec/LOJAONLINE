@@ -27,52 +27,35 @@ interface Category {
   id: string;
   name: string;
   icon?: string;
+  image_url?: string;
 }
 
-interface ProductTier {
-  id?: string;
-  product_id?: string;
-  quantity: number;
-  discount_percentage: number;
-}
-
-interface ProductMedia {
-  id?: string;
-  product_id?: string;
-  url: string;
-  type: 'image' | 'video';
-  position: number;
-}
+// ... existing interfaces ...
 
 interface Product {
   id: string;
   name: string;
-  description: string;
-  composition: string;
+  description?: string;
+  composition?: string;
   price: number;
-  cost_price: number | null;
-  discount_price: number | null;
-  affiliate_commission: number;
-  image_url: string;
-  category_id: string | null;
+  cost_price?: number;
+  discount_price?: number;
+  affiliate_commission?: number;
+  category_id?: string;
   stock: number;
+  image_url?: string;
   active: boolean;
-  category?: Category;
-  tiers?: ProductTier[];
-  media?: ProductMedia[];
+  category?: { name: string };
+  tiers?: { quantity: number; discount_percentage: number }[];
+  media?: { url: string; type: 'image' | 'video'; position: number }[];
 }
 
 export default function Products() {
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Modais
   const [showProductModal, setShowProductModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  
-  // Form de Produto
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState({
     name: '',
@@ -87,58 +70,52 @@ export default function Products() {
     image_url: '',
     active: true
   });
-
-  const [productTiers, setProductTiers] = useState<ProductTier[]>([]);
-  const [productMedia, setProductMedia] = useState<ProductMedia[]>([]);
-  
-  // AI Generation
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
-  
-  // Form de Categoria
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategoryIcon, setNewCategoryIcon] = useState('');
   const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [productTiers, setProductTiers] = useState<{ quantity: number; discount_percentage: number }[]>([]);
+  const [productMedia, setProductMedia] = useState<{ url: string; type: 'image' | 'video'; position: number }[]>([]);
+  const [errors, setErrors] = useState<{ [key: string]: boolean }>({});
   const [showAPIModal, setShowAPIModal] = useState(false);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [apiKeyForm, setApiKeyForm] = useState({ id: '', name: '', service: 'gemini', key_value: '', active: true });
   const [isEditingKey, setIsEditingKey] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
-  const navigate = useNavigate();
+  // Form de Categoria
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState('');
+  const [newCategoryImage, setNewCategoryImage] = useState('');
 
   useEffect(() => {
     fetchData();
     fetchAPIKeys();
   }, []);
 
-  const fetchAPIKeys = async () => {
-    try {
-      const { data, error } = await supabase.from('api_keys').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      setApiKeys(data || []);
-    } catch (err) {
-      console.error('Erro ao carregar chaves:', err);
-    }
-  };
-
   const fetchData = async () => {
-    setLoading(true);
     try {
-      const [prodRes, catRes] = await Promise.all([
-        supabase.from('products')
-          .select('*, category:categories(*), tiers:product_tiers(*), media:product_media(*)')
-          .order('created_at', { ascending: false })
-          .order('position', { foreignTable: 'product_media', ascending: true }),
-        supabase.from('categories').select('*').order('name')
-      ]);
+      setLoading(true);
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select(`
+          *,
+          category:categories(name)
+        `)
+        .order('created_at', { ascending: false });
 
-      if (prodRes.error) throw prodRes.error;
-      if (catRes.error) throw catRes.error;
+      if (productsError) throw productsError;
 
-      setProducts(prodRes.data || []);
-      setCategories(catRes.data || []);
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name');
+
+      if (categoriesError) throw categoriesError;
+
+      setProducts(productsData || []);
+      setCategories(categoriesData || []);
     } catch (error: any) {
       toast.error('Erro ao carregar dados: ' + error.message);
     } finally {
@@ -146,83 +123,93 @@ export default function Products() {
     }
   };
 
+  const fetchAPIKeys = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('api_keys')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setApiKeys(data || []);
+    } catch (error: any) {
+      console.error('Erro ao buscar chaves:', error);
+    }
+  };
+
+  const generateAIDescription = async () => {
+    if (!productForm.name) {
+      toast.error('Digite o nome do produto primeiro');
+      return;
+    }
+    
+    const geminiKey = apiKeys.find(k => k.service === 'gemini' && k.active)?.key_value;
+    if (!geminiKey) {
+      toast.error('Configure uma chave API do Gemini ativa');
+      setShowAPIModal(true);
+      return;
+    }
+
+    setIsGeneratingAI(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: geminiKey });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: `Crie uma descrição comercial atraente e persuasiva para um produto chamado "${productForm.name}". 
+      Inclua benefícios, possíveis usos e diferenciais. 
+      Use formatação HTML simples (p, strong, ul, li). 
+      Mantenha o tom profissional mas convidativo.`,
+      });
+      const text = response.text || '';
+      
+      setProductForm(prev => ({ ...prev, description: text }));
+      toast.success('Descrição gerada com sucesso!');
+    } catch (error: any) {
+      toast.error('Erro ao gerar descrição: ' + error.message);
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
   const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validação
-    const newErrors: Record<string, boolean> = {};
-    if (!productForm.name.trim()) newErrors.name = true;
-    if (!productForm.price || isNaN(parseFloat(productForm.price))) newErrors.price = true;
-    if (!productForm.image_url.trim()) newErrors.image_url = true;
-    
+    const newErrors: { [key: string]: boolean } = {};
+    if (!productForm.name) newErrors.name = true;
+    if (!productForm.price) newErrors.price = true;
+    if (!productForm.image_url) newErrors.image_url = true;
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      toast.error('Por favor, preencha os campos obrigatórios destacados em vermelho.');
+      toast.error('Preencha os campos obrigatórios');
       return;
     }
 
     setSaving(true);
-    setErrors({});
     try {
       const payload = {
-        name: productForm.name,
-        description: productForm.description,
-        composition: productForm.composition,
+        ...productForm,
         price: parseFloat(productForm.price),
         cost_price: productForm.cost_price ? parseFloat(productForm.cost_price) : null,
         discount_price: productForm.discount_price ? parseFloat(productForm.discount_price) : null,
         affiliate_commission: parseFloat(productForm.affiliate_commission),
-        category_id: productForm.category_id || null,
         stock: parseInt(productForm.stock),
-        image_url: productForm.image_url,
-        active: productForm.active
+        tiers: productTiers,
+        media: productMedia
       };
 
-      let productId = editingProduct?.id;
-
       if (editingProduct) {
-        const { error } = await supabase.from('products').update(payload).eq('id', editingProduct.id);
+        const { error } = await supabase
+          .from('products')
+          .update(payload)
+          .eq('id', editingProduct.id);
         if (error) throw error;
+        toast.success('Produto atualizado!');
       } else {
-        const { data, error } = await supabase.from('products').insert([payload]).select();
+        const { error } = await supabase.from('products').insert([payload]);
         if (error) throw error;
-        if (!data || data.length === 0) throw new Error('Erro ao obter ID do produto criado.');
-        productId = data[0].id;
+        toast.success('Produto criado!');
       }
 
-      // Salvar Tiers (Venda Escalonada)
-      if (productId) {
-        // Primeiro remove os antigos
-        await Promise.all([
-          supabase.from('product_tiers').delete().eq('product_id', productId),
-          supabase.from('product_media').delete().eq('product_id', productId)
-        ]);
-        
-        // Depois insere os novos tiers
-        if (productTiers.length > 0) {
-          const tiersToInsert = productTiers.map(t => ({
-            product_id: productId,
-            quantity: t.quantity,
-            discount_percentage: t.discount_percentage
-          }));
-          const { error: tierError } = await supabase.from('product_tiers').insert(tiersToInsert);
-          if (tierError) throw tierError;
-        }
-
-        // Depois insere a mídia
-        if (productMedia.length > 0) {
-          const mediaToInsert = productMedia.map((m, idx) => ({
-            product_id: productId,
-            url: m.url,
-            type: m.type,
-            position: idx
-          }));
-          const { error: mediaError } = await supabase.from('product_media').insert(mediaToInsert);
-          if (mediaError) throw mediaError;
-        }
-      }
-
-      toast.success(editingProduct ? 'Produto atualizado!' : 'Produto criado!');
       setShowProductModal(false);
       resetProductForm();
       fetchData();
@@ -233,117 +220,34 @@ export default function Products() {
     }
   };
 
-  const generateAIDescription = async () => {
-    if (!productForm.composition && !productForm.image_url) {
-      toast.error('Adicione uma foto ou composição para a IA analisar.');
-      return;
-    }
-
-    setIsGeneratingAI(true);
-    try {
-      // Tentar buscar chave do Supabase primeiro
-      const { data: dbKeys, error: dbError } = await supabase
-        .from('api_keys')
-        .select('key_value')
-        .eq('service', 'gemini')
-        .eq('active', true)
-        .limit(1);
-
-      let apiKey = dbKeys?.[0]?.key_value || process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
-
-      if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey === '') {
-        toast.error('Chave da API Gemini não encontrada. Configure no menu de APIs ou nos Secrets.');
-        setIsGeneratingAI(false);
-        return;
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const parts: any[] = [
-        { text: `Você é um copywriter sênior especializado em e-commerce de alta conversão. 
-        Sua tarefa é criar uma descrição de produto EXTREMAMENTE DETALHADA, PERSUASIVA e com GATILHOS MENTAIS PODEROSOS para o produto "${productForm.name}".
-        
-        REGRAS ABSOLUTAS:
-        1. DESCRITIVO E ENVOLVENTE: Descreva o produto de forma que o cliente sinta um desejo incontrolável de comprar. Explore os 5 sentidos se possível.
-        2. FOCO NA DOR E NA SOLUÇÃO: Identifique a dor profunda do cliente e mostre como este produto é a única solução definitiva.
-        3. GATILHOS MENTAIS: Use escassez ("últimas unidades"), urgência ("oferta por tempo limitado"), prova social ("milhares de clientes satisfeitos"), autoridade e exclusividade.
-        4. ESTRUTURA OBRIGATÓRIA:
-           - Título forte, magnético e persuasivo que prenda a atenção imediatamente.
-           - Parágrafo introdutório tocando na dor do cliente e apresentando o produto como a grande solução.
-           - Lista detalhada de benefícios (não apenas características, mas o valor real e a transformação que o produto causa na vida do cliente). Mostre que os benefícios são MUITO BONS.
-           - Por que escolher este produto? (Diferenciais exclusivos que justificam a compra agora).
-           - Chamada para ação (Call to Action) irresistível no final, focada em conversão imediata.
-        5. TOM: Persuasivo, confiante, empático e focado em gerar vendas imediatas.
-        6. FORMATO: Use formatação markdown (negrito, itálico, listas, emojis) para facilitar a leitura e destacar pontos-chave.
-        
-        Contexto Técnico (Composição/Detalhes):
-        ${productForm.composition || 'Não informada'}
-        
-        Gere apenas o texto final da descrição, sem introduções, sem "Aqui está sua descrição" ou comentários.` }
-      ];
-
-      // Se tiver imagem principal, enviar para análise
-      if (productForm.image_url) {
-        try {
-          const response = await fetch(productForm.image_url);
-          const blob = await response.blob();
-          const reader = new FileReader();
-          const base64Promise = new Promise<string>((resolve) => {
-            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-            reader.readAsDataURL(blob);
-          });
-          const base64Data = await base64Promise;
-          
-          parts.push({
-            inlineData: {
-              data: base64Data,
-              mimeType: blob.type
-            }
-          });
-        } catch (imgErr) {
-          console.warn('Erro ao processar imagem para IA:', imgErr);
-        }
-      }
-
-      const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: { parts }
-      });
-
-      const text = result.text;
-      if (text) {
-        setProductForm(prev => ({ ...prev, description: text.trim() }));
-        toast.success('Descrição gerada com sucesso!');
-      }
-    } catch (error: any) {
-      console.error('Erro IA:', error);
-      toast.error('Erro ao gerar descrição: ' + error.message);
-    } finally {
-      setIsGeneratingAI(false);
-    }
-  };
-
   const handleCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
     
     setSaving(true);
     try {
+      const payload = {
+        name: newCategoryName,
+        icon: newCategoryIcon,
+        image_url: newCategoryImage
+      };
+
       if (editingCategory) {
         const { error } = await supabase
           .from('categories')
-          .update({ name: newCategoryName, icon: newCategoryIcon })
+          .update(payload)
           .eq('id', editingCategory.id);
         if (error) throw error;
         toast.success('Categoria atualizada!');
       } else {
-        const { error } = await supabase.from('categories').insert([{ name: newCategoryName, icon: newCategoryIcon }]);
+        const { error } = await supabase.from('categories').insert([payload]);
         if (error) throw error;
         toast.success('Categoria criada!');
       }
       
       setNewCategoryName('');
       setNewCategoryIcon('');
+      setNewCategoryImage('');
       setEditingCategory(null);
       fetchData();
     } catch (error: any) {
@@ -352,6 +256,37 @@ export default function Products() {
       setSaving(false);
     }
   };
+
+  const handleCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSaving(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `categories/${Math.random()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('banners')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('banners')
+        .getPublicUrl(fileName);
+
+      setNewCategoryImage(publicUrl);
+      toast.success('Imagem da categoria carregada!');
+    } catch (error: any) {
+      toast.error('Erro no upload: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ... existing functions ...
+
 
   const deleteCategory = async (id: string) => {
     if (!confirm('Excluir categoria? Produtos vinculados serão movidos para "Geral".')) return;
@@ -1352,6 +1287,7 @@ export default function Products() {
                           setEditingCategory(null);
                           setNewCategoryName('');
                           setNewCategoryIcon('');
+                          setNewCategoryImage('');
                         }}
                         className="bg-slate-200 text-slate-600 p-3 rounded-xl hover:bg-slate-300"
                       >
@@ -1359,21 +1295,48 @@ export default function Products() {
                       </button>
                     )}
                   </div>
-                  <input 
-                    type="text" 
-                    value={newCategoryIcon}
-                    onChange={e => setNewCategoryIcon(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                    placeholder="Nome do ícone Lucide (ex: Heart, Star, Zap)..."
-                  />
-                  <p className="text-xs text-slate-500">Use nomes de ícones da biblioteca Lucide React.</p>
+                  
+                  {/* Upload de Imagem da Categoria */}
+                  <div className="flex items-center gap-4">
+                    <div className="relative w-16 h-16 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden flex items-center justify-center group">
+                      {newCategoryImage ? (
+                        <img src={newCategoryImage} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon size={24} className="text-slate-300" />
+                      )}
+                      <label className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                        <Upload size={16} className="text-white" />
+                        <input type="file" accept="image/*" className="hidden" onChange={handleCategoryImageUpload} />
+                      </label>
+                    </div>
+                    <div className="flex-1">
+                      <input 
+                        type="text" 
+                        value={newCategoryIcon}
+                        onChange={e => setNewCategoryIcon(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                        placeholder="Nome do ícone Lucide (Opcional)..."
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">Use foto OU ícone da biblioteca Lucide React.</p>
+                    </div>
+                  </div>
                 </form>
 
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                   {categories.map(cat => (
                     <div key={cat.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 group">
                       <div className="flex items-center gap-3">
-                        {cat.icon && <span className="text-indigo-500 text-sm bg-indigo-50 p-1.5 rounded-lg border border-indigo-100">{cat.icon}</span>}
+                        {cat.image_url ? (
+                          <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200">
+                            <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover" />
+                          </div>
+                        ) : cat.icon ? (
+                          <span className="text-indigo-500 text-sm bg-indigo-50 p-1.5 rounded-lg border border-indigo-100">{cat.icon}</span>
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center">
+                            <Tag size={14} className="text-slate-400" />
+                          </div>
+                        )}
                         <span className="font-medium text-slate-700">{cat.name}</span>
                       </div>
                       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1382,6 +1345,7 @@ export default function Products() {
                             setEditingCategory(cat);
                             setNewCategoryName(cat.name);
                             setNewCategoryIcon(cat.icon || '');
+                            setNewCategoryImage(cat.image_url || '');
                           }}
                           className="text-indigo-400 hover:text-indigo-600"
                         >
