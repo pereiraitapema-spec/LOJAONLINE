@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -148,6 +149,31 @@ export default function Store() {
 
   const nextBanner = () => setCurrentBannerIndex((prev) => (prev + 1) % banners.length);
   const prevBanner = () => setCurrentBannerIndex((prev) => (prev - 1 + banners.length) % banners.length);
+
+  // Lógica do Carrossel de Mídia do Produto
+  useEffect(() => {
+    if (!selectedProduct) return;
+    
+    const allMedia = [
+      ...(selectedProduct.image_url ? [{ url: selectedProduct.image_url, type: 'image' }] : []),
+      ...(selectedProduct.media || [])
+    ];
+
+    if (allMedia.length <= 1) return;
+
+    const currentMedia = allMedia[activeMediaIndex];
+    let timeoutId: NodeJS.Timeout;
+
+    if (currentMedia.type === 'image') {
+      timeoutId = setTimeout(() => {
+        setActiveMediaIndex((prev) => (prev + 1) % allMedia.length);
+      }, 5000);
+    }
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [selectedProduct, activeMediaIndex]);
 
   // Cálculos de Preço
   const calculatePrice = (product: Product, qty: number) => {
@@ -654,16 +680,16 @@ export default function Store() {
       {/* Modal de Detalhes do Produto */}
       <AnimatePresence>
         {selectedProduct && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[40px] shadow-2xl overflow-hidden relative flex flex-col md:flex-row"
+              className="bg-white w-full max-w-6xl h-[90vh] rounded-[40px] shadow-2xl overflow-hidden relative flex flex-col md:flex-row"
             >
               <button 
                 onClick={() => { setSelectedProduct(null); setActiveMediaIndex(0); }}
-                className="absolute top-6 left-6 z-10 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-md text-slate-900 rounded-full hover:bg-white transition-colors shadow-lg font-bold text-sm"
+                className="absolute top-6 left-6 z-20 flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-md text-slate-900 rounded-full hover:bg-white transition-colors shadow-lg font-bold text-sm border border-slate-200"
               >
                 <ChevronLeft size={20} />
                 Voltar
@@ -671,135 +697,134 @@ export default function Store() {
 
               <button 
                 onClick={() => { setSelectedProduct(null); setActiveMediaIndex(0); }}
-                className="absolute top-6 right-6 z-10 p-2 bg-white/80 backdrop-blur-md text-slate-900 rounded-full hover:bg-white transition-colors shadow-lg"
+                className="absolute top-6 right-6 z-20 p-2 bg-white/90 backdrop-blur-md text-slate-900 rounded-full hover:bg-white transition-colors shadow-lg border border-slate-200"
               >
                 <X size={24} />
               </button>
 
-              <div className="flex flex-col w-full h-full overflow-y-auto">
-                <div className="flex flex-col md:flex-row w-full">
-                  {/* Lado Esquerdo: Galeria de Mídia */}
-                  <div className="md:w-1/2 bg-slate-50 flex flex-col border-r border-slate-100">
-                    <div className="relative flex items-center justify-center min-h-[400px] md:min-h-[500px] group/gallery overflow-hidden p-8">
-                      <AnimatePresence mode="wait">
-                        {(() => {
-                          const allMedia = [
-                            ...(selectedProduct.image_url ? [{ url: selectedProduct.image_url, type: 'image' }] : []),
-                            ...(selectedProduct.media || [])
-                          ];
-                          
-                          if (allMedia.length > 0) {
-                            const currentMedia = allMedia[activeMediaIndex] || allMedia[0];
-                            return (
-                              <motion.div
-                                key={activeMediaIndex}
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                className="w-full h-full flex items-center justify-center"
-                              >
-                                {currentMedia.type === 'video' ? (
-                                  <div className="relative w-full h-full flex items-center justify-center bg-black rounded-[32px] overflow-hidden shadow-2xl">
-                                    <video 
-                                      src={currentMedia.url} 
-                                      className="max-w-full max-h-full w-auto h-auto object-contain"
-                                      autoPlay
-                                      muted={isModalMuted}
-                                      loop
-                                      playsInline
-                                      controls
-                                    />
-                                  </div>
-                                ) : (
-                                  <img 
-                                    src={currentMedia.url} 
-                                    alt={selectedProduct.name} 
-                                    className="max-w-full max-h-full object-contain rounded-[32px] shadow-2xl"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                )}
-                              </motion.div>
-                            );
-                          }
-                          
-                          return (
-                            <div className="w-full h-full flex items-center justify-center text-slate-200">
-                              <ImageIcon size={120} />
-                            </div>
-                          );
-                        })()}
-                      </AnimatePresence>
-
-                      {/* Setas de Navegação na Galeria */}
-                      {(() => {
-                        const allMedia = [
-                          ...(selectedProduct.image_url ? [{ url: selectedProduct.image_url, type: 'image' }] : []),
-                          ...(selectedProduct.media || [])
-                        ];
-                        if (allMedia.length > 1) {
-                          return (
-                            <>
-                              <button 
-                                onClick={() => setActiveMediaIndex((prev) => (prev - 1 + allMedia.length) % allMedia.length)}
-                                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 backdrop-blur-md text-white rounded-full opacity-0 group-hover/gallery:opacity-100 transition-opacity hover:bg-black/40"
-                              >
-                                <ChevronLeft size={24} />
-                              </button>
-                              <button 
-                                onClick={() => setActiveMediaIndex((prev) => (prev + 1) % allMedia.length)}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 backdrop-blur-md text-white rounded-full opacity-0 group-hover/gallery:opacity-100 transition-opacity hover:bg-black/40"
-                              >
-                                <ChevronRight size={24} />
-                              </button>
-                            </>
-                          );
-                        }
-                      })()}
-                    </div>
-
-                    {/* Miniaturas da Galeria */}
+              {/* Lado Esquerdo: Galeria de Mídia (Fixo) */}
+              <div className="w-full h-[40vh] md:w-1/2 lg:w-5/12 md:h-full bg-slate-50 flex flex-col border-r border-slate-100 relative">
+                <div className="relative flex-1 flex items-center justify-center group/gallery overflow-hidden p-4 md:p-8">
+                  <AnimatePresence mode="wait">
                     {(() => {
                       const allMedia = [
                         ...(selectedProduct.image_url ? [{ url: selectedProduct.image_url, type: 'image' }] : []),
                         ...(selectedProduct.media || [])
                       ];
-                      if (allMedia.length > 1) {
+                      
+                      if (allMedia.length > 0) {
+                        const currentMedia = allMedia[activeMediaIndex] || allMedia[0];
                         return (
-                          <div className="p-4 bg-slate-800 border-t border-slate-700">
-                            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide justify-center">
-                              {allMedia.map((m, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={() => setActiveMediaIndex(idx)}
-                                  className={`flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${idx === activeMediaIndex ? 'border-indigo-500 scale-105 shadow-lg shadow-indigo-500/20' : 'border-transparent opacity-50 hover:opacity-100'}`}
-                                >
-                                  {m.type === 'video' ? (
-                                    <div className="w-full h-full relative bg-black">
-                                      <video 
-                                        src={m.url + "#t=0.1"} 
-                                        className="w-full h-full object-contain"
-                                        muted
-                                        playsInline
-                                      />
-                                      <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                                        <Volume2 size={12} className="text-white" />
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <img src={m.url} className="w-full h-full object-contain p-1" referrerPolicy="no-referrer" />
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
+                          <motion.div
+                            key={activeMediaIndex}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="w-full h-full flex items-center justify-center"
+                          >
+                            {currentMedia.type === 'video' ? (
+                              <div className="relative w-full h-full flex items-center justify-center bg-black rounded-[32px] overflow-hidden shadow-2xl">
+                                <video 
+                                  src={currentMedia.url} 
+                                  className="w-[90%] h-[90%] object-contain"
+                                  autoPlay
+                                  muted={isModalMuted}
+                                  playsInline
+                                  controls
+                                  onEnded={() => setActiveMediaIndex((prev) => (prev + 1) % allMedia.length)}
+                                />
+                              </div>
+                            ) : (
+                              <img 
+                                src={currentMedia.url} 
+                                alt={selectedProduct.name} 
+                                className="w-[90%] h-[90%] object-contain rounded-[32px] shadow-2xl bg-white"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                          </motion.div>
                         );
                       }
+                      
+                      return (
+                        <div className="w-full h-full flex items-center justify-center text-slate-200">
+                          <ImageIcon size={120} />
+                        </div>
+                      );
                     })()}
-                  </div>
+                  </AnimatePresence>
 
-                  {/* Lado Direito: Info e Compra */}
-                  <div className="md:w-1/2 p-8 md:p-12 flex flex-col bg-white">
-                    <div className="pt-12 md:pt-0">
+                  {/* Setas de Navegação na Galeria */}
+                  {(() => {
+                    const allMedia = [
+                      ...(selectedProduct.image_url ? [{ url: selectedProduct.image_url, type: 'image' }] : []),
+                      ...(selectedProduct.media || [])
+                    ];
+                    if (allMedia.length > 1) {
+                      return (
+                        <>
+                          <button 
+                            onClick={() => setActiveMediaIndex((prev) => (prev - 1 + allMedia.length) % allMedia.length)}
+                            className="absolute left-6 top-1/2 -translate-y-1/2 p-3 bg-black/40 backdrop-blur-md text-white rounded-full opacity-0 group-hover/gallery:opacity-100 transition-opacity hover:bg-black/60 z-10"
+                          >
+                            <ChevronLeft size={24} />
+                          </button>
+                          <button 
+                            onClick={() => setActiveMediaIndex((prev) => (prev + 1) % allMedia.length)}
+                            className="absolute right-6 top-1/2 -translate-y-1/2 p-3 bg-black/40 backdrop-blur-md text-white rounded-full opacity-0 group-hover/gallery:opacity-100 transition-opacity hover:bg-black/60 z-10"
+                          >
+                            <ChevronRight size={24} />
+                          </button>
+                        </>
+                      );
+                    }
+                  })()}
+                </div>
+
+                {/* Miniaturas da Galeria */}
+                {(() => {
+                  const allMedia = [
+                    ...(selectedProduct.image_url ? [{ url: selectedProduct.image_url, type: 'image' }] : []),
+                    ...(selectedProduct.media || [])
+                  ];
+                  if (allMedia.length > 1) {
+                    return (
+                      <div className="p-4 bg-slate-800 border-t border-slate-700 shrink-0">
+                        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide justify-center">
+                          {allMedia.map((m, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setActiveMediaIndex(idx)}
+                              className={`flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${idx === activeMediaIndex ? 'border-indigo-500 scale-105 shadow-lg shadow-indigo-500/20' : 'border-transparent opacity-50 hover:opacity-100'}`}
+                            >
+                              {m.type === 'video' ? (
+                                <div className="w-full h-full relative bg-black">
+                                  <video 
+                                    src={m.url + "#t=0.1"} 
+                                    className="w-full h-full object-contain"
+                                    muted
+                                    playsInline
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                    <Volume2 size={12} className="text-white" />
+                                  </div>
+                                </div>
+                              ) : (
+                                <img src={m.url} className="w-full h-full object-contain p-1 bg-white" referrerPolicy="no-referrer" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                })()}
+              </div>
+
+              {/* Lado Direito: Info e Compra (Scroll) */}
+              <div className="w-full h-[50vh] md:w-1/2 lg:w-7/12 md:h-full flex flex-col bg-white overflow-y-auto scrollbar-hide">
+                <div className="p-8 md:p-12 flex flex-col shrink-0">
+                  <div className="pt-8 md:pt-0">
                       <h2 className="text-3xl md:text-5xl font-black text-slate-900 italic uppercase tracking-tighter mb-4 leading-tight">
                         {selectedProduct.name}
                       </h2>
@@ -916,64 +941,81 @@ export default function Store() {
                           <Star size={18} className="text-amber-400" />
                           Por que escolher?
                         </h3>
-                        <ul className="space-y-3 mb-6">
-                          <li className="flex items-start gap-3 text-slate-600 text-sm">
-                            <div className="mt-1 bg-emerald-100 p-1 rounded-full text-emerald-600"><ShieldCheck size={12} /></div>
-                            Fórmula exclusiva e testada
-                          </li>
-                          <li className="flex items-start gap-3 text-slate-600 text-sm">
-                            <div className="mt-1 bg-emerald-100 p-1 rounded-full text-emerald-600"><ShieldCheck size={12} /></div>
-                            Resultados visíveis em poucas semanas
-                          </li>
-                          <li className="flex items-start gap-3 text-slate-600 text-sm">
-                            <div className="mt-1 bg-emerald-100 p-1 rounded-full text-emerald-600"><ShieldCheck size={12} /></div>
-                            Ingredientes 100% naturais
-                          </li>
-                        </ul>
+                        <div className="bg-emerald-50 rounded-2xl p-6 mb-6 border border-emerald-100">
+                          <ul className="space-y-4">
+                            <li className="flex items-start gap-3 text-slate-700 text-sm font-medium">
+                              <div className="mt-0.5 bg-emerald-200 p-1.5 rounded-full text-emerald-700 shadow-sm"><ShieldCheck size={14} /></div>
+                              <span><strong>Fórmula Exclusiva:</strong> Desenvolvido com tecnologia de ponta para garantir a máxima absorção e eficácia.</span>
+                            </li>
+                            <li className="flex items-start gap-3 text-slate-700 text-sm font-medium">
+                              <div className="mt-0.5 bg-emerald-200 p-1.5 rounded-full text-emerald-700 shadow-sm"><Zap size={14} /></div>
+                              <span><strong>Resultados Rápidos:</strong> Sinta a diferença em poucas semanas de uso contínuo e adequado.</span>
+                            </li>
+                            <li className="flex items-start gap-3 text-slate-700 text-sm font-medium">
+                              <div className="mt-0.5 bg-emerald-200 p-1.5 rounded-full text-emerald-700 shadow-sm"><Leaf size={14} /></div>
+                              <span><strong>100% Natural:</strong> Ingredientes selecionados rigorosamente, sem aditivos químicos prejudiciais.</span>
+                            </li>
+                          </ul>
+                        </div>
 
-                        <details className="group cursor-pointer">
+                        <details className="group cursor-pointer bg-slate-50 p-6 rounded-2xl border border-slate-100">
                           <summary className="font-black text-slate-900 uppercase tracking-widest flex items-center justify-between outline-none">
                             Descrição Completa
-                            <ChevronRight size={20} className="group-open:rotate-90 transition-transform" />
+                            <ChevronRight size={20} className="group-open:rotate-90 transition-transform text-pink-600" />
                           </summary>
-                          <div className="pt-4 text-slate-600 leading-relaxed text-sm whitespace-pre-wrap">
+                          <div className="pt-6 text-slate-700 leading-relaxed text-sm whitespace-pre-wrap font-medium">
                             {selectedProduct.description || "Descrição detalhada do produto não disponível no momento."}
                           </div>
                         </details>
+
+                        <div className="mt-6">
+                          <button 
+                            onClick={() => {
+                              addToCart(selectedProduct, quantity);
+                              toast.success('Produto adicionado ao carrinho!');
+                            }}
+                            className="w-full bg-gradient-to-r from-pink-600 to-purple-600 text-white py-4 rounded-2xl font-black text-lg hover:from-pink-700 hover:to-purple-700 transition-all shadow-xl shadow-pink-600/30 flex items-center justify-center gap-2 uppercase tracking-wider transform hover:scale-[1.02] animate-pulse"
+                          >
+                            <ShoppingBag size={24} />
+                            Quero Garantir o Meu Agora!
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
                 {/* Produtos Relacionados */}
-                <div className="bg-slate-50 p-8 md:p-12 border-t border-slate-100">
-                  <h3 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter mb-8">
-                    Quem comprou, levou também
+                <div className="bg-slate-50 p-8 md:p-12 border-t border-slate-100 shrink-0 mt-auto">
+                  <h3 className="text-xl font-black text-slate-900 italic uppercase tracking-tighter mb-6 flex items-center gap-2">
+                    <ShoppingBag size={20} className="text-pink-600" />
+                    Aproveite e leve também
                   </h3>
-                  <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide">
+                  <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
                     {products.filter(p => p.id !== selectedProduct.id).slice(0, 4).map(related => (
-                      <div key={related.id} className="min-w-[200px] md:min-w-[250px] bg-white p-4 rounded-3xl shadow-sm border border-slate-100 group cursor-pointer" onClick={() => { setSelectedProduct(related); setQuantity(1); }}>
-                        <div className="aspect-square bg-slate-50 rounded-2xl mb-4 overflow-hidden relative">
+                      <div key={related.id} className="min-w-[180px] w-[180px] bg-white p-3 rounded-2xl shadow-sm border border-slate-200 group cursor-pointer hover:border-pink-300 hover:shadow-md transition-all flex flex-col" onClick={() => { setSelectedProduct(related); setQuantity(1); }}>
+                        <div className="aspect-square bg-slate-50 rounded-xl mb-3 overflow-hidden relative">
                           {related.image_url ? (
-                            <img src={related.image_url} alt={related.name} className="w-full h-full object-contain p-4 group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+                            <img src={related.image_url} alt={related.name} className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={32} /></div>
+                            <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24} /></div>
+                          )}
+                          {related.discount_price && related.discount_price > 0 && (
+                            <div className="absolute top-2 right-2 bg-pink-600 text-white text-[10px] font-black px-2 py-1 rounded-full uppercase">
+                              Oferta
+                            </div>
                           )}
                         </div>
-                        <h4 className="font-bold text-slate-900 truncate text-sm mb-2">{related.name}</h4>
-                        <div className="flex items-baseline gap-2">
-                          {related.discount_price ? (
-                            <>
-                              <span className="text-emerald-600 font-black">R$ {related.discount_price.toFixed(2)}</span>
+                        <h4 className="font-bold text-slate-900 text-xs line-clamp-2 mb-2 flex-1">{related.name}</h4>
+                        <div className="mt-auto">
+                          {related.discount_price && related.discount_price > 0 ? (
+                            <div className="flex flex-col">
                               <span className="text-[10px] text-slate-400 line-through">R$ {related.price.toFixed(2)}</span>
-                            </>
+                              <span className="text-sm font-black text-pink-600">R$ {related.discount_price.toFixed(2)}</span>
+                            </div>
                           ) : (
-                            <span className="text-slate-900 font-black">R$ {related.price.toFixed(2)}</span>
+                            <span className="text-sm font-black text-slate-900">R$ {related.price.toFixed(2)}</span>
                           )}
                         </div>
-                        <button className="w-full mt-3 bg-emerald-600 text-white font-bold py-2 rounded-xl hover:bg-emerald-700 transition-colors uppercase text-[10px] tracking-wider">
-                          Comprar
-                        </button>
                       </div>
                     ))}
                   </div>

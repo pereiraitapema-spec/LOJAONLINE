@@ -260,19 +260,21 @@ export default function Products() {
       const ai = new GoogleGenAI({ apiKey });
       
       const parts: any[] = [
-        { text: `Você é um redator publicitário sênior especializado em e-commerce de alta performance. 
-        Sua tarefa é criar uma descrição de produto PROFISSIONAL, OBJETIVA e DIRETA para o produto "${productForm.name}".
+        { text: `Você é um copywriter sênior especializado em e-commerce de alta conversão. 
+        Sua tarefa é criar uma descrição de produto EXTREMAMENTE DETALHADA, PERSUASIVA e com GATILHOS MENTAIS PODEROSOS para o produto "${productForm.name}".
         
         REGRAS ABSOLUTAS:
-        1. SEM ENROLAÇÃO: Vá direto ao ponto. O cliente já está na página do produto.
-        2. FOCO EM BENEFÍCIOS: Explique para que serve e quais as vantagens reais.
-        3. ESTRUTURA:
-           - Título curto e impactante.
-           - Parágrafo único explicando o que é o produto (máximo 2 frases).
-           - Lista de 3 a 5 benefícios principais em bullet points (curtos).
-           - Uma frase final de fechamento/chamada para ação.
-        4. TOM: Profissional, autoritário e confiável.
-        5. TAMANHO: Máximo de 150 palavras.
+        1. DESCRITIVO E ENVOLVENTE: Descreva o produto de forma que o cliente sinta um desejo incontrolável de comprar. Explore os 5 sentidos se possível.
+        2. FOCO NA DOR E NA SOLUÇÃO: Identifique a dor profunda do cliente e mostre como este produto é a única solução definitiva.
+        3. GATILHOS MENTAIS: Use escassez ("últimas unidades"), urgência ("oferta por tempo limitado"), prova social ("milhares de clientes satisfeitos"), autoridade e exclusividade.
+        4. ESTRUTURA OBRIGATÓRIA:
+           - Título forte, magnético e persuasivo que prenda a atenção imediatamente.
+           - Parágrafo introdutório tocando na dor do cliente e apresentando o produto como a grande solução.
+           - Lista detalhada de benefícios (não apenas características, mas o valor real e a transformação que o produto causa na vida do cliente). Mostre que os benefícios são MUITO BONS.
+           - Por que escolher este produto? (Diferenciais exclusivos que justificam a compra agora).
+           - Chamada para ação (Call to Action) irresistível no final, focada em conversão imediata.
+        5. TOM: Persuasivo, confiante, empático e focado em gerar vendas imediatas.
+        6. FORMATO: Use formatação markdown (negrito, itálico, listas, emojis) para facilitar a leitura e destacar pontos-chave.
         
         Contexto Técnico (Composição/Detalhes):
         ${productForm.composition || 'Não informada'}

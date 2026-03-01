@@ -28,6 +28,10 @@ export default function App() {
       console.log('🔔 Auth Event:', event);
       setSession(session);
       setLoading(false);
+      
+      if (event === 'PASSWORD_RECOVERY') {
+        window.location.href = '/reset-password';
+      }
     });
 
     return () => subscription.unsubscribe();
