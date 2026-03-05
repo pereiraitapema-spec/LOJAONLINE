@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { motion } from 'motion/react';
-import { Save, Plus, Trash2, Image as ImageIcon, Settings as SettingsIcon, Sparkles, Link as LinkIcon, CreditCard, Clock, FileText, ArrowLeft } from 'lucide-react';
+import { Save, Plus, Trash2, Image as ImageIcon, Settings as SettingsIcon, Sparkles, Link as LinkIcon, CreditCard, Clock, FileText, ArrowLeft, Truck } from 'lucide-react';
 import { Loading } from '../components/Loading';
 import { GoogleGenAI } from "@google/genai";
 
@@ -21,6 +21,8 @@ interface StoreSettings {
   business_hours: string;
   business_hours_details: string;
   payment_methods: { name: string; type: string; active: boolean }[];
+  shipping_methods: { name: string; price: number; deadline: string; active: boolean }[];
+  free_shipping_threshold?: number;
   institutional_links: { label: string; url: string; content: string }[];
   affiliate_terms: string;
   top_bar_text: string;
@@ -36,19 +38,20 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [generatingAi, setGeneratingAi] = useState(false);
-  const [activeTab, setActiveTab] = useState('general'); // general, institutional, payments, hours, footer
+  const [activeTab, setActiveTab] = useState('general'); // general, institutional, payments, shipping, hours, footer
   const [showSql, setShowSql] = useState(false);
 
   useEffect(() => {
-    const checkUser = async () => {
+    const checkAdmin = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        // Redirect handled by App.tsx but double check
+      if (!session || session.user.email !== 'pereira.itapema@gmail.com') {
+        toast.error('Acesso negado.');
+        window.location.href = '/';
         return;
       }
       fetchSettings();
     };
-    checkUser();
+    checkAdmin();
   }, []);
 
   const fetchSettings = async () => {
@@ -98,6 +101,11 @@ export default function Settings() {
         setSettings({
           ...data,
           payment_methods: data.payment_methods || [],
+          shipping_methods: data.shipping_methods || [
+            { name: 'Correios (PAC)', price: 25.90, deadline: '7 a 10 dias úteis', active: true },
+            { name: 'Correios (SEDEX)', price: 45.90, deadline: '2 a 4 dias úteis', active: true }
+          ],
+          free_shipping_threshold: data.free_shipping_threshold !== undefined ? data.free_shipping_threshold : 299.00,
           institutional_links: data.institutional_links || [],
           social_links: socialLinks,
           promotions_section_title: data.promotions_section_title || 'CAMPANHAS E PROMOÇÕES',
@@ -138,6 +146,8 @@ export default function Settings() {
         business_hours: settings.business_hours,
         business_hours_details: settings.business_hours_details,
         payment_methods: settings.payment_methods,
+        shipping_methods: settings.shipping_methods,
+        free_shipping_threshold: settings.free_shipping_threshold,
         institutional_links: settings.institutional_links,
         affiliate_terms: settings.affiliate_terms,
         top_bar_text: settings.top_bar_text,
@@ -241,7 +251,12 @@ export default function Settings() {
     }
     setGeneratingAi(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const { data: keys } = await supabase.from('api_keys').select('key_value').eq('service', 'gemini').eq('active', true).maybeSingle();
+      if (!keys || !keys.key_value) {
+        toast.error('Configure uma chave API do Gemini ativa em Produtos > Configurar APIs');
+        return;
+      }
+      const ai = new GoogleGenAI({ apiKey: keys.key_value });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: `Escreva um texto profissional para a seção "${field}" de uma loja virtual, sobre: ${aiPrompt}. O texto deve ser formatado em HTML simples se necessário.`,
@@ -299,7 +314,12 @@ export default function Settings() {
     }
     setGeneratingAi(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const { data: keys } = await supabase.from('api_keys').select('key_value').eq('service', 'gemini').eq('active', true).maybeSingle();
+      if (!keys || !keys.key_value) {
+        toast.error('Configure uma chave API do Gemini ativa em Produtos > Configurar APIs');
+        return;
+      }
+      const ai = new GoogleGenAI({ apiKey: keys.key_value });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: `Escreva um texto curto e profissional para uma seção institucional de site sobre: ${aiPrompt}. O texto deve ser em HTML simples (pode usar <p>, <strong>, <br>).`,
@@ -331,13 +351,48 @@ export default function Settings() {
             <pre className="text-emerald-400 text-xs font-mono">
 {`-- Execute este SQL no Editor SQL do Supabase para corrigir os erros
 
--- 0. Adicionar coluna social_links (Novo)
+-- 0. Adicionar colunas de Frete e Social (Novo)
 do $$
 begin
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'social_links') then
         alter table public.store_settings add column social_links jsonb default '[]'::jsonb;
     end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'shipping_methods') then
+        alter table public.store_settings add column shipping_methods jsonb default '[]'::jsonb;
+    end if;
 end $$;
+
+-- 0.1 Adicionar colunas na tabela orders (Novo)
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'tracking_code') then
+        alter table public.orders add column tracking_code text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'shipping_method') then
+        alter table public.orders add column shipping_method text;
+    end if;
+end $$;
+
+-- 0.2 Criar tabela de carrinhos abandonados (Novo)
+create table if not exists public.abandoned_carts (
+  id uuid default gen_random_uuid() primary key,
+  customer_email text,
+  customer_name text,
+  customer_phone text,
+  cart_items jsonb default '[]'::jsonb,
+  total numeric(10,2),
+  status text default 'abandoned',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Habilitar RLS para abandoned_carts
+alter table public.abandoned_carts enable row level security;
+drop policy if exists "Enable read for authenticated users" on public.abandoned_carts;
+create policy "Enable read for authenticated users" on public.abandoned_carts for select using (auth.role() = 'authenticated');
+drop policy if exists "Enable insert/update for all" on public.abandoned_carts;
+create policy "Enable insert/update for all" on public.abandoned_carts for insert with check (true);
+create policy "Enable update for all" on public.abandoned_carts for update using (true);
 
 -- 1. Atualizar tabela de categorias (Novo)
 do $$
@@ -365,6 +420,7 @@ create table if not exists public.store_settings (
   business_hours text,
   business_hours_details text,
   payment_methods jsonb default '[]'::jsonb,
+  shipping_methods jsonb default '[]'::jsonb,
   institutional_links jsonb default '[]'::jsonb,
   affiliate_terms text,
   top_bar_text text,
@@ -448,6 +504,7 @@ insert into public.store_settings (
     products_section_title,
     products_section_subtitle,
     payment_methods, 
+    shipping_methods,
     institutional_links
 )
 select 
@@ -457,6 +514,7 @@ select
     'Novidades da Estação',
     'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
     '[]'::jsonb, 
+    '[]'::jsonb,
     '[]'::jsonb
 where not exists (select 1 from public.store_settings);`}
             </pre>
@@ -534,13 +592,48 @@ where not exists (select 1 from public.store_settings);`}
           <pre id="sql-code" className="text-emerald-400 text-xs font-mono overflow-x-auto max-h-60">
 {`-- Execute este SQL no Editor SQL do Supabase para corrigir os erros
 
--- 0. Adicionar coluna social_links (Novo)
+-- 0. Adicionar colunas de Frete e Social (Novo)
 do $$
 begin
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'social_links') then
         alter table public.store_settings add column social_links jsonb default '[]'::jsonb;
     end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'shipping_methods') then
+        alter table public.store_settings add column shipping_methods jsonb default '[]'::jsonb;
+    end if;
 end $$;
+
+-- 0.1 Adicionar colunas na tabela orders (Novo)
+do $$
+begin
+    if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'tracking_code') then
+        alter table public.orders add column tracking_code text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'shipping_method') then
+        alter table public.orders add column shipping_method text;
+    end if;
+end $$;
+
+-- 0.2 Criar tabela de carrinhos abandonados (Novo)
+create table if not exists public.abandoned_carts (
+  id uuid default gen_random_uuid() primary key,
+  customer_email text,
+  customer_name text,
+  customer_phone text,
+  cart_items jsonb default '[]'::jsonb,
+  total numeric(10,2),
+  status text default 'abandoned',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Habilitar RLS para abandoned_carts
+alter table public.abandoned_carts enable row level security;
+drop policy if exists "Enable read for authenticated users" on public.abandoned_carts;
+create policy "Enable read for authenticated users" on public.abandoned_carts for select using (auth.role() = 'authenticated');
+drop policy if exists "Enable insert/update for all" on public.abandoned_carts;
+create policy "Enable insert/update for all" on public.abandoned_carts for insert with check (true);
+create policy "Enable update for all" on public.abandoned_carts for update using (true);
 
 -- 1. Atualizar tabela de categorias (Novo)
 do $$
@@ -568,6 +661,7 @@ create table if not exists public.store_settings (
   business_hours text,
   business_hours_details text,
   payment_methods jsonb default '[]'::jsonb,
+  shipping_methods jsonb default '[]'::jsonb,
   institutional_links jsonb default '[]'::jsonb,
   affiliate_terms text,
   top_bar_text text,
@@ -651,6 +745,7 @@ insert into public.store_settings (
     products_section_title,
     products_section_subtitle,
     payment_methods, 
+    shipping_methods,
     institutional_links
 )
 select 
@@ -660,6 +755,7 @@ select
     'Novidades da Estação',
     'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
     '[]'::jsonb, 
+    '[]'::jsonb,
     '[]'::jsonb
 where not exists (select 1 from public.store_settings);`}
           </pre>
@@ -672,6 +768,7 @@ where not exists (select 1 from public.store_settings);`}
           { id: 'footer', label: 'Rodapé & Links', icon: LinkIcon },
           { id: 'institutional', label: 'Termos & Conteúdo', icon: FileText },
           { id: 'payments', label: 'Pagamentos', icon: CreditCard },
+          { id: 'shipping', label: 'Frete', icon: Truck },
           { id: 'hours', label: 'Horários', icon: Clock },
         ].map(tab => (
           <button
@@ -1116,6 +1213,114 @@ where not exists (select 1 from public.store_settings);`}
                 className="flex items-center gap-2 text-indigo-600 font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors"
               >
                 <Plus size={20} /> Adicionar Forma de Pagamento
+              </button>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'shipping' && (
+          <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-slate-900">Métodos de Entrega</h2>
+              <p className="text-xs text-slate-500">Configure as opções de frete disponíveis na loja.</p>
+            </div>
+
+            <div className="mb-8 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+              <label className="block text-sm font-bold text-emerald-800 mb-2 flex items-center gap-2">
+                <Truck size={18} />
+                Valor Mínimo para Frete Grátis (R$)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={settings.free_shipping_threshold || ''}
+                onChange={(e) => handleChange('free_shipping_threshold', parseFloat(e.target.value))}
+                className="w-full p-3 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white text-emerald-900 font-bold"
+                placeholder="Ex: 299.00"
+              />
+              <p className="text-xs text-emerald-600 mt-2">
+                Pedidos acima deste valor terão frete grátis automaticamente. Deixe em branco ou 0 para desativar.
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              {settings.shipping_methods.map((method, index) => (
+                <div key={index} className="flex gap-4 items-center bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nome do Método</label>
+                      <input
+                        type="text"
+                        value={method.name}
+                        onChange={(e) => {
+                          const newMethods = [...settings.shipping_methods];
+                          newMethods[index].name = e.target.value;
+                          handleChange('shipping_methods', newMethods);
+                        }}
+                        placeholder="Ex: Correios (PAC)"
+                        className="w-full p-2 border border-slate-300 rounded-lg bg-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Preço (R$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={method.price}
+                        onChange={(e) => {
+                          const newMethods = [...settings.shipping_methods];
+                          newMethods[index].price = parseFloat(e.target.value);
+                          handleChange('shipping_methods', newMethods);
+                        }}
+                        className="w-full p-2 border border-slate-300 rounded-lg bg-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Prazo Estimado</label>
+                      <input
+                        type="text"
+                        value={method.deadline}
+                        onChange={(e) => {
+                          const newMethods = [...settings.shipping_methods];
+                          newMethods[index].deadline = e.target.value;
+                          handleChange('shipping_methods', newMethods);
+                        }}
+                        placeholder="Ex: 7 a 10 dias úteis"
+                        className="w-full p-2 border border-slate-300 rounded-lg bg-white text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={method.active}
+                        onChange={(e) => {
+                          const newMethods = [...settings.shipping_methods];
+                          newMethods[index].active = e.target.checked;
+                          handleChange('shipping_methods', newMethods);
+                        }}
+                        className="w-5 h-5 text-indigo-600 rounded"
+                      />
+                      <span className="text-sm font-medium">Ativo</span>
+                    </label>
+                    <button
+                      onClick={() => {
+                        const newMethods = settings.shipping_methods.filter((_, i) => i !== index);
+                        handleChange('shipping_methods', newMethods);
+                      }}
+                      className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={() => handleChange('shipping_methods', [...settings.shipping_methods, { name: '', price: 0, deadline: '', active: true }])}
+                className="flex items-center gap-2 text-indigo-600 font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors"
+              >
+                <Plus size={20} /> Adicionar Opção de Frete
               </button>
             </div>
           </section>

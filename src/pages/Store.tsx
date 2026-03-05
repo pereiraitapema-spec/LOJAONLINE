@@ -7,7 +7,8 @@ import {
   ShoppingBag, ShieldCheck, User, ChevronLeft, ChevronRight, 
   Volume2, VolumeX, Image as ImageIcon, X, Search, Menu, 
   Heart, Truck, CreditCard, Phone, Instagram, Facebook, Twitter, Youtube, Linkedin,
-  Star, Zap, Leaf, Droplets, Activity, Flame, Megaphone
+  Star, Zap, Leaf, Droplets, Activity, Flame, Megaphone,
+  QrCode, Barcode, Landmark, Package, DollarSign, Tag, BarChart, Users
 } from 'lucide-react';
 
 interface Banner {
@@ -62,6 +63,7 @@ interface Product {
   discount_price: number | null;
   image_url: string;
   stock: number;
+  min_installment_value?: number;
   tiers: ProductTier[];
   media: ProductMedia[];
 }
@@ -80,6 +82,8 @@ interface StoreSettings {
   business_hours: string;
   business_hours_details: string;
   payment_methods: { name: string; type: string; active: boolean }[];
+  shipping_methods: { name: string; price: number; deadline: string; active: boolean }[];
+  free_shipping_threshold?: number;
   institutional_links: { label: string; url: string; content: string }[];
   affiliate_terms: string;
   top_bar_text: string;
@@ -97,19 +101,63 @@ export default function Store() {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current && banners[currentBannerIndex]?.type === 'video') {
+      videoRef.current.muted = isMuted;
+      videoRef.current.play().catch(err => {
+        console.warn("Autoplay with sound blocked, falling back to muted:", err);
+        if (!isMuted) {
+          videoRef.current!.muted = true;
+          videoRef.current!.play();
+        }
+      });
+    }
+  }, [currentBannerIndex, banners, isMuted]);
   const [isModalMuted, setIsModalMuted] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [selectedInstitutionalLink, setSelectedInstitutionalLink] = useState<{ label: string; content: string } | null>(null);
   
+  // Favoritos
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    const saved = localStorage.getItem('favorite_products');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   // Carrinho
-  const [cart, setCart] = useState<{ product: Product, quantity: number }[]>([]);
+  const [cart, setCart] = useState<{ product: Product, quantity: number }[]>(() => {
+    const saved = localStorage.getItem('cart_items');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [showCart, setShowCart] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
+  
+  useEffect(() => {
+    localStorage.setItem('cart_items', JSON.stringify(cart));
+  }, [cart]);
+
+  useEffect(() => {
+    localStorage.setItem('favorite_products', JSON.stringify(favorites));
+  }, [favorites]);
   
   // Detalhes do Produto
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+
+  const calculateInstallments = (price: number, minValue: number = 50) => {
+    const maxInstallments = 10;
+    let installments = Math.floor(price / minValue);
+    if (installments > maxInstallments) installments = maxInstallments;
+    if (installments < 1) installments = 1;
+    
+    return {
+      count: installments,
+      value: price / installments
+    };
+  };
 
   const navigate = useNavigate();
 
@@ -155,6 +203,13 @@ export default function Store() {
       // Check for affiliate link
       const urlParams = new URLSearchParams(window.location.search);
       const campaignId = urlParams.get('campaign');
+      const refCode = urlParams.get('ref');
+
+      if (refCode) {
+        localStorage.setItem('affiliate_code', refCode);
+        // Opcional: Validar código no backend para mostrar mensagem "Você está apoiando X"
+      }
+
       if (campaignId && campRes.data) {
         const campaign = campRes.data.find((c: Campaign) => c.id === campaignId);
         if (campaign) {
@@ -243,6 +298,17 @@ export default function Store() {
     setShowCart(true);
   };
 
+  const toggleFavorite = (productId: string) => {
+    setFavorites(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId) 
+        : [...prev, productId]
+    );
+    if (!favorites.includes(productId)) {
+      toast.success('Adicionado aos favoritos!');
+    }
+  };
+
   const removeFromCart = (productId: string) => {
     setCart(prev => prev.filter(item => item.product.id !== productId));
   };
@@ -255,9 +321,45 @@ export default function Store() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       {/* Top Bar */}
-      <div className="bg-emerald-800 text-white text-[10px] md:text-xs font-medium py-2 px-4 text-center tracking-wide">
-        {settings?.top_bar_text || "Envio Brasil | 7 dias devolução | 10x sem juros | WhatsApp (47)99660-9618"}
+      <div className="bg-emerald-800 text-white text-[10px] md:text-xs font-medium py-2 px-4 flex justify-between items-center tracking-wide">
+        <span className="hidden md:inline">{settings?.top_bar_text || "Envio Brasil | 7 dias devolução | 10x sem juros | WhatsApp (47)99660-9618"}</span>
+        <span className="md:hidden">Envio para todo Brasil</span>
+        <button 
+          onClick={() => navigate('/affiliate-register')}
+          className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center gap-1"
+        >
+          <User size={12} />
+          Seja um Afiliado
+        </button>
       </div>
+
+      {/* Barra de Frete Grátis */}
+      {cart.length > 0 && (
+        <div className="bg-white border-b border-slate-100 py-2 px-4">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] md:text-xs font-bold text-slate-600 uppercase tracking-wider">
+                {cartTotal >= (settings?.free_shipping_threshold || 0) && (settings?.free_shipping_threshold || 0) > 0
+                  ? "🎉 PARABÉNS! VOCÊ GANHOU FRETE GRÁTIS!" 
+                  : (settings?.free_shipping_threshold || 0) > 0 
+                    ? `FALTAM R$ ${((settings?.free_shipping_threshold || 0) - cartTotal).toFixed(2)} PARA FRETE GRÁTIS`
+                    : "FRETE GRÁTIS EM TODAS AS COMPRAS!"
+                }
+              </span>
+              {(settings?.free_shipping_threshold || 0) > 0 && (
+                <span className="text-[10px] font-black text-emerald-600">R$ {(settings?.free_shipping_threshold || 0).toFixed(2)}</span>
+              )}
+            </div>
+            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min((cartTotal / (settings?.free_shipping_threshold || 299)) * 100, 100)}%` }}
+                className={`h-full transition-all duration-500 ${cartTotal >= (settings?.free_shipping_threshold || 299) ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header da Loja */}
       <header className="bg-white sticky top-0 z-50 shadow-sm">
@@ -303,6 +405,34 @@ export default function Store() {
                 Admin
               </button>
             )}
+
+            {/* Botão Seja um Afiliado */}
+            <button 
+              onClick={() => navigate('/affiliate-register')}
+              className="hidden md:flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-full text-sm font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors"
+            >
+              <Users size={18} />
+              Seja um Afiliado
+            </button>
+
+            {/* Botão de Favoritos */}
+            <button 
+              onClick={() => setShowFavorites(true)}
+              className="relative flex items-center gap-2 text-slate-600 hover:text-pink-600 transition-colors"
+            >
+              <div className="relative w-10 h-10 bg-pink-50 text-pink-600 rounded-full flex items-center justify-center">
+                <Heart size={20} fill={favorites.length > 0 ? "currentColor" : "none"} />
+                {favorites.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-pink-500 text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-md">
+                    {favorites.length}
+                  </span>
+                )}
+              </div>
+              <div className="hidden lg:flex flex-col items-start">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Meus Desejos</span>
+                <span className="text-sm font-bold text-slate-800">Favoritos</span>
+              </div>
+            </button>
             
             {session ? (
               <button 
@@ -416,6 +546,7 @@ export default function Store() {
             >
               {banners[currentBannerIndex].type === 'video' ? (
                 <video
+                  ref={videoRef}
                   src={banners[currentBannerIndex].url}
                   className="w-full h-full object-cover"
                   autoPlay
@@ -652,6 +783,17 @@ export default function Store() {
                   </div>
                 )}
                 
+                {/* Botão de Favorito */}
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(product.id);
+                  }}
+                  className={`absolute top-4 right-4 p-2 rounded-full backdrop-blur-md transition-all z-10 ${favorites.includes(product.id) ? 'bg-pink-500 text-white' : 'bg-white/80 text-slate-400 hover:text-pink-500'}`}
+                >
+                  <Heart size={18} fill={favorites.includes(product.id) ? "currentColor" : "none"} />
+                </button>
+
                 {/* Badge de Desconto se houver tiers */}
                 {product.tiers && product.tiers.length > 0 && (
                   <div className="absolute top-4 left-4 bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase italic tracking-tighter shadow-lg">
@@ -669,6 +811,9 @@ export default function Store() {
                 ) : (
                   <span className="text-slate-900 font-black">R$ {product.price.toFixed(2)}</span>
                 )}
+              </div>
+              <div className="mt-0.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                ou {calculateInstallments(product.discount_price || product.price, product.min_installment_value).count}x de R$ {calculateInstallments(product.discount_price || product.price, product.min_installment_value).value.toFixed(2)}
               </div>
               <button 
                 onClick={(e) => {
@@ -704,6 +849,65 @@ export default function Store() {
         )}
       </main>
 
+      {/* Banner Seja um Afiliado */}
+      <section className="bg-slate-900 py-20 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-20 bg-[url('https://images.unsplash.com/photo-1556761175-5973dc0f32e7?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center mix-blend-overlay"></div>
+        <div className="max-w-7xl mx-auto px-4 relative z-10 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="max-w-3xl mx-auto"
+          >
+            <h2 className="text-4xl md:text-6xl font-black text-white mb-6 italic uppercase tracking-tighter">
+              Lucre com a <span className="text-emerald-400">Nossa Marca</span>
+            </h2>
+            <p className="text-slate-300 text-lg md:text-xl mb-10 leading-relaxed">
+              Torne-se um afiliado e ganhe comissões exclusivas por cada venda realizada através do seu link. 
+              Tenha sua própria loja virtual, crie cupons de desconto e acompanhe seus ganhos em tempo real.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button 
+                onClick={() => navigate('/affiliate-register')}
+                className="bg-emerald-500 text-slate-900 px-8 py-4 rounded-full font-black text-lg uppercase tracking-wider hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 hover:scale-105"
+              >
+                Quero ser Afiliado
+              </button>
+              <button 
+                onClick={() => navigate('/login')}
+                className="bg-transparent border-2 border-slate-700 text-white px-8 py-4 rounded-full font-bold text-lg uppercase tracking-wider hover:bg-slate-800 transition-all hover:border-slate-600"
+              >
+                Já sou Afiliado
+              </button>
+            </div>
+            
+            <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+              <div className="bg-slate-800/50 backdrop-blur-sm p-6 rounded-2xl border border-slate-700">
+                <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center mb-4">
+                  <DollarSign size={24} />
+                </div>
+                <h3 className="text-white font-bold text-lg mb-2">Comissões Atrativas</h3>
+                <p className="text-slate-400 text-sm">Ganhe porcentagens variadas por produto vendido através do seu link exclusivo.</p>
+              </div>
+              <div className="bg-slate-800/50 backdrop-blur-sm p-6 rounded-2xl border border-slate-700">
+                <div className="w-12 h-12 bg-purple-500/20 text-purple-400 rounded-xl flex items-center justify-center mb-4">
+                  <Tag size={24} />
+                </div>
+                <h3 className="text-white font-bold text-lg mb-2">Cupons Próprios</h3>
+                <p className="text-slate-400 text-sm">Crie seus próprios cupons de desconto para atrair mais clientes e aumentar suas vendas.</p>
+              </div>
+              <div className="bg-slate-800/50 backdrop-blur-sm p-6 rounded-2xl border border-slate-700">
+                <div className="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-xl flex items-center justify-center mb-4">
+                  <BarChart size={24} />
+                </div>
+                <h3 className="text-white font-bold text-lg mb-2">Painel Completo</h3>
+                <p className="text-slate-400 text-sm">Acompanhe cliques, vendas e comissões em tempo real através de um dashboard exclusivo.</p>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Modal de Detalhes do Produto */}
       <AnimatePresence>
         {selectedProduct && (
@@ -722,12 +926,20 @@ export default function Store() {
                 Voltar
               </button>
 
-              <button 
-                onClick={() => { setSelectedProduct(null); setActiveMediaIndex(0); }}
-                className="absolute top-6 right-6 z-20 p-2 bg-white/90 backdrop-blur-md text-slate-900 rounded-full hover:bg-white transition-colors shadow-lg border border-slate-200"
-              >
-                <X size={24} />
-              </button>
+              <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
+                <button 
+                  onClick={() => toggleFavorite(selectedProduct.id)}
+                  className={`p-2 rounded-full backdrop-blur-md transition-all shadow-lg border border-slate-200 ${favorites.includes(selectedProduct.id) ? 'bg-pink-500 text-white' : 'bg-white/90 text-slate-400 hover:text-pink-500'}`}
+                >
+                  <Heart size={24} fill={favorites.includes(selectedProduct.id) ? "currentColor" : "none"} />
+                </button>
+                <button 
+                  onClick={() => { setSelectedProduct(null); setActiveMediaIndex(0); }}
+                  className="p-2 bg-white/90 backdrop-blur-md text-slate-900 rounded-full hover:bg-white transition-colors shadow-lg border border-slate-200"
+                >
+                  <X size={24} />
+                </button>
+              </div>
 
               {/* Lado Esquerdo: Galeria de Mídia (Fixo) */}
               <div className="w-full h-[40vh] md:w-1/2 lg:w-5/12 md:h-full bg-slate-50 flex flex-col border-r border-slate-100 relative">
@@ -862,13 +1074,17 @@ export default function Store() {
                             <span className="text-xl text-slate-400 line-through tracking-tighter">de R$ {selectedProduct.price.toFixed(2)} por</span>
                             <span className="text-4xl font-black text-pink-600 tracking-tighter">R$ {selectedProduct.discount_price.toFixed(2)}</span>
                             <span className="text-sm font-bold text-emerald-600 mt-1">no PIX (5% de desconto)</span>
-                            <span className="text-sm text-slate-500 mt-1">ou em até 10x de R$ {(selectedProduct.discount_price / 10).toFixed(2)} sem juros</span>
+                            <span className="text-sm text-slate-500 mt-1">
+                              ou em até {calculateInstallments(selectedProduct.discount_price, selectedProduct.min_installment_value).count}x de R$ {calculateInstallments(selectedProduct.discount_price, selectedProduct.min_installment_value).value.toFixed(2)} sem juros
+                            </span>
                           </>
                         ) : (
                           <>
                             <span className="text-4xl font-black text-slate-900 tracking-tighter">R$ {selectedProduct.price.toFixed(2)}</span>
                             <span className="text-sm font-bold text-emerald-600 mt-1">no PIX (5% de desconto)</span>
-                            <span className="text-sm text-slate-500 mt-1">ou em até 10x de R$ {(selectedProduct.price / 10).toFixed(2)} sem juros</span>
+                            <span className="text-sm text-slate-500 mt-1">
+                              ou em até {calculateInstallments(selectedProduct.price, selectedProduct.min_installment_value).count}x de R$ {calculateInstallments(selectedProduct.price, selectedProduct.min_installment_value).value.toFixed(2)} sem juros
+                            </span>
                           </>
                         )}
                       </div>
@@ -1053,6 +1269,79 @@ export default function Store() {
         )}
       </AnimatePresence>
 
+      {/* Modal de Favoritos */}
+      <AnimatePresence>
+        {showFavorites && (
+          <div className="fixed inset-0 z-[100] flex justify-end">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowFavorites(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-pink-600 text-white">
+                <div className="flex items-center gap-3">
+                  <Heart size={24} fill="currentColor" />
+                  <h2 className="text-xl font-black italic uppercase tracking-tighter">Meus Favoritos</h2>
+                </div>
+                <button onClick={() => setShowFavorites(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {favorites.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-400">
+                    <Heart size={64} className="mb-4 opacity-10" />
+                    <p className="font-bold">Sua lista de desejos está vazia</p>
+                    <p className="text-sm">Favorite produtos para vê-los aqui!</p>
+                  </div>
+                ) : (
+                  favorites.map(favId => {
+                    const product = products.find(p => p.id === favId);
+                    if (!product) return null;
+                    return (
+                      <div key={favId} className="flex gap-4 group cursor-pointer" onClick={() => { setSelectedProduct(product); setShowFavorites(false); }}>
+                        <div className="w-20 h-20 bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 flex-shrink-0">
+                          <img src={product.image_url} alt={product.name} className="w-full h-full object-contain p-2" />
+                        </div>
+                        <div className="flex-1 flex flex-col justify-center">
+                          <h4 className="font-bold text-slate-900 text-sm line-clamp-1">{product.name}</h4>
+                          <p className="text-emerald-600 font-black text-sm">R$ {(product.discount_price || product.price).toFixed(2)}</p>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); toggleFavorite(favId); }}
+                            className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mt-1 hover:underline"
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="p-6 bg-slate-50 border-t border-slate-100">
+                <button 
+                  onClick={() => setShowFavorites(false)}
+                  className="w-full py-4 bg-slate-900 text-white font-black uppercase tracking-widest rounded-2xl hover:bg-slate-800 transition-all"
+                >
+                  Continuar Comprando
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Modal do Carrinho */}
       <AnimatePresence>
         {showCart && (
@@ -1075,17 +1364,22 @@ export default function Store() {
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {/* Barra de Progresso Frete Grátis */}
-                {cartTotal > 0 && cartTotal < 299 && (
+                {cartTotal > 0 && (settings?.free_shipping_threshold || 0) > 0 && cartTotal < (settings?.free_shipping_threshold || 0) && (
                   <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 mb-4">
                     <p className="text-sm font-bold text-emerald-800 mb-2 text-center">
-                      Faltam apenas <span className="font-black">R$ {(299 - cartTotal).toFixed(2)}</span> para <span className="font-black uppercase">Frete Grátis</span>!
+                      Faltam apenas <span className="font-black">R$ {((settings?.free_shipping_threshold || 0) - cartTotal).toFixed(2)}</span> para <span className="font-black uppercase">Frete Grátis</span>!
                     </p>
-                    <div className="w-full bg-emerald-200 rounded-full h-2.5">
-                      <div className="bg-emerald-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${(cartTotal / 299) * 100}%` }}></div>
+                    <div className="w-full bg-emerald-200 rounded-full h-2.5 overflow-hidden">
+                      <motion.div 
+                        animate={{ opacity: [1, 0.5, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                        className="bg-emerald-600 h-2.5 rounded-full transition-all duration-500" 
+                        style={{ width: `${(cartTotal / (settings?.free_shipping_threshold || 1)) * 100}%` }}
+                      ></motion.div>
                     </div>
                   </div>
                 )}
-                {cartTotal >= 299 && (
+                {cartTotal >= (settings?.free_shipping_threshold || 0) && (settings?.free_shipping_threshold || 0) > 0 && (
                   <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 mb-4 text-center">
                     <p className="text-sm font-black text-emerald-600 uppercase tracking-wider flex items-center justify-center gap-2">
                       <Truck size={18} /> Parabéns! Você ganhou Frete Grátis!
@@ -1169,11 +1463,39 @@ export default function Store() {
 
               {cart.length > 0 && (
                 <div className="p-8 bg-slate-50 border-t border-slate-100">
-                  <div className="flex items-center justify-between mb-6">
-                    <span className="text-slate-500 font-bold">Subtotal</span>
-                    <span className="text-3xl font-black text-slate-900 tracking-tighter">R$ {cartTotal.toFixed(2)}</span>
+                  <div className="flex flex-col mb-6">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-slate-500 font-bold">Subtotal</span>
+                      <span className="text-3xl font-black text-slate-900 tracking-tighter">R$ {cartTotal.toFixed(2)}</span>
+                    </div>
+                    <p className="text-right text-xs font-bold text-slate-400 uppercase tracking-widest">
+                      ou em até {(() => {
+                        const minInstallmentValue = cart.reduce((min, item) => {
+                          const productMin = item.product.min_installment_value || 50;
+                          return productMin < min ? productMin : min;
+                        }, 50);
+                        const maxInstallments = 10;
+                        let possibleInstallments = Math.floor(cartTotal / minInstallmentValue);
+                        if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
+                        if (possibleInstallments < 1) possibleInstallments = 1;
+                        return possibleInstallments;
+                      })()}x de R$ {(cartTotal / (() => {
+                        const minInstallmentValue = cart.reduce((min, item) => {
+                          const productMin = item.product.min_installment_value || 50;
+                          return productMin < min ? productMin : min;
+                        }, 50);
+                        const maxInstallments = 10;
+                        let possibleInstallments = Math.floor(cartTotal / minInstallmentValue);
+                        if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
+                        if (possibleInstallments < 1) possibleInstallments = 1;
+                        return possibleInstallments;
+                      })()).toFixed(2)} sem juros
+                    </p>
                   </div>
-                  <button className="w-full bg-emerald-600 text-white py-6 rounded-[32px] font-black text-xl uppercase italic tracking-tighter hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200 flex items-center justify-center gap-3">
+                  <button 
+                    onClick={() => navigate('/checkout')}
+                    className="w-full bg-emerald-600 text-white py-6 rounded-[32px] font-black text-xl uppercase italic tracking-tighter hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200 flex items-center justify-center gap-3"
+                  >
                     Finalizar Compra
                   </button>
                   <p className="text-center text-[10px] text-slate-400 mt-4 uppercase font-bold tracking-widest">
@@ -1185,6 +1507,54 @@ export default function Store() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-3 flex items-center justify-between z-[90] shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        <button 
+          onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); setSearchTerm(''); }}
+          className={`flex flex-col items-center gap-1 ${!searchTerm ? 'text-emerald-600' : 'text-slate-400'}`}
+        >
+          <Star size={20} fill={!searchTerm ? "currentColor" : "none"} />
+          <span className="text-[10px] font-bold uppercase tracking-widest">Início</span>
+        </button>
+        <button 
+          onClick={() => { document.querySelector('input')?.focus(); }}
+          className="flex flex-col items-center gap-1 text-slate-400"
+        >
+          <Search size={20} />
+          <span className="text-[10px] font-bold uppercase tracking-widest">Busca</span>
+        </button>
+        <button 
+          onClick={() => setShowFavorites(true)}
+          className={`flex flex-col items-center gap-1 ${showFavorites ? 'text-pink-600' : 'text-slate-400'}`}
+        >
+          <div className="relative">
+            <Heart size={20} fill={favorites.length > 0 ? "currentColor" : "none"} />
+            {favorites.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-pink-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
+                {favorites.length}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-widest">Desejos</span>
+        </button>
+        <button 
+          onClick={() => setShowCart(true)}
+          className={`flex flex-col items-center gap-1 ${showCart ? 'text-emerald-600' : 'text-slate-400'}`}
+        >
+          <div className="relative">
+            <ShoppingBag size={20} fill={cart.length > 0 ? "currentColor" : "none"} />
+            {cart.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-pink-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
+                {cart.reduce((acc, item) => acc + item.quantity, 0)}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-widest">Sacola</span>
+        </button>
+      </div>
+
+      {/* Modal de Campanha */}
 
       {/* Modal de Campanha */}
       <AnimatePresence>
@@ -1333,6 +1703,7 @@ export default function Store() {
                 <li><button onClick={() => navigate('/profile')} className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Minhas compras</button></li>
                 <li><button onClick={() => setShowCart(true)} className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Meu carrinho</button></li>
                 <li><button onClick={() => navigate('/profile')} className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Meus produtos favoritos</button></li>
+                <li><button onClick={() => navigate('/affiliates')} className="text-indigo-600 font-bold hover:text-indigo-700 transition-colors text-sm uppercase tracking-widest">Seja um Afiliado</button></li>
               </ul>
 
               <h4 className="font-bold text-slate-900 mb-6 mt-8 uppercase tracking-wider text-sm">Precisa de Ajuda?</h4>
@@ -1374,17 +1745,28 @@ export default function Store() {
             <div>
               <h4 className="font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm">Formas de Pagamento</h4>
               <div className="flex flex-wrap gap-2 mb-8">
-                {settings?.payment_methods?.filter(p => p.active).map((method, idx) => (
-                  <div key={idx} className="h-10 px-3 bg-slate-50 rounded border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 uppercase">
-                    {method.name}
-                  </div>
-                ))}
-                {!settings?.payment_methods?.length && (
-                  <>
-                    <div className="w-16 h-10 bg-slate-100 rounded border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-400">PIX</div>
-                    <div className="w-16 h-10 bg-slate-100 rounded border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-400">VISA</div>
-                  </>
-                )}
+                <div className="h-10 px-3 bg-slate-50 rounded border border-slate-200 flex items-center justify-center gap-2 text-xs font-bold text-slate-600 uppercase">
+                  <QrCode size={16} /> PIX
+                </div>
+                <div className="h-10 px-3 bg-slate-50 rounded border border-slate-200 flex items-center justify-center gap-2 text-xs font-bold text-slate-600 uppercase">
+                  <CreditCard size={16} /> Cartão
+                </div>
+                <div className="h-10 px-3 bg-slate-50 rounded border border-slate-200 flex items-center justify-center gap-2 text-xs font-bold text-slate-600 uppercase">
+                  <Barcode size={16} /> Boleto
+                </div>
+                <div className="h-10 px-3 bg-slate-50 rounded border border-slate-200 flex items-center justify-center gap-2 text-xs font-bold text-slate-600 uppercase">
+                  <Landmark size={16} /> Transferência
+                </div>
+              </div>
+
+              <h4 className="font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm">Formas de Envio</h4>
+              <div className="flex flex-wrap gap-2 mb-8">
+                <div className="h-10 px-3 bg-slate-50 rounded border border-slate-200 flex items-center justify-center gap-2 text-xs font-bold text-slate-600 uppercase">
+                  <Truck size={16} /> Correios
+                </div>
+                <div className="h-10 px-3 bg-slate-50 rounded border border-slate-200 flex items-center justify-center gap-2 text-xs font-bold text-slate-600 uppercase">
+                  <Package size={16} /> Transportadora
+                </div>
               </div>
 
               <h4 className="font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm">Segurança</h4>

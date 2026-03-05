@@ -204,6 +204,24 @@ create table if not exists public.banners (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- Tabela de Campanhas
+create table if not exists public.campaigns (
+  id uuid default gen_random_uuid() primary key,
+  title text not null,
+  subtitle text,
+  image_url text,
+  rules_text text,
+  link_url text,
+  is_highlight boolean default false,
+  active boolean default true,
+  display_order integer default 0,
+  badge_text text,
+  button_text text,
+  background_color text default '#000000',
+  text_color text default '#ffffff',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
 -- ==========================================
 -- 7. CORREÇÕES E MIGRAÇÕES (Mantendo existente)
 -- ==========================================
@@ -331,6 +349,69 @@ create policy "Auth insert settings" on public.store_settings for insert with ch
 -- ==========================================
 -- 9. DADOS INICIAIS (SEED)
 -- ==========================================
+
+-- 1. Criar a função para atualizar o updated_at (caso não exista)
+create or replace function public.handle_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = timezone('utc'::text, now());
+  return new;
+end;
+$$ language plpgsql;
+
+-- 2. Criar a tabela de leads
+create table if not exists public.leads (
+  id uuid default gen_random_uuid() primary key,
+  nome text not null,
+  email text,
+  whatsapp text not null,
+  
+  -- Dados de Conversão e Remarketing
+  ultima_compra_data timestamp with time zone,
+  ultimo_produto_comprado text,
+  valor_total_gasto numeric(10,2) default 0,
+  origem_promocao text,
+  
+  -- Qualificação do Lead
+  status_lead text default 'frio' check (status_lead in ('frio', 'morno', 'quente', 'cliente', 'inativo')),
+  score integer default 0,
+  
+  -- Histórico de Atendimento (Chatbot/WhatsApp)
+  resumo_conversa text,
+  ultima_interacao_data timestamp with time zone default timezone('utc'::text, now()),
+  
+  -- Metadados
+  tags jsonb default '[]'::jsonb,
+  opt_in_marketing boolean default true,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 3. Criar índices para otimizar buscas do n8n e CRM
+create index if not exists leads_whatsapp_idx on public.leads(whatsapp);
+create index if not exists leads_status_idx on public.leads(status_lead);
+create index if not exists leads_ultima_compra_idx on public.leads(ultima_compra_data);
+
+-- 4. Criar o trigger para atualizar o updated_at automaticamente
+drop trigger if exists on_leads_updated on public.leads;
+create trigger on_leads_updated
+  before update on public.leads
+  for each row execute procedure public.handle_updated_at();
+
+-- 5. Configurar RLS (Segurança)
+alter table public.leads enable row level security;
+
+drop policy if exists "Admin read all leads" on public.leads;
+create policy "Admin read all leads" on public.leads 
+  for select using (auth.role() = 'authenticated');
+
+drop policy if exists "Admin insert leads" on public.leads;
+create policy "Admin insert leads" on public.leads 
+  for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Admin update leads" on public.leads;
+create policy "Admin update leads" on public.leads 
+  for update using (auth.role() = 'authenticated');
 
 insert into public.store_settings (company_name)
 select 'Minha Loja'

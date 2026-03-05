@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, Megaphone } from 'lucide-react';
+import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, Megaphone, Users } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 
@@ -107,6 +107,20 @@ export default function Dashboard() {
           >
             <Package size={20} />
             Produtos
+          </button>
+          <button 
+            onClick={() => navigate('/orders')}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
+          >
+            <ShoppingBag size={20} />
+            Pedidos
+          </button>
+          <button 
+            onClick={() => navigate('/affiliates')}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
+          >
+            <Users size={20} />
+            Afiliados
           </button>
           <button 
             onClick={() => navigate('/settings')}

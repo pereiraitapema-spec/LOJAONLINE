@@ -12,6 +12,11 @@ import Banners from './pages/Banners';
 import Campaigns from './pages/Campaigns';
 import Products from './pages/Products';
 import Settings from './pages/Settings';
+import Affiliates from './pages/Affiliates';
+import AffiliateRegister from './pages/AffiliateRegister';
+import AffiliateDashboard from './pages/AffiliateDashboard';
+import Checkout from './pages/Checkout';
+import Orders from './pages/Orders';
 import { Loading } from './components/Loading';
 
 function AppContent() {
@@ -65,6 +70,13 @@ function AppContent() {
           element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
         />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/affiliate-register" element={<AffiliateRegister />} />
+        <Route path="/affiliate-dashboard" element={<AffiliateDashboard />} />
+        
+        <Route 
+          path="/checkout" 
+          element={<Checkout />} 
+        />
         
         {/* Perfil do Usuário */}
         <Route 
@@ -88,6 +100,14 @@ function AppContent() {
         <Route 
           path="/products" 
           element={session ? <Products /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/orders" 
+          element={session ? <Orders /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/affiliates" 
+          element={session ? <Affiliates /> : <Navigate to="/login" replace />} 
         />
         <Route 
           path="/settings" 

@@ -43,6 +43,7 @@ interface Product {
   affiliate_commission?: number;
   category_id?: string;
   stock: number;
+  min_installment_value?: number;
   image_url?: string;
   active: boolean;
   category?: { name: string };
@@ -67,6 +68,7 @@ export default function Products() {
     affiliate_commission: '0',
     category_id: '',
     stock: '0',
+    min_installment_value: '50.00',
     image_url: '',
     active: true
   });
@@ -90,8 +92,17 @@ export default function Products() {
   const [newCategoryImage, setNewCategoryImage] = useState('');
 
   useEffect(() => {
-    fetchData();
-    fetchAPIKeys();
+    const checkAdmin = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || session.user.email !== 'pereira.itapema@gmail.com') {
+        toast.error('Acesso negado.');
+        navigate('/');
+        return;
+      }
+      fetchData();
+      fetchAPIKeys();
+    };
+    checkAdmin();
   }, []);
 
   const fetchData = async () => {
@@ -154,12 +165,27 @@ export default function Products() {
       const ai = new GoogleGenAI({ apiKey: geminiKey });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
-        contents: `Crie uma descrição comercial atraente e persuasiva para um produto chamado "${productForm.name}". 
-      Inclua benefícios, possíveis usos e diferenciais. 
-      Use formatação HTML simples (p, strong, ul, li). 
-      Mantenha o tom profissional mas convidativo.`,
+        contents: `Crie uma descrição comercial extremamente persuasiva, expandida e detalhada para o produto "${productForm.name}".
+      
+      REGRAS CRÍTICAS E OBRIGATÓRIAS:
+      1. NÃO USE NENHUMA TAG HTML (como <p>, <strong>, <ul>, etc). O texto deve ser LIMPO.
+      2. Use apenas quebras de linha para separar parágrafos.
+      3. Foque intensamente em BENEFÍCIOS reais e GATILHOS MENTAIS de venda (autoridade, escassez, prova social implícita, reciprocidade).
+      4. Destaque como o produto resolve dores específicas do cliente e transforma sua vida.
+      5. Estrutura sugerida:
+         - Gancho inicial irresistível.
+         - Seção detalhada de benefícios (use "-" para listas).
+         - Por que este produto é a melhor escolha do mercado.
+         - Chamada para ação persuasiva.
+      6. O texto deve ser LONGO, ENVOLVENTE e PROFISSIONAL.
+      7. NÃO use blocos de código markdown (\`\`\`html ou \`\`\`).
+      8. Retorne APENAS o texto da descrição.`,
       });
-      const text = response.text || '';
+      let text = response.text || '';
+      
+      // Limpeza extra de segurança (remover qualquer tag HTML que o modelo possa ter gerado por engano)
+      text = text.replace(/<[^>]*>?/gm, '');
+      text = text.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/i, '').trim();
       
       setProductForm(prev => ({ ...prev, description: text }));
       toast.success('Descrição gerada com sucesso!');
@@ -187,15 +213,21 @@ export default function Products() {
     setSaving(true);
     try {
       const payload = {
-        ...productForm,
+        name: productForm.name,
+        description: productForm.description,
+        composition: productForm.composition,
         price: parseFloat(productForm.price),
         cost_price: productForm.cost_price ? parseFloat(productForm.cost_price) : null,
         discount_price: productForm.discount_price ? parseFloat(productForm.discount_price) : null,
         affiliate_commission: parseFloat(productForm.affiliate_commission),
+        category_id: productForm.category_id || null,
         stock: parseInt(productForm.stock),
-        tiers: productTiers,
-        media: productMedia
+        min_installment_value: parseFloat(productForm.min_installment_value || '50'),
+        image_url: productForm.image_url,
+        active: productForm.active
       };
+
+      let productId = editingProduct?.id;
 
       if (editingProduct) {
         const { error } = await supabase
@@ -203,13 +235,33 @@ export default function Products() {
           .update(payload)
           .eq('id', editingProduct.id);
         if (error) throw error;
-        toast.success('Produto atualizado!');
       } else {
-        const { error } = await supabase.from('products').insert([payload]);
+        const { data, error } = await supabase
+          .from('products')
+          .insert([payload])
+          .select()
+          .single();
         if (error) throw error;
-        toast.success('Produto criado!');
+        productId = data.id;
       }
 
+      if (productId) {
+        // Atualizar Tiers
+        await supabase.from('product_tiers').delete().eq('product_id', productId);
+        if (productTiers.length > 0) {
+          const tiersPayload = productTiers.map(t => ({ ...t, product_id: productId }));
+          await supabase.from('product_tiers').insert(tiersPayload);
+        }
+
+        // Atualizar Media
+        await supabase.from('product_media').delete().eq('product_id', productId);
+        if (productMedia.length > 0) {
+          const mediaPayload = productMedia.map(m => ({ ...m, product_id: productId }));
+          await supabase.from('product_media').insert(mediaPayload);
+        }
+      }
+
+      toast.success(editingProduct ? 'Produto atualizado!' : 'Produto criado!');
       setShowProductModal(false);
       resetProductForm();
       fetchData();
@@ -402,6 +454,7 @@ export default function Products() {
       category_id: '',
       stock: '0',
       image_url: '',
+      min_installment_value: '50',
       active: true
     });
     setErrors({});
@@ -422,6 +475,7 @@ export default function Products() {
       category_id: product.category_id || '',
       stock: product.stock.toString(),
       image_url: product.image_url || '',
+      min_installment_value: (product as any).min_installment_value?.toString() || '50',
       active: product.active
     });
     setProductTiers(product.tiers || []);
@@ -906,6 +960,18 @@ export default function Products() {
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
                       />
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">Valor Mínimo Parcela (R$)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        value={productForm.min_installment_value}
+                        onChange={e => setProductForm({...productForm, min_installment_value: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                        placeholder="Ex: 50.00"
+                      />
+                    </div>
                   </div>
 
                   {/* Lado Direito: Foto, Composição e Descrição */}
@@ -1097,6 +1163,7 @@ export default function Products() {
                     >
                       <option value="gemini">Google Gemini</option>
                       <option value="openai">OpenAI (ChatGPT)</option>
+                      <option value="pagarme">Pagar.me (Gateway)</option>
                     </select>
                   </div>
                   <div>

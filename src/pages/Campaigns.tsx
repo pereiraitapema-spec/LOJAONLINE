@@ -51,9 +51,18 @@ export default function Campaigns() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchCampaigns();
-    fetchOptions();
-    fetchSettings();
+    const checkAdmin = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || session.user.email !== 'pereira.itapema@gmail.com') {
+        toast.error('Acesso negado.');
+        navigate('/');
+        return;
+      }
+      fetchCampaigns();
+      fetchOptions();
+      fetchSettings();
+    };
+    checkAdmin();
   }, []);
 
   const fetchSettings = async () => {

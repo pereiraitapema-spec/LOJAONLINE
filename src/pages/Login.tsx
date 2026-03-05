@@ -45,6 +45,23 @@ export default function Login() {
         password,
       });
       if (error) throw error;
+      
+      // Verificar se é afiliado
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: affiliate } = await supabase
+          .from('affiliates')
+          .select('status')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (affiliate && affiliate.status === 'approved') {
+          toast.success('Bem-vindo ao Painel de Afiliado!');
+          navigate('/affiliate-dashboard');
+          return;
+        }
+      }
+
       toast.success('Login realizado com sucesso!');
       navigate('/');
     } catch (error: any) {
@@ -87,8 +104,20 @@ export default function Login() {
             // Verificar se logou com sucesso após fechar
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
-              toast.success('Login com Google realizado!');
-              navigate('/dashboard');
+              // Verificar se é afiliado
+              const { data: affiliate } = await supabase
+                .from('affiliates')
+                .select('status')
+                .eq('user_id', session.user.id)
+                .single();
+
+              if (affiliate && affiliate.status === 'approved') {
+                toast.success('Bem-vindo ao Painel de Afiliado!');
+                navigate('/affiliate-dashboard');
+              } else {
+                toast.success('Login com Google realizado!');
+                navigate('/dashboard');
+              }
             }
           }
         }, 1000);

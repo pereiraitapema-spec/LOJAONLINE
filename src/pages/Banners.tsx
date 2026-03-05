@@ -44,7 +44,16 @@ export default function Banners() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchBanners();
+    const checkAdmin = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || session.user.email !== 'pereira.itapema@gmail.com') {
+        toast.error('Acesso negado.');
+        navigate('/');
+        return;
+      }
+      fetchBanners();
+    };
+    checkAdmin();
   }, []);
 
   const fetchBanners = async () => {
