@@ -10,6 +10,7 @@ import {
   Star, Zap, Leaf, Droplets, Activity, Flame, Megaphone,
   QrCode, Barcode, Landmark, Package, DollarSign, Tag, BarChart, Users
 } from 'lucide-react';
+import SmartChat from '../components/SmartChat';
 
 interface Banner {
   id: string;
@@ -1832,6 +1833,8 @@ export default function Store() {
           </motion.div>
         </div>
       )}
+      {/* Chat Inteligente */}
+      <SmartChat />
     </div>
   );
 }

@@ -41,6 +41,9 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix' | 'boleto' | 'transfer'>('pix');
   const [shippingMethods, setShippingMethods] = useState<{ name: string; price: number; deadline: string; active: boolean }[]>([]);
   const [selectedShipping, setSelectedShipping] = useState<number>(0);
+  const [discountRules, setDiscountRules] = useState<any[]>([]);
+  const [appliedDiscounts, setAppliedDiscounts] = useState<{ name: string; value: number }[]>([]);
+  const [isFirstPurchase, setIsFirstPurchase] = useState(false);
   
   // Form state
   const [customer, setCustomer] = useState({
@@ -89,7 +92,7 @@ export default function Checkout() {
           navigate('/');
         }
 
-        // Fetch shipping methods
+        // Fetch shipping methods and discount rules
         const { data: settings } = await supabase
           .from('store_settings')
           .select('shipping_methods, free_shipping_threshold')
@@ -108,6 +111,23 @@ export default function Checkout() {
             { name: 'Correios (PAC)', price: 25.90, deadline: '7 a 10 dias úteis', active: true },
             { name: 'Correios (SEDEX)', price: 45.90, deadline: '2 a 4 dias úteis', active: true }
           ]);
+        }
+
+        // Fetch Discount Rules
+        const { data: rulesData } = await supabase
+          .from('discount_rules')
+          .select('*')
+          .eq('active', true);
+        setDiscountRules(rulesData || []);
+
+        // Check for first purchase
+        if (session?.user) {
+          const { count } = await supabase
+            .from('orders')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', session.user.id)
+            .eq('status', 'paid');
+          setIsFirstPurchase(count === 0);
         }
       } catch (error) {
         console.error('Error loading checkout data:', error);
@@ -132,9 +152,48 @@ export default function Checkout() {
     return acc + total;
   }, 0);
 
+  // Calculate Discounts
+  useEffect(() => {
+    const calculateDiscounts = async () => {
+      let newDiscounts: { name: string; value: number }[] = [];
+      let currentTotal = cartTotal;
+
+      for (const rule of discountRules) {
+        let apply = false;
+
+        if (rule.type === 'first_purchase') {
+          // Check if user has orders
+          if (user) {
+            const { count } = await supabase
+              .from('orders')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id);
+            
+            if (count === 0) apply = true;
+          }
+        } else if (rule.type === 'pix' && paymentMethod === 'pix') {
+          apply = true;
+        } else if (rule.type === 'coupon') {
+          // Logic for coupon would go here (e.g. check input)
+        }
+
+        if (apply) {
+          let discountValue = 0;
+          // Assuming percentage for now, could be fixed value
+          discountValue = (currentTotal * rule.value) / 100;
+          newDiscounts.push({ name: rule.name, value: discountValue });
+        }
+      }
+      setAppliedDiscounts(newDiscounts);
+    };
+
+    calculateDiscounts();
+  }, [cartTotal, discountRules, paymentMethod, user]);
+
+  const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
   const currentShipping = shippingMethods[selectedShipping];
   const shippingCost = cartTotal >= freeShippingThreshold ? 0 : (currentShipping?.price || 0);
-  const finalTotal = cartTotal + shippingCost;
+  const finalTotal = Math.max(0, cartTotal - totalDiscount + shippingCost);
 
   // Abandoned Cart Logic
   useEffect(() => {
@@ -263,6 +322,7 @@ export default function Checkout() {
           customer_phone: customer.phone,
           customer_document: customer.document,
           status: 'pending',
+          discount_value: totalDiscount,
           total: finalTotal,
           subtotal: cartTotal,
           shipping_cost: shippingCost,
@@ -297,6 +357,17 @@ export default function Checkout() {
         .insert(orderItems);
 
       if (itemsError) throw itemsError;
+
+      // 2.1 Update Inventory Logs
+      const inventoryLogs = cart.map(item => ({
+        product_id: item.product.id,
+        change_amount: -item.quantity,
+        reason: `Venda Pedido #${orderData.id.split('-')[0].toUpperCase()}`
+      }));
+
+      await supabase
+        .from('inventory_logs')
+        .insert(inventoryLogs);
 
       // 3. Simulate Payment Gateway (Pagar.me)
       // In a real scenario, we would call our backend API here, which would call Pagar.me
@@ -757,19 +828,19 @@ export default function Checkout() {
                   <span className="flex items-center gap-1"><Truck size={16} /> Frete</span>
                   <span className="font-medium">{shippingCost === 0 ? <span className="text-emerald-500 font-bold uppercase text-xs">Grátis</span> : `R$ ${shippingCost.toFixed(2)}`}</span>
                 </div>
-                {paymentMethod === 'pix' && (
-                  <div className="flex justify-between text-emerald-600 font-medium">
-                    <span>Desconto PIX (5%)</span>
-                    <span>- R$ {(finalTotal * 0.05).toFixed(2)}</span>
+                {appliedDiscounts.map((discount, idx) => (
+                  <div key={idx} className="flex justify-between text-emerald-600 font-medium">
+                    <span>{discount.name}</span>
+                    <span>- R$ {discount.value.toFixed(2)}</span>
                   </div>
-                )}
+                ))}
               </div>
 
               <div className="flex justify-between items-end pt-6 border-t border-slate-100 mb-8">
                 <span className="text-slate-900 font-bold">Total</span>
                 <div className="text-right">
                   <span className="text-3xl font-black text-slate-900 tracking-tighter">
-                    R$ {(paymentMethod === 'pix' ? finalTotal * 0.95 : finalTotal).toFixed(2)}
+                    R$ {finalTotal.toFixed(2)}
                   </span>
                 </div>
               </div>
