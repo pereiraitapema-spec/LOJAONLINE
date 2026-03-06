@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -53,6 +53,11 @@ interface Campaign {
   button_text?: string;
   background_color?: string;
   text_color?: string;
+  discount_value?: number;
+  discount_type?: 'percentage' | 'fixed';
+  trigger_type?: 'automatic' | 'coupon' | 'min_value';
+  trigger_value?: number;
+  coupon_code?: string;
 }
 
 interface Product {
@@ -116,6 +121,14 @@ export default function Store() {
       });
     }
   }, [currentBannerIndex, banners, isMuted]);
+  const applyCoupon = (code: string) => {
+    localStorage.setItem('applied_coupon', code.toUpperCase());
+    toast.success(`Cupom ${code.toUpperCase()} aplicado!`, {
+      icon: '🎁',
+      duration: 3000
+    });
+  };
+
   const [isModalMuted, setIsModalMuted] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
@@ -161,6 +174,18 @@ export default function Store() {
   };
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const coupon = searchParams.get('coupon');
+    if (coupon) {
+      localStorage.setItem('applied_coupon', coupon.toUpperCase());
+      toast.success(`Cupom ${coupon.toUpperCase()} aplicado via link!`, {
+        icon: '🎁',
+        duration: 4000
+      });
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -1596,6 +1621,28 @@ export default function Store() {
                     {selectedCampaign.rules_text}
                   </p>
                 </div>
+
+                {selectedCampaign.coupon_code && (
+                  <div className="mt-8 p-6 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
+                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-3">Use este cupom no checkout:</p>
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="bg-white border-2 border-dashed border-emerald-300 px-8 py-3 rounded-xl text-2xl font-black text-emerald-700 tracking-widest">
+                        {selectedCampaign.coupon_code}
+                      </div>
+                      <button 
+                        onClick={() => {
+                          applyCoupon(selectedCampaign.coupon_code!);
+                          setSelectedCampaign(null);
+                        }}
+                        className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-full font-bold hover:bg-emerald-700 transition-all shadow-lg hover:shadow-emerald-200"
+                      >
+                        <Zap size={18} />
+                        Aplicar Agora
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-8 pt-6 border-t border-slate-100 flex justify-center gap-4">
                   <button
                     onClick={() => setSelectedCampaign(null)}

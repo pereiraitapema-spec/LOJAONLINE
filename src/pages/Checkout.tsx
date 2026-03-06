@@ -44,6 +44,8 @@ export default function Checkout() {
   const [discountRules, setDiscountRules] = useState<any[]>([]);
   const [appliedDiscounts, setAppliedDiscounts] = useState<{ name: string; value: number }[]>([]);
   const [isFirstPurchase, setIsFirstPurchase] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [campaigns, setCampaigns] = useState<any[]>([]);
   
   // Form state
   const [customer, setCustomer] = useState({
@@ -79,6 +81,14 @@ export default function Checkout() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user || null);
+
+        // Carregar cupom do link se existir
+        const savedCoupon = localStorage.getItem('applied_coupon');
+        if (savedCoupon) {
+          setCouponCode(savedCoupon);
+          // Opcional: limpar após carregar para não persistir eternamente se o usuário quiser trocar
+          // localStorage.removeItem('applied_coupon');
+        }
 
         const savedCart = localStorage.getItem('cart_items');
         if (savedCart) {
@@ -120,6 +130,13 @@ export default function Checkout() {
           .eq('active', true);
         setDiscountRules(rulesData || []);
 
+        // Fetch Campaigns with discounts
+        const { data: campaignsData } = await supabase
+          .from('campaigns')
+          .select('*')
+          .eq('active', true);
+        setCampaigns(campaignsData || []);
+
         // Check for first purchase
         if (session?.user) {
           const { count } = await supabase
@@ -158,37 +175,55 @@ export default function Checkout() {
       let newDiscounts: { name: string; value: number }[] = [];
       let currentTotal = cartTotal;
 
+      // 1. Check Legacy Discount Rules
       for (const rule of discountRules) {
         let apply = false;
 
-        if (rule.type === 'first_purchase') {
-          // Check if user has orders
-          if (user) {
-            const { count } = await supabase
-              .from('orders')
-              .select('*', { count: 'exact', head: true })
-              .eq('user_id', user.id);
-            
-            if (count === 0) apply = true;
-          }
+        if (rule.type === 'first_purchase' && isFirstPurchase) {
+          apply = true;
         } else if (rule.type === 'pix' && paymentMethod === 'pix') {
           apply = true;
-        } else if (rule.type === 'coupon') {
-          // Logic for coupon would go here (e.g. check input)
+        }
+
+        if (apply) {
+          let discountValue = (currentTotal * rule.value) / 100;
+          newDiscounts.push({ name: rule.name, value: discountValue });
+        }
+      }
+
+      // 2. Check Campaign Rules
+      for (const campaign of campaigns) {
+        if (!campaign.discount_value) continue;
+
+        let apply = false;
+        const trigger = campaign.trigger_type || 'automatic';
+
+        if (trigger === 'automatic') {
+          apply = true;
+        } else if (trigger === 'coupon' && couponCode.toUpperCase() === campaign.coupon_code?.toUpperCase()) {
+          apply = true;
+        } else if (trigger === 'min_value' && cartTotal >= (campaign.trigger_value || 0)) {
+          apply = true;
+        } else if (trigger === 'first_purchase' && isFirstPurchase) {
+          apply = true;
         }
 
         if (apply) {
           let discountValue = 0;
-          // Assuming percentage for now, could be fixed value
-          discountValue = (currentTotal * rule.value) / 100;
-          newDiscounts.push({ name: rule.name, value: discountValue });
+          if (campaign.discount_type === 'percentage') {
+            discountValue = (currentTotal * campaign.discount_value) / 100;
+          } else {
+            discountValue = campaign.discount_value;
+          }
+          newDiscounts.push({ name: campaign.title, value: discountValue });
         }
       }
+
       setAppliedDiscounts(newDiscounts);
     };
 
     calculateDiscounts();
-  }, [cartTotal, discountRules, paymentMethod, user]);
+  }, [cartTotal, discountRules, campaigns, paymentMethod, isFirstPurchase, couponCode]);
 
   const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
   const currentShipping = shippingMethods[selectedShipping];
@@ -817,6 +852,25 @@ export default function Checkout() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Cupom de Desconto */}
+              <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Possui um cupom?</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    placeholder="DIGITE O CÓDIGO"
+                    className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none uppercase"
+                  />
+                </div>
+                {couponCode && appliedDiscounts.some(d => campaigns.some(c => c.title === d.name && c.trigger_type === 'coupon')) && (
+                  <p className="text-[10px] text-emerald-600 font-bold mt-2 flex items-center gap-1">
+                    <CheckCircle2 size={12} /> Cupom aplicado com sucesso!
+                  </p>
+                )}
               </div>
 
               <div className="space-y-3 pt-6 border-t border-slate-100 mb-6">

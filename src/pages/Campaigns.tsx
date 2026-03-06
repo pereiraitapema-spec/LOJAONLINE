@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { 
   LogOut, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, 
-  Megaphone, Plus, Edit2, Trash2, Save, X, Upload, Link as LinkIcon
+  Megaphone, Plus, Edit2, Trash2, Save, X, Upload, Link as LinkIcon, Copy, Check, Tag
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -23,6 +23,11 @@ interface Campaign {
   button_text?: string;
   background_color?: string;
   text_color?: string;
+  discount_value?: number;
+  discount_type?: 'percentage' | 'fixed';
+  trigger_type?: 'automatic' | 'coupon' | 'min_value';
+  trigger_value?: number;
+  coupon_code?: string;
 }
 
 interface Category {
@@ -136,6 +141,21 @@ export default function Campaigns() {
     }
   };
 
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyCampaignLink = (campaign: Campaign) => {
+    if (!campaign.coupon_code) {
+      toast.error('Esta campanha não possui um cupom configurado.');
+      return;
+    }
+    const baseUrl = window.location.origin;
+    const link = `${baseUrl}/?coupon=${campaign.coupon_code}`;
+    navigator.clipboard.writeText(link);
+    setCopiedId(campaign.id);
+    toast.success('Link com cupom copiado!');
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/login');
@@ -169,6 +189,11 @@ export default function Campaigns() {
             button_text: currentCampaign.button_text,
             background_color: currentCampaign.background_color,
             text_color: currentCampaign.text_color,
+            discount_value: currentCampaign.discount_value,
+            discount_type: currentCampaign.discount_type,
+            trigger_type: currentCampaign.trigger_type,
+            trigger_value: currentCampaign.trigger_value,
+            coupon_code: currentCampaign.coupon_code,
           })
           .eq('id', currentCampaign.id);
         
@@ -212,6 +237,11 @@ export default function Campaigns() {
             button_text: currentCampaign.button_text,
             background_color: currentCampaign.background_color,
             text_color: currentCampaign.text_color,
+            discount_value: currentCampaign.discount_value,
+            discount_type: currentCampaign.discount_type,
+            trigger_type: currentCampaign.trigger_type,
+            trigger_value: currentCampaign.trigger_value,
+            coupon_code: currentCampaign.coupon_code,
           }]);
           
         if (error) {
@@ -484,6 +514,109 @@ export default function Campaigns() {
                       />
                     </div>
                   </div>
+
+                  <div className="md:col-span-2 p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+                    <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                      <Tag size={18} className="text-emerald-600" />
+                      Configurações de Desconto e Regras
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Gatilho</label>
+                        <select
+                          value={currentCampaign.trigger_type || 'automatic'}
+                          onChange={e => setCurrentCampaign({...currentCampaign, trigger_type: e.target.value as any})}
+                          className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                        >
+                          <option value="automatic">Automático (Sempre)</option>
+                          <option value="coupon">Cupom de Desconto</option>
+                          <option value="min_value">Valor Mínimo no Carrinho</option>
+                          <option value="first_purchase">Primeira Compra</option>
+                        </select>
+                      </div>
+
+                      {currentCampaign.trigger_type === 'coupon' && (
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Código do Cupom</label>
+                          <input
+                            type="text"
+                            value={currentCampaign.coupon_code || ''}
+                            onChange={e => setCurrentCampaign({...currentCampaign, coupon_code: e.target.value.toUpperCase()})}
+                            className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                            placeholder="EX: BEMVINDO10"
+                          />
+                        </div>
+                      )}
+
+                      {currentCampaign.trigger_type === 'min_value' && (
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Valor Mínimo (R$)</label>
+                          <input
+                            type="number"
+                            value={currentCampaign.trigger_value || ''}
+                            onChange={e => setCurrentCampaign({...currentCampaign, trigger_value: parseFloat(e.target.value)})}
+                            className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                            placeholder="299.00"
+                          />
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Valor Desconto</label>
+                          <input
+                            type="number"
+                            value={currentCampaign.discount_value || ''}
+                            onChange={e => setCurrentCampaign({...currentCampaign, discount_value: parseFloat(e.target.value)})}
+                            className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                            placeholder="10"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
+                          <select
+                            value={currentCampaign.discount_type || 'percentage'}
+                            onChange={e => setCurrentCampaign({...currentCampaign, discount_type: e.target.value as any})}
+                            className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <option value="percentage">%</option>
+                            <option value="fixed">R$</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-200">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Sugestões de Regras Populares:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { name: 'FRETE GRÁTIS', trigger: 'min_value', value: 299 },
+                          { name: 'PRIMEIRA COMPRA', trigger: 'first_purchase', value: 10 },
+                          { name: 'DESCONTO PIX', trigger: 'automatic', value: 5 },
+                          { name: 'CUPOM BEMVINDO', trigger: 'coupon', value: 15 },
+                          { name: 'OFERTA RELÂMPAGO', trigger: 'automatic', value: 20 }
+                        ].map((sug, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setCurrentCampaign({
+                              ...currentCampaign,
+                              title: sug.name,
+                              trigger_type: sug.trigger as any,
+                              discount_value: sug.value,
+                              discount_type: 'percentage',
+                              trigger_value: sug.trigger === 'min_value' ? sug.value : undefined,
+                              coupon_code: sug.trigger === 'coupon' ? 'BEMVINDO15' : undefined
+                            })}
+                            className="text-[10px] bg-white border border-slate-200 px-2 py-1 rounded-md hover:border-emerald-500 hover:text-emerald-600 transition-all"
+                          >
+                            + {sug.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-2">Regras / Texto do Popup</label>
                     <textarea
@@ -649,6 +782,15 @@ export default function Campaigns() {
                       </span>
                     </div>
                     <div className="flex gap-2">
+                      {campaign.coupon_code && (
+                        <button
+                          onClick={() => copyCampaignLink(campaign)}
+                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="Copiar Link com Cupom"
+                        >
+                          {copiedId === campaign.id ? <Check size={18} className="text-emerald-600" /> : <Copy size={18} />}
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setCurrentCampaign(campaign);
@@ -694,6 +836,11 @@ export default function Campaigns() {
                         <div>
                           <h4 className="font-bold text-slate-900">{campaign.title}</h4>
                           <p className="text-xs text-emerald-600 font-medium">{campaign.subtitle}</p>
+                          {campaign.coupon_code && (
+                            <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md font-bold mt-1 inline-block">
+                              Cupom: {campaign.coupon_code}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -714,6 +861,11 @@ export default function Campaigns() {
                           <h4 className="font-black italic uppercase text-lg leading-[0.9] mb-2 tracking-tighter">
                             {campaign.title}
                           </h4>
+                          {campaign.coupon_code && (
+                            <div className="text-[10px] font-black bg-white/20 px-2 py-0.5 rounded-md w-fit mb-2">
+                              CUPOM: {campaign.coupon_code}
+                            </div>
+                          )}
                           {campaign.subtitle && (
                             <p className="text-[10px] font-medium opacity-90 mb-3 leading-tight line-clamp-2">
                               {campaign.subtitle}
