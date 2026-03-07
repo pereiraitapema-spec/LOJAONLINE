@@ -16,6 +16,7 @@ import Affiliates from './pages/Affiliates';
 import AffiliateRegister from './pages/AffiliateRegister';
 import AffiliateDashboard from './pages/AffiliateDashboard';
 import AuthCallback from './pages/AuthCallback';
+import AuthGoogleStart from './pages/AuthGoogleStart';
 import Checkout from './pages/Checkout';
 import Orders from './pages/Orders';
 import PaymentGateways from './pages/PaymentGateways';
@@ -68,9 +69,13 @@ function AppContent() {
   }, [navigate]);
 
   const handleRoleRedirect = async (session: any) => {
+    const path = window.location.pathname;
+    
     // 1. Admin Master
     if (session.user.email === 'pereira.itapema@gmail.com') {
-      navigate('/dashboard');
+      if (path === '/' || path === '/login' || path === '/register') {
+        navigate('/dashboard');
+      }
       return;
     }
 
@@ -82,7 +87,15 @@ function AppContent() {
       .maybeSingle();
 
     if (affiliate && affiliate.status === 'approved') {
-      navigate('/affiliate-dashboard');
+      if (path === '/' || path === '/login' || path === '/register') {
+        navigate('/affiliate-dashboard');
+      }
+      return;
+    }
+
+    // 3. Cliente Normal (se estiver em login/register, vai pra home)
+    if (path === '/login' || path === '/register') {
+      navigate('/');
     }
   };
 
@@ -104,14 +117,15 @@ function AppContent() {
         {/* Autenticação */}
         <Route 
           path="/login" 
-          element={session ? <Navigate to="/dashboard" replace /> : <Login />} 
+          element={session ? <Navigate to="/" replace /> : <Login />} 
         />
         <Route 
           path="/register" 
-          element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
+          element={session ? <Navigate to="/" replace /> : <Register />} 
         />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/auth/google-start" element={<AuthGoogleStart />} />
         <Route path="/affiliate-register" element={<AffiliateRegister />} />
         <Route path="/affiliate-dashboard" element={<AffiliateDashboard />} />
         

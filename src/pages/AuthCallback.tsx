@@ -8,23 +8,45 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleCallback = async () => {
-      // O Supabase lida com o token na URL automaticamente se detectSessionInUrl estiver true
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        // Se estiver em um popup, avisar o opener e fechar
-        if (window.opener) {
-          window.opener.postMessage({ type: 'AUTH_SUCCESS' }, window.location.origin);
-          window.close();
-        } else {
-          // Se não for popup, apenas redirecionar
-          navigate('/');
+      // 1. Ouvir mudanças de estado (mais confiável para OAuth)
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('🔔 Callback Auth Event:', event, session ? 'Sessão OK' : 'Sem Sessão');
+        
+        if (session) {
+          subscription.unsubscribe();
+          if (window.opener) {
+            window.opener.postMessage({ type: 'AUTH_SUCCESS' }, window.location.origin);
+            setTimeout(() => window.close(), 500);
+          } else {
+            navigate('/');
+          }
         }
-      } else {
-        // Se não tiver sessão, talvez ainda esteja processando ou deu erro
-        setTimeout(() => {
-          if (!window.opener) navigate('/login');
-        }, 2000);
+      });
+
+      // 2. Fallback: verificar sessão atual após um tempo
+      try {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          subscription.unsubscribe();
+          if (window.opener) {
+            window.opener.postMessage({ type: 'AUTH_SUCCESS' }, window.location.origin);
+            setTimeout(() => window.close(), 500);
+          } else {
+            navigate('/');
+          }
+        } else {
+          // Se após 5 segundos nada aconteceu, redirecionar
+          setTimeout(() => {
+            subscription.unsubscribe();
+            if (!window.opener) navigate('/login');
+          }, 3000);
+        }
+      } catch (err) {
+        console.error('Erro fatal no callback:', err);
+        subscription.unsubscribe();
+        if (!window.opener) navigate('/login');
       }
     };
 
