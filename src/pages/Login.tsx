@@ -19,6 +19,11 @@ export default function Login() {
   const [showResend, setShowResend] = useState(false);
   const navigate = useNavigate();
 
+  // Reset loading on mount to prevent "stuck" state from previous sessions
+  React.useEffect(() => {
+    setLoading(false);
+  }, []);
+
   // Timer para reenvio de e-mail
   React.useEffect(() => {
     if (resendTimer > 0) {
@@ -133,7 +138,6 @@ export default function Login() {
 
   const handleGoogleLogin = async () => {
     try {
-      setLoading(true);
       // No ambiente AI Studio, o redirecionamento na mesma janela é mais estável que popups
       const redirectTo = `${window.location.origin}/callback.html`;
       
@@ -143,7 +147,6 @@ export default function Login() {
         provider: 'google',
         options: {
           redirectTo: redirectTo,
-          // Removido skipBrowserRedirect para usar o fluxo padrão de redirecionamento
         }
       });
 
