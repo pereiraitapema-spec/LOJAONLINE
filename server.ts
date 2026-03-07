@@ -15,6 +15,35 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // Rota de callback para OAuth (Popup)
+  // Esta rota precisa estar ANTES do middleware do Vite para interceptar o redirecionamento
+  app.get("/auth/callback", (req, res) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Autenticando...</title>
+        </head>
+        <body>
+          <script>
+            if (window.opener) {
+              // Enviar mensagem para a janela principal
+              window.opener.postMessage({ type: 'AUTH_SUCCESS' }, '*');
+              // Fechar o popup
+              window.close();
+            } else {
+              // Se não for popup, redirecionar para a home
+              window.location.href = '/';
+            }
+          </script>
+          <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif;">
+            <p>Autenticação concluída. Esta janela fechará automaticamente...</p>
+          </div>
+        </body>
+      </html>
+    `);
+  });
+
   if (process.env.NODE_ENV === "production") {
     app.use(express.static(path.join(__dirname, "dist")));
     app.get("*", (req, res) => {

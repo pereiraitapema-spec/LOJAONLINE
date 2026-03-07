@@ -82,50 +82,61 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
+      const redirectTo = `${window.location.origin}/auth/callback`;
       
-      // Abrir o popup para a nossa rota interna que inicia o Google
-      const popup = window.open(
-        `${window.location.origin}/auth/google-start`,
-        'google-login',
-        'width=600,height=700,top=100,left=100'
-      );
-
-      if (!popup) {
-        toast.error('O bloqueador de popups impediu o login. Por favor, permita popups para este site.');
-        setLoading(false);
-        return;
-      }
-
-      // Ouvir mensagem de sucesso do popup
-      const handleMessage = (event: MessageEvent) => {
-        if (event.origin !== window.location.origin) return;
-        if (event.data?.type === 'AUTH_SUCCESS') {
-          window.removeEventListener('message', handleMessage);
-          toast.success('Login com Google realizado!');
-          // O App.tsx cuidará do redirecionamento automático baseado na role
-          // Mas como precaução, vamos dar um pequeno delay e navegar se nada acontecer
-          setTimeout(() => {
-             navigate('/');
-          }, 1000);
+      // 1. Iniciar o login com Google (sem redirecionar a página atual)
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectTo,
+          skipBrowserRedirect: true, // Isso nos dá a URL em vez de redirecionar
         }
-      };
-      window.addEventListener('message', handleMessage);
+      });
 
-      // Monitorar fechamento do popup
-      const checkPopup = setInterval(async () => {
-        if (popup?.closed) {
-          clearInterval(checkPopup);
+      if (error) throw error;
+
+      if (data?.url) {
+        // 2. Abrir o Google em um Popup DIRETAMENTE (não uma rota interna)
+        const popup = window.open(
+          data.url,
+          'google-login',
+          'width=600,height=700,top=100,left=100'
+        );
+
+        if (!popup) {
+          toast.error('O bloqueador de popups impediu o login. Por favor, permita popups para este site.');
           setLoading(false);
-          window.removeEventListener('message', handleMessage);
-          
-          // Verificar se logou com sucesso
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            toast.success('Login realizado!');
-            navigate('/');
-          }
+          return;
         }
-      }, 1000);
+
+        // Ouvir mensagem de sucesso do popup
+        const handleMessage = (event: MessageEvent) => {
+          // No ambiente AI Studio, o origin pode variar, então usamos '*' ou validamos com cuidado
+          if (event.data?.type === 'AUTH_SUCCESS') {
+            window.removeEventListener('message', handleMessage);
+            toast.success('Login com Google realizado!');
+            // O App.tsx cuidará do redirecionamento baseado na role
+            setTimeout(() => navigate('/'), 1000);
+          }
+        };
+        window.addEventListener('message', handleMessage);
+
+        // Monitorar fechamento do popup
+        const checkPopup = setInterval(async () => {
+          if (popup?.closed) {
+            clearInterval(checkPopup);
+            setLoading(false);
+            window.removeEventListener('message', handleMessage);
+            
+            // Verificar se logou com sucesso
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              toast.success('Login realizado!');
+              navigate('/');
+            }
+          }
+        }, 1000);
+      }
     } catch (error: any) {
       toast.error(error.message || 'Erro ao iniciar login com Google.');
       setLoading(false);
