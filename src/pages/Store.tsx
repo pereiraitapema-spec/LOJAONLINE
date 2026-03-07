@@ -106,6 +106,7 @@ export default function Store() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
+  const [siteContent, setSiteContent] = useState<any[]>([]);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const videoRef = React.useRef<HTMLVideoElement>(null);
@@ -204,13 +205,7 @@ export default function Store() {
       setSession(session);
       
       if (session) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .maybeSingle();
-        
-        if (data?.role === 'admin') {
+        if (session.user.email === 'pereira.itapema@gmail.com') {
           setIsAdmin(true);
         }
 
@@ -229,7 +224,7 @@ export default function Store() {
     };
     
     const fetchData = async () => {
-      const [bannerRes, prodRes, catRes, campRes, settingsRes] = await Promise.all([
+      const [bannerRes, prodRes, catRes, campRes, settingsRes, contentRes] = await Promise.all([
         supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }),
         supabase.from('products')
           .select('*, tiers:product_tiers(*), media:product_media(*)')
@@ -238,7 +233,8 @@ export default function Store() {
           .order('position', { foreignTable: 'product_media', ascending: true }),
         supabase.from('categories').select('*').order('name'),
         supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }),
-        supabase.from('store_settings').select('*').maybeSingle()
+        supabase.from('store_settings').select('*').maybeSingle(),
+        supabase.from('site_content').select('*')
       ]);
       
       setBanners(bannerRes.data || []);
@@ -248,6 +244,7 @@ export default function Store() {
       if (settingsRes.data) {
         setSettings(settingsRes.data);
       }
+      setSiteContent(contentRes.data || []);
       
       // Check for affiliate link
       const urlParams = new URLSearchParams(window.location.search);
@@ -461,13 +458,25 @@ export default function Store() {
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4 md:gap-8">
           {/* Logo & Tagline */}
           <div className="flex flex-col cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <div className="flex items-center gap-1 font-black text-2xl md:text-3xl tracking-tighter">
-              <Leaf size={28} className="text-emerald-600" />
-              <span className="text-emerald-800">G-Fit</span>
-              <span className="text-cyan-700">Life</span>
-            </div>
+            {siteContent.find(c => c.key === 'site_logo')?.value ? (
+              <img 
+                src={siteContent.find(c => c.key === 'site_logo')?.value} 
+                alt="Logo" 
+                className="h-12 md:h-16 object-contain"
+              />
+            ) : (
+              <div className="flex items-center gap-1 font-black text-2xl md:text-3xl tracking-tighter">
+                <Leaf size={28} className="text-emerald-600" />
+                <span className="text-emerald-800">
+                  {siteContent.find(c => c.key === 'brand_name')?.value?.split(' ')[0] || 'G-Fit'}
+                </span>
+                <span className="text-cyan-700">
+                  {siteContent.find(c => c.key === 'brand_name')?.value?.split(' ').slice(1).join(' ') || 'Life'}
+                </span>
+              </div>
+            )}
             <span className="text-[9px] md:text-[10px] text-slate-500 font-medium hidden md:block uppercase tracking-widest mt-0.5">
-              Saúde, Beleza e Emagrecimento
+              {siteContent.find(c => c.key === 'site_tagline')?.value || 'Saúde, Beleza e Emagrecimento'}
             </span>
           </div>
 

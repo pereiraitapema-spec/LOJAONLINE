@@ -39,7 +39,9 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [generatingAi, setGeneratingAi] = useState(false);
-  const [activeTab, setActiveTab] = useState('general'); // general, institutional, payments, shipping, hours, footer, marketing
+  const [activeTab, setActiveTab] = useState('general'); // general, institutional, payments, shipping, hours, footer, marketing, visual
+  const [siteContent, setSiteContent] = useState<any[]>([]);
+  const [loadingContent, setLoadingContent] = useState(false);
   const [showSql, setShowSql] = useState(false);
 
   useEffect(() => {
@@ -51,9 +53,73 @@ export default function Settings() {
         return;
       }
       fetchSettings();
+      fetchSiteContent();
     };
     checkAdmin();
   }, []);
+
+  const fetchSiteContent = async () => {
+    try {
+      setLoadingContent(true);
+      const { data, error } = await supabase
+        .from('site_content')
+        .select('*')
+        .order('key');
+      if (error) throw error;
+      setSiteContent(data || []);
+    } catch (error: any) {
+      console.error('Erro ao buscar conteúdo do site:', error);
+    } finally {
+      setLoadingContent(false);
+    }
+  };
+
+  const updateSiteContent = async (key: string, value: string) => {
+    try {
+      const { data: existing } = await supabase
+        .from('site_content')
+        .select('id')
+        .eq('key', key)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from('site_content').update({ value }).eq('key', key);
+      } else {
+        await supabase.from('site_content').insert([{ key, value }]);
+      }
+      fetchSiteContent();
+      toast.success('Conteúdo atualizado!');
+    } catch (error: any) {
+      toast.error('Erro ao salvar: ' + error.message);
+    }
+  };
+
+  const handleSiteImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, key: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSaving(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `site/${key}_${Math.random()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('banners')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('banners')
+        .getPublicUrl(fileName);
+
+      await updateSiteContent(key, publicUrl);
+    } catch (error: any) {
+      toast.error('Erro no upload: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -793,6 +859,7 @@ where not exists (select 1 from public.store_settings);`}
           { id: 'payments', label: 'Pagamentos', icon: CreditCard },
           { id: 'shipping', label: 'Frete', icon: Truck },
           { id: 'hours', label: 'Horários', icon: Clock },
+          { id: 'visual', label: 'Conteúdo Visual', icon: ImageIcon },
         ].map(tab => (
           <button
             key={tab.id}
@@ -1442,6 +1509,89 @@ where not exists (select 1 from public.store_settings);`}
                   className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
                   placeholder="Descreva os horários detalhados..."
                 />
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'visual' && (
+          <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h2 className="text-xl font-bold text-slate-900 mb-4">Conteúdo Visual e Identidade</h2>
+            <p className="text-sm text-slate-500 mb-8">Gerencie logotipos, ícones e textos fixos do site.</p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Logo Principal */}
+              <div className="space-y-4">
+                <label className="block text-sm font-bold text-slate-700 uppercase tracking-widest">Logo Principal (SVG ou PNG)</label>
+                <div className="aspect-video bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden group">
+                  {siteContent.find(c => c.key === 'site_logo')?.value ? (
+                    <img 
+                      src={siteContent.find(c => c.key === 'site_logo')?.value} 
+                      alt="Logo" 
+                      className="max-h-32 object-contain p-4"
+                    />
+                  ) : (
+                    <ImageIcon className="text-slate-300" size={48} />
+                  )}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">Alterar Logo</span>
+                  </div>
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => handleSiteImageUpload(e, 'site_logo')}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Favicon */}
+              <div className="space-y-4">
+                <label className="block text-sm font-bold text-slate-700 uppercase tracking-widest">Favicon (Ícone da Aba)</label>
+                <div className="w-24 h-24 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden group">
+                  {siteContent.find(c => c.key === 'site_favicon')?.value ? (
+                    <img 
+                      src={siteContent.find(c => c.key === 'site_favicon')?.value} 
+                      alt="Favicon" 
+                      className="w-12 h-12 object-contain"
+                    />
+                  ) : (
+                    <ImageIcon className="text-slate-300" size={24} />
+                  )}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="text-white font-bold text-[10px]">Alterar</span>
+                  </div>
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => handleSiteImageUpload(e, 'site_favicon')}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Textos Fixos */}
+              <div className="md:col-span-2 space-y-6 pt-6 border-t border-slate-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Nome da Marca (Texto)</label>
+                    <input
+                      type="text"
+                      defaultValue={siteContent.find(c => c.key === 'brand_name')?.value || 'G-Fit Life'}
+                      onBlur={(e) => updateSiteContent('brand_name', e.target.value)}
+                      className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Slogan / Tagline</label>
+                    <input
+                      type="text"
+                      defaultValue={siteContent.find(c => c.key === 'site_tagline')?.value || 'Saúde, Beleza e Emagrecimento'}
+                      onBlur={(e) => updateSiteContent('site_tagline', e.target.value)}
+                      className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </section>

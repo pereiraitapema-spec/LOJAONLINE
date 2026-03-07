@@ -458,7 +458,7 @@ export default function Checkout() {
 
       if (itemsError) throw itemsError;
 
-      // 2.1 Update Inventory Logs
+      // 2.1 Update Inventory Logs and Product Stock
       const inventoryLogs = cart.map(item => ({
         product_id: item.product.id,
         change_amount: -item.quantity,
@@ -468,6 +468,22 @@ export default function Checkout() {
       await supabase
         .from('inventory_logs')
         .insert(inventoryLogs);
+
+      // Update stock for each product
+      for (const item of cart) {
+        const { data: currentProduct } = await supabase
+          .from('products')
+          .select('stock')
+          .eq('id', item.product.id)
+          .single();
+        
+        if (currentProduct) {
+          await supabase
+            .from('products')
+            .update({ stock: Math.max(0, currentProduct.stock - item.quantity) })
+            .eq('id', item.product.id);
+        }
+      }
 
       // 3. Simulate Payment Gateway
       const activeGateway = gateways.find(g => g.active) || { name: 'Simulado', provider: 'internal' };
