@@ -20,6 +20,7 @@ import Orders from './pages/Orders';
 import PaymentGateways from './pages/PaymentGateways';
 import ShippingCarriers from './pages/ShippingCarriers';
 import Integrations from './pages/Integrations';
+import Inventory from './pages/Inventory';
 import { Loading } from './components/Loading';
 
 function AppContent() {
@@ -127,6 +128,10 @@ function AppContent() {
         <Route 
           path="/integrations" 
           element={session ? <Integrations /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/inventory" 
+          element={session ? <Inventory /> : <Navigate to="/login" replace />} 
         />
 
         {/* Fallback */}

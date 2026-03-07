@@ -13,7 +13,7 @@ import { Loading } from '../components/Loading';
 interface Integration {
   id: string;
   name: string;
-  type: 'erp' | 'crm' | 'marketplace' | 'other';
+  type: 'erp' | 'crm' | 'marketplace' | 'automation' | 'whatsapp' | 'other';
   status: 'connected' | 'disconnected' | 'error';
   config: any;
   last_sync?: string;
@@ -54,7 +54,9 @@ export default function Integrations() {
       setIntegrations([
         { id: 'bling', name: 'Bling ERP', type: 'erp', status: 'disconnected', config: {} },
         { id: 'bitrix24', name: 'Bitrix24 CRM', type: 'crm', status: 'disconnected', config: {} },
-        { id: 'tray', name: 'Tray E-commerce', type: 'marketplace', status: 'disconnected', config: {} }
+        { id: 'tray', name: 'Tray E-commerce', type: 'marketplace', status: 'disconnected', config: {} },
+        { id: 'n8n', name: 'n8n / Automação', type: 'automation', status: 'disconnected', config: {} },
+        { id: 'evolution', name: 'Evolution API (WhatsApp)', type: 'whatsapp', status: 'disconnected', config: {} }
       ]);
     } finally {
       setLoading(false);
@@ -136,10 +138,14 @@ export default function Integrations() {
                   <div className={`p-3 rounded-2xl ${
                     integration.type === 'erp' ? 'bg-blue-50 text-blue-600' :
                     integration.type === 'crm' ? 'bg-purple-50 text-purple-600' :
+                    integration.type === 'automation' ? 'bg-indigo-50 text-indigo-600' :
+                    integration.type === 'whatsapp' ? 'bg-emerald-50 text-emerald-600' :
                     'bg-orange-50 text-orange-600'
                   }`}>
                     {integration.type === 'erp' ? <Database size={24} /> :
                      integration.type === 'crm' ? <MessageSquare size={24} /> :
+                     integration.type === 'automation' ? <Zap size={24} /> :
+                     integration.type === 'whatsapp' ? <MessageSquare size={24} /> :
                      <ShoppingBag size={24} />}
                   </div>
                   <div className={`flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-1 rounded-full ${
@@ -161,6 +167,8 @@ export default function Integrations() {
                 <p className="text-xs text-slate-500 mb-6 uppercase tracking-wider font-bold">
                   {integration.type === 'erp' ? 'Gestão ERP & Estoque' :
                    integration.type === 'crm' ? 'CRM & Vendas' :
+                   integration.type === 'automation' ? 'Automação de Fluxos' :
+                   integration.type === 'whatsapp' ? 'WhatsApp & Chatbot' :
                    'Marketplace & Loja'}
                 </p>
                 
@@ -230,6 +238,49 @@ export default function Integrations() {
                     })}
                     className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
                     placeholder="Ex: 123456789"
+                  />
+                </div>
+              )}
+
+              {currentIntegration.id === 'n8n' && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Webhook URL</label>
+                  <input 
+                    type="text"
+                    value={currentIntegration.config?.webhook_url || ''}
+                    onChange={e => setCurrentIntegration({
+                      ...currentIntegration, 
+                      config: { ...currentIntegration.config, webhook_url: e.target.value }
+                    })}
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
+                    placeholder="https://n8n.seu-dominio.com/webhook/..."
+                  />
+                </div>
+              )}
+
+              {currentIntegration.id === 'evolution' && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Evolution API URL</label>
+                  <input 
+                    type="text"
+                    value={currentIntegration.config?.api_url || ''}
+                    onChange={e => setCurrentIntegration({
+                      ...currentIntegration, 
+                      config: { ...currentIntegration.config, api_url: e.target.value }
+                    })}
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all mb-4"
+                    placeholder="https://evolution.seu-dominio.com"
+                  />
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Instance Name</label>
+                  <input 
+                    type="text"
+                    value={currentIntegration.config?.instance_name || ''}
+                    onChange={e => setCurrentIntegration({
+                      ...currentIntegration, 
+                      config: { ...currentIntegration.config, instance_name: e.target.value }
+                    })}
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
+                    placeholder="Ex: GFitLife"
                   />
                 </div>
               )}

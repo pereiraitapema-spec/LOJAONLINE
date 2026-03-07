@@ -46,6 +46,8 @@ export default function Checkout() {
   const [isFirstPurchase, setIsFirstPurchase] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [gateways, setGateways] = useState<any[]>([]);
+  const [carriers, setCarriers] = useState<any[]>([]);
   
   // Form state
   const [customer, setCustomer] = useState({
@@ -75,6 +77,7 @@ export default function Checkout() {
 
   const [abandonedCartId, setAbandonedCartId] = useState<string | null>(null);
   const [freeShippingThreshold, setFreeShippingThreshold] = useState(299);
+  const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -103,18 +106,20 @@ export default function Checkout() {
         }
 
         // Fetch shipping methods and discount rules
-        const { data: settings } = await supabase
+        const { data: settingsData } = await supabase
           .from('store_settings')
-          .select('shipping_methods, free_shipping_threshold')
+          .select('*')
           .maybeSingle();
         
-        if (settings?.free_shipping_threshold) {
-          setFreeShippingThreshold(settings.free_shipping_threshold);
-        }
-
-        if (settings?.shipping_methods) {
-          const activeMethods = settings.shipping_methods.filter((m: any) => m.active);
-          setShippingMethods(activeMethods);
+        if (settingsData) {
+          setSettings(settingsData);
+          if (settingsData.free_shipping_threshold) {
+            setFreeShippingThreshold(settingsData.free_shipping_threshold);
+          }
+          if (settingsData.shipping_methods) {
+            const activeMethods = settingsData.shipping_methods.filter((m: any) => m.active);
+            setShippingMethods(activeMethods);
+          }
         } else {
           // Fallback
           setShippingMethods([
@@ -136,6 +141,20 @@ export default function Checkout() {
           .select('*')
           .eq('active', true);
         setCampaigns(campaignsData || []);
+
+        // Fetch Payment Gateways
+        const { data: gatewaysData } = await supabase
+          .from('payment_gateways')
+          .select('*')
+          .eq('active', true);
+        setGateways(gatewaysData || []);
+
+        // Fetch Shipping Carriers
+        const { data: carriersData } = await supabase
+          .from('shipping_carriers')
+          .select('*')
+          .eq('active', true);
+        setCarriers(carriersData || []);
 
         // Check for first purchase
         if (session?.user) {
@@ -292,6 +311,52 @@ export default function Checkout() {
     }
   };
 
+  // Injeção de Pixels de Rastreamento
+  useEffect(() => {
+    if (settings?.tracking_pixels) {
+      settings.tracking_pixels.forEach((pixel: any) => {
+        if (pixel.active && pixel.pixel_id) {
+          const pixelKey = `pixel-${pixel.platform}-${pixel.pixel_id}`;
+          if (document.getElementById(pixelKey)) return;
+
+          if (pixel.platform === 'facebook') {
+            const script = document.createElement('script');
+            script.id = pixelKey;
+            script.innerHTML = `
+              !function(f,b,e,v,n,t,s)
+              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+              n.queue=[];t=b.createElement(e);t.async=!0;
+              t.src=v;s=b.getElementsByTagName(e)[0];
+              s.parentNode.insertBefore(t,s)}(window, document,'script',
+              'https://connect.facebook.net/en_US/fbevents.js');
+              fbq('init', '${pixel.pixel_id}');
+              fbq('track', 'InitiateCheckout');
+            `;
+            document.head.appendChild(script);
+          } else if (pixel.platform === 'google_analytics') {
+            const script1 = document.createElement('script');
+            script1.id = `${pixelKey}-js`;
+            script1.async = true;
+            script1.src = `https://www.googletagmanager.com/gtag/js?id=${pixel.pixel_id}`;
+            document.head.appendChild(script1);
+
+            const script2 = document.createElement('script');
+            script2.id = pixelKey;
+            script2.innerHTML = `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', '${pixel.pixel_id}');
+            `;
+            document.head.appendChild(script2);
+          }
+        }
+      });
+    }
+  }, [settings]);
+
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -383,8 +448,8 @@ export default function Checkout() {
         order_id: orderData.id,
         product_id: item.product.id,
         quantity: item.quantity,
-        unit_price: item.product.discount_price || item.product.price,
-        total_price: calculatePrice(item.product, item.quantity).total
+        price: item.product.discount_price || item.product.price,
+        product_name: item.product.name
       }));
 
       const { error: itemsError } = await supabase
@@ -404,14 +469,19 @@ export default function Checkout() {
         .from('inventory_logs')
         .insert(inventoryLogs);
 
-      // 3. Simulate Payment Gateway (Pagar.me)
-      // In a real scenario, we would call our backend API here, which would call Pagar.me
+      // 3. Simulate Payment Gateway
+      const activeGateway = gateways.find(g => g.active) || { name: 'Simulado', provider: 'internal' };
+      
+      // In a real scenario, we would call our backend API here
       await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
 
       // Update order status to paid (simulated success)
       await supabase
         .from('orders')
-        .update({ status: 'paid', payment_id: `sim_${Math.random().toString(36).substr(2, 9)}` })
+        .update({ 
+          status: 'paid', 
+          payment_id: `sim_${activeGateway.provider}_${Math.random().toString(36).substr(2, 9)}` 
+        })
         .eq('id', orderData.id);
 
       // Clear cart
@@ -420,6 +490,32 @@ export default function Checkout() {
 
       toast.success('Pedido realizado com sucesso!');
       
+      // Trigger Purchase Event
+      if (settings?.tracking_pixels) {
+        settings.tracking_pixels.forEach((pixel: any) => {
+          if (pixel.active && pixel.pixel_id) {
+            if (pixel.platform === 'facebook' && (window as any).fbq) {
+              (window as any).fbq('track', 'Purchase', {
+                value: finalTotal,
+                currency: 'BRL'
+              });
+            } else if (pixel.platform === 'google_analytics' && (window as any).gtag) {
+              (window as any).gtag('event', 'purchase', {
+                transaction_id: orderData.id,
+                value: finalTotal,
+                currency: 'BRL',
+                items: cart.map(item => ({
+                  item_id: item.product.id,
+                  item_name: item.product.name,
+                  quantity: item.quantity,
+                  price: item.product.discount_price || item.product.price
+                }))
+              });
+            }
+          }
+        });
+      }
+
       // Redirect to success page or clear state
       navigate('/'); // Or create a /success page
       

@@ -30,6 +30,7 @@ interface StoreSettings {
   promotions_section_subtitle?: string;
   products_section_title?: string;
   products_section_subtitle?: string;
+  tracking_pixels: { platform: string; pixel_id: string; active: boolean }[];
 }
 
 export default function Settings() {
@@ -38,7 +39,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [generatingAi, setGeneratingAi] = useState(false);
-  const [activeTab, setActiveTab] = useState('general'); // general, institutional, payments, shipping, hours, footer
+  const [activeTab, setActiveTab] = useState('general'); // general, institutional, payments, shipping, hours, footer, marketing
   const [showSql, setShowSql] = useState(false);
 
   useEffect(() => {
@@ -111,7 +112,8 @@ export default function Settings() {
           promotions_section_title: data.promotions_section_title || 'CAMPANHAS E PROMOÇÕES',
           promotions_section_subtitle: data.promotions_section_subtitle || 'Aproveite nossas ofertas exclusivas',
           products_section_title: data.products_section_title || 'Novidades da Estação',
-          products_section_subtitle: data.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.'
+          products_section_subtitle: data.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
+          tracking_pixels: data.tracking_pixels || []
         });
       }
     } catch (error: any) {
@@ -154,7 +156,8 @@ export default function Settings() {
         promotions_section_title: settings.promotions_section_title,
         promotions_section_subtitle: settings.promotions_section_subtitle,
         products_section_title: settings.products_section_title,
-        products_section_subtitle: settings.products_section_subtitle
+        products_section_subtitle: settings.products_section_subtitle,
+        tracking_pixels: settings.tracking_pixels
       };
 
       console.log('Salvando configurações:', payload);
@@ -194,6 +197,25 @@ export default function Settings() {
     const newLinks = [...settings.social_links];
     newLinks[index] = { ...newLinks[index], [field]: value };
     handleChange('social_links', newLinks);
+  };
+
+  const addPixel = () => {
+    if (!settings) return;
+    const newPixels = [...(settings.tracking_pixels || []), { platform: '', pixel_id: '', active: true }];
+    handleChange('tracking_pixels', newPixels);
+  };
+
+  const removePixel = (index: number) => {
+    if (!settings) return;
+    const newPixels = settings.tracking_pixels.filter((_, i) => i !== index);
+    handleChange('tracking_pixels', newPixels);
+  };
+
+  const updatePixel = (index: number, field: string, value: any) => {
+    if (!settings) return;
+    const newPixels = [...settings.tracking_pixels];
+    newPixels[index] = { ...newPixels[index], [field]: value };
+    handleChange('tracking_pixels', newPixels);
   };
 
   // ... (dentro do JSX, aba 'footer' ou 'general')
@@ -765,6 +787,7 @@ where not exists (select 1 from public.store_settings);`}
       <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
         {[
           { id: 'general', label: 'Geral', icon: SettingsIcon },
+          { id: 'marketing', label: 'Marketing & Pixels', icon: Sparkles },
           { id: 'footer', label: 'Rodapé & Links', icon: LinkIcon },
           { id: 'institutional', label: 'Termos & Conteúdo', icon: FileText },
           { id: 'payments', label: 'Pagamentos', icon: CreditCard },
@@ -1117,6 +1140,77 @@ where not exists (select 1 from public.store_settings);`}
               )}
             </section>
           </>
+        )}
+
+        {activeTab === 'marketing' && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Pixels de Rastreamento</h2>
+                  <p className="text-slate-500">Configure seus pixels do Facebook, Google e outros para remarketing.</p>
+                </div>
+                <button 
+                  onClick={addPixel}
+                  className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl font-bold hover:bg-indigo-100 transition-colors"
+                >
+                  <Plus size={20} /> Adicionar Pixel
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {settings.tracking_pixels?.map((pixel, index) => (
+                  <div key={index} className="flex flex-col md:flex-row gap-4 p-6 bg-slate-50 rounded-3xl border border-slate-100 relative group">
+                    <button 
+                      onClick={() => removePixel(index)}
+                      className="absolute -top-2 -right-2 p-2 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                    <div className="flex-1">
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Plataforma</label>
+                      <select 
+                        value={pixel.platform}
+                        onChange={e => updatePixel(index, 'platform', e.target.value)}
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                      >
+                        <option value="">Selecione...</option>
+                        <option value="facebook">Facebook Pixel</option>
+                        <option value="google_analytics">Google Analytics</option>
+                        <option value="google_ads">Google Ads</option>
+                        <option value="tiktok">TikTok Pixel</option>
+                        <option value="other">Outro</option>
+                      </select>
+                    </div>
+                    <div className="flex-[2]">
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1">ID do Pixel / Script</label>
+                      <input 
+                        type="text"
+                        value={pixel.pixel_id}
+                        onChange={e => updatePixel(index, 'pixel_id', e.target.value)}
+                        placeholder="Ex: 1234567890"
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                      />
+                    </div>
+                    <div className="flex items-end pb-1">
+                      <button 
+                        onClick={() => updatePixel(index, 'active', !pixel.active)}
+                        className={`px-4 py-3 rounded-xl font-bold transition-all ${pixel.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}
+                      >
+                        {pixel.active ? 'Ativo' : 'Inativo'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {(!settings.tracking_pixels || settings.tracking_pixels.length === 0) && (
+                  <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                    <Sparkles size={48} className="mx-auto text-slate-200 mb-4" />
+                    <p className="text-slate-500 italic">Nenhum pixel configurado ainda.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
         )}
 
         {activeTab === 'institutional' && (

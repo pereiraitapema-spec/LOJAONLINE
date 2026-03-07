@@ -10,3 +10,51 @@ ADD COLUMN IF NOT EXISTS text_color text DEFAULT '#ffffff';
 UPDATE campaigns SET button_text = 'VER AGORA' WHERE button_text IS NULL;
 UPDATE campaigns SET background_color = '#000000' WHERE background_color IS NULL;
 UPDATE campaigns SET text_color = '#ffffff' WHERE text_color IS NULL;
+
+-- Create payment_gateways table
+CREATE TABLE IF NOT EXISTS payment_gateways (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL,
+  provider text NOT NULL,
+  api_key text,
+  active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+-- Create shipping_carriers table
+CREATE TABLE IF NOT EXISTS shipping_carriers (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL,
+  provider text NOT NULL,
+  api_key text,
+  active boolean DEFAULT true,
+  label_generation boolean DEFAULT false,
+  tracking_notifications boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+-- Create integrations table
+CREATE TABLE IF NOT EXISTS integrations (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  type text NOT NULL,
+  status text DEFAULT 'disconnected',
+  config jsonb DEFAULT '{}'::jsonb,
+  last_sync timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+-- Insert default integrations if they don't exist
+INSERT INTO integrations (id, name, type)
+VALUES 
+  ('bling', 'Bling ERP', 'erp'),
+  ('bitrix24', 'Bitrix24 CRM', 'crm'),
+  ('tray', 'Tray E-commerce', 'marketplace')
+ON CONFLICT (id) DO NOTHING;
+
+-- Add tracking_pixels to store_settings
+ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS tracking_pixels jsonb DEFAULT '[]'::jsonb;
+
+-- Inventory Logs Policies
+DROP POLICY IF EXISTS "Enable all for authenticated" ON public.inventory_logs;
+CREATE POLICY "Enable all for authenticated" ON public.inventory_logs FOR ALL USING (auth.role() = 'authenticated');

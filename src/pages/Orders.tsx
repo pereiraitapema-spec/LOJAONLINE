@@ -62,7 +62,9 @@ export default function Orders() {
   }, [activeTab]);
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderItems, setOrderItems] = useState<any[]>([]);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [loadingItems, setLoadingItems] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -103,6 +105,23 @@ export default function Orders() {
       toast.error('Erro ao carregar dados: ' + error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOrderItems = async (orderId: string) => {
+    try {
+      setLoadingItems(true);
+      const { data, error } = await supabase
+        .from('order_items')
+        .select('*, product:products(image_url)')
+        .eq('order_id', orderId);
+      
+      if (error) throw error;
+      setOrderItems(data || []);
+    } catch (error: any) {
+      toast.error('Erro ao carregar itens: ' + error.message);
+    } finally {
+      setLoadingItems(false);
     }
   };
 
@@ -364,6 +383,7 @@ export default function Orders() {
                         onClick={() => {
                           setSelectedOrder(order);
                           setShowDetailsModal(true);
+                          fetchOrderItems(order.id);
                         }}
                         className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-flex"
                         title="Ver Detalhes"
@@ -533,13 +553,43 @@ export default function Orders() {
                 </div>
               )}
 
-              {/* Itens do Pedido (Simulação por enquanto, precisa de tabela order_items) */}
+              {/* Itens do Pedido */}
               <div className="space-y-4">
                 <h3 className="font-bold text-slate-900 border-b border-slate-100 pb-2">Itens do Pedido</h3>
-                <div className="bg-slate-50 rounded-2xl p-4 text-center text-slate-400 text-sm">
-                  <Package className="mx-auto mb-2 opacity-20" size={32} />
-                  Detalhes dos produtos em breve (Módulo 8)
-                </div>
+                {loadingItems ? (
+                  <div className="flex justify-center py-4">
+                    <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : orderItems.length === 0 ? (
+                  <div className="bg-slate-50 rounded-2xl p-4 text-center text-slate-400 text-sm italic">
+                    Nenhum item encontrado para este pedido.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {orderItems.map((item) => (
+                      <div key={item.id} className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="w-12 h-12 bg-white rounded-xl border border-slate-200 overflow-hidden flex-shrink-0">
+                          <img 
+                            src={item.product?.image_url || 'https://picsum.photos/seed/product/200/200'} 
+                            alt={item.product_name} 
+                            className="w-full h-full object-contain p-1"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-900 truncate">{item.product_name}</p>
+                          <p className="text-xs text-slate-500">{item.quantity}x R$ {item.price.toFixed(2)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-slate-900">R$ {(item.quantity * item.price).toFixed(2)}</p>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Subtotal dos Itens</span>
+                      <span className="font-bold text-slate-900">R$ {orderItems.reduce((acc, item) => acc + (item.quantity * item.price), 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

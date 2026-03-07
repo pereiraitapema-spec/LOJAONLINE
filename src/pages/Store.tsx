@@ -286,6 +286,52 @@ export default function Store() {
   const nextBanner = () => setCurrentBannerIndex((prev) => (prev + 1) % banners.length);
   const prevBanner = () => setCurrentBannerIndex((prev) => (prev - 1 + banners.length) % banners.length);
 
+  // Injeção de Pixels de Rastreamento
+  useEffect(() => {
+    if (settings?.tracking_pixels) {
+      settings.tracking_pixels.forEach(pixel => {
+        if (pixel.active && pixel.pixel_id) {
+          const pixelKey = `pixel-${pixel.platform}-${pixel.pixel_id}`;
+          if (document.getElementById(pixelKey)) return;
+
+          if (pixel.platform === 'facebook') {
+            const script = document.createElement('script');
+            script.id = pixelKey;
+            script.innerHTML = `
+              !function(f,b,e,v,n,t,s)
+              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+              n.queue=[];t=b.createElement(e);t.async=!0;
+              t.src=v;s=b.getElementsByTagName(e)[0];
+              s.parentNode.insertBefore(t,s)}(window, document,'script',
+              'https://connect.facebook.net/en_US/fbevents.js');
+              fbq('init', '${pixel.pixel_id}');
+              fbq('track', 'PageView');
+            `;
+            document.head.appendChild(script);
+          } else if (pixel.platform === 'google_analytics') {
+            const script1 = document.createElement('script');
+            script1.id = `${pixelKey}-js`;
+            script1.async = true;
+            script1.src = `https://www.googletagmanager.com/gtag/js?id=${pixel.pixel_id}`;
+            document.head.appendChild(script1);
+
+            const script2 = document.createElement('script');
+            script2.id = pixelKey;
+            script2.innerHTML = `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', '${pixel.pixel_id}');
+            `;
+            document.head.appendChild(script2);
+          }
+        }
+      });
+    }
+  }, [settings]);
+
   // Lógica do Carrossel de Mídia do Produto
   useEffect(() => {
     if (!selectedProduct) return;
