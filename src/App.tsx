@@ -29,9 +29,18 @@ function AppContent() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // 1. Pegar sessão inicial
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // 1. Pegar sessão inicial e redirecionar se necessário
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
+      
+      if (session) {
+        const path = window.location.pathname;
+        // Só redirecionar se estiver na home, login ou register
+        if (path === '/' || path === '/login' || path === '/register') {
+          await handleRoleRedirect(session);
+        }
+      }
+      
       setLoading(false);
     });
 
@@ -48,31 +57,33 @@ function AppContent() {
       // Redirecionamento automático no Login inicial
       if (event === 'SIGNED_IN' && session) {
         const path = window.location.pathname;
-        
-        // Só redirecionar se estiver na home, login ou register
         if (path === '/' || path === '/login' || path === '/register') {
-          // 1. Admin Master
-          if (session.user.email === 'pereira.itapema@gmail.com') {
-            navigate('/dashboard');
-            return;
-          }
-
-          // 2. Afiliado Aprovado
-          const { data: affiliate } = await supabase
-            .from('affiliates')
-            .select('status')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-
-          if (affiliate && affiliate.status === 'approved') {
-            navigate('/affiliate-dashboard');
-          }
+          await handleRoleRedirect(session);
         }
       }
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const handleRoleRedirect = async (session: any) => {
+    // 1. Admin Master
+    if (session.user.email === 'pereira.itapema@gmail.com') {
+      navigate('/dashboard');
+      return;
+    }
+
+    // 2. Afiliado Aprovado
+    const { data: affiliate } = await supabase
+      .from('affiliates')
+      .select('status')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+
+    if (affiliate && affiliate.status === 'approved') {
+      navigate('/affiliate-dashboard');
+    }
+  };
 
   if (loading) {
     return (

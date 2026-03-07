@@ -7,6 +7,7 @@ import { Leaf, User, Mail, Phone, Globe, MessageSquare, ArrowRight, CheckCircle,
 export default function AffiliateRegister() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [step, setStep] = useState(1); // 1: Dados Pessoais, 2: Divulgação, 3: Sucesso
   const [session, setSession] = useState<any>(null);
 
@@ -26,18 +27,24 @@ export default function AffiliateRegister() {
 
   React.useEffect(() => {
     const checkSession = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-      if (currentSession) {
-        // Se já estiver logado, preencher dados básicos e pular para o que falta
-        setFormData(prev => ({
-          ...prev,
-          name: currentSession.user.user_metadata.full_name || '',
-          email: currentSession.user.email || '',
-          confirmEmail: currentSession.user.email || '',
-          password: 'EXISTING_USER', // Placeholder para passar na validação
-          confirmPassword: 'EXISTING_USER'
-        }));
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        setSession(currentSession);
+        if (currentSession) {
+          // Se já estiver logado, preencher dados básicos e pular para o que falta
+          setFormData(prev => ({
+            ...prev,
+            name: currentSession.user.user_metadata.full_name || '',
+            email: currentSession.user.email || '',
+            confirmEmail: currentSession.user.email || '',
+            password: 'EXISTING_USER', // Placeholder para passar na validação
+            confirmPassword: 'EXISTING_USER'
+          }));
+        }
+      } catch (err) {
+        console.error('Erro ao verificar sessão:', err);
+      } finally {
+        setCheckingSession(false);
       }
     };
     checkSession();
@@ -84,6 +91,7 @@ export default function AffiliateRegister() {
 
       // 1. Se NÃO estiver logado, criar conta
       if (!session) {
+        console.log('🚀 Iniciando signUp para:', formData.email);
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -95,8 +103,23 @@ export default function AffiliateRegister() {
           }
         });
 
-        if (authError) throw authError;
+        if (authError) {
+          console.error('❌ Erro no signUp:', authError);
+          // Se o usuário já existe mas não está logado, podemos tentar avisar
+          if (authError.message.includes('already registered') || authError.status === 422) {
+            throw new Error('Este e-mail já possui uma conta. Por favor, faça login antes de se cadastrar como afiliado.');
+          }
+          throw authError;
+        }
+        
         userId = authData.user?.id;
+        
+        // Em alguns casos o signUp retorna sucesso mas sem usuário (se precisar confirmar email)
+        if (!userId && authData.session === null) {
+           toast.success('Cadastro realizado! Verifique seu e-mail para confirmar a conta antes de prosseguir.');
+           setStep(3);
+           return;
+        }
       }
 
       if (userId) {
@@ -144,12 +167,25 @@ export default function AffiliateRegister() {
         setStep(3); // Sucesso
       }
     } catch (error: any) {
-      console.error('Erro no cadastro:', error);
-      toast.error(error.message || 'Erro ao realizar cadastro.');
+      console.error('❌ Erro detalhado no cadastro:', error);
+      // Se for o erro clássico de trigger do Supabase, dar uma dica melhor
+      if (error.message?.includes('Database error saving new user')) {
+        toast.error('Erro no servidor do banco de dados. Por favor, contate o administrador para rodar o script de reparo SQL.');
+      } else {
+        toast.error(error.message || 'Erro ao realizar cadastro.');
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -206,6 +242,18 @@ export default function AffiliateRegister() {
                   <span className="bg-emerald-100 text-emerald-800 w-8 h-8 rounded-full flex items-center justify-center text-sm">1</span>
                   Dados Pessoais
                 </h3>
+
+                {session && (
+                  <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                      <User size={20} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-emerald-900">Você está logado!</p>
+                      <p className="text-xs text-emerald-700">Usaremos sua conta atual ({session.user.email}) para o cadastro.</p>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="space-y-4">
                   <div>
