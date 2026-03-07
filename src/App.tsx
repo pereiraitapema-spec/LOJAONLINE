@@ -21,6 +21,7 @@ import PaymentGateways from './pages/PaymentGateways';
 import ShippingCarriers from './pages/ShippingCarriers';
 import Integrations from './pages/Integrations';
 import Inventory from './pages/Inventory';
+import NotFound from './pages/NotFound';
 import { Loading } from './components/Loading';
 import { leadService } from './services/leadService';
 import { toast } from 'react-hot-toast';
@@ -222,7 +223,7 @@ function AppContent() {
         />
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </>
   );
