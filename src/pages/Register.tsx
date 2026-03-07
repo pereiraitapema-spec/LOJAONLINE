@@ -35,6 +35,7 @@ export default function Register() {
         options: {
           data: {
             full_name: fullName,
+            role: 'user'
           },
         },
       });
@@ -42,11 +43,14 @@ export default function Register() {
       if (error) throw error;
 
       if (data.user) {
+        // Se o Supabase retornar uma sessão, significa que a confirmação de e-mail está DESATIVADA
         if (data.session) {
           toast.success('Cadastro realizado com sucesso! Bem-vindo.');
-          navigate('/');
+          // Pequeno delay para garantir que o estado do auth seja atualizado
+          setTimeout(() => navigate('/'), 1000);
         } else {
-          toast.success('Cadastro realizado! Por favor, verifique seu e-mail para confirmar sua conta e poder fazer login.');
+          // Se não retornar sessão, a confirmação de e-mail está ATIVADA no Supabase
+          toast.success('Cadastro realizado! Verifique seu e-mail para confirmar a conta. (Dica: Você pode desativar a confirmação de e-mail no painel do Supabase para entrar direto)');
           navigate('/login');
         }
       }

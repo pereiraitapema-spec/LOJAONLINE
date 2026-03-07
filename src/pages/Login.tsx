@@ -82,64 +82,22 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
-      // Usar o arquivo estático callback.html que criamos na pasta public
+      // No ambiente AI Studio, o redirecionamento na mesma janela é mais estável que popups
       const redirectTo = `${window.location.origin}/callback.html`;
       
-      console.log('🚀 Iniciando Google Login com Redirect:', redirectTo);
+      console.log('🚀 Iniciando Google Login (Redirect Flow):', redirectTo);
 
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectTo,
-          skipBrowserRedirect: true,
+          // Removido skipBrowserRedirect para usar o fluxo padrão de redirecionamento
         }
       });
 
       if (error) throw error;
-
-      if (data?.url) {
-        const popup = window.open(
-          data.url,
-          'google-login',
-          'width=600,height=700,top=100,left=100'
-        );
-
-        if (!popup) {
-          toast.error('O bloqueador de popups impediu o login. Por favor, permita popups para este site.');
-          setLoading(false);
-          return;
-        }
-
-        // Ouvir mensagem de sucesso do popup
-        const handleMessage = (event: MessageEvent) => {
-          if (event.data?.type === 'AUTH_SUCCESS') {
-            console.log('✅ Mensagem AUTH_SUCCESS recebida!');
-            window.removeEventListener('message', handleMessage);
-            toast.success('Login com Google realizado!');
-            
-            // Forçar atualização da sessão e redirecionar
-            setTimeout(async () => {
-              const { data: { session } } = await supabase.auth.getSession();
-              if (session) navigate('/');
-            }, 500);
-          }
-        };
-        window.addEventListener('message', handleMessage);
-
-        // Monitorar fechamento do popup (Fallback)
-        const checkPopup = setInterval(async () => {
-          if (popup?.closed) {
-            clearInterval(checkPopup);
-            setLoading(false);
-            
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-              toast.success('Login realizado!');
-              navigate('/');
-            }
-          }
-        }, 1000);
-      }
+      
+      // O navegador será redirecionado automaticamente pelo Supabase
     } catch (error: any) {
       console.error('❌ Erro no Google Login:', error);
       toast.error(error.message || 'Erro ao iniciar login com Google.');
