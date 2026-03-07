@@ -46,14 +46,22 @@ export default function Login() {
       });
       if (error) throw error;
       
-      // Verificar se é afiliado
+      // Redirecionamento baseado em Role
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
+        // 1. Verificar se é Admin Master
+        if (session.user.email === 'pereira.itapema@gmail.com') {
+          toast.success('Bem-vindo, Administrador!');
+          navigate('/dashboard');
+          return;
+        }
+
+        // 2. Verificar se é Afiliado Aprovado
         const { data: affiliate } = await supabase
           .from('affiliates')
           .select('status')
           .eq('user_id', session.user.id)
-          .single();
+          .maybeSingle();
 
         if (affiliate && affiliate.status === 'approved') {
           toast.success('Bem-vindo ao Painel de Afiliado!');
@@ -104,19 +112,25 @@ export default function Login() {
             // Verificar se logou com sucesso após fechar
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
-              // Verificar se é afiliado
+              // Redirecionamento baseado em Role (Google Login)
+              if (session.user.email === 'pereira.itapema@gmail.com') {
+                toast.success('Bem-vindo, Administrador!');
+                navigate('/dashboard');
+                return;
+              }
+
               const { data: affiliate } = await supabase
                 .from('affiliates')
                 .select('status')
                 .eq('user_id', session.user.id)
-                .single();
+                .maybeSingle();
 
               if (affiliate && affiliate.status === 'approved') {
                 toast.success('Bem-vindo ao Painel de Afiliado!');
                 navigate('/affiliate-dashboard');
               } else {
                 toast.success('Login com Google realizado!');
-                navigate('/dashboard');
+                navigate('/');
               }
             }
           }

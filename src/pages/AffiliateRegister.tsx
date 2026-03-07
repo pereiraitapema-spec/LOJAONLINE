@@ -8,6 +8,7 @@ export default function AffiliateRegister() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1); // 1: Dados Pessoais, 2: Divulgação, 3: Sucesso
+  const [session, setSession] = useState<any>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -23,20 +24,43 @@ export default function AffiliateRegister() {
     observation: ''
   });
 
+  React.useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      setSession(currentSession);
+      if (currentSession) {
+        // Se já estiver logado, preencher dados básicos e pular para o que falta
+        setFormData(prev => ({
+          ...prev,
+          name: currentSession.user.user_metadata.full_name || '',
+          email: currentSession.user.email || '',
+          confirmEmail: currentSession.user.email || '',
+          password: 'EXISTING_USER', // Placeholder para passar na validação
+          confirmPassword: 'EXISTING_USER'
+        }));
+      }
+    };
+    checkSession();
+  }, []);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const validateStep1 = () => {
-    if (!formData.name || !formData.email || !formData.password || !formData.whatsapp) {
+    if (!formData.name || !formData.email || !formData.whatsapp) {
       toast.error('Preencha todos os campos obrigatórios.');
+      return false;
+    }
+    if (!session && !formData.password) {
+      toast.error('A senha é obrigatória para novos usuários.');
       return false;
     }
     if (formData.email !== formData.confirmEmail) {
       toast.error('Os e-mails não coincidem.');
       return false;
     }
-    if (formData.password !== formData.confirmPassword) {
+    if (!session && formData.password !== formData.confirmPassword) {
       toast.error('As senhas não coincidem.');
       return false;
     }
@@ -44,7 +68,7 @@ export default function AffiliateRegister() {
       toast.error('Os números de WhatsApp não coincidem.');
       return false;
     }
-    if (formData.password.length < 6) {
+    if (!session && formData.password.length < 6) {
       toast.error('A senha deve ter pelo menos 6 caracteres.');
       return false;
     }
@@ -56,27 +80,50 @@ export default function AffiliateRegister() {
     setLoading(true);
 
     try {
-      // 1. Criar usuário no Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            full_name: formData.name,
-            role: 'affiliate_pending' // Role temporária ou usar metadados
+      let userId = session?.user?.id;
+
+      // 1. Se NÃO estiver logado, criar conta
+      if (!session) {
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
+              full_name: formData.name,
+              role: 'affiliate_pending'
+            }
           }
+        });
+
+        if (authError) throw authError;
+        userId = authData.user?.id;
+      }
+
+      if (userId) {
+        // 2. Verificar se já existe um registro de afiliado para este usuário
+        const { data: existingAffiliate } = await supabase
+          .from('affiliates')
+          .select('id, status')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (existingAffiliate) {
+          if (existingAffiliate.status === 'approved') {
+            toast.success('Você já é um afiliado aprovado!');
+            navigate('/affiliate-dashboard');
+          } else {
+            toast.error('Você já possui uma solicitação em análise.');
+            setStep(3); // Pular para tela de sucesso/análise
+          }
+          return;
         }
-      });
 
-      if (authError) throw authError;
-
-      if (authData.user) {
-        // 2. Criar registro na tabela affiliates
+        // 3. Criar registro na tabela affiliates
         const { error: affiliateError } = await supabase
           .from('affiliates')
           .insert([
             {
-              user_id: authData.user.id,
+              user_id: userId,
               name: formData.name,
               email: formData.email,
               whatsapp: formData.whatsapp,
@@ -85,15 +132,13 @@ export default function AffiliateRegister() {
               other_media: formData.otherMedia,
               observation: formData.observation,
               status: 'pending',
-              commission_rate: 10 // Padrão inicial
+              commission_rate: 10
             }
           ]);
 
         if (affiliateError) {
-            // Se falhar ao criar perfil de afiliado, idealmente deveríamos desfazer o Auth, 
-            // mas por simplicidade vamos apenas alertar. O usuário existe no Auth mas sem perfil.
-            console.error('Erro ao criar perfil de afiliado:', affiliateError);
-            throw new Error('Erro ao salvar dados de afiliado. Entre em contato com o suporte.');
+          console.error('Erro ao criar perfil de afiliado:', affiliateError);
+          throw new Error('Erro ao salvar dados de afiliado. Verifique se você já possui um cadastro.');
         }
 
         setStep(3); // Sucesso
@@ -208,32 +253,34 @@ export default function AffiliateRegister() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Senha</label>
-                      <input 
-                        type="password"
-                        name="password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                        placeholder="Mínimo 6 caracteres"
-                        required
-                      />
+                  {!session && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Senha</label>
+                        <input 
+                          type="password"
+                          name="password"
+                          value={formData.password}
+                          onChange={handleChange}
+                          className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                          placeholder="Mínimo 6 caracteres"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Confirmar Senha</label>
+                        <input 
+                          type="password"
+                          name="confirmPassword"
+                          value={formData.confirmPassword}
+                          onChange={handleChange}
+                          className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                          placeholder="Repita a senha"
+                          required
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Confirmar Senha</label>
-                      <input 
-                        type="password"
-                        name="confirmPassword"
-                        value={formData.confirmPassword}
-                        onChange={handleChange}
-                        className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                        placeholder="Repita a senha"
-                        required
-                      />
-                    </div>
-                  </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>

@@ -36,13 +36,38 @@ function AppContent() {
     });
 
     // 2. Ouvir mudanças (Login/Logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔔 Auth Event:', event);
       setSession(session);
       setLoading(false);
       
       if (event === 'PASSWORD_RECOVERY') {
         navigate('/reset-password');
+      }
+
+      // Redirecionamento automático no Login inicial
+      if (event === 'SIGNED_IN' && session) {
+        const path = window.location.pathname;
+        
+        // Só redirecionar se estiver na home, login ou register
+        if (path === '/' || path === '/login' || path === '/register') {
+          // 1. Admin Master
+          if (session.user.email === 'pereira.itapema@gmail.com') {
+            navigate('/dashboard');
+            return;
+          }
+
+          // 2. Afiliado Aprovado
+          const { data: affiliate } = await supabase
+            .from('affiliates')
+            .select('status')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+
+          if (affiliate && affiliate.status === 'approved') {
+            navigate('/affiliate-dashboard');
+          }
+        }
       }
     });
 
