@@ -55,37 +55,40 @@ export default function Login() {
 
       // 2. Se falhar por credenciais inválidas, tentar Cadastro Automático
       if (signInError) {
-        if (signInError.message.includes('Invalid login credentials')) {
-          console.log('ℹ️ Credenciais não encontradas, tentando cadastro automático...');
-          
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: {
-                full_name: email.split('@')[0], // Nome padrão baseado no email
-                role: 'customer'
-              }
-            }
-          });
-
-          if (signUpError) throw signUpError;
-
-          if (signUpData.user) {
-            finalUser = signUpData.user;
-            if (signUpData.session) {
-              toast.success('Conta criada e login realizado com sucesso!');
-              // Marcar como Lead Frio
-              await leadService.updateStatus('frio');
-              navigate('/');
-              return;
-            } else {
-              toast.success('Conta criada! Verifique seu e-mail para confirmar (ou peça ao admin para desativar a confirmação).');
-              return;
+        // Supabase retorna 'Invalid login credentials' tanto para senha errada quanto para usuário inexistente
+        console.log('ℹ️ Falha no login, tentando verificar se é um novo usuário...');
+        
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: email.split('@')[0],
+              role: 'customer'
             }
           }
-        } else {
-          throw signInError;
+        });
+
+        // Se o erro for "User already registered", então a senha estava errada para um usuário existente
+        if (signUpError) {
+          if (signUpError.message.includes('User already registered')) {
+            throw new Error('Senha incorreta para este e-mail.');
+          }
+          throw signUpError;
+        }
+
+        if (signUpData.user) {
+          finalUser = signUpData.user;
+          if (signUpData.session) {
+            toast.success('Conta criada e login realizado com sucesso!');
+            await leadService.updateStatus('frio');
+            navigate('/');
+            return;
+          } else {
+            // Se chegou aqui, a confirmação de e-mail está ATIVADA no Supabase
+            toast.success('Cadastro realizado! Como a confirmação de e-mail está ativa no seu Supabase, verifique sua caixa de entrada.', { duration: 6000 });
+            return;
+          }
         }
       }
       
@@ -187,11 +190,11 @@ export default function Login() {
         className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8"
       >
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <LogIn className="w-8 h-8 text-indigo-600" />
+          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <LogIn className="w-8 h-8 text-emerald-600" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Bem-vindo de volta</h1>
-          <p className="text-slate-500">Faça login para acessar sua conta.</p>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Acesse sua conta</h1>
+          <p className="text-slate-500">Basta digitar seu e-mail e senha. Se não tiver conta, ela será criada automaticamente.</p>
           
           {connectionError && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-center gap-2">
@@ -246,9 +249,9 @@ export default function Login() {
           <button 
             type="submit"
             disabled={loading}
-            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
           >
-            {loading ? 'Entrando...' : 'Entrar'}
+            {loading ? 'Processando...' : 'Entrar ou Cadastrar'}
           </button>
 
           <div className="relative my-8">
@@ -274,7 +277,7 @@ export default function Login() {
           </p>
 
           <p className="text-sm text-center text-slate-400 mt-4">
-            Não tem uma conta? <Link to="/register" className="text-indigo-600 font-semibold hover:underline">Cadastre-se</Link>
+            Ao entrar, você concorda com nossos termos.
           </p>
         </form>
       </motion.div>

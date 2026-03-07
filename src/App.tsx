@@ -92,7 +92,7 @@ function AppContent() {
       return;
     }
 
-    // 2. Afiliado Aprovado
+    // 2. Verificar se é Afiliado Aprovado
     const { data: affiliate } = await supabase
       .from('affiliates')
       .select('status')
@@ -106,7 +106,21 @@ function AppContent() {
       return;
     }
 
-    // 3. Cliente Normal (se estiver em login/register, vai pra home)
+    // 3. Verificar se é Admin via tabela profiles
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if (profile?.role === 'admin') {
+      if (path === '/' || path === '/login' || path === '/register') {
+        navigate('/dashboard');
+      }
+      return;
+    }
+
+    // 4. Cliente Normal (se estiver em login/register, vai pra home)
     if (path === '/login' || path === '/register') {
       navigate('/');
     }
