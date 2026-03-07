@@ -7,9 +7,11 @@ import { toast } from 'react-hot-toast';
 import { leadService } from '../services/leadService';
 
 export default function Login() {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [confirmEmail, setConfirmEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -51,37 +53,48 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validar se os e-mails são iguais
-    if (email !== confirmEmail) {
-      toast.error('Os e-mails digitados não coincidem. Por favor, verifique.');
-      return;
+    if (mode === 'register') {
+      if (email !== confirmEmail) {
+        toast.error('Os e-mails digitados não coincidem.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        toast.error('As senhas digitadas não coincidem.');
+        return;
+      }
+      if (password.length < 6) {
+        toast.error('A senha deve ter pelo menos 6 caracteres.');
+        return;
+      }
     }
 
     setLoading(true);
     try {
-      let finalUser = null;
+      if (mode === 'login') {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      // 1. Tentar Login
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInData.user) {
-        finalUser = signInData.user;
-      }
-
-      // 2. Se falhar por credenciais inválidas ou e-mail não confirmado
-      if (signInError) {
-        if (signInError.message.includes('Email not confirmed')) {
-          setShowResend(true);
-          throw new Error('Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada ou clique em "Reenviar e-mail" abaixo.');
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            throw new Error('E-mail ou senha incorretos.');
+          }
+          if (error.message.includes('Email not confirmed')) {
+            setShowResend(true);
+            throw new Error('Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.');
+          }
+          throw error;
         }
 
-        // Supabase retorna 'Invalid login credentials' tanto para senha errada quanto para usuário inexistente
-        console.log('ℹ️ Falha no login, tentando verificar se é um novo usuário...');
-        
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        if (data.user) {
+          toast.success('Bem-vindo de volta!');
+          await leadService.updateStatus('frio');
+          // O App.tsx cuidará do redirecionamento via onAuthStateChange
+        }
+      } else {
+        // Modo Cadastro
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -92,67 +105,27 @@ export default function Login() {
           }
         });
 
-        // Se o erro for "User already registered", então a senha estava errada para um usuário existente
-        if (signUpError) {
-          if (signUpError.message.includes('User already registered')) {
-            throw new Error('Senha incorreta para este e-mail.');
+        if (error) {
+          if (error.message.includes('User already registered')) {
+            throw new Error('Este e-mail já possui uma conta. Tente fazer login.');
           }
-          throw signUpError;
+          throw error;
         }
 
-        if (signUpData.user) {
-          finalUser = signUpData.user;
-          if (signUpData.session) {
-            toast.success('Conta criada e login realizado com sucesso!');
+        if (data.user) {
+          if (data.session) {
+            toast.success('Conta criada com sucesso!');
             await leadService.updateStatus('frio');
             navigate('/');
-            return;
           } else {
-            // Se chegou aqui, a confirmação de e-mail está ATIVADA no Supabase
             setShowResend(true);
-            toast.success('Cadastro realizado! Como a confirmação de e-mail está ativa no seu Supabase, verifique sua caixa de entrada.', { duration: 6000 });
-            return;
+            toast.success('Cadastro realizado! Verifique seu e-mail para confirmar a conta.');
           }
         }
       }
-      
-      if (finalUser) {
-        // Marcar como Lead Frio se for novo ou garantir que existe
-        await leadService.updateStatus('frio');
-      }
-
-      // 3. Redirecionamento baseado em Role (para quem já tinha conta)
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        // Marcar como Lead Frio se for novo ou garantir que existe
-        console.log('✅ Login realizado. Usuário:', session.user.email);
-
-        // 1. Verificar se é Admin Master
-        if (session.user.email === 'pereira.itapema@gmail.com') {
-          toast.success('Bem-vindo, Administrador!');
-          navigate('/dashboard');
-          return;
-        }
-
-        // 2. Verificar se é Afiliado Aprovado
-        const { data: affiliate } = await supabase
-          .from('affiliates')
-          .select('status')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-
-        if (affiliate && affiliate.status === 'approved') {
-          toast.success('Bem-vindo ao Painel de Afiliado!');
-          navigate('/affiliate-dashboard');
-          return;
-        }
-      }
-
-      toast.success('Login realizado com sucesso!');
-      navigate('/');
     } catch (error: any) {
-      console.error('❌ Erro no Auth Unificado:', error);
-      toast.error(error.message || 'Erro ao realizar login/cadastro.');
+      console.error('❌ Auth Error:', error);
+      toast.error(error.message || 'Erro ao processar sua solicitação.');
     } finally {
       setLoading(false);
     }
@@ -246,9 +219,34 @@ export default function Login() {
           <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <LogIn className="w-8 h-8 text-emerald-600" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Acesse sua conta</h1>
-          <p className="text-slate-500">Basta digitar seu e-mail e senha. Se não tiver conta, ela será criada automaticamente.</p>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">
+            {mode === 'login' ? 'Acesse sua conta' : 'Crie sua conta'}
+          </h1>
+          <p className="text-slate-500">
+            {mode === 'login' 
+              ? 'Entre com seu e-mail e senha cadastrados.' 
+              : 'Preencha os dados abaixo para se cadastrar.'}
+          </p>
           
+          <div className="flex bg-slate-100 p-1 rounded-xl mt-6">
+            <button
+              onClick={() => setMode('login')}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+                mode === 'login' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Entrar
+            </button>
+            <button
+              onClick={() => setMode('register')}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+                mode === 'register' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Cadastrar
+            </button>
+          </div>
+
           {connectionError && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-center gap-2">
               <span className="animate-pulse">⚠️</span>
@@ -275,22 +273,24 @@ export default function Login() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Confirme seu E-mail
-            </label>
-            <div className="relative">
-              <input
-                type="email"
-                value={confirmEmail}
-                onChange={(e) => setConfirmEmail(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                placeholder="Repita seu e-mail"
-                required
-              />
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          {mode === 'register' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Confirme seu E-mail
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  value={confirmEmail}
+                  onChange={(e) => setConfirmEmail(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="Repita seu e-mail"
+                  required
+                />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              </div>
             </div>
-          </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -316,12 +316,31 @@ export default function Login() {
             </div>
           </div>
 
+          {mode === 'register' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Confirme sua Senha
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full pl-11 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="Repita sua senha"
+                  required
+                />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              </div>
+            </div>
+          )}
+
           <button 
             type="submit"
             disabled={loading}
             className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
           >
-            {loading ? 'Processando...' : 'Entrar ou Cadastrar'}
+            {loading ? 'Processando...' : mode === 'login' ? 'Entrar' : 'Cadastrar'}
           </button>
 
           {showResend && (
