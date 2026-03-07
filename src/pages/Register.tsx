@@ -51,8 +51,17 @@ export default function Register() {
         }
       }
     } catch (error: any) {
-      console.error('Registration error:', error);
-      toast.error(error.message || 'Erro ao realizar cadastro.');
+      console.error('❌ Registration error:', error);
+      
+      let errorMessage = error.message || 'Erro ao realizar cadastro.';
+      
+      if (errorMessage.includes('Database error saving new user')) {
+        errorMessage = 'Erro interno no servidor de banco de dados. Por favor, peça ao administrador para rodar o script de reparo SQL no Supabase.';
+      } else if (errorMessage.includes('already registered')) {
+        errorMessage = 'Este e-mail já possui uma conta cadastrada. Tente fazer login.';
+      }
+      
+      toast.error(errorMessage, { duration: 6000 });
     } finally {
       setLoading(false);
     }

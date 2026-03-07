@@ -167,13 +167,17 @@ export default function AffiliateRegister() {
         setStep(3); // Sucesso
       }
     } catch (error: any) {
-      console.error('❌ Erro detalhado no cadastro:', error);
-      // Se for o erro clássico de trigger do Supabase, dar uma dica melhor
-      if (error.message?.includes('Database error saving new user')) {
-        toast.error('Erro no servidor do banco de dados. Por favor, contate o administrador para rodar o script de reparo SQL.');
-      } else {
-        toast.error(error.message || 'Erro ao realizar cadastro.');
+      console.error('❌ Erro detalhado no cadastro de afiliado:', error);
+      
+      let errorMessage = error.message || 'Erro ao realizar cadastro.';
+      
+      if (errorMessage.includes('Database error saving new user')) {
+        errorMessage = 'Erro interno no servidor de banco de dados. Por favor, peça ao administrador para rodar o script de reparo SQL no Supabase.';
+      } else if (errorMessage.includes('already registered')) {
+        errorMessage = 'Este e-mail já possui uma conta cadastrada. Tente fazer login antes de se tornar afiliado.';
       }
+      
+      toast.error(errorMessage, { duration: 6000 });
     } finally {
       setLoading(false);
     }

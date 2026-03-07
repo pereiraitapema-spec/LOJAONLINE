@@ -29,6 +29,16 @@ function AppContent() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // 0. Testar conexão com banco de dados
+    const checkDB = async () => {
+      const { error } = await supabase.from('profiles').select('id').limit(1);
+      if (error && error.message.includes('does not exist')) {
+        console.error('❌ Tabela profiles não encontrada!');
+        toast.error('Banco de dados incompleto. Por favor, execute o script SQL de reparo no Supabase.', { duration: 10000 });
+      }
+    };
+    checkDB();
+
     // 1. Pegar sessão inicial e redirecionar se necessário
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
