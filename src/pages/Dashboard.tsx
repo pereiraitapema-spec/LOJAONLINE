@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, Megaphone, Users } from 'lucide-react';
+import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, Megaphone, Users, CreditCard, Truck, Zap } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 
@@ -121,6 +121,27 @@ export default function Dashboard() {
           >
             <Users size={20} />
             Afiliados
+          </button>
+          <button 
+            onClick={() => navigate('/gateways')}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
+          >
+            <CreditCard size={20} />
+            Gateways
+          </button>
+          <button 
+            onClick={() => navigate('/shipping')}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
+          >
+            <Truck size={20} />
+            Transportadoras
+          </button>
+          <button 
+            onClick={() => navigate('/integrations')}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
+          >
+            <Zap size={20} />
+            Integrações
           </button>
           <button 
             onClick={() => navigate('/settings')}

@@ -588,14 +588,45 @@ export default function Campaigns() {
                     </div>
 
                     <div className="pt-4 border-t border-slate-200">
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Sugestões de Regras Populares:</p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sugestões de Regras Populares (25 Modelos):</p>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            toast.success('Lógica: Automático (Aplica a todos), Cupom (Requer código), Valor Mínimo (Ativa após atingir valor).', { duration: 5000 });
+                          }}
+                          className="text-[10px] text-indigo-600 font-bold hover:underline"
+                        >
+                          Ver Explicação das Lógicas
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 max-h-48 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-100 scrollbar-hide">
                         {[
-                          { name: 'FRETE GRÁTIS', trigger: 'min_value', value: 299 },
-                          { name: 'PRIMEIRA COMPRA', trigger: 'first_purchase', value: 10 },
-                          { name: 'DESCONTO PIX', trigger: 'automatic', value: 5 },
-                          { name: 'CUPOM BEMVINDO', trigger: 'coupon', value: 15 },
-                          { name: 'OFERTA RELÂMPAGO', trigger: 'automatic', value: 20 }
+                          { name: 'FRETE GRÁTIS', trigger: 'min_value', value: 299, type: 'percentage', code: '', rules: 'Frete grátis para compras acima de R$ 299. Válido para todo o Brasil.' },
+                          { name: 'PRIMEIRA COMPRA', trigger: 'first_purchase', value: 10, type: 'percentage', code: 'PRIMEIRA10', rules: 'Ganhe 10% de desconto na sua primeira compra na loja!' },
+                          { name: 'DESCONTO PIX', trigger: 'automatic', value: 5, type: 'percentage', code: '', rules: '5% de desconto automático para pagamentos via PIX.' },
+                          { name: 'CUPOM BEMVINDO', trigger: 'coupon', value: 15, type: 'percentage', code: 'BEMVINDO15', rules: 'Use o cupom BEMVINDO15 e ganhe 15% de desconto agora!' },
+                          { name: 'OFERTA RELÂMPAGO', trigger: 'automatic', value: 20, type: 'percentage', code: '', rules: 'Oferta por tempo limitado! 20% de desconto em todo o site.' },
+                          { name: 'COMPRE 2 LEVE 3', trigger: 'automatic', value: 33, type: 'percentage', code: '', rules: 'Na compra de 3 itens, o de menor valor sai de graça (equivale a ~33% OFF).' },
+                          { name: 'PROGRESSIVO 10%', trigger: 'min_value', value: 10, type: 'percentage', code: '', rules: 'Ganhe 10% de desconto em compras acima de R$ 150.' },
+                          { name: 'PROGRESSIVO 20%', trigger: 'min_value', value: 20, type: 'percentage', code: '', rules: 'Ganhe 20% de desconto em compras acima de R$ 300.' },
+                          { name: 'ANIVERSÁRIO', trigger: 'coupon', value: 25, type: 'percentage', code: 'PARABENS25', rules: 'Parabéns! Use seu cupom de aniversário e ganhe 25% OFF.' },
+                          { name: 'INDIQUE AMIGO', trigger: 'coupon', value: 15, type: 'percentage', code: 'AMIGO15', rules: 'Indique um amigo e ambos ganham 15% de desconto.' },
+                          { name: 'LIQUIDA INVERNO', trigger: 'automatic', value: 40, type: 'percentage', code: '', rules: 'Liquidação de Inverno! Até 40% de desconto em itens selecionados.' },
+                          { name: 'BLACK FRIDAY', trigger: 'automatic', value: 50, type: 'percentage', code: '', rules: 'Black Friday Antecipada! Metade do preço em toda a loja.' },
+                          { name: 'COMBO SAÚDE', trigger: 'min_value', value: 15, type: 'percentage', code: '', rules: 'Leve 3 ou mais itens de saúde e ganhe 15% de desconto total.' },
+                          { name: 'FRETE FIXO 9,90', trigger: 'min_value', value: 9.90, type: 'fixed', code: '', rules: 'Frete fixo de apenas R$ 9,90 para compras acima de R$ 100.' },
+                          { name: 'BRINDE ESPECIAL', trigger: 'min_value', value: 0, type: 'percentage', code: '', rules: 'Ganhe um brinde exclusivo em compras acima de R$ 500.' },
+                          { name: 'ASSINANTES VIP', trigger: 'coupon', value: 20, type: 'percentage', code: 'VIP20', rules: 'Desconto exclusivo para assinantes da nossa newsletter.' },
+                          { name: 'DIA DO CONSUMIDOR', trigger: 'automatic', value: 15, type: 'percentage', code: '', rules: 'Semana do Consumidor: 15% OFF em todo o catálogo.' },
+                          { name: 'DIA DAS MÃES', trigger: 'coupon', value: 20, type: 'percentage', code: 'MAE20', rules: 'Presenteie sua mãe com 20% de desconto usando o cupom MAE20.' },
+                          { name: 'DIA DOS PAIS', trigger: 'automatic', value: 10, type: 'percentage', code: '', rules: 'Especial Dia dos Pais: 10% de desconto automático.' },
+                          { name: 'NATAL MÁGICO', trigger: 'min_value', value: 15, type: 'percentage', code: '', rules: 'Natal Antecipado: 15% OFF para compras acima de R$ 200.' },
+                          { name: 'QUEIMA ESTOQUE', trigger: 'automatic', value: 60, type: 'percentage', code: '', rules: 'Últimas unidades! Queima de estoque com até 60% OFF.' },
+                          { name: 'CLIENTE ANTIGO', trigger: 'coupon', value: 30, type: 'percentage', code: 'VOLTEI30', rules: 'Sentimos sua falta! Use VOLTEI30 e ganhe 30% na sua volta.' },
+                          { name: 'CASHBACK 10%', trigger: 'automatic', value: 10, type: 'percentage', code: '', rules: 'Ganhe 10% de cashback para usar na sua próxima compra.' },
+                          { name: 'ATACADO 20%', trigger: 'min_value', value: 20, type: 'percentage', code: '', rules: 'Compras acima de 10 unidades ganham 20% de desconto automático.' },
+                          { name: 'LANÇAMENTO', trigger: 'coupon', value: 5, type: 'percentage', code: 'NOVO05', rules: 'Conheça nossos lançamentos com 5% de desconto extra.' }
                         ].map((sug, idx) => (
                           <button
                             key={idx}
@@ -605,13 +636,18 @@ export default function Campaigns() {
                               title: sug.name,
                               trigger_type: sug.trigger as any,
                               discount_value: sug.value,
-                              discount_type: 'percentage',
-                              trigger_value: sug.trigger === 'min_value' ? sug.value : undefined,
-                              coupon_code: sug.trigger === 'coupon' ? 'BEMVINDO15' : undefined
+                              discount_type: sug.type as any,
+                              trigger_value: sug.trigger === 'min_value' ? (sug.name.includes('FRETE') ? 299 : 150) : undefined,
+                              coupon_code: sug.code || undefined,
+                              rules_text: sug.rules,
+                              badge_text: sug.name,
+                              button_text: 'APROVEITAR AGORA',
+                              background_color: '#059669',
+                              text_color: '#ffffff'
                             })}
-                            className="text-[10px] bg-white border border-slate-200 px-2 py-1 rounded-md hover:border-emerald-500 hover:text-emerald-600 transition-all"
+                            className="text-[9px] bg-white border border-slate-200 px-2 py-1.5 rounded-lg hover:border-emerald-500 hover:text-emerald-600 transition-all font-bold text-slate-600 text-left leading-tight"
                           >
-                            + {sug.name}
+                            {sug.name}
                           </button>
                         ))}
                       </div>

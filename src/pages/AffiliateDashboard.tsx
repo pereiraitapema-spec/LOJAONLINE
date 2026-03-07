@@ -31,7 +31,17 @@ interface AffiliateData {
   commission_rate: number;
   status: string;
   balance: number;
+  total_paid?: number;
   pix_key?: string;
+}
+
+interface Payment {
+  id: string;
+  amount: number;
+  status: string;
+  receipt_url?: string;
+  created_at: string;
+  paid_at?: string;
 }
 
 interface Coupon {
@@ -59,7 +69,8 @@ export default function AffiliateDashboard() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'coupons' | 'sales'>('products');
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'coupons' | 'sales' | 'payments'>('products');
   const [searchTerm, setSearchTerm] = useState('');
   
   // Estado para criação de cupom
@@ -115,6 +126,9 @@ export default function AffiliateDashboard() {
       // Carregar vendas (orders)
       fetchOrders(affiliateData.id);
 
+      // Carregar pagamentos
+      fetchPayments(affiliateData.id);
+
       setLoading(false);
 
     } catch (error) {
@@ -134,8 +148,6 @@ export default function AffiliateDashboard() {
   };
 
   const fetchOrders = async (affiliateId: string) => {
-    // Simulação de busca de vendas (orders table needs affiliate_id)
-    // Se a tabela orders não tiver affiliate_id ainda, isso vai falhar silenciosamente ou retornar vazio
     const { data } = await supabase
       .from('orders')
       .select('*')
@@ -143,7 +155,6 @@ export default function AffiliateDashboard() {
       .order('created_at', { ascending: false });
     
     if (data) {
-      // Mapear para interface Order
       const mappedOrders = data.map((order: any) => ({
         id: order.id,
         created_at: order.created_at,
@@ -154,6 +165,16 @@ export default function AffiliateDashboard() {
       }));
       setOrders(mappedOrders);
     }
+  };
+
+  const fetchPayments = async (affiliateId: string) => {
+    const { data } = await supabase
+      .from('affiliate_payments')
+      .select('*')
+      .eq('affiliate_id', affiliateId)
+      .order('created_at', { ascending: false });
+    
+    if (data) setPayments(data);
   };
 
   const generateLink = (type: 'product' | 'category' | 'store', id?: string) => {
@@ -258,8 +279,13 @@ export default function AffiliateDashboard() {
 
           <div className="flex items-center gap-6 bg-emerald-800/50 px-6 py-3 rounded-2xl border border-emerald-700">
             <div className="text-center">
-              <span className="block text-xs text-emerald-300 uppercase tracking-wider">Saldo</span>
+              <span className="block text-xs text-emerald-300 uppercase tracking-wider">A Receber</span>
               <span className="block font-black text-xl">R$ {affiliate?.balance?.toFixed(2) || '0.00'}</span>
+            </div>
+            <div className="w-px h-8 bg-emerald-700"></div>
+            <div className="text-center">
+              <span className="block text-xs text-emerald-300 uppercase tracking-wider">Já Recebido</span>
+              <span className="block font-black text-xl">R$ {affiliate?.total_paid?.toFixed(2) || '0.00'}</span>
             </div>
             <div className="w-px h-8 bg-emerald-700"></div>
             <div className="text-center">
@@ -308,6 +334,13 @@ export default function AffiliateDashboard() {
           >
             <DollarSign size={20} />
             Minhas Vendas
+          </button>
+          <button 
+            onClick={() => setActiveTab('payments')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'payments' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
+          >
+            <CheckCircle size={20} />
+            Pagamentos
           </button>
         </div>
 
@@ -496,7 +529,14 @@ export default function AffiliateDashboard() {
           {/* Aba Vendas */}
           {activeTab === 'sales' && (
             <div>
-              <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter mb-6">Histórico de Vendas</h2>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Histórico de Vendas</h2>
+                <div className="flex gap-2">
+                  <button className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200">7 Dias</button>
+                  <button className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200">30 Dias</button>
+                  <button className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold">Tudo</button>
+                </div>
+              </div>
               
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -539,6 +579,72 @@ export default function AffiliateDashboard() {
                             }`}>
                               {order.status === 'paid' ? 'Pago' : order.status === 'pending' ? 'Pendente' : order.status}
                             </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Aba Pagamentos */}
+          {activeTab === 'payments' && (
+            <div>
+              <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter mb-6">Histórico de Pagamentos</h2>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      <th className="py-4 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Data Solicitação</th>
+                      <th className="py-4 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Valor</th>
+                      <th className="py-4 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                      <th className="py-4 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Data Pagamento</th>
+                      <th className="py-4 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Comprovante</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-500">
+                          Nenhum pagamento registrado ainda.
+                        </td>
+                      </tr>
+                    ) : (
+                      payments.map(payment => (
+                        <tr key={payment.id} className="border-b border-slate-100 hover:bg-slate-50">
+                          <td className="py-4 px-4 text-sm text-slate-600">
+                            {new Date(payment.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="py-4 px-4 text-sm font-bold text-slate-900">
+                            R$ {payment.amount.toFixed(2)}
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className={`text-xs font-bold px-2 py-1 rounded-full uppercase ${
+                              payment.status === 'paid' ? 'bg-emerald-100 text-emerald-800' :
+                              'bg-amber-100 text-amber-800'
+                            }`}>
+                              {payment.status === 'paid' ? 'Pago' : 'Pendente'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-sm text-slate-600">
+                            {payment.paid_at ? new Date(payment.paid_at).toLocaleDateString() : '-'}
+                          </td>
+                          <td className="py-4 px-4">
+                            {payment.receipt_url ? (
+                              <a 
+                                href={payment.receipt_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-indigo-600 hover:underline text-xs font-bold flex items-center gap-1"
+                              >
+                                <LinkIcon size={14} /> Ver PIX
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 text-xs italic">Aguardando...</span>
+                            )}
                           </td>
                         </tr>
                       ))

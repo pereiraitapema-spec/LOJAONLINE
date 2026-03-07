@@ -8,7 +8,7 @@ import {
   Volume2, VolumeX, Image as ImageIcon, X, Search, Menu, 
   Heart, Truck, CreditCard, Phone, Instagram, Facebook, Twitter, Youtube, Linkedin,
   Star, Zap, Leaf, Droplets, Activity, Flame, Megaphone,
-  QrCode, Barcode, Landmark, Package, DollarSign, Tag, BarChart, Users
+  QrCode, Barcode, Landmark, Package, DollarSign, Tag, BarChart, Users, Copy, Link as LinkIcon
 } from 'lucide-react';
 import SmartChat from '../components/SmartChat';
 
@@ -100,6 +100,7 @@ interface StoreSettings {
 export default function Store() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [session, setSession] = useState<any>(null);
+  const [affiliateData, setAffiliateData] = useState<any>(null);
   const [banners, setBanners] = useState<Banner[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -127,6 +128,16 @@ export default function Store() {
       icon: '🎁',
       duration: 3000
     });
+  };
+
+  const copyAffiliateLink = (productId?: string) => {
+    if (!affiliateData) return;
+    const baseUrl = window.location.origin;
+    let url = `${baseUrl}/?ref=${affiliateData.id}`;
+    if (productId) url += `&product=${productId}`;
+    
+    navigator.clipboard.writeText(url);
+    toast.success('Link de afiliado copiado!', { icon: '🔗' });
   };
 
   const [isModalMuted, setIsModalMuted] = useState(false);
@@ -201,6 +212,18 @@ export default function Store() {
         
         if (data?.role === 'admin') {
           setIsAdmin(true);
+        }
+
+        // Buscar dados do afiliado
+        const { data: affData } = await supabase
+          .from('affiliates')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .eq('status', 'approved')
+          .maybeSingle();
+        
+        if (affData) {
+          setAffiliateData(affData);
         }
       }
     };
@@ -429,6 +452,27 @@ export default function Store() {
               >
                 <ShieldCheck size={18} />
                 Admin
+              </button>
+            )}
+
+            {affiliateData && (
+              <button 
+                onClick={() => navigate('/affiliate-dashboard')}
+                className="hidden md:flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-sm font-bold border border-indigo-200 hover:bg-indigo-100 transition-colors"
+              >
+                <BarChart size={18} />
+                Painel Afiliado
+              </button>
+            )}
+
+            {affiliateData && (
+              <button 
+                onClick={() => copyAffiliateLink()}
+                className="hidden md:flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-full text-sm font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-600/20"
+                title="Copiar seu link de afiliado geral"
+              >
+                <LinkIcon size={18} />
+                Link Geral
               </button>
             )}
 
@@ -841,6 +885,28 @@ export default function Store() {
               <div className="mt-0.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 ou {calculateInstallments(product.discount_price || product.price, product.min_installment_value).count}x de R$ {calculateInstallments(product.discount_price || product.price, product.min_installment_value).value.toFixed(2)}
               </div>
+
+              {affiliateData && (
+                <div className="mt-2 p-2 bg-indigo-50 rounded-xl border border-indigo-100">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-[10px] font-bold text-indigo-600 uppercase">Sua Comissão</span>
+                    <span className="text-xs font-black text-indigo-700">
+                      R$ {((product.discount_price || product.price) * (product.affiliate_commission || affiliateData.commission_rate) / 100).toFixed(2)}
+                    </span>
+                  </div>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyAffiliateLink(product.id);
+                    }}
+                    className="w-full py-1.5 bg-white border border-indigo-200 text-indigo-600 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-1.5 hover:bg-indigo-600 hover:text-white transition-all"
+                  >
+                    <Copy size={12} />
+                    Link de Divulgação
+                  </button>
+                </div>
+              )}
+
               <button 
                 onClick={(e) => {
                   e.stopPropagation();

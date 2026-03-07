@@ -15,7 +15,9 @@ import {
   Check,
   X,
   Edit2,
-  Save
+  Save,
+  Upload,
+  FileText
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -28,10 +30,23 @@ interface AffiliateData {
   code: string;
   commission_rate: number;
   balance: number;
+  total_paid?: number;
   pix_key: string;
   active: boolean;
   status: string;
   created_at: string;
+}
+
+interface Payment {
+  id: string;
+  affiliate_id: string;
+  amount: number;
+  status: string;
+  receipt_url?: string;
+  pix_key?: string;
+  created_at: string;
+  paid_at?: string;
+  affiliate_name?: string;
 }
 
 export default function Affiliates() {
@@ -46,6 +61,9 @@ export default function Affiliates() {
   const [selectedAffiliateForSales, setSelectedAffiliateForSales] = useState<string | null>(null);
   const [affiliateSales, setAffiliateSales] = useState<any[]>([]);
   const [salesFilter, setSalesFilter] = useState<'all' | '30days' | '7days'>('all');
+  const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
+  const [showPayments, setShowPayments] = useState(false);
+  const [uploadingReceipt, setUploadingReceipt] = useState<string | null>(null);
 
   // User State
   const [affiliateData, setAffiliateData] = useState<AffiliateData | null>(null);
@@ -70,6 +88,7 @@ export default function Affiliates() {
       if (session.user.email === 'pereira.itapema@gmail.com') {
         setIsAdmin(true);
         fetchAllAffiliates();
+        fetchPayments();
       } else {
         fetchAffiliateData(session.user.id);
       }
@@ -215,6 +234,89 @@ export default function Affiliates() {
     }
   };
 
+  const fetchPayments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('affiliate_payments')
+        .select(`
+          *,
+          affiliates (
+            name
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      const mapped = data.map((p: any) => ({
+        ...p,
+        affiliate_name: p.affiliates?.name || 'Desconhecido'
+      }));
+      
+      setPaymentsList(mapped);
+    } catch (error: any) {
+      console.error('Erro ao carregar pagamentos:', error);
+    }
+  };
+
+  const handleUploadReceipt = async (paymentId: string, affiliateId: string, file: File) => {
+    setUploadingReceipt(paymentId);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `receipts/${paymentId}-${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('banners') // Usando o bucket existente 'banners' como solicitado
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('banners')
+        .getPublicUrl(fileName);
+
+      // Atualizar pagamento
+      const { error: updateError } = await supabase
+        .from('affiliate_payments')
+        .update({
+          status: 'paid',
+          receipt_url: publicUrl,
+          paid_at: new Date().toISOString()
+        })
+        .eq('id', paymentId);
+
+      if (updateError) throw updateError;
+
+      // Atualizar saldo do afiliado
+      const payment = paymentsList.find(p => p.id === paymentId);
+      if (payment) {
+        const { data: aff } = await supabase
+          .from('affiliates')
+          .select('balance, total_paid')
+          .eq('id', affiliateId)
+          .single();
+        
+        if (aff) {
+          await supabase
+            .from('affiliates')
+            .update({
+              balance: (aff.balance || 0) - payment.amount,
+              total_paid: (aff.total_paid || 0) + payment.amount
+            })
+            .eq('id', affiliateId);
+        }
+      }
+
+      toast.success('Pagamento realizado e comprovante enviado!');
+      fetchPayments();
+      fetchAllAffiliates();
+    } catch (error: any) {
+      toast.error('Erro no upload: ' + error.message);
+    } finally {
+      setUploadingReceipt(null);
+    }
+  };
+
   // User Actions
   const handleCreateAffiliate = async () => {
     // Redirecionar para o novo fluxo de cadastro
@@ -271,109 +373,207 @@ export default function Affiliates() {
                 Gestão de Afiliados
               </h1>
             </div>
-            <div className="bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200">
-              <span className="text-sm font-bold text-slate-500">Total: {affiliatesList.length}</span>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setShowPayments(!showPayments)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all ${showPayments ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-200'}`}
+              >
+                <Wallet size={18} />
+                {showPayments ? 'Ver Afiliados' : 'Gerenciar Pagamentos'}
+              </button>
+              <div className="bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200">
+                <span className="text-sm font-bold text-slate-500">Total: {affiliatesList.length}</span>
+              </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase">Nome / Email</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase">WhatsApp</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase">Status</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase">Comissão (%)</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase">Saldo</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {affiliatesList.map(aff => (
-                    <tr key={aff.id} className="hover:bg-slate-50">
-                      <td className="p-4">
-                        <div className="font-bold text-slate-900">{aff.name}</div>
-                        <div className="text-xs text-slate-500">{aff.email}</div>
-                      </td>
-                      <td className="p-4 text-sm text-slate-600">{aff.whatsapp || '-'}</td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${
-                          aff.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
-                          aff.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                          'bg-amber-100 text-amber-800'
-                        }`}>
-                          {aff.status === 'approved' ? 'Aprovado' : 
-                           aff.status === 'rejected' ? 'Reprovado' : 'Pendente'}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        {editingId === aff.id ? (
-                          <div className="flex items-center gap-2">
-                            <input 
-                              type="number" 
-                              value={editRate}
-                              onChange={(e) => setEditRate(Number(e.target.value))}
-                              className="w-16 p-1 border rounded"
-                            />
-                            <button onClick={() => handleUpdateRate(aff.id)} className="text-emerald-600"><Save size={16} /></button>
-                            <button onClick={() => setEditingId(null)} className="text-red-600"><X size={16} /></button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold">{aff.commission_rate}%</span>
-                            <button onClick={() => { setEditingId(aff.id); setEditRate(aff.commission_rate); }} className="text-slate-400 hover:text-indigo-600">
-                              <Edit2 size={14} />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-4 font-mono text-sm">R$ {aff.balance.toFixed(2)}</td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          {aff.status === 'pending' && (
-                            <>
-                              <button 
-                                onClick={() => handleApprove(aff.id, aff.email)}
-                                className="p-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200"
-                                title="Aprovar"
-                              >
-                                <Check size={16} />
-                              </button>
-                              <button 
-                                onClick={() => handleReject(aff.id)}
-                                className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                                title="Reprovar"
-                              >
-                                <X size={16} />
-                              </button>
-                            </>
-                          )}
-                          {aff.status === 'approved' && (
-                            <>
-                              <button 
-                                onClick={() => handleViewSales(aff.id)}
-                                className="p-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200"
-                                title="Ver Vendas"
-                              >
-                                <DollarSign size={16} />
-                              </button>
-                              <button 
-                                onClick={() => handleReject(aff.id)}
-                                className="text-xs text-red-600 hover:underline ml-2"
-                              >
-                                Suspender
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
+          {!showPayments ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Nome / Email</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">WhatsApp</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Status</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Comissão (%)</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">A Receber</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Total Pago</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Ações</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {affiliatesList.map(aff => (
+                      <tr key={aff.id} className="hover:bg-slate-50">
+                        <td className="p-4">
+                          <div className="font-bold text-slate-900">{aff.name}</div>
+                          <div className="text-xs text-slate-500">{aff.email}</div>
+                        </td>
+                        <td className="p-4 text-sm text-slate-600">{aff.whatsapp || '-'}</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${
+                            aff.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
+                            aff.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-amber-100 text-amber-800'
+                          }`}>
+                            {aff.status === 'approved' ? 'Aprovado' : 
+                             aff.status === 'rejected' ? 'Reprovado' : 'Pendente'}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          {editingId === aff.id ? (
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="number" 
+                                value={editRate}
+                                onChange={(e) => setEditRate(Number(e.target.value))}
+                                className="w-16 p-1 border rounded"
+                              />
+                              <button onClick={() => handleUpdateRate(aff.id)} className="text-emerald-600"><Save size={16} /></button>
+                              <button onClick={() => setEditingId(null)} className="text-red-600"><X size={16} /></button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold">{aff.commission_rate}%</span>
+                              <button onClick={() => { setEditingId(aff.id); setEditRate(aff.commission_rate); }} className="text-slate-400 hover:text-indigo-600">
+                                <Edit2 size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-4 font-mono text-sm text-indigo-600 font-bold">R$ {aff.balance.toFixed(2)}</td>
+                        <td className="p-4 font-mono text-sm text-slate-500">R$ {(aff.total_paid || 0).toFixed(2)}</td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            {aff.status === 'pending' && (
+                              <>
+                                <button 
+                                  onClick={() => handleApprove(aff.id, aff.email)}
+                                  className="p-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200"
+                                  title="Aprovar"
+                                >
+                                  <Check size={16} />
+                                </button>
+                                <button 
+                                  onClick={() => handleReject(aff.id)}
+                                  className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                                  title="Reprovar"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </>
+                            )}
+                            {aff.status === 'approved' && (
+                              <>
+                                <button 
+                                  onClick={() => handleViewSales(aff.id)}
+                                  className="p-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200"
+                                  title="Ver Vendas"
+                                >
+                                  <DollarSign size={16} />
+                                </button>
+                                <button 
+                                  onClick={() => handleReject(aff.id)}
+                                  className="text-xs text-red-600 hover:underline ml-2"
+                                >
+                                  Suspender
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-6 border-b border-slate-200 bg-slate-50">
+                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <Wallet size={24} className="text-indigo-600" />
+                  Solicitações de Pagamento
+                </h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Data</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Afiliado</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Valor</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Chave PIX</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Status</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paymentsList.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-500">
+                          Nenhuma solicitação de pagamento encontrada.
+                        </td>
+                      </tr>
+                    ) : (
+                      paymentsList.map(payment => (
+                        <tr key={payment.id} className="hover:bg-slate-50">
+                          <td className="p-4 text-sm text-slate-600">
+                            {new Date(payment.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="p-4 font-bold text-slate-900">
+                            {payment.affiliate_name}
+                          </td>
+                          <td className="p-4 font-bold text-indigo-600">
+                            R$ {payment.amount.toFixed(2)}
+                          </td>
+                          <td className="p-4 text-sm text-slate-600">
+                            {payment.pix_key || 'Não informada'}
+                          </td>
+                          <td className="p-4">
+                            <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${
+                              payment.status === 'paid' ? 'bg-emerald-100 text-emerald-800' :
+                              'bg-amber-100 text-amber-800'
+                            }`}>
+                              {payment.status === 'paid' ? 'Pago' : 'Pendente'}
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            {payment.status === 'pending' ? (
+                              <div className="flex items-center gap-2">
+                                <label className={`cursor-pointer p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 text-xs font-bold ${uploadingReceipt === payment.id ? 'opacity-50 pointer-events-none' : ''}`}>
+                                  <Upload size={14} />
+                                  {uploadingReceipt === payment.id ? 'Enviando...' : 'Pagar & Enviar Comprovante'}
+                                  <input 
+                                    type="file" 
+                                    className="hidden" 
+                                    accept="image/*,application/pdf"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleUploadReceipt(payment.id, payment.affiliate_id, file);
+                                    }}
+                                  />
+                                </label>
+                              </div>
+                            ) : (
+                              <a 
+                                href={payment.receipt_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-indigo-600 hover:underline text-xs font-bold"
+                              >
+                                <FileText size={14} /> Ver Comprovante
+                              </a>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Tabela de Vendas do Afiliado Selecionado */}
           {selectedAffiliateForSales && (

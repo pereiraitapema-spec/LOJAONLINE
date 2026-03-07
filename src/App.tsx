@@ -17,6 +17,9 @@ import AffiliateRegister from './pages/AffiliateRegister';
 import AffiliateDashboard from './pages/AffiliateDashboard';
 import Checkout from './pages/Checkout';
 import Orders from './pages/Orders';
+import PaymentGateways from './pages/PaymentGateways';
+import ShippingCarriers from './pages/ShippingCarriers';
+import Integrations from './pages/Integrations';
 import { Loading } from './components/Loading';
 
 function AppContent() {
@@ -112,6 +115,18 @@ function AppContent() {
         <Route 
           path="/settings" 
           element={session ? <Settings /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/gateways" 
+          element={session ? <PaymentGateways /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/shipping" 
+          element={session ? <ShippingCarriers /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/integrations" 
+          element={session ? <Integrations /> : <Navigate to="/login" replace />} 
         />
 
         {/* Fallback */}
