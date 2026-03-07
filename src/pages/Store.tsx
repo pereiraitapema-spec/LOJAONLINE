@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import SmartChat from '../components/SmartChat';
 
+import { leadService } from '../services/leadService';
+
 interface Banner {
   id: string;
   title: string;
@@ -172,6 +174,13 @@ export default function Store() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+
+  // Marcar como lead morno ao ver detalhes do produto
+  const handleSelectProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setQuantity(1);
+    leadService.updateStatus('morno');
+  };
 
   const calculateInstallments = (price: number, minValue: number = 50) => {
     const maxInstallments = 10;
@@ -891,7 +900,7 @@ export default function Store() {
             <motion.div 
               key={product.id}
               whileHover={{ y: -10 }}
-              onClick={() => { setSelectedProduct(product); setQuantity(1); }}
+              onClick={() => handleSelectProduct(product)}
               className="group cursor-pointer"
             >
               <div className="aspect-[3/4] bg-slate-100 rounded-3xl mb-4 overflow-hidden relative shadow-sm border border-slate-100">
@@ -965,8 +974,7 @@ export default function Store() {
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedProduct(product);
-                  setQuantity(1);
+                  handleSelectProduct(product);
                 }}
                 className="w-full mt-4 bg-emerald-600 text-white font-bold py-2 rounded-lg hover:bg-emerald-700 transition-colors uppercase text-sm tracking-wider"
               >

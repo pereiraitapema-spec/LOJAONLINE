@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
+import { leadService } from '../services/leadService';
 
 interface Product {
   id: string;
@@ -435,6 +436,9 @@ export default function Checkout() {
 
       if (orderError) throw orderError;
       
+      // Marcar como lead quente ao realizar pedido
+      leadService.updateStatus('quente');
+
       // 1.1 Mark abandoned cart as recovered
       if (abandonedCartId) {
         await supabase

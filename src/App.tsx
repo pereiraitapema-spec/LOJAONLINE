@@ -22,6 +22,8 @@ import ShippingCarriers from './pages/ShippingCarriers';
 import Integrations from './pages/Integrations';
 import Inventory from './pages/Inventory';
 import { Loading } from './components/Loading';
+import { leadService } from './services/leadService';
+import { toast } from 'react-hot-toast';
 
 function AppContent() {
   const [session, setSession] = useState<any>(null);
@@ -66,6 +68,9 @@ function AppContent() {
 
       // Redirecionamento automático no Login inicial
       if (event === 'SIGNED_IN' && session) {
+        // Marcar como Lead Frio
+        leadService.updateStatus('frio');
+
         const path = window.location.pathname;
         if (path === '/' || path === '/login' || path === '/register') {
           await handleRoleRedirect(session);

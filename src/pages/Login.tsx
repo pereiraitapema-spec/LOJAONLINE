@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
+import { leadService } from '../services/leadService';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -40,15 +41,65 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      let finalUser = null;
+
+      // 1. Tentar Login
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      if (error) throw error;
+
+      if (signInData.user) {
+        finalUser = signInData.user;
+      }
+
+      // 2. Se falhar por credenciais inválidas, tentar Cadastro Automático
+      if (signInError) {
+        if (signInError.message.includes('Invalid login credentials')) {
+          console.log('ℹ️ Credenciais não encontradas, tentando cadastro automático...');
+          
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: email.split('@')[0], // Nome padrão baseado no email
+                role: 'customer'
+              }
+            }
+          });
+
+          if (signUpError) throw signUpError;
+
+          if (signUpData.user) {
+            finalUser = signUpData.user;
+            if (signUpData.session) {
+              toast.success('Conta criada e login realizado com sucesso!');
+              // Marcar como Lead Frio
+              await leadService.updateStatus('frio');
+              navigate('/');
+              return;
+            } else {
+              toast.success('Conta criada! Verifique seu e-mail para confirmar (ou peça ao admin para desativar a confirmação).');
+              return;
+            }
+          }
+        } else {
+          throw signInError;
+        }
+      }
       
-      // Redirecionamento baseado em Role
+      if (finalUser) {
+        // Marcar como Lead Frio se for novo ou garantir que existe
+        await leadService.updateStatus('frio');
+      }
+
+      // 3. Redirecionamento baseado em Role (para quem já tinha conta)
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
+        // Marcar como Lead Frio se for novo ou garantir que existe
+        console.log('✅ Login realizado. Usuário:', session.user.email);
+
         // 1. Verificar se é Admin Master
         if (session.user.email === 'pereira.itapema@gmail.com') {
           toast.success('Bem-vindo, Administrador!');
@@ -73,7 +124,8 @@ export default function Login() {
       toast.success('Login realizado com sucesso!');
       navigate('/');
     } catch (error: any) {
-      toast.error(error.message || 'Erro ao realizar login.');
+      console.error('❌ Erro no Auth Unificado:', error);
+      toast.error(error.message || 'Erro ao realizar login/cadastro.');
     } finally {
       setLoading(false);
     }

@@ -6,6 +6,8 @@ import { GoogleGenAI } from "@google/genai";
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
+import { leadService } from '../services/leadService';
+
 interface Message {
   role: 'user' | 'bot';
   content: string;
@@ -53,6 +55,9 @@ export default function SmartChat() {
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setLoading(true);
+
+    // Marcar como lead morno ao interagir no chat
+    leadService.updateStatus('morno');
 
     try {
       // 1. Fetch API Key
