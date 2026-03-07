@@ -82,56 +82,46 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
-      const redirectTo = `${window.location.origin}/dashboard`;
+      const redirectTo = `${window.location.origin}/auth/callback`;
       
-      // 1. Iniciar o login com Google (sem redirecionar a página atual)
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectTo,
-          skipBrowserRedirect: true, // Isso nos dá a URL em vez de redirecionar
+          skipBrowserRedirect: true,
         }
       });
 
       if (error) throw error;
 
       if (data?.url) {
-        // 2. Abrir o Google em um Popup
         const popup = window.open(
           data.url,
           'google-login',
           'width=600,height=700,top=100,left=100'
         );
 
-        // 3. Monitorar se o popup fechou ou se a sessão foi criada
+        // Ouvir mensagem de sucesso do popup
+        const handleMessage = (event: MessageEvent) => {
+          if (event.origin !== window.location.origin) return;
+          if (event.data?.type === 'AUTH_SUCCESS') {
+            window.removeEventListener('message', handleMessage);
+            toast.success('Login com Google realizado!');
+            // O App.tsx cuidará do redirecionamento automático baseado na role
+          }
+        };
+        window.addEventListener('message', handleMessage);
+
+        // Fallback: se o popup fechar sem mandar mensagem
         const checkPopup = setInterval(async () => {
           if (popup?.closed) {
             clearInterval(checkPopup);
             setLoading(false);
+            window.removeEventListener('message', handleMessage);
             
-            // Verificar se logou com sucesso após fechar
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
-              // Redirecionamento baseado em Role (Google Login)
-              if (session.user.email === 'pereira.itapema@gmail.com') {
-                toast.success('Bem-vindo, Administrador!');
-                navigate('/dashboard');
-                return;
-              }
-
-              const { data: affiliate } = await supabase
-                .from('affiliates')
-                .select('status')
-                .eq('user_id', session.user.id)
-                .maybeSingle();
-
-              if (affiliate && affiliate.status === 'approved') {
-                toast.success('Bem-vindo ao Painel de Afiliado!');
-                navigate('/affiliate-dashboard');
-              } else {
-                toast.success('Login com Google realizado!');
-                navigate('/');
-              }
+              toast.success('Login realizado!');
             }
           }
         }, 1000);

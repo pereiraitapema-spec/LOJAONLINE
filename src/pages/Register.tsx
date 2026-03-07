@@ -42,8 +42,13 @@ export default function Register() {
       if (error) throw error;
 
       if (data.user) {
-        toast.success('Cadastro realizado com sucesso! Verifique seu e-mail para confirmar.');
-        navigate('/login');
+        if (data.session) {
+          toast.success('Cadastro realizado com sucesso! Bem-vindo.');
+          navigate('/');
+        } else {
+          toast.success('Cadastro realizado! Por favor, verifique seu e-mail para confirmar sua conta e poder fazer login.');
+          navigate('/login');
+        }
       }
     } catch (error: any) {
       console.error('Registration error:', error);

@@ -15,6 +15,7 @@ import Settings from './pages/Settings';
 import Affiliates from './pages/Affiliates';
 import AffiliateRegister from './pages/AffiliateRegister';
 import AffiliateDashboard from './pages/AffiliateDashboard';
+import AuthCallback from './pages/AuthCallback';
 import Checkout from './pages/Checkout';
 import Orders from './pages/Orders';
 import PaymentGateways from './pages/PaymentGateways';
@@ -110,6 +111,7 @@ function AppContent() {
           element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
         />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/affiliate-register" element={<AffiliateRegister />} />
         <Route path="/affiliate-dashboard" element={<AffiliateDashboard />} />
         
