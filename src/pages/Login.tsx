@@ -8,11 +8,22 @@ import { leadService } from '../services/leadService';
 
 export default function Login() {
   const [email, setEmail] = useState('');
+  const [confirmEmail, setConfirmEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [resendTimer, setResendTimer] = useState(0);
+  const [showResend, setShowResend] = useState(false);
   const navigate = useNavigate();
+
+  // Timer para reenvio de e-mail
+  React.useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendTimer]);
 
   // Testar conexão ao carregar a página
   React.useEffect(() => {
@@ -39,6 +50,13 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validar se os e-mails são iguais
+    if (email !== confirmEmail) {
+      toast.error('Os e-mails digitados não coincidem. Por favor, verifique.');
+      return;
+    }
+
     setLoading(true);
     try {
       let finalUser = null;
@@ -53,8 +71,13 @@ export default function Login() {
         finalUser = signInData.user;
       }
 
-      // 2. Se falhar por credenciais inválidas, tentar Cadastro Automático
+      // 2. Se falhar por credenciais inválidas ou e-mail não confirmado
       if (signInError) {
+        if (signInError.message.includes('Email not confirmed')) {
+          setShowResend(true);
+          throw new Error('Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada ou clique em "Reenviar e-mail" abaixo.');
+        }
+
         // Supabase retorna 'Invalid login credentials' tanto para senha errada quanto para usuário inexistente
         console.log('ℹ️ Falha no login, tentando verificar se é um novo usuário...');
         
@@ -86,6 +109,7 @@ export default function Login() {
             return;
           } else {
             // Se chegou aqui, a confirmação de e-mail está ATIVADA no Supabase
+            setShowResend(true);
             toast.success('Cadastro realizado! Como a confirmação de e-mail está ativa no seu Supabase, verifique sua caixa de entrada.', { duration: 6000 });
             return;
           }
@@ -182,6 +206,35 @@ export default function Login() {
     }
   };
 
+  const handleResendEmail = async () => {
+    if (!email) {
+      toast.error('Insira seu e-mail para reenviar a confirmação.');
+      return;
+    }
+
+    if (resendTimer > 0) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/callback.html`
+        }
+      });
+
+      if (error) throw error;
+
+      toast.success('E-mail de confirmação reenviado!');
+      setResendTimer(60); // 1 minuto de cooldown
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao reenviar e-mail.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <motion.div 
@@ -224,6 +277,23 @@ export default function Login() {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
+              Confirme seu E-mail
+            </label>
+            <div className="relative">
+              <input
+                type="email"
+                value={confirmEmail}
+                onChange={(e) => setConfirmEmail(e.target.value)}
+                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                placeholder="Repita seu e-mail"
+                required
+              />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               Senha
             </label>
             <div className="relative">
@@ -253,6 +323,20 @@ export default function Login() {
           >
             {loading ? 'Processando...' : 'Entrar ou Cadastrar'}
           </button>
+
+          {showResend && (
+            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-center">
+              <p className="text-sm text-amber-800 mb-3">Não recebeu o e-mail de confirmação?</p>
+              <button
+                type="button"
+                onClick={handleResendEmail}
+                disabled={loading || resendTimer > 0}
+                className="text-emerald-600 font-bold hover:underline disabled:text-slate-400 disabled:no-underline flex items-center justify-center gap-2 mx-auto"
+              >
+                {resendTimer > 0 ? `Aguarde ${resendTimer}s para reenviar` : 'Reenviar e-mail de confirmação'}
+              </button>
+            </div>
+          )}
 
           <div className="relative my-8">
             <div className="absolute inset-0 flex items-center">
