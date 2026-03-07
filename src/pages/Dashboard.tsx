@@ -151,6 +151,13 @@ export default function Dashboard() {
             Integrações
           </button>
           <button 
+            onClick={() => navigate('/inventory')}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
+          >
+            <History size={20} />
+            Estoque
+          </button>
+          <button 
             onClick={() => navigate('/settings')}
             className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
           >
