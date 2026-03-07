@@ -46,6 +46,14 @@ function AppContent() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       
+      const hash = window.location.hash;
+      if (hash.includes('type=recovery')) {
+        console.log('🔑 Recovery link detected in URL hash');
+        navigate('/reset-password');
+        setLoading(false);
+        return;
+      }
+
       if (session) {
         const path = window.location.pathname;
         // Só redirecionar se estiver na home, login ou register
@@ -64,11 +72,19 @@ function AppContent() {
       setLoading(false);
       
       if (event === 'PASSWORD_RECOVERY') {
+        console.log('🔑 Password Recovery Flow Detected');
         navigate('/reset-password');
+        return;
       }
 
       // Redirecionamento automático no Login inicial
       if (event === 'SIGNED_IN' && session) {
+        // Se estivermos em um fluxo de recuperação (verificando hash), não redirecionar para dashboard
+        if (window.location.hash.includes('type=recovery')) {
+          console.log('⏳ Aguardando evento PASSWORD_RECOVERY...');
+          return;
+        }
+
         // Marcar como Lead Frio
         leadService.updateStatus('frio');
 

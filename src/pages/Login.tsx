@@ -82,6 +82,11 @@ export default function Login() {
         });
 
         if (error) {
+          console.error('🔑 Login Error Details:', {
+            message: error.message,
+            status: error.status,
+            code: error.code
+          });
           if (error.message.includes('Invalid login credentials')) {
             throw new Error('E-mail ou senha incorretos.');
           }
@@ -168,8 +173,13 @@ export default function Login() {
     
     setLoading(true);
     try {
+      // Garantir que o redirect_uri seja o da aplicação, não do iframe do Studio
+      const origin = window.location.origin.includes('aistudio.google.com') 
+        ? window.location.href.split('?')[0].split('#')[0] // Tenta pegar a URL real se estiver em iframe
+        : window.location.origin;
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${origin}/reset-password`,
       });
       
       if (error) throw error;

@@ -18,10 +18,29 @@ export default function ResetPassword() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        // Tentar pegar a sessão atual
+        let { data: { session } } = await supabase.auth.getSession();
+        
+        // Se não houver sessão, aguardar um pouco para o Supabase processar o hash
+        if (!session) {
+          await new Promise(resolve => setTimeout(resolve, 800));
+          const { data: { session: retrySession } } = await supabase.auth.getSession();
+          session = retrySession;
+        }
+
         if (session) {
           setSessionValid(true);
         } else {
+          // Se ainda não houver sessão, verificar se há hash de recovery na URL
+          if (window.location.hash.includes('type=recovery')) {
+            // O Supabase ainda está processando, vamos aguardar mais um pouco
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const { data: { session: lastTry } } = await supabase.auth.getSession();
+            if (lastTry) {
+              setSessionValid(true);
+              return;
+            }
+          }
           toast.error('Sessão inválida ou expirada. Por favor, solicite um novo link.');
           setSessionValid(false);
         }

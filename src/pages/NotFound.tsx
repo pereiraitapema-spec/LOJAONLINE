@@ -24,7 +24,7 @@ export default function NotFound() {
           Se você estava procurando o painel de controle, tente voltar para o início.
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="flex justify-center">
           <button
             onClick={() => navigate('/')}
             className="inline-flex items-center gap-2 bg-indigo-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
@@ -32,15 +32,6 @@ export default function NotFound() {
             <Home size={20} />
             Voltar para o Início
           </button>
-          
-          <a
-            href="https://aistudio.google.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-8 py-3 rounded-xl font-semibold hover:bg-slate-50 transition-all"
-          >
-            Ir para o AI Studio
-          </a>
         </div>
         
         <div className="mt-12 text-slate-400 text-sm">
