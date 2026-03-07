@@ -82,21 +82,22 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
-      const redirectTo = `${window.location.origin}/auth/callback`;
+      // Usar o arquivo estático callback.html que criamos na pasta public
+      const redirectTo = `${window.location.origin}/callback.html`;
       
-      // 1. Iniciar o login com Google (sem redirecionar a página atual)
+      console.log('🚀 Iniciando Google Login com Redirect:', redirectTo);
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectTo,
-          skipBrowserRedirect: true, // Isso nos dá a URL em vez de redirecionar
+          skipBrowserRedirect: true,
         }
       });
 
       if (error) throw error;
 
       if (data?.url) {
-        // 2. Abrir o Google em um Popup DIRETAMENTE (não uma rota interna)
         const popup = window.open(
           data.url,
           'google-login',
@@ -111,24 +112,26 @@ export default function Login() {
 
         // Ouvir mensagem de sucesso do popup
         const handleMessage = (event: MessageEvent) => {
-          // No ambiente AI Studio, o origin pode variar, então usamos '*' ou validamos com cuidado
           if (event.data?.type === 'AUTH_SUCCESS') {
+            console.log('✅ Mensagem AUTH_SUCCESS recebida!');
             window.removeEventListener('message', handleMessage);
             toast.success('Login com Google realizado!');
-            // O App.tsx cuidará do redirecionamento baseado na role
-            setTimeout(() => navigate('/'), 1000);
+            
+            // Forçar atualização da sessão e redirecionar
+            setTimeout(async () => {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session) navigate('/');
+            }, 500);
           }
         };
         window.addEventListener('message', handleMessage);
 
-        // Monitorar fechamento do popup
+        // Monitorar fechamento do popup (Fallback)
         const checkPopup = setInterval(async () => {
           if (popup?.closed) {
             clearInterval(checkPopup);
             setLoading(false);
-            window.removeEventListener('message', handleMessage);
             
-            // Verificar se logou com sucesso
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
               toast.success('Login realizado!');
@@ -138,6 +141,7 @@ export default function Login() {
         }, 1000);
       }
     } catch (error: any) {
+      console.error('❌ Erro no Google Login:', error);
       toast.error(error.message || 'Erro ao iniciar login com Google.');
       setLoading(false);
     }
