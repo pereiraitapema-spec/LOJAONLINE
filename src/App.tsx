@@ -82,10 +82,17 @@ function AppContent() {
   }, [navigate]);
 
   const handleRoleRedirect = async (session: any) => {
-    const path = window.location.pathname;
+    if (!session) return;
     
-    // 1. Admin Master
-    if (session.user.email === 'pereira.itapema@gmail.com') {
+    const path = window.location.pathname;
+    const userEmail = session.user.email;
+    const userId = session.user.id;
+
+    console.log('🔍 Verificando permissões para:', userEmail);
+    
+    // 1. Admin Master (Prioridade Máxima)
+    if (userEmail === 'pereira.itapema@gmail.com') {
+      console.log('👑 Admin Master detectado');
       if (path === '/' || path === '/login' || path === '/register') {
         navigate('/dashboard');
       }
@@ -96,10 +103,11 @@ function AppContent() {
     const { data: affiliate } = await supabase
       .from('affiliates')
       .select('status')
-      .eq('user_id', session.user.id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (affiliate && affiliate.status === 'approved') {
+      console.log('🤝 Afiliado detectado');
       if (path === '/' || path === '/login' || path === '/register') {
         navigate('/affiliate-dashboard');
       }
@@ -110,17 +118,19 @@ function AppContent() {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', session.user.id)
+      .eq('id', userId)
       .maybeSingle();
 
     if (profile?.role === 'admin') {
+      console.log('🛠️ Admin secundário detectado');
       if (path === '/' || path === '/login' || path === '/register') {
         navigate('/dashboard');
       }
       return;
     }
 
-    // 4. Cliente Normal (se estiver em login/register, vai pra home)
+    // 4. Cliente Normal ou Novo Usuário (Google/E-mail)
+    console.log('👤 Usuário comum ou novo cadastro');
     if (path === '/login' || path === '/register') {
       navigate('/');
     }
