@@ -28,6 +28,7 @@ interface AffiliateData {
   id: string;
   name: string;
   email: string;
+  code?: string;
   commission_rate: number;
   status: string;
   balance: number;
@@ -77,6 +78,10 @@ export default function AffiliateDashboard() {
   const [couponCode, setCouponCode] = useState('');
   const [couponDiscount, setCouponDiscount] = useState(5);
   const [creatingCoupon, setCreatingCoupon] = useState(false);
+  
+  // Estado para PIX
+  const [pixKey, setPixKey] = useState('');
+  const [savingPix, setSavingPix] = useState(false);
 
   useEffect(() => {
     checkAffiliateStatus();
@@ -110,6 +115,7 @@ export default function AffiliateDashboard() {
       }
 
       setAffiliate(affiliateData);
+      setPixKey(affiliateData.pix_key || '');
 
       // Carregar produtos e categorias
       const [prodRes, catRes] = await Promise.all([
@@ -181,7 +187,9 @@ export default function AffiliateDashboard() {
     if (!affiliate) return;
     
     const baseUrl = window.location.origin;
-    let url = `${baseUrl}/?ref=${affiliate.id}`;
+    // Usar o código do afiliado em vez do ID para o link ser mais amigável
+    const ref = affiliate.code || affiliate.id;
+    let url = `${baseUrl}/?ref=${ref}`;
 
     if (type === 'product' && id) {
       url += `&product=${id}`;
@@ -253,6 +261,72 @@ export default function AffiliateDashboard() {
     }
   };
 
+  const handleRequestWithdrawal = async () => {
+    if (!affiliate || affiliate.balance <= 0) {
+      toast.error('Você não possui saldo disponível para saque.');
+      return;
+    }
+
+    if (!affiliate.pix_key) {
+      toast.error('Por favor, cadastre sua chave PIX antes de solicitar o saque.');
+      return;
+    }
+
+    if (!confirm(`Deseja solicitar o saque de R$ ${affiliate.balance.toFixed(2)}?`)) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('affiliate_payments')
+        .insert([{
+          affiliate_id: affiliate.id,
+          amount: affiliate.balance,
+          status: 'pending',
+          pix_key: affiliate.pix_key
+        }]);
+
+      if (error) throw error;
+
+      // Descontar saldo
+      const { error: updateError } = await supabase
+        .from('affiliates')
+        .update({ balance: 0 })
+        .eq('id', affiliate.id);
+        
+      if (updateError) throw updateError;
+
+      setAffiliate({ ...affiliate, balance: 0 });
+      toast.success('Solicitação de saque enviada com sucesso!');
+      fetchPayments(affiliate.id);
+    } catch (error: any) {
+      toast.error('Erro ao solicitar saque: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePix = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!affiliate) return;
+
+    setSavingPix(true);
+    try {
+      const { error } = await supabase
+        .from('affiliates')
+        .update({ pix_key: pixKey })
+        .eq('id', affiliate.id);
+
+      if (error) throw error;
+      
+      setAffiliate({ ...affiliate, pix_key: pixKey });
+      toast.success('Chave PIX atualizada!');
+    } catch (error: any) {
+      toast.error('Erro ao atualizar PIX: ' + error.message);
+    } finally {
+      setSavingPix(false);
+    }
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/login');
@@ -281,6 +355,13 @@ export default function AffiliateDashboard() {
             <div className="text-center">
               <span className="block text-xs text-emerald-300 uppercase tracking-wider">A Receber</span>
               <span className="block font-black text-xl">R$ {affiliate?.balance?.toFixed(2) || '0.00'}</span>
+              <button 
+                onClick={handleRequestWithdrawal}
+                disabled={!affiliate || affiliate.balance <= 0}
+                className="text-[10px] bg-emerald-700 hover:bg-emerald-600 px-2 py-0.5 rounded mt-1 transition-colors disabled:opacity-50"
+              >
+                Solicitar Saque
+              </button>
             </div>
             <div className="w-px h-8 bg-emerald-700"></div>
             <div className="text-center">
@@ -592,7 +673,30 @@ export default function AffiliateDashboard() {
           {/* Aba Pagamentos */}
           {activeTab === 'payments' && (
             <div>
-              <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter mb-6">Histórico de Pagamentos</h2>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
+                <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Histórico de Pagamentos</h2>
+                
+                {/* Formulário PIX rápido */}
+                <form onSubmit={handleUpdatePix} className="flex items-center gap-2 w-full md:w-auto">
+                  <div className="relative flex-1 md:w-64">
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      type="text" 
+                      value={pixKey}
+                      onChange={(e) => setPixKey(e.target.value)}
+                      placeholder="Sua Chave PIX"
+                      className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                    />
+                  </div>
+                  <button 
+                    type="submit"
+                    disabled={savingPix || pixKey === affiliate?.pix_key}
+                    className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase hover:bg-slate-800 transition-colors disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {savingPix ? 'Salvando...' : 'Salvar PIX'}
+                  </button>
+                </form>
+              </div>
               
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">

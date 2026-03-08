@@ -161,7 +161,7 @@ export default function AffiliateRegister() {
 
         if (affiliateError) {
           console.error('Erro ao criar perfil de afiliado:', affiliateError);
-          throw new Error('Erro ao salvar dados de afiliado. Verifique se você já possui um cadastro.');
+          throw new Error(`Erro ao salvar dados de afiliado: ${affiliateError.message}. Verifique se você já possui um cadastro.`);
         }
 
         setStep(3); // Sucesso

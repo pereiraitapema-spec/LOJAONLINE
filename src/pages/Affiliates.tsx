@@ -345,6 +345,49 @@ export default function Affiliates() {
     }
   };
 
+  const handleRequestWithdrawal = async () => {
+    if (!affiliateData || affiliateData.balance <= 0) {
+      toast.error('Você não possui saldo disponível para saque.');
+      return;
+    }
+
+    if (!affiliateData.pix_key) {
+      toast.error('Por favor, cadastre sua chave PIX antes de solicitar o saque.');
+      return;
+    }
+
+    if (!confirm(`Deseja solicitar o saque de R$ ${affiliateData.balance.toFixed(2)}?`)) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('affiliate_payments')
+        .insert([{
+          affiliate_id: affiliateData.id,
+          amount: affiliateData.balance,
+          status: 'pending',
+          pix_key: affiliateData.pix_key
+        }]);
+
+      if (error) throw error;
+
+      // Descontar saldo para evitar múltiplas solicitações
+      const { error: updateError } = await supabase
+        .from('affiliates')
+        .update({ balance: 0 })
+        .eq('id', affiliateData.id);
+        
+      if (updateError) throw updateError;
+
+      setAffiliateData({ ...affiliateData, balance: 0 });
+      toast.success('Solicitação de saque enviada com sucesso!');
+    } catch (error: any) {
+      toast.error('Erro ao solicitar saque: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -731,8 +774,12 @@ export default function Affiliates() {
                     <h3 className="text-2xl font-black text-slate-900">R$ {affiliateData.balance.toFixed(2)}</h3>
                   </div>
                 </div>
-                <button className="w-full py-2 bg-slate-50 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-colors text-sm">
-                  Solicitar Saque
+                <button 
+                  onClick={handleRequestWithdrawal}
+                  disabled={saving || affiliateData.balance <= 0}
+                  className="w-full py-2 bg-slate-50 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-colors text-sm disabled:opacity-50"
+                >
+                  {saving ? 'Processando...' : 'Solicitar Saque'}
                 </button>
               </motion.div>
 
