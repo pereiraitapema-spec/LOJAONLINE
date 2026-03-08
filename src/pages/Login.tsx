@@ -100,6 +100,17 @@ export default function Login() {
         if (data.user) {
           toast.success('Bem-vindo de volta!');
           await leadService.updateStatus('frio');
+          
+          // Garantir que o profile existe (especialmente para Admin Master)
+          if (data.user.email === 'pereira.itapema@gmail.com') {
+            await supabase.from('profiles').upsert({
+              id: data.user.id,
+              email: data.user.email,
+              role: 'admin',
+              full_name: 'Admin Master'
+            });
+          }
+
           // O App.tsx cuidará do redirecionamento via onAuthStateChange
         }
       } else {
@@ -142,9 +153,12 @@ export default function Login() {
   };
 
   const handleGoogleLogin = async () => {
+    setLoading(true);
     try {
       // No ambiente AI Studio, o redirecionamento na mesma janela é mais estável que popups
-      const redirectTo = `${window.location.origin}/callback.html`;
+      // Usar a URL base da aplicação para o callback
+      const origin = window.location.origin;
+      const redirectTo = `${origin}/callback.html`;
       
       console.log('🚀 Iniciando Google Login (Redirect Flow):', redirectTo);
 
@@ -152,6 +166,10 @@ export default function Login() {
         provider: 'google',
         options: {
           redirectTo: redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         }
       });
 
@@ -173,10 +191,9 @@ export default function Login() {
     
     setLoading(true);
     try {
-      // Garantir que o redirect_uri seja o da aplicação, não do iframe do Studio
-      const origin = window.location.origin.includes('aistudio.google.com') 
-        ? window.location.href.split('?')[0].split('#')[0] // Tenta pegar a URL real se estiver em iframe
-        : window.location.origin;
+      // Usar o origin atual de forma limpa. 
+      // Em iframes do AI Studio, isso deve retornar a URL .run.app corretamente.
+      const origin = window.location.origin;
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${origin}/reset-password`,

@@ -23,9 +23,24 @@ create table if not exists public.profiles (
 -- Trigger para criar profile automaticamente após signup
 create or replace function public.handle_new_user()
 returns trigger as $$
+declare
+  default_role text := 'customer';
 begin
+  -- Se for o email do admin master, já cria como admin
+  if new.email = 'pereira.itapema@gmail.com' then
+    default_role := 'admin';
+  end if;
+
   insert into public.profiles (id, email, full_name, role)
-  values (new.id, new.email, new.raw_user_meta_data->>'full_name', 'customer');
+  values (
+    new.id, 
+    new.email, 
+    coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)), 
+    default_role
+  );
+  return new;
+exception when others then
+  -- Fallback seguro para não impedir o cadastro
   return new;
 end;
 $$ language plpgsql security definer;
@@ -147,6 +162,7 @@ create table if not exists public.affiliates (
   commission_rate numeric(5,2) default 5.00, -- Porcentagem
   balance numeric(10,2) default 0,
   pix_key text,
+  status text default 'pending' check (status in ('pending', 'approved', 'rejected')),
   active boolean default true,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
@@ -291,9 +307,9 @@ create policy "Public read product_media" on public.product_media for select usi
 drop policy if exists "Public read product_tiers" on public.product_tiers;
 create policy "Public read product_tiers" on public.product_tiers for select using (true);
 
--- Policies para API Keys (Apenas autenticado)
+-- Policies para API Keys (Acesso público para o Chatbot funcionar, mas apenas leitura)
 drop policy if exists "Auth read api_keys" on public.api_keys;
-create policy "Auth read api_keys" on public.api_keys for select using (auth.role() = 'authenticated');
+create policy "Public read api_keys" on public.api_keys for select using (true);
 
 drop policy if exists "Auth insert api_keys" on public.api_keys;
 create policy "Auth insert api_keys" on public.api_keys for insert with check (auth.role() = 'authenticated');

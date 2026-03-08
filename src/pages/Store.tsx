@@ -233,43 +233,52 @@ export default function Store() {
     };
     
     const fetchData = async () => {
-      const [bannerRes, prodRes, catRes, campRes, settingsRes, contentRes] = await Promise.all([
-        supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }),
-        supabase.from('products')
-          .select('*, tiers:product_tiers(*), media:product_media(*)')
-          .eq('active', true)
-          .order('created_at', { ascending: false })
-          .order('position', { foreignTable: 'product_media', ascending: true }),
-        supabase.from('categories').select('*').order('name'),
-        supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }),
-        supabase.from('store_settings').select('*').maybeSingle(),
-        supabase.from('site_content').select('*')
-      ]);
-      
-      setBanners(bannerRes.data || []);
-      setProducts(prodRes.data || []);
-      setCategories(catRes.data || []);
-      setCampaigns(campRes.data || []);
-      if (settingsRes.data) {
-        setSettings(settingsRes.data);
-      }
-      setSiteContent(contentRes.data || []);
-      
-      // Check for affiliate link
-      const urlParams = new URLSearchParams(window.location.search);
-      const campaignId = urlParams.get('campaign');
-      const refCode = urlParams.get('ref');
-
-      if (refCode) {
-        localStorage.setItem('affiliate_code', refCode);
-        // Opcional: Validar código no backend para mostrar mensagem "Você está apoiando X"
-      }
-
-      if (campaignId && campRes.data) {
-        const campaign = campRes.data.find((c: Campaign) => c.id === campaignId);
-        if (campaign) {
-          setSelectedCampaign(campaign);
+      try {
+        const [bannerRes, prodRes, catRes, campRes, settingsRes, contentRes] = await Promise.all([
+          supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }),
+          supabase.from('products')
+            .select('*, tiers:product_tiers(*), media:product_media(*)')
+            .eq('active', true)
+            .order('created_at', { ascending: false })
+            .order('position', { foreignTable: 'product_media', ascending: true }),
+          supabase.from('categories').select('*').order('name'),
+          supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }),
+          supabase.from('store_settings').select('*').maybeSingle(),
+          supabase.from('site_content').select('*')
+        ]);
+        
+        if (prodRes.error) {
+          console.error('❌ Error fetching products:', prodRes.error);
+          toast.error('Erro ao carregar produtos. Verifique as permissões.');
         }
+
+        setBanners(bannerRes.data || []);
+        setProducts(prodRes.data || []);
+        setCategories(catRes.data || []);
+        setCampaigns(campRes.data || []);
+        if (settingsRes.data) {
+          setSettings(settingsRes.data);
+        }
+        setSiteContent(contentRes.data || []);
+        
+        // Check for affiliate link
+        const urlParams = new URLSearchParams(window.location.search);
+        const campaignId = urlParams.get('campaign');
+        const refCode = urlParams.get('ref');
+
+        if (refCode) {
+          localStorage.setItem('affiliate_code', refCode);
+        }
+
+        if (campaignId && campRes.data) {
+          const campaign = campRes.data.find((c: Campaign) => c.id === campaignId);
+          if (campaign) {
+            setSelectedCampaign(campaign);
+          }
+        }
+      } catch (err) {
+        console.error('❌ Critical Fetch Error:', err);
+        toast.error('Falha na conexão com o servidor.');
       }
     };
 
@@ -2010,7 +2019,7 @@ export default function Store() {
         </div>
       )}
       {/* Chat Inteligente */}
-      <SmartChat />
+      {session && <SmartChat />}
     </div>
   );
 }
