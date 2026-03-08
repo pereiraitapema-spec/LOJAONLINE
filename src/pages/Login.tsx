@@ -152,20 +152,33 @@ export default function Login() {
     }
   };
 
+  // Ouvir mensagens do callback.html (para login via popup)
+  React.useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'AUTH_SUCCESS') {
+        console.log('✅ Auth Success message received from popup');
+        // A sessão será detectada pelo onAuthStateChange no App.tsx
+        // Mas podemos dar um feedback visual aqui
+        toast.success('Autenticado com sucesso!');
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      // No ambiente AI Studio, o redirecionamento na mesma janela é mais estável que popups
-      // Usar a URL base da aplicação para o callback
       const origin = window.location.origin;
       const redirectTo = `${origin}/callback.html`;
       
-      console.log('🚀 Iniciando Google Login (Redirect Flow):', redirectTo);
+      console.log('🚀 Iniciando Google Login (Popup Flow):', redirectTo);
 
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectTo,
+          skipBrowserRedirect: true, // Importante para abrir em popup manualmente se necessário, ou deixar o Supabase cuidar
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -174,12 +187,27 @@ export default function Login() {
       });
 
       if (error) throw error;
+
+      if (data?.url) {
+        // Abrir em popup
+        const width = 500;
+        const height = 600;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        
+        window.open(
+          data.url,
+          'google_login',
+          `width=${width},height=${height},left=${left},top=${top}`
+        );
+      }
       
-      // O navegador será redirecionado automaticamente pelo Supabase
     } catch (error: any) {
       console.error('❌ Erro no Google Login:', error);
       toast.error(error.message || 'Erro ao iniciar login com Google.');
-      setLoading(false);
+    } finally {
+      // Não desativar loading imediatamente pois o popup está aberto
+      setTimeout(() => setLoading(false), 2000);
     }
   };
 

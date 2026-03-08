@@ -404,6 +404,10 @@ export default function Store() {
       }
       return [...prev, { product, quantity: qty }];
     });
+    
+    // Marcar como lead morno ao adicionar ao carrinho
+    leadService.updateStatus('morno');
+    
     setSelectedProduct(null);
     setShowCart(true);
   };

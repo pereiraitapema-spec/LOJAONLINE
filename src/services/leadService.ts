@@ -25,7 +25,7 @@ export const leadService = {
 
       if (existingLead) {
         // Só atualiza se o novo status for "mais quente" que o atual
-        // Ordem: frio < morno < quente < cliente
+        // Ordem: inativo < frio < morno < quente < cliente
         const statusOrder: Record<LeadStatus, number> = {
           'inativo': 0,
           'frio': 1,
@@ -34,16 +34,20 @@ export const leadService = {
           'cliente': 4
         };
 
-        if (statusOrder[status] > statusOrder[existingLead.status_lead as LeadStatus]) {
-          await supabase
+        const currentStatus = (existingLead.status_lead || 'frio') as LeadStatus;
+        
+        if (statusOrder[status] > statusOrder[currentStatus]) {
+          const { error: updateError } = await supabase
             .from('leads')
             .update({ 
               status_lead: status,
+              score: status === 'morno' ? 30 : (status === 'quente' ? 100 : 10),
               updated_at: new Date().toISOString()
             })
             .eq('id', existingLead.id);
           
-          console.log(`🔥 Lead atualizado para: ${status}`);
+          if (updateError) throw updateError;
+          console.log(`🔥 Lead atualizado: ${currentStatus} -> ${status}`);
         }
       } else {
         // Criar novo lead se não existir

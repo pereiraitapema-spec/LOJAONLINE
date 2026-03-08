@@ -87,6 +87,8 @@ function AppContent() {
 
       // Redirecionamento automático no Login inicial
       if (event === 'SIGNED_IN' && session) {
+        console.log('✅ Usuário logado:', session.user.email);
+        
         // Se estivermos em um fluxo de recuperação, NÃO redirecionar para dashboard
         if (window.location.hash.includes('type=recovery') || window.location.pathname === '/reset-password') {
           console.log('⏳ Mantendo na página de recuperação...');
@@ -94,15 +96,22 @@ function AppContent() {
           return;
         }
 
-        // Marcar como Lead Frio
+        // Marcar como Lead Frio (apenas se for login normal, não recuperação)
         leadService.updateStatus('frio');
 
         const path = window.location.pathname;
-        if (path === '/' || path === '/login' || path === '/register') {
+        // Se estivermos em páginas de auth ou na home, decidir para onde ir
+        if (path === '/' || path === '/login' || path === '/register' || path === '/callback.html') {
           await handleRoleRedirect(session);
         }
       }
       
+      if (event === 'SIGNED_OUT') {
+        console.log('🚪 Usuário deslogado');
+        setSession(null);
+        navigate('/login');
+      }
+
       setLoading(false);
     });
 
