@@ -152,13 +152,17 @@ export default function Login() {
     }
   };
 
-  // Ouvir mensagens do callback.html (para login via popup)
+  // Ouvir mensagens do callback (para login via popup)
   React.useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'AUTH_SUCCESS') {
         console.log('✅ Auth Success message received from popup');
-        // A sessão será detectada pelo onAuthStateChange no App.tsx
-        // Mas podemos dar um feedback visual aqui
+        
+        // Se o servidor retornou a sessão, podemos setar manualmente para acelerar
+        if (event.data.session) {
+          supabase.auth.setSession(event.data.session);
+        }
+        
         toast.success('Autenticado com sucesso!');
       }
     };
@@ -170,7 +174,8 @@ export default function Login() {
     setLoading(true);
     try {
       const origin = window.location.origin;
-      const redirectTo = `${origin}/callback.html`;
+      // Usar a rota do servidor /auth/callback em vez do arquivo estático
+      const redirectTo = `${origin}/auth/callback`;
       
       console.log('🚀 Iniciando Google Login (Popup Flow):', redirectTo);
 
@@ -178,7 +183,7 @@ export default function Login() {
         provider: 'google',
         options: {
           redirectTo: redirectTo,
-          skipBrowserRedirect: true, // Importante para abrir em popup manualmente se necessário, ou deixar o Supabase cuidar
+          skipBrowserRedirect: true,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
