@@ -154,21 +154,50 @@ export default function Login() {
 
   // Ouvir mensagens do callback (para login via popup)
   React.useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'AUTH_SUCCESS') {
-        console.log('✅ Auth Success message received from popup');
+    const handleMessage = async (event: MessageEvent) => {
+      // Validar origem se necessário
+      if (event.data?.type === 'AUTH_CODE') {
+        console.log('✅ Auth Code received from popup');
+        const code = event.data.code;
         
-        // Se o servidor retornou a sessão, podemos setar manualmente para acelerar
-        if (event.data.session) {
-          supabase.auth.setSession(event.data.session);
+        try {
+          setLoading(true);
+          console.log('💾 Exchanging code for session (PKCE)...');
+          
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          
+          if (error) throw error;
+
+          if (data.session) {
+            console.log('✅ Session established successfully!');
+            toast.success('Autenticado com sucesso!');
+            
+            // Forçar o App.tsx a ver a nova sessão
+            window.dispatchEvent(new Event('storage')); 
+            
+            setTimeout(() => {
+              navigate('/', { replace: true });
+            }, 800);
+          } else {
+            throw new Error('Nenhuma sessão retornada após a troca do código.');
+          }
+          
+        } catch (err: any) {
+          console.error('❌ Erro ao trocar código por sessão:', err);
+          toast.error('Erro ao sincronizar conta: ' + (err.message || 'Erro desconhecido'));
+          setLoading(false);
         }
-        
-        toast.success('Autenticado com sucesso!');
+      }
+
+      if (event.data?.type === 'AUTH_ERROR') {
+        console.error('❌ Auth Error from popup:', event.data.error, event.data.description);
+        toast.error(`Erro na autenticação: ${event.data.description || event.data.error}`);
+        setLoading(false);
       }
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [navigate]);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -200,19 +229,25 @@ export default function Login() {
         const left = window.screenX + (window.outerWidth - width) / 2;
         const top = window.screenY + (window.outerHeight - height) / 2;
         
-        window.open(
+        const authWindow = window.open(
           data.url,
           'google_login',
           `width=${width},height=${height},left=${left},top=${top}`
         );
+
+        // Verificar se o popup foi fechado pelo usuário
+        const checkWindow = setInterval(() => {
+          if (authWindow?.closed) {
+            clearInterval(checkWindow);
+            setLoading(false);
+          }
+        }, 1000);
       }
       
     } catch (error: any) {
       console.error('❌ Erro no Google Login:', error);
       toast.error(error.message || 'Erro ao iniciar login com Google.');
-    } finally {
-      // Não desativar loading imediatamente pois o popup está aberto
-      setTimeout(() => setLoading(false), 2000);
+      setLoading(false);
     }
   };
 

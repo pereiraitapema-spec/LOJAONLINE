@@ -17,40 +17,14 @@ async function startServer() {
   });
 
   // Rota de callback para OAuth (Popup)
-  // Esta rota lida com a troca do código PKCE no servidor para evitar o fallback do AI Studio
+  // Esta rota apenas repassa o código para a janela pai, que fará a troca (PKCE)
   app.get("/auth/callback", async (req, res) => {
     const code = req.query.code as string;
-    const next = (req.query.next as string) || "/";
+    const error = req.query.error as string;
+    const error_description = req.query.error_description as string;
 
-    console.log('🔑 Recebido código de auth no servidor');
+    console.log('🔑 Callback de auth atingido no servidor');
 
-    let sessionData = null;
-
-    if (code) {
-      const supabaseUrl = process.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (supabaseUrl && supabaseAnonKey) {
-        try {
-          const supabase = createClient(supabaseUrl, supabaseAnonKey);
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-          
-          if (!error && data.session) {
-            sessionData = data.session;
-            console.log('✅ Sessão trocada com sucesso no servidor para:', sessionData.user.email);
-          } else {
-            console.error('❌ Erro na troca de código:', error?.message);
-          }
-        } catch (err) {
-          console.error('❌ Erro crítico no callback:', err);
-        }
-      }
-    }
-
-    // Retornamos um HTML minimalista que:
-    // 1. Salva a sessão no localStorage (compartilhado com o iframe)
-    // 2. Avisa a janela pai (o app no iframe)
-    // 3. Fecha o popup
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -58,26 +32,31 @@ async function startServer() {
         <body>
           <script>
             try {
-              const session = ${JSON.stringify(sessionData)};
-              const storageKey = 'sb-auth-token'; // Deve bater com o definido no supabase.ts
-              
-              if (session) {
-                localStorage.setItem(storageKey, JSON.stringify(session));
-              }
+              const code = ${JSON.stringify(code)};
+              const error = ${JSON.stringify(error)};
+              const error_description = ${JSON.stringify(error_description)};
 
               if (window.opener) {
-                window.opener.postMessage({ type: 'AUTH_SUCCESS', session }, '*');
-                setTimeout(() => window.close(), 500);
+                if (code) {
+                  window.opener.postMessage({ type: 'AUTH_CODE', code }, '*');
+                } else if (error) {
+                  window.opener.postMessage({ type: 'AUTH_ERROR', error, description: error_description }, '*');
+                }
+                // Aguarda um pouco para garantir o envio e fecha
+                setTimeout(() => window.close(), 1000);
               } else {
-                window.location.href = '${next}';
+                window.location.href = '/';
               }
             } catch (e) {
               console.error('Erro no script de callback:', e);
               window.close();
             }
           </script>
-          <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; text-align: center;">
-            <p>Autenticação concluída. Esta janela fechará automaticamente...</p>
+          <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; text-align: center; padding: 20px;">
+            <div style="max-width: 400px;">
+              <h2 style="color: #4f46e5;">Processando Autenticação...</h2>
+              <p style="color: #64748b;">Esta janela fechará automaticamente em instantes.</p>
+            </div>
           </div>
         </body>
       </html>
