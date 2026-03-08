@@ -47,15 +47,19 @@ function AppContent() {
       setSession(session);
       
       const hash = window.location.hash;
+      const path = window.location.pathname;
+
       if (hash.includes('type=recovery')) {
         console.log('🔑 Recovery link detected in URL hash');
-        navigate('/reset-password');
+        // Se já estivermos na página de reset, não faz nada para não perder o hash
+        if (path !== '/reset-password') {
+          navigate('/reset-password' + hash);
+        }
         setLoading(false);
         return;
       }
 
       if (session) {
-        const path = window.location.pathname;
         // Só redirecionar se estiver na home, login ou register
         if (path === '/' || path === '/login' || path === '/register') {
           await handleRoleRedirect(session);
@@ -69,19 +73,24 @@ function AppContent() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔔 Auth Event:', event);
       setSession(session);
-      setLoading(false);
       
       if (event === 'PASSWORD_RECOVERY') {
         console.log('🔑 Password Recovery Flow Detected');
-        navigate('/reset-password');
+        // Garantir que estamos na página correta e manter o hash se existir
+        const hash = window.location.hash;
+        if (window.location.pathname !== '/reset-password') {
+          navigate('/reset-password' + hash);
+        }
+        setLoading(false);
         return;
       }
 
       // Redirecionamento automático no Login inicial
       if (event === 'SIGNED_IN' && session) {
-        // Se estivermos em um fluxo de recuperação (verificando hash), não redirecionar para dashboard
-        if (window.location.hash.includes('type=recovery')) {
-          console.log('⏳ Aguardando evento PASSWORD_RECOVERY...');
+        // Se estivermos em um fluxo de recuperação, NÃO redirecionar para dashboard
+        if (window.location.hash.includes('type=recovery') || window.location.pathname === '/reset-password') {
+          console.log('⏳ Mantendo na página de recuperação...');
+          setLoading(false);
           return;
         }
 
@@ -93,9 +102,23 @@ function AppContent() {
           await handleRoleRedirect(session);
         }
       }
+      
+      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // 3. Suprimir erro do MetaMask (comum em extensões de navegador)
+    const handleError = (event: ErrorEvent) => {
+      if (event.message?.includes('MetaMask') || event.message?.includes('ethereum')) {
+        event.preventDefault();
+        console.warn('🛡️ Suprimido erro externo de MetaMask:', event.message);
+      }
+    };
+    window.addEventListener('error', handleError);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('error', handleError);
+    };
   }, [navigate]);
 
   const handleRoleRedirect = async (session: any) => {

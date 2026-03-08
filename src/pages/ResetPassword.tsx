@@ -18,34 +18,43 @@ export default function ResetPassword() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // Tentar pegar a sessão atual
+        console.log('🔄 Verificando sessão para redefinição de senha...');
+        
+        // 1. Tentar pegar a sessão atual
         let { data: { session } } = await supabase.auth.getSession();
         
-        // Se não houver sessão, aguardar um pouco para o Supabase processar o hash
+        // 2. Se não houver sessão, aguardar um pouco para o Supabase processar o hash da URL
         if (!session) {
-          await new Promise(resolve => setTimeout(resolve, 800));
+          console.log('⏳ Sessão não encontrada, aguardando processamento do hash...');
+          await new Promise(resolve => setTimeout(resolve, 1500));
           const { data: { session: retrySession } } = await supabase.auth.getSession();
           session = retrySession;
         }
 
         if (session) {
+          console.log('✅ Sessão de recuperação validada!');
           setSessionValid(true);
         } else {
-          // Se ainda não houver sessão, verificar se há hash de recovery na URL
-          if (window.location.hash.includes('type=recovery')) {
-            // O Supabase ainda está processando, vamos aguardar mais um pouco
-            await new Promise(resolve => setTimeout(resolve, 1000));
+          // 3. Se ainda não houver sessão, verificar se há tokens no hash da URL
+          const hash = window.location.hash;
+          if (hash.includes('access_token=') || hash.includes('type=recovery')) {
+            console.log('🔑 Hash de recuperação detectado, tentando forçar login via hash...');
+            // O Supabase consome o hash automaticamente em getSession, mas se falhar, 
+            // podemos tentar aguardar mais um pouco ou informar o erro.
+            await new Promise(resolve => setTimeout(resolve, 2000));
             const { data: { session: lastTry } } = await supabase.auth.getSession();
             if (lastTry) {
               setSessionValid(true);
               return;
             }
           }
+          
+          console.error('❌ Sessão de recuperação inválida ou expirada');
           toast.error('Sessão inválida ou expirada. Por favor, solicite um novo link.');
           setSessionValid(false);
         }
       } catch (error) {
-        console.error('Error checking session:', error);
+        console.error('❌ Error checking session:', error);
         setSessionValid(false);
       } finally {
         setLoading(false);
