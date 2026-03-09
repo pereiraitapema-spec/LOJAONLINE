@@ -72,8 +72,8 @@ function AppContent() {
       }
 
       if (session) {
-        // Só redirecionar se estiver na home, login ou register
-        if (path === '/' || path === '/login' || path === '/register') {
+        // Só redirecionar se estiver no login ou register
+        if (path === '/login' || path === '/register') {
           await handleRoleRedirect(session);
         }
       }
@@ -112,8 +112,8 @@ function AppContent() {
         leadService.updateStatus('frio');
 
         const path = window.location.pathname;
-        // Se estivermos em páginas de auth ou na home, decidir para onde ir
-        if (path === '/' || path === '/login' || path === '/register' || path === '/callback.html') {
+        // Se estivermos em páginas de auth, decidir para onde ir
+        if (path === '/login' || path === '/register' || path === '/callback.html') {
           await handleRoleRedirect(session);
         }
       }
@@ -178,7 +178,7 @@ function AppContent() {
           full_name: 'Admin Master'
         }, { onConflict: 'id' });
 
-        if (path === '/' || path === '/login' || path === '/register') {
+        if (path === '/login' || path === '/register') {
           console.log('🚀 Redirecionando Admin Master para /dashboard');
           navigate('/dashboard');
         }
@@ -201,7 +201,7 @@ function AppContent() {
 
       if (affiliate && (affiliate.status === 'approved' || (affiliate.active && !affiliate.status))) {
         console.log('🤝 Afiliado aprovado detectado');
-        if (path === '/' || path === '/login' || path === '/register') {
+        if (path === '/login' || path === '/register') {
           console.log('🚀 Redirecionando Afiliado para /affiliate-dashboard');
           navigate('/affiliate-dashboard');
         }
@@ -237,7 +237,7 @@ function AppContent() {
       // 4. Verificar se é Admin secundário
       if (profile?.role === 'admin') {
         console.log('🛠️ Admin secundário detectado');
-        if (path === '/' || path === '/login' || path === '/register') {
+        if (path === '/login' || path === '/register') {
           console.log('🚀 Redirecionando Admin secundário para /dashboard');
           navigate('/dashboard');
         }
