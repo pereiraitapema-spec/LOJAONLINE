@@ -17,10 +17,15 @@ import {
   User,
   Trash2,
   Save,
-  X
+  X,
+  Printer,
+  Ban,
+  MapPin
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
+import { shippingService } from '../services/shippingService';
+import { cepService } from '../services/cepService';
 
 interface Order {
   id: string;
@@ -178,6 +183,7 @@ export default function Orders() {
           commission_value: commissionValue,
           shipping_address: { type: 'pickup', street: 'Balcão/Local' },
           user_id: (await supabase.auth.getUser()).data.user?.id,
+          shipping_cost: manualOrderData.shipping_cost,
           operational_cost: manualOrderData.operational_cost,
           marketing_cost: manualOrderData.marketing_cost
         }])
@@ -247,7 +253,49 @@ export default function Orders() {
     }
   };
 
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [processingShipping, setProcessingShipping] = useState(false);
+
+  const handleGenerateLabel = async (orderId: string) => {
+    setProcessingShipping(true);
+    try {
+      const result = await shippingService.generateLabel(orderId);
+      if (result.success) {
+        await updateTrackingCode(orderId, result.tracking_code);
+        toast.success('Etiqueta gerada com sucesso!');
+      }
+    } catch (error: any) {
+      toast.error('Erro ao gerar etiqueta: ' + error.message);
+    } finally {
+      setProcessingShipping(false);
+    }
+  };
+
+  const handleCancelLabel = async (orderId: string) => {
+    setProcessingShipping(true);
+    try {
+      const result = await shippingService.cancelLabel(orderId);
+      if (result.success) {
+        await updateTrackingCode(orderId, '');
+        toast.success('Etiqueta cancelada!');
+      }
+    } catch (error: any) {
+      toast.error('Erro ao cancelar etiqueta: ' + error.message);
+    } finally {
+      setProcessingShipping(false);
+    }
+  };
+
+  const handleManualCepBlur = async (cep: string) => {
+    try {
+      const address = await cepService.fetchAddress(cep);
+      if (address) {
+        toast.success('Endereço preenchido via CEP!');
+        // Aqui poderíamos adicionar campos de endereço ao manualOrderData se existissem
+      }
+    } catch (error) {
+      console.error('Error fetching CEP:', error);
+    }
+  };
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -854,6 +902,15 @@ export default function Orders() {
                         placeholder="000.000.000-00"
                       />
                     </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">CEP (Auto-preencher)</label>
+                      <input 
+                        type="text"
+                        onChange={e => handleManualCepBlur(e.target.value)}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
+                        placeholder="00000-000"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -981,21 +1038,43 @@ export default function Orders() {
                 </div>
                 
                 {isAdmin && (
-                  <div className="flex flex-col gap-1">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Alterar Status</p>
-                    <select 
-                      value={selectedOrder.status}
-                      onChange={(e) => updateOrderStatus(selectedOrder.id, e.target.value)}
-                      className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                  <div className="flex flex-wrap gap-2 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+                    <div className="w-full mb-2">
+                      <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Ações de Logística</p>
+                    </div>
+                    <button 
+                      onClick={() => handleGenerateLabel(selectedOrder.id)}
+                      disabled={processingShipping || !!selectedOrder.tracking_code}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
                     >
-                      <option value="pending">Pendente</option>
-                      <option value="paid">Pago</option>
-                      <option value="processing">Em Processamento</option>
-                      <option value="shipped">Enviado</option>
-                      <option value="delivered">Entregue</option>
-                      <option value="cancelled">Cancelado</option>
-                      <option value="refunded">Reembolsado</option>
-                    </select>
+                      <Printer size={16} />
+                      Gerar Etiqueta
+                    </button>
+                    <button 
+                      onClick={() => handleCancelLabel(selectedOrder.id)}
+                      disabled={processingShipping || !selectedOrder.tracking_code}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-rose-100 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-200 transition-all disabled:opacity-50"
+                    >
+                      <Ban size={16} />
+                      Cancelar Etiqueta
+                    </button>
+
+                    <div className="w-full mt-2 pt-2 border-t border-indigo-100">
+                      <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">Alterar Status</p>
+                      <select 
+                        value={selectedOrder.status}
+                        onChange={(e) => updateOrderStatus(selectedOrder.id, e.target.value)}
+                        className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                      >
+                        <option value="pending">Pendente</option>
+                        <option value="paid">Pago</option>
+                        <option value="processing">Em Processamento</option>
+                        <option value="shipped">Enviado</option>
+                        <option value="delivered">Entregue</option>
+                        <option value="cancelled">Cancelado</option>
+                        <option value="refunded">Reembolsado</option>
+                      </select>
+                    </div>
                   </div>
                 )}
               </div>

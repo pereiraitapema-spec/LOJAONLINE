@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
-import { leadService } from '../services/leadService';
+import { cepService } from '../services/cepService';
+import { shippingService, ShippingPackage } from '../services/shippingService';
 
 interface Product {
   id: string;
@@ -359,20 +360,33 @@ export default function Checkout() {
     const cep = shipping.cep.replace(/\D/g, '');
     if (cep.length !== 8) return;
 
+    setLoading(true);
     try {
-      const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-      const data = await res.json();
-      if (!data.erro) {
+      const address = await cepService.fetchAddress(cep);
+      if (address) {
         setShipping(prev => ({
           ...prev,
-          street: data.logradouro,
-          neighborhood: data.bairro,
-          city: data.localidade,
-          state: data.uf
+          ...address
         }));
+
+        // Calculate shipping automatically
+        const packages: ShippingPackage[] = cart.map(item => ({
+          weight: (item.product as any).weight || 0.5,
+          height: (item.product as any).height || 10,
+          width: (item.product as any).width || 10,
+          length: (item.product as any).length || 10
+        }));
+
+        const quotes = await shippingService.calculateShipping(cep, packages);
+        if (quotes.length > 0) {
+          setShippingMethods(quotes);
+          setSelectedShipping(0);
+        }
       }
     } catch (error) {
-      console.error('Error fetching CEP:', error);
+      console.error('Error fetching CEP or calculating shipping:', error);
+    } finally {
+      setLoading(false);
     }
   };
 

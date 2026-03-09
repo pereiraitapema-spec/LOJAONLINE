@@ -81,7 +81,11 @@ export default function Products() {
     stock: '0',
     min_installment_value: '50.00',
     image_url: '',
-    active: true
+    active: true,
+    weight: '0.5',
+    height: '10',
+    width: '10',
+    length: '10'
   });
   const [saving, setSaving] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -254,7 +258,11 @@ export default function Products() {
         stock: parseInt(productForm.stock),
         min_installment_value: parseFloat(productForm.min_installment_value || '50'),
         image_url: productForm.image_url,
-        active: productForm.active
+        active: productForm.active,
+        weight: parseFloat(productForm.weight || '0.5'),
+        height: parseFloat(productForm.height || '10'),
+        width: parseFloat(productForm.width || '10'),
+        length: parseFloat(productForm.length || '10')
       };
 
       let productId = editingProduct?.id;
@@ -503,7 +511,11 @@ export default function Products() {
       stock: '0',
       image_url: '',
       min_installment_value: '50',
-      active: true
+      active: true,
+      weight: '0.5',
+      height: '10',
+      width: '10',
+      length: '10'
     });
     setErrors({});
     setProductTiers([]);
@@ -529,7 +541,11 @@ export default function Products() {
       stock: product.stock.toString(),
       image_url: product.image_url || '',
       min_installment_value: (product as any).min_installment_value?.toString() || '50',
-      active: product.active
+      active: product.active,
+      weight: (product as any).weight?.toString() || '0.5',
+      height: (product as any).height?.toString() || '10',
+      width: (product as any).width?.toString() || '10',
+      length: (product as any).length?.toString() || '10'
     });
     setProductTiers(product.tiers || []);
     setProductMedia(product.media || []);
@@ -1061,6 +1077,53 @@ export default function Products() {
                               ).toFixed(2)}
                             </span>
                           </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+                        <div className="col-span-full">
+                          <label className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-2 block">Dimensões para Frete</label>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Peso (kg)</label>
+                          <input 
+                            type="number" 
+                            step="0.001"
+                            value={productForm.weight}
+                            onChange={e => setProductForm({...productForm, weight: e.target.value})}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                            placeholder="0.5"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Altura (cm)</label>
+                          <input 
+                            type="number" 
+                            value={productForm.height}
+                            onChange={e => setProductForm({...productForm, height: e.target.value})}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                            placeholder="10"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Largura (cm)</label>
+                          <input 
+                            type="number" 
+                            value={productForm.width}
+                            onChange={e => setProductForm({...productForm, width: e.target.value})}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                            placeholder="10"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Compr. (cm)</label>
+                          <input 
+                            type="number" 
+                            value={productForm.length}
+                            onChange={e => setProductForm({...productForm, length: e.target.value})}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                            placeholder="10"
+                          />
                         </div>
                       </div>
 
