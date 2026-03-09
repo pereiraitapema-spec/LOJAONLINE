@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 
 interface AffiliateData {
   id: string;
@@ -78,6 +79,20 @@ export default function Affiliates() {
   const [showPayments, setShowPayments] = useState(false);
   const [showLeads, setShowLeads] = useState(false);
   const [uploadingReceipt, setUploadingReceipt] = useState<string | null>(null);
+
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'danger' | 'warning' | 'info';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // User State
   const [affiliateData, setAffiliateData] = useState<AffiliateData | null>(null);
@@ -195,19 +210,26 @@ export default function Affiliates() {
   };
 
   const handleReject = async (id: string) => {
-    if (!confirm('Tem certeza que deseja reprovar este afiliado?')) return;
-    try {
-      const { error } = await supabase
-        .from('affiliates')
-        .update({ status: 'rejected', active: false })
-        .eq('id', id);
+    setConfirmModal({
+      isOpen: true,
+      title: 'Suspender Afiliado',
+      message: 'Tem certeza que deseja suspender este afiliado? Ele não poderá mais gerar links ou receber comissões.',
+      variant: 'warning',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('affiliates')
+            .update({ status: 'rejected', active: false })
+            .eq('id', id);
 
-      if (error) throw error;
-      toast.success('Afiliado reprovado.');
-      fetchAllAffiliates();
-    } catch (error: any) {
-      toast.error('Erro ao reprovar: ' + error.message);
-    }
+          if (error) throw error;
+          toast.success('Afiliado suspenso!');
+          fetchAllAffiliates();
+        } catch (error: any) {
+          toast.error('Erro ao suspender: ' + error.message);
+        }
+      }
+    });
   };
 
   const handleUpdateRate = async (id: string) => {
@@ -363,21 +385,27 @@ export default function Affiliates() {
   };
 
   const handleDeleteLead = async (leadId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este lead?')) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Excluir Lead',
+      message: 'Tem certeza que deseja excluir este lead permanentemente? Esta ação não pode ser desfeita.',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('leads')
+            .delete()
+            .eq('id', leadId);
 
-    try {
-      const { error } = await supabase
-        .from('leads')
-        .delete()
-        .eq('id', leadId);
-
-      if (error) throw error;
-      
-      setLeadsList(leadsList.filter(l => l.id !== leadId));
-      toast.success('Lead excluído!');
-    } catch (error: any) {
-      toast.error('Erro ao excluir lead: ' + error.message);
-    }
+          if (error) throw error;
+          
+          setLeadsList(leadsList.filter(l => l.id !== leadId));
+          toast.success('Lead excluído!');
+        } catch (error: any) {
+          toast.error('Erro ao excluir lead: ' + error.message);
+        }
+      }
+    });
   };
 
   // User Actions
@@ -419,36 +447,41 @@ export default function Affiliates() {
       return;
     }
 
-    if (!confirm(`Deseja solicitar o saque de R$ ${affiliateData.balance.toFixed(2)}?`)) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Solicitar Saque',
+      message: `Deseja solicitar o saque de R$ ${affiliateData.balance.toFixed(2)}?`,
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          const { error } = await supabase
+            .from('affiliate_payments')
+            .insert([{
+              affiliate_id: affiliateData.id,
+              amount: affiliateData.balance,
+              status: 'pending',
+              pix_key: affiliateData.pix_key
+            }]);
 
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from('affiliate_payments')
-        .insert([{
-          affiliate_id: affiliateData.id,
-          amount: affiliateData.balance,
-          status: 'pending',
-          pix_key: affiliateData.pix_key
-        }]);
+          if (error) throw error;
 
-      if (error) throw error;
+          // Descontar saldo para evitar múltiplas solicitações
+          const { error: updateError } = await supabase
+            .from('affiliates')
+            .update({ balance: 0 })
+            .eq('id', affiliateData.id);
+            
+          if (updateError) throw updateError;
 
-      // Descontar saldo para evitar múltiplas solicitações
-      const { error: updateError } = await supabase
-        .from('affiliates')
-        .update({ balance: 0 })
-        .eq('id', affiliateData.id);
-        
-      if (updateError) throw updateError;
-
-      setAffiliateData({ ...affiliateData, balance: 0 });
-      toast.success('Solicitação de saque enviada com sucesso!');
-    } catch (error: any) {
-      toast.error('Erro ao solicitar saque: ' + error.message);
-    } finally {
-      setSaving(false);
-    }
+          setAffiliateData({ ...affiliateData, balance: 0 });
+          toast.success('Solicitação de saque enviada com sucesso!');
+        } catch (error: any) {
+          toast.error('Erro ao solicitar saque: ' + error.message);
+        } finally {
+          setSaving(false);
+        }
+      }
+    });
   };
 
   const copyToClipboard = (text: string) => {
@@ -1073,6 +1106,15 @@ export default function Affiliates() {
           </div>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+      />
     </div>
   );
 }

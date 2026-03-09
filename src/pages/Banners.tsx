@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 
 interface Banner {
   id: string;
@@ -39,6 +40,20 @@ export default function Banners() {
     duration: 5,
     type: 'image' as 'image' | 'video',
     file: null as File | null
+  });
+
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'danger' | 'warning' | 'info';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
   });
 
   const navigate = useNavigate();
@@ -135,26 +150,32 @@ export default function Banners() {
   };
 
   const deleteBanner = async (id: string, url: string) => {
-    if (!confirm('Tem certeza que deseja excluir este banner?')) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Excluir Banner',
+      message: 'Tem certeza que deseja excluir este banner? Ele será removido do carrossel imediatamente.',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          // Extrair o caminho do arquivo da URL pública
+          const path = url.split('/storage/v1/object/public/banners/')[1];
+          if (path) {
+            await supabase.storage.from('banners').remove([path]);
+          }
 
-    try {
-      // Extrair o caminho do arquivo da URL pública
-      const path = url.split('/storage/v1/object/public/banners/')[1];
-      if (path) {
-        await supabase.storage.from('banners').remove([path]);
+          const { error } = await supabase
+            .from('banners')
+            .delete()
+            .eq('id', id);
+
+          if (error) throw error;
+          setBanners(banners.filter(b => b.id !== id));
+          toast.success('Banner excluído!');
+        } catch (error: any) {
+          toast.error('Erro ao excluir: ' + error.message);
+        }
       }
-
-      const { error } = await supabase
-        .from('banners')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-      setBanners(banners.filter(b => b.id !== id));
-      toast.success('Banner excluído!');
-    } catch (error: any) {
-      toast.error('Erro ao excluir: ' + error.message);
-    }
+    });
   };
 
   if (loading) return <Loading message="Carregando banners..." />;
@@ -350,6 +371,15 @@ export default function Banners() {
           </motion.div>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+      />
     </div>
   );
 }

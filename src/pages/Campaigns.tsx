@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 
 interface Campaign {
   id: string;
@@ -52,6 +53,20 @@ export default function Campaigns() {
   const [selectedLinkId, setSelectedLinkId] = useState('');
   const [sectionSettings, setSectionSettings] = useState({ title: '', subtitle: '' });
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'danger' | 'warning' | 'info';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
   
   const navigate = useNavigate();
 
@@ -279,18 +294,24 @@ export default function Campaigns() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir esta campanha?')) return;
-    
-    setLoading(true);
-    try {
-      const { error } = await supabase.from('campaigns').delete().eq('id', id);
-      if (error) throw error;
-      toast.success('Campanha excluída!');
-      fetchCampaigns();
-    } catch (error: any) {
-      toast.error('Erro ao excluir: ' + error.message);
-      setLoading(false);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Excluir Campanha',
+      message: 'Tem certeza que deseja excluir esta campanha? Esta ação não pode ser desfeita.',
+      variant: 'danger',
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const { error } = await supabase.from('campaigns').delete().eq('id', id);
+          if (error) throw error;
+          toast.success('Campanha excluída!');
+          fetchCampaigns();
+        } catch (error: any) {
+          toast.error('Erro ao excluir: ' + error.message);
+          setLoading(false);
+        }
+      }
+    });
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -942,6 +963,15 @@ export default function Campaigns() {
           )}
         </div>
       </main>
+
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+      />
     </div>
   );
 }

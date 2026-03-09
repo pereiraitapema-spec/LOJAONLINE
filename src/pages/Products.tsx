@@ -22,6 +22,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { GoogleGenAI } from "@google/genai";
+import { ConfirmationModal } from '../components/ConfirmationModal';
 
 interface Category {
   id: string;
@@ -84,6 +85,20 @@ export default function Products() {
   const [apiKeyForm, setApiKeyForm] = useState({ id: '', name: '', service: 'gemini', key_value: '', active: true });
   const [isEditingKey, setIsEditingKey] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'danger' | 'warning' | 'info';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Form de Categoria
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -341,31 +356,44 @@ export default function Products() {
 
 
   const deleteCategory = async (id: string) => {
-    if (!confirm('Excluir categoria? Produtos vinculados serão movidos para "Geral".')) return;
-    
-    setSaving(true);
-    try {
-      const { error } = await supabase.from('categories').delete().eq('id', id);
-      if (error) throw error;
-      toast.success('Categoria removida');
-      fetchData();
-    } catch (error: any) {
-      toast.error('Erro ao excluir categoria: ' + error.message);
-    } finally {
-      setSaving(false);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Excluir Categoria',
+      message: 'Tem certeza que deseja excluir esta categoria? Os produtos vinculados serão movidos para "Geral".',
+      variant: 'warning',
+      onConfirm: async () => {
+        setSaving(true);
+        try {
+          const { error } = await supabase.from('categories').delete().eq('id', id);
+          if (error) throw error;
+          toast.success('Categoria removida');
+          fetchData();
+        } catch (error: any) {
+          toast.error('Erro ao excluir categoria: ' + error.message);
+        } finally {
+          setSaving(false);
+        }
+      }
+    });
   };
 
   const deleteProduct = async (id: string) => {
-    if (!confirm('Excluir este produto permanentemente?')) return;
-    try {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) throw error;
-      setProducts(products.filter(p => p.id !== id));
-      toast.success('Produto removido');
-    } catch (error: any) {
-      toast.error('Erro ao excluir: ' + error.message);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Excluir Produto',
+      message: 'Tem certeza que deseja excluir este produto permanentemente? Esta ação não pode ser desfeita.',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from('products').delete().eq('id', id);
+          if (error) throw error;
+          setProducts(products.filter(p => p.id !== id));
+          toast.success('Produto removido');
+        } catch (error: any) {
+          toast.error('Erro ao excluir: ' + error.message);
+        }
+      }
+    });
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -734,16 +762,22 @@ export default function Products() {
                         <Edit2 size={16} />
                       </button>
                       <button 
-                        onClick={async () => {
-                          if (!confirm('Excluir esta chave?')) return;
-                          try {
-                            const { error } = await supabase.from('api_keys').delete().eq('id', key.id);
-                            if (error) throw error;
-                            toast.success('Chave removida');
-                            fetchAPIKeys();
-                          } catch (err: any) {
-                            toast.error('Erro ao remover: ' + err.message);
-                          }
+                        onClick={() => {
+                          setConfirmModal({
+                            isOpen: true,
+                            title: 'Excluir Chave API',
+                            message: 'Tem certeza que deseja excluir esta chave? Esta ação não pode ser desfeita.',
+                            onConfirm: async () => {
+                              try {
+                                const { error } = await supabase.from('api_keys').delete().eq('id', key.id);
+                                if (error) throw error;
+                                toast.success('Chave removida');
+                                fetchAPIKeys();
+                              } catch (err: any) {
+                                toast.error('Erro ao remover: ' + err.message);
+                              }
+                            }
+                          });
                         }}
                         className="p-2 hover:bg-white/10 rounded-lg text-rose-400"
                       >
@@ -1269,16 +1303,22 @@ export default function Products() {
                             <Edit2 size={14} />
                           </button>
                           <button 
-                            onClick={async () => {
-                              if (!confirm('Excluir esta chave?')) return;
-                              try {
-                                const { error } = await supabase.from('api_keys').delete().eq('id', key.id);
-                                if (error) throw error;
-                                toast.success('Chave removida');
-                                fetchAPIKeys();
-                              } catch (err: any) {
-                                toast.error('Erro ao remover: ' + err.message);
-                              }
+                            onClick={() => {
+                              setConfirmModal({
+                                isOpen: true,
+                                title: 'Excluir Chave API',
+                                message: 'Tem certeza que deseja excluir esta chave? Esta ação não pode ser desfeita.',
+                                onConfirm: async () => {
+                                  try {
+                                    const { error } = await supabase.from('api_keys').delete().eq('id', key.id);
+                                    if (error) throw error;
+                                    toast.success('Chave removida');
+                                    fetchAPIKeys();
+                                  } catch (err: any) {
+                                    toast.error('Erro ao remover: ' + err.message);
+                                  }
+                                }
+                              });
                             }}
                             className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
                           >
@@ -1436,6 +1476,15 @@ export default function Products() {
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+      />
     </div>
   );
 }

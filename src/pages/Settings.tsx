@@ -6,6 +6,8 @@ import { Save, Plus, Trash2, Image as ImageIcon, Settings as SettingsIcon, Spark
 import { Loading } from '../components/Loading';
 import { GoogleGenAI } from "@google/genai";
 
+import { ConfirmationModal } from '../components/ConfirmationModal';
+
 interface StoreSettings {
   id: string;
   company_name: string;
@@ -43,6 +45,17 @@ export default function Settings() {
   const [siteContent, setSiteContent] = useState<any[]>([]);
   const [loadingContent, setLoadingContent] = useState(false);
   const [showSql, setShowSql] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -389,10 +402,16 @@ export default function Settings() {
 
   const removeLink = (index: number) => {
     if (!settings) return;
-    if (window.confirm('Tem certeza que deseja remover este link?')) {
-      const newLinks = settings.institutional_links.filter((_, i) => i !== index);
-      handleChange('institutional_links', newLinks);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Remover Link Institucional',
+      message: 'Tem certeza que deseja remover este link? Esta ação não pode ser desfeita.',
+      onConfirm: () => {
+        const newLinks = settings.institutional_links.filter((_, i) => i !== index);
+        handleChange('institutional_links', newLinks);
+        toast.success('Link removido!');
+      }
+    });
   };
 
   const generateAiTextForLink = async () => {
@@ -1597,6 +1616,13 @@ where not exists (select 1 from public.store_settings);`}
           </section>
         )}
       </div>
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+      />
     </div>
   );
 }

@@ -49,7 +49,7 @@ function AppContent() {
       const hash = window.location.hash;
       const path = window.location.pathname;
 
-      if (hash.includes('type=recovery')) {
+      if (hash.includes('type=recovery') || hash.includes('access_token=')) {
         console.log('🔑 Recovery link detected in URL hash');
         // Se já estivermos na página de reset, não faz nada para não perder o hash
         if (path !== '/reset-password') {
@@ -74,7 +74,7 @@ function AppContent() {
       console.log('🔔 Auth Event:', event);
       setSession(session);
       
-      if (event === 'PASSWORD_RECOVERY') {
+      if (event === 'PASSWORD_RECOVERY' || window.location.hash.includes('type=recovery')) {
         console.log('🔑 Password Recovery Flow Detected');
         // Garantir que estamos na página correta e manter o hash se existir
         const hash = window.location.hash;

@@ -20,41 +20,28 @@ export default function ResetPassword() {
       try {
         console.log('🔄 Verificando sessão para redefinição de senha...');
         
-        // 1. Tentar pegar a sessão atual
-        let { data: { session } } = await supabase.auth.getSession();
+        // 1. Tentar pegar a sessão atual (o Supabase deve ter processado o hash da URL)
+        const { data: { session } } = await supabase.auth.getSession();
         
-        // 2. Se não houver sessão, aguardar um pouco para o Supabase processar o hash da URL
-        if (!session) {
-          console.log('⏳ Sessão não encontrada, aguardando processamento do hash...');
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          const { data: { session: retrySession } } = await supabase.auth.getSession();
-          session = retrySession;
-        }
-
         if (session) {
           console.log('✅ Sessão de recuperação validada!');
           setSessionValid(true);
         } else {
-          // 3. Se ainda não houver sessão, verificar se há tokens no hash da URL
-          const hash = window.location.hash;
-          if (hash.includes('access_token=') || hash.includes('type=recovery')) {
-            console.log('🔑 Hash de recuperação detectado, tentando forçar login via hash...');
-            // O Supabase consome o hash automaticamente em getSession, mas se falhar, 
-            // podemos tentar aguardar mais um pouco ou informar o erro.
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            const { data: { session: lastTry } } = await supabase.auth.getSession();
-            if (lastTry) {
-              setSessionValid(true);
-              return;
-            }
-          }
+          // 2. Se não houver sessão, aguardar um pouco para o Supabase processar o hash da URL (pode haver delay)
+          console.log('⏳ Sessão não encontrada, aguardando processamento do hash...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const { data: { session: retrySession } } = await supabase.auth.getSession();
           
-          console.error('❌ Sessão de recuperação inválida ou expirada');
-          toast.error('Sessão inválida ou expirada. Por favor, solicite um novo link.');
-          setSessionValid(false);
+          if (retrySession) {
+            console.log('✅ Sessão de recuperação validada após espera!');
+            setSessionValid(true);
+          } else {
+            console.error('❌ Sessão de recuperação inválida ou expirada');
+            setSessionValid(false);
+          }
         }
       } catch (error) {
-        console.error('❌ Error checking session:', error);
+        console.error('❌ Erro ao verificar sessão:', error);
         setSessionValid(false);
       } finally {
         setLoading(false);
@@ -86,6 +73,10 @@ export default function ResetPassword() {
       if (error) throw error;
 
       toast.success('Senha redefinida com sucesso!');
+      
+      // Deslogar para garantir que o usuário entre com a nova senha
+      await supabase.auth.signOut();
+      
       setTimeout(() => navigate('/login'), 2000);
     } catch (error: any) {
       toast.error(error.message || 'Erro ao atualizar senha.');
@@ -102,18 +93,18 @@ export default function ResetPassword() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center"
+          className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 text-center"
         >
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <AlertCircle className="w-8 h-8 text-red-600" />
+          <div className="w-20 h-20 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-10 h-10 text-rose-600" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 mb-2">Sessão Inválida</h1>
           <p className="text-slate-600 mb-8">
-            O link de redefinição de senha expirou ou é inválido. Por favor, tente novamente.
+            O link de redefinição de senha expirou ou é inválido. Por favor, solicite um novo link na página de login.
           </p>
           <button
             onClick={() => navigate('/login')}
-            className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors"
+            className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all"
           >
             Voltar para Login
           </button>
@@ -129,19 +120,19 @@ export default function ResetPassword() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8"
+        className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8"
       >
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-8 h-8 text-emerald-600" />
+          <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-10 h-10 text-indigo-600" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900">Nova Senha</h1>
-          <p className="text-slate-500 mt-2">Defina sua nova senha de acesso.</p>
+          <p className="text-slate-500 mt-2">Defina sua nova senha de acesso com segurança.</p>
         </div>
 
         <form onSubmit={handleUpdatePassword} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
               Nova Senha
             </label>
             <div className="relative">
@@ -149,9 +140,10 @@ export default function ResetPassword() {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                placeholder="••••••••"
+                className="w-full pl-5 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                placeholder="Mínimo 8 caracteres"
                 required
+                minLength={8}
               />
               <button
                 type="button"
@@ -164,7 +156,7 @@ export default function ResetPassword() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
               Confirmar Nova Senha
             </label>
             <div className="relative">
@@ -172,9 +164,10 @@ export default function ResetPassword() {
                 type={showPassword ? 'text' : 'password'}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                placeholder="••••••••"
+                className="w-full pl-5 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                placeholder="Repita a nova senha"
                 required
+                minLength={8}
               />
             </div>
           </div>
@@ -182,7 +175,7 @@ export default function ResetPassword() {
           <button
             type="submit"
             disabled={saving}
-            className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-100"
           >
             <Save size={20} />
             Salvar nova senha

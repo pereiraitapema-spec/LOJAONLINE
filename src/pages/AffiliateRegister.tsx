@@ -142,6 +142,8 @@ export default function AffiliateRegister() {
         }
 
         // 3. Criar registro na tabela affiliates
+        const tempCode = `PENDING-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+        
         const { error: affiliateError } = await supabase
           .from('affiliates')
           .insert([
@@ -155,7 +157,8 @@ export default function AffiliateRegister() {
               other_media: formData.otherMedia,
               observation: formData.observation,
               status: 'pending',
-              commission_rate: 10
+              commission_rate: 10,
+              code: tempCode // Código temporário para evitar erro de NOT NULL
             }
           ]);
 

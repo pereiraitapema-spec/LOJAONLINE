@@ -7,7 +7,8 @@ import {
   LogOut, User, BarChart, Tag, Percent, ArrowRight,
   ChevronRight, Package, Grid, Trash2, CheckCircle
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Loading } from '../components/Loading';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 
 interface Product {
   id: string;
@@ -83,6 +84,20 @@ export default function AffiliateDashboard() {
   // Estado para PIX
   const [pixKey, setPixKey] = useState('');
   const [savingPix, setSavingPix] = useState(false);
+
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'danger' | 'warning' | 'info';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   useEffect(() => {
     checkAffiliateStatus();
@@ -245,21 +260,27 @@ export default function AffiliateDashboard() {
   };
 
   const handleDeleteCoupon = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este cupom?')) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Excluir Cupom',
+      message: 'Tem certeza que deseja excluir este cupom? Ele deixará de funcionar imediatamente.',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('affiliate_coupons')
+            .delete()
+            .eq('id', id);
 
-    try {
-      const { error } = await supabase
-        .from('affiliate_coupons')
-        .delete()
-        .eq('id', id);
+          if (error) throw error;
 
-      if (error) throw error;
-
-      setCoupons(coupons.filter(c => c.id !== id));
-      toast.success('Cupom excluído.');
-    } catch (error: any) {
-      toast.error('Erro ao excluir cupom.');
-    }
+          setCoupons(coupons.filter(c => c.id !== id));
+          toast.success('Cupom excluído.');
+        } catch (error: any) {
+          toast.error('Erro ao excluir cupom.');
+        }
+      }
+    });
   };
 
   const handleRequestWithdrawal = async () => {
@@ -273,37 +294,43 @@ export default function AffiliateDashboard() {
       return;
     }
 
-    if (!confirm(`Deseja solicitar o saque de R$ ${affiliate.balance.toFixed(2)}?`)) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Solicitar Saque',
+      message: `Deseja solicitar o saque de R$ ${affiliate.balance.toFixed(2)} para a chave PIX cadastrada?`,
+      variant: 'info',
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const { error } = await supabase
+            .from('affiliate_payments')
+            .insert([{
+              affiliate_id: affiliate.id,
+              amount: affiliate.balance,
+              status: 'pending',
+              pix_key: affiliate.pix_key
+            }]);
 
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from('affiliate_payments')
-        .insert([{
-          affiliate_id: affiliate.id,
-          amount: affiliate.balance,
-          status: 'pending',
-          pix_key: affiliate.pix_key
-        }]);
+          if (error) throw error;
 
-      if (error) throw error;
+          // Descontar saldo
+          const { error: updateError } = await supabase
+            .from('affiliates')
+            .update({ balance: 0 })
+            .eq('id', affiliate.id);
+            
+          if (updateError) throw updateError;
 
-      // Descontar saldo
-      const { error: updateError } = await supabase
-        .from('affiliates')
-        .update({ balance: 0 })
-        .eq('id', affiliate.id);
-        
-      if (updateError) throw updateError;
-
-      setAffiliate({ ...affiliate, balance: 0 });
-      toast.success('Solicitação de saque enviada com sucesso!');
-      fetchPayments(affiliate.id);
-    } catch (error: any) {
-      toast.error('Erro ao solicitar saque: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
+          setAffiliate({ ...affiliate, balance: 0 });
+          toast.success('Solicitação de saque enviada com sucesso!');
+          fetchPayments(affiliate.id);
+        } catch (error: any) {
+          toast.error('Erro ao solicitar saque: ' + error.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
   };
 
   const handleUpdatePix = async (e: React.FormEvent) => {
@@ -762,6 +789,15 @@ export default function AffiliateDashboard() {
 
         </div>
       </main>
+
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+      />
     </div>
   );
 }
