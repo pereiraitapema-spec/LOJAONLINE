@@ -349,6 +349,56 @@ export default function Orders() {
     }
   };
 
+  const [sendingRecovery, setSendingRecovery] = useState<string | null>(null);
+
+  const handleManualRecovery = async (cart: AbandonedCart) => {
+    try {
+      setSendingRecovery(cart.id);
+      const { data: settings } = await supabase
+        .from('store_settings')
+        .select('n8n_webhook_url')
+        .maybeSingle();
+
+      if (!settings?.n8n_webhook_url) {
+        toast.error('Configure a URL do Webhook n8n nas Configurações > Marketing.');
+        return;
+      }
+
+      const payload = {
+        event: 'manual_recovery',
+        timestamp: new Date().toISOString(),
+        id: cart.id,
+        customer_email: cart.customer_email,
+        customer_name: cart.customer_name,
+        customer_phone: cart.customer_phone,
+        cart_items: cart.cart_items,
+        total: cart.total,
+        status: cart.status
+      };
+
+      const response = await fetch(settings.n8n_webhook_url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) throw new Error('Falha ao enviar para n8n');
+
+      // Atualizar status para 'notified'
+      await supabase
+        .from('abandoned_carts')
+        .update({ status: 'notified', updated_at: new Date().toISOString() })
+        .eq('id', cart.id);
+
+      toast.success('Solicitação de recuperação enviada para o n8n!');
+      fetchData();
+    } catch (error: any) {
+      toast.error('Erro ao enviar recuperação: ' + error.message);
+    } finally {
+      setSendingRecovery(null);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'paid': return 'bg-emerald-100 text-emerald-700';
@@ -632,13 +682,27 @@ export default function Orders() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => handleManualRecovery(cart)}
+                          disabled={sendingRecovery === cart.id}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-lg ${
+                            cart.status === 'notified' 
+                              ? 'bg-slate-100 text-slate-500 cursor-not-allowed' 
+                              : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100'
+                          }`}
+                        >
+                          {sendingRecovery === cart.id ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : <Zap size={16} />}
+                          {cart.status === 'notified' ? 'Notificado' : 'Recuperar via n8n'}
+                        </button>
                         <a 
                           href={`https://wa.me/55${cart.customer_phone?.replace(/\D/g, '')}?text=Olá ${cart.customer_name}, vimos que você deixou alguns itens no carrinho da G-Fit Life. Gostaria de finalizar sua compra?`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl font-bold text-sm hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100"
                         >
-                          Recuperar via WhatsApp
+                          WhatsApp
                         </a>
                       </div>
                     </div>

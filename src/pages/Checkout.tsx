@@ -378,11 +378,15 @@ export default function Checkout() {
 
   // Injeção de Pixels de Rastreamento
   useEffect(() => {
+    const activePixels: string[] = [];
+    
     if (settings?.tracking_pixels) {
       settings.tracking_pixels.forEach((pixel: any) => {
         if (pixel.active && pixel.pixel_id) {
           const pixelKey = `pixel-${pixel.platform}-${pixel.pixel_id}`;
           if (document.getElementById(pixelKey)) return;
+
+          activePixels.push(pixelKey);
 
           if (pixel.platform === 'facebook') {
             const script = document.createElement('script');
@@ -402,10 +406,12 @@ export default function Checkout() {
             document.head.appendChild(script);
           } else if (pixel.platform === 'google_analytics') {
             const script1 = document.createElement('script');
-            script1.id = `${pixelKey}-js`;
+            const jsKey = `${pixelKey}-js`;
+            script1.id = jsKey;
             script1.async = true;
             script1.src = `https://www.googletagmanager.com/gtag/js?id=${pixel.pixel_id}`;
             document.head.appendChild(script1);
+            activePixels.push(jsKey);
 
             const script2 = document.createElement('script');
             script2.id = pixelKey;
@@ -420,6 +426,19 @@ export default function Checkout() {
         }
       });
     }
+
+    return () => {
+      activePixels.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.parentNode) {
+          try {
+            el.parentNode.removeChild(el);
+          } catch (e) {
+            console.warn('⚠️ Erro ao remover pixel:', e);
+          }
+        }
+      });
+    };
   }, [settings]);
 
   const handleCheckout = async (e: React.FormEvent) => {
@@ -938,8 +957,13 @@ export default function Checkout() {
                     <input 
                       type="text" 
                       value={cardData.number}
-                      onChange={e => setCardData({...cardData, number: e.target.value})}
-                      placeholder="0000 0000 0000 0000"
+                      onChange={e => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        if (val.length > 16) val = val.slice(0, 16);
+                        const masked = val.match(/.{1,4}/g)?.join('.') || val;
+                        setCardData({...cardData, number: masked});
+                      }}
+                      placeholder="0000.0000.0000.0000"
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       required={paymentMethod === 'credit_card'}
                     />
@@ -960,8 +984,16 @@ export default function Checkout() {
                       <input 
                         type="text" 
                         value={cardData.expiry}
-                        onChange={e => setCardData({...cardData, expiry: e.target.value})}
+                        onChange={e => {
+                          let val = e.target.value.replace(/\D/g, '');
+                          if (val.length > 4) val = val.slice(0, 4);
+                          if (val.length > 2) {
+                            val = val.slice(0, 2) + '/' + val.slice(2);
+                          }
+                          setCardData({...cardData, expiry: val});
+                        }}
                         placeholder="MM/AA"
+                        maxLength={5}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                         required={paymentMethod === 'credit_card'}
                       />
