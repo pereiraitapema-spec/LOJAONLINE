@@ -571,17 +571,22 @@ export default function Checkout() {
       // In a real scenario, we would call our backend API here
       await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
 
-      // Update order status to paid (simulated success)
+      // Determine initial status based on payment method
+      // For simulation: Credit Card is paid immediately, others are pending
+      const initialStatus = paymentMethod === 'credit_card' ? 'paid' : 'pending';
+
+      // Update order status
       await supabase
         .from('orders')
         .update({ 
-          status: 'paid', 
+          status: initialStatus, 
           payment_id: `sim_${activeGateway.provider}_${Math.random().toString(36).substr(2, 9)}` 
         })
         .eq('id', orderData.id);
 
-      // 3.1 Se houver comissão, atualizar saldo do afiliado
-      if (commissionValue > 0 && affiliateId) {
+      // 3.1 Se houver comissão e for pago, atualizar saldo do afiliado
+      // (Em um sistema real, isso seria feito após a confirmação do pagamento)
+      if (initialStatus === 'paid' && commissionValue > 0 && affiliateId) {
         const { data: aff } = await supabase
           .from('affiliates')
           .select('balance')

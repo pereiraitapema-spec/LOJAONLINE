@@ -441,6 +441,16 @@ export default function Login() {
             {loading ? 'Processando...' : mode === 'login' ? 'Entrar' : 'Cadastrar'}
           </button>
 
+          {mode === 'login' && (
+            <button
+              type="button"
+              onClick={handleResetPassword}
+              className="w-full text-sm text-slate-500 hover:text-indigo-600 transition-colors mt-2"
+            >
+              Esqueci minha senha
+            </button>
+          )}
+
           {showResend && (
             <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-center">
               <p className="text-sm text-amber-800 mb-3">Não recebeu o e-mail de confirmação?</p>

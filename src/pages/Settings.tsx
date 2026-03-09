@@ -22,7 +22,7 @@ interface StoreSettings {
   social_links: { platform: string; url: string; active: boolean }[]; // Novo campo
   business_hours: string;
   business_hours_details: string;
-  payment_methods: { name: string; type: string; active: boolean }[];
+  payment_methods: { name: string; type: string; active: boolean; details?: string }[];
   shipping_methods: { name: string; price: number; deadline: string; active: boolean }[];
   free_shipping_threshold?: number;
   institutional_links: { label: string; url: string; content: string }[];
@@ -1407,6 +1407,24 @@ where not exists (select 1 from public.store_settings);`}
                       />
                       <span className="text-sm font-medium">Ativo</span>
                     </label>
+                  </div>
+                  <div className="mt-3">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                      {method.type === 'pix' ? 'Chave PIX' : 
+                       method.type === 'bank' ? 'Dados Bancários (Banco, Ag, Conta)' : 
+                       method.type === 'boleto' ? 'Instruções do Boleto' : 'Informações Adicionais'}
+                    </label>
+                    <input
+                      type="text"
+                      value={method.details || ''}
+                      onChange={(e) => {
+                        const newMethods = [...settings.payment_methods];
+                        newMethods[index].details = e.target.value;
+                        handleChange('payment_methods', newMethods);
+                      }}
+                      placeholder="Ex: sua@chavepix.com ou Banco X, Ag 0001, CC 12345-6"
+                      className="w-full p-2 border border-slate-300 rounded-lg text-sm"
+                    />
                   </div>
                   <button
                     onClick={() => {

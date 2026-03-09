@@ -84,19 +84,18 @@ export default function SmartChat() {
 
       // 3. Call Gemini
       const ai = new GoogleGenAI({ apiKey: keys.key_value });
-      const model = ai.models.generateContent({
-        model: "gemini-2.5-flash",
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
         config: {
           systemInstruction: `Você é o assistente inteligente da G-FitLif, uma loja de produtos de emagrecimento e saúde. 
           Use o contexto abaixo para responder às dúvidas dos clientes de forma profissional, persuasiva e empática.
           Se não souber algo, peça para o cliente entrar em contato com o suporte humano.
           Contexto dos Produtos:\n${context}`
         },
-        contents: userMessage
+        contents: [{ parts: [{ text: userMessage }] }]
       });
 
-      const result = await model;
-      const botResponse = result.text || 'Desculpe, não consegui processar sua solicitação.';
+      const botResponse = response.text || 'Desculpe, não consegui processar sua solicitação.';
 
       setMessages(prev => [...prev, { role: 'bot', content: botResponse }]);
     } catch (error: any) {

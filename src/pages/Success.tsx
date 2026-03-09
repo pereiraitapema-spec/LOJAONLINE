@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { CheckCircle2, ShoppingBag, ArrowRight, Home, Download, Share2 } from 'lucide-react';
+import { CheckCircle2, ShoppingBag, ArrowRight, Home, Download, Share2, QrCode, Barcode, Landmark, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Loading } from '../components/Loading';
 
@@ -10,6 +10,7 @@ export default function Success() {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('orderId');
   const [order, setOrder] = useState<any>(null);
+  const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -18,25 +19,41 @@ export default function Success() {
       return;
     }
 
-    const fetchOrder = async () => {
+    const fetchData = async () => {
       try {
-        const { data, error } = await supabase
+        // Fetch Order
+        const { data: orderData, error: orderError } = await supabase
           .from('orders')
           .select('*, order_items(*)')
           .eq('id', orderId)
           .maybeSingle();
 
-        if (error) throw error;
-        setOrder(data);
+        if (orderError) throw orderError;
+        setOrder(orderData);
+
+        // Fetch Settings for payment details
+        const { data: settingsData } = await supabase
+          .from('store_settings')
+          .select('*')
+          .single();
+        
+        setSettings(settingsData);
       } catch (error) {
-        console.error('Error fetching order:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchOrder();
+    fetchData();
   }, [orderId, navigate]);
+
+  const getPaymentDetails = () => {
+    if (!order || !settings) return null;
+    
+    const method = settings.payment_methods?.find((m: any) => m.type === order.payment_method);
+    return method?.details || 'Aguardando processamento...';
+  };
 
   if (loading) return <Loading message="Carregando detalhes do pedido..." />;
 
@@ -52,17 +69,112 @@ export default function Success() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.2 }}
-            className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner"
+            className={`w-24 h-24 ${order?.status === 'paid' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'} rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner`}
           >
-            <CheckCircle2 size={48} />
+            {order?.status === 'paid' ? <CheckCircle2 size={48} /> : <Clock size={48} />}
           </motion.div>
 
           <h1 className="text-4xl font-black text-slate-900 uppercase italic tracking-tighter mb-4">
-            Pedido Confirmado!
+            {order?.status === 'paid' ? 'Pedido Confirmado!' : 'Pedido Recebido!'}
           </h1>
           <p className="text-slate-500 text-lg mb-8">
-            Obrigado por sua compra. Seu pedido foi processado com sucesso e você receberá um e-mail com os detalhes em breve.
+            {order?.status === 'paid' 
+              ? 'Obrigado por sua compra. Seu pedido foi processado com sucesso e você receberá um e-mail com os detalhes em breve.'
+              : 'Seu pedido foi recebido e está aguardando o pagamento para ser processado.'}
           </p>
+
+          {order && order.status === 'pending' && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-indigo-50 border-2 border-indigo-100 rounded-3xl p-8 mb-8 text-center"
+            >
+              <div className="flex flex-col items-center gap-4">
+                {order.payment_method === 'pix' && (
+                  <>
+                    <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
+                      <QrCode size={32} />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-900 uppercase italic">Pague com PIX</h3>
+                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 w-48 h-48 flex items-center justify-center">
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(getPaymentDetails() || 'Pagamento PIX')}`} 
+                        alt="QR Code PIX" 
+                        className="w-full h-full"
+                      />
+                    </div>
+                    <div className="w-full">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Chave PIX (Copia e Cola)</p>
+                      <div className="flex gap-2">
+                        <input 
+                          readOnly 
+                          value={getPaymentDetails() || 'Chave não configurada'} 
+                          className="flex-1 bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm font-mono"
+                        />
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(getPaymentDetails() || '');
+                            alert('Chave PIX copiada!');
+                          }}
+                          className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold"
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {order.payment_method === 'boleto' && (
+                  <>
+                    <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center">
+                      <Barcode size={32} />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-900 uppercase italic">Pague com Boleto</h3>
+                    <div className="w-full bg-white p-6 rounded-2xl border border-slate-200 text-left">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Código de Barras</p>
+                      <p className="font-mono text-sm break-all bg-slate-50 p-3 rounded-lg border border-slate-100 mb-4">
+                        34191.79001 01043.510047 91020.150008 1 954300000{Math.floor(order.total * 100)}
+                      </p>
+                      <button 
+                        onClick={() => window.open('https://www.google.com/search?q=gerar+boleto+pdf', '_blank')}
+                        className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
+                      >
+                        <Download size={18} />
+                        Visualizar Boleto PDF
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {order.payment_method === 'transfer' && (
+                  <>
+                    <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center">
+                      <Landmark size={32} />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-900 uppercase italic">Dados para Transferência</h3>
+                    <div className="w-full bg-white p-6 rounded-2xl border border-slate-200 text-left">
+                      <p className="text-sm text-slate-600 mb-4">Realize a transferência para a conta abaixo e envie o comprovante pelo WhatsApp.</p>
+                      <div className="space-y-3">
+                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">Dados da Conta</p>
+                          <p className="text-sm font-bold text-slate-800 whitespace-pre-line">
+                            {getPaymentDetails() || 'Dados não configurados'}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">Valor Exato</p>
+                          <p className="text-lg font-black text-indigo-600">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          )}
 
           {order && (
             <div className="bg-slate-50 rounded-3xl p-6 mb-8 text-left border border-slate-100">
@@ -73,8 +185,8 @@ export default function Success() {
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Status</p>
-                  <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase">
-                    Pago
+                  <span className={`px-3 py-1 ${order.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} rounded-full text-xs font-bold uppercase`}>
+                    {order.status === 'paid' ? 'Pago' : 'Aguardando Pagamento'}
                   </span>
                 </div>
               </div>
