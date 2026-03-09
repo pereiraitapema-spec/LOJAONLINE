@@ -17,7 +17,8 @@ import {
   Edit2,
   Save,
   Upload,
-  FileText
+  FileText,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -49,6 +50,17 @@ interface Payment {
   affiliate_name?: string;
 }
 
+interface Lead {
+  id: string;
+  nome: string;
+  email: string;
+  whatsapp: string;
+  status_lead: 'frio' | 'morno' | 'quente' | 'cliente' | 'inativo';
+  score: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function Affiliates() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -62,7 +74,9 @@ export default function Affiliates() {
   const [affiliateSales, setAffiliateSales] = useState<any[]>([]);
   const [salesFilter, setSalesFilter] = useState<'all' | '30days' | '7days'>('all');
   const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
+  const [leadsList, setLeadsList] = useState<Lead[]>([]);
   const [showPayments, setShowPayments] = useState(false);
+  const [showLeads, setShowLeads] = useState(false);
   const [uploadingReceipt, setUploadingReceipt] = useState<string | null>(null);
 
   // User State
@@ -89,12 +103,27 @@ export default function Affiliates() {
         setIsAdmin(true);
         fetchAllAffiliates();
         fetchPayments();
+        fetchLeads();
       } else {
         fetchAffiliateData(session.user.id);
       }
     } catch (error) {
       console.error('Error checking role:', error);
       setLoading(false);
+    }
+  };
+
+  const fetchLeads = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setLeadsList(data || []);
+    } catch (error: any) {
+      console.error('Erro ao buscar leads:', error);
     }
   };
 
@@ -317,6 +346,40 @@ export default function Affiliates() {
     }
   };
 
+  const handleUpdateLeadStatus = async (leadId: string, newStatus: Lead['status_lead']) => {
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({ status_lead: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', leadId);
+
+      if (error) throw error;
+      
+      setLeadsList(leadsList.map(l => l.id === leadId ? { ...l, status_lead: newStatus } : l));
+      toast.success('Status do lead atualizado!');
+    } catch (error: any) {
+      toast.error('Erro ao atualizar lead: ' + error.message);
+    }
+  };
+
+  const handleDeleteLead = async (leadId: string) => {
+    if (!confirm('Tem certeza que deseja excluir este lead?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .eq('id', leadId);
+
+      if (error) throw error;
+      
+      setLeadsList(leadsList.filter(l => l.id !== leadId));
+      toast.success('Lead excluído!');
+    } catch (error: any) {
+      toast.error('Erro ao excluir lead: ' + error.message);
+    }
+  };
+
   // User Actions
   const handleCreateAffiliate = async () => {
     // Redirecionar para o novo fluxo de cadastro
@@ -418,7 +481,14 @@ export default function Affiliates() {
             </div>
             <div className="flex gap-4">
               <button 
-                onClick={() => setShowPayments(!showPayments)}
+                onClick={() => { setShowLeads(true); setShowPayments(false); }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all ${showLeads ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-200'}`}
+              >
+                <TrendingUp size={18} />
+                CRM / Leads
+              </button>
+              <button 
+                onClick={() => { setShowPayments(!showPayments); setShowLeads(false); }}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all ${showPayments ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-200'}`}
               >
                 <Wallet size={18} />
@@ -430,7 +500,108 @@ export default function Affiliates() {
             </div>
           </div>
 
-          {!showPayments ? (
+          {showLeads ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <TrendingUp size={24} className="text-indigo-600" />
+                  Gestão de Leads (CRM)
+                </h2>
+                <div className="flex gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-blue-400"></span>
+                    <span className="text-xs font-bold text-slate-500">Frio</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-amber-400"></span>
+                    <span className="text-xs font-bold text-slate-500">Morno</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-red-400"></span>
+                    <span className="text-xs font-bold text-slate-500">Quente</span>
+                  </div>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Lead</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">WhatsApp</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Status</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Score</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Última Atividade</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {leadsList.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-500">
+                          Nenhum lead encontrado.
+                        </td>
+                      </tr>
+                    ) : (
+                      leadsList.map(lead => (
+                        <tr key={lead.id} className="hover:bg-slate-50">
+                          <td className="p-4">
+                            <div className="font-bold text-slate-900">{lead.nome || 'Sem nome'}</div>
+                            <div className="text-xs text-slate-500">{lead.email}</div>
+                          </td>
+                          <td className="p-4 text-sm text-slate-600">{lead.whatsapp || '-'}</td>
+                          <td className="p-4">
+                            <select 
+                              value={lead.status_lead}
+                              onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value as Lead['status_lead'])}
+                              className={`px-2 py-1 rounded-lg text-xs font-bold border-none outline-none cursor-pointer ${
+                                lead.status_lead === 'frio' ? 'bg-blue-100 text-blue-800' :
+                                lead.status_lead === 'morno' ? 'bg-amber-100 text-amber-800' :
+                                lead.status_lead === 'quente' ? 'bg-red-100 text-red-800' :
+                                lead.status_lead === 'cliente' ? 'bg-emerald-100 text-emerald-800' :
+                                'bg-slate-100 text-slate-800'
+                              }`}
+                            >
+                              <option value="frio">Lead Frio (Curioso)</option>
+                              <option value="morno">Lead Morno (Formulário)</option>
+                              <option value="quente">Lead Quente (Interesse Real)</option>
+                              <option value="cliente">Cliente (Fechou)</option>
+                              <option value="inativo">Inativo</option>
+                            </select>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full ${
+                                    lead.score >= 80 ? 'bg-emerald-500' :
+                                    lead.score >= 40 ? 'bg-amber-500' : 'bg-blue-500'
+                                  }`}
+                                  style={{ width: `${Math.min(100, lead.score)}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-xs font-bold text-slate-600">{lead.score}</span>
+                            </div>
+                          </td>
+                          <td className="p-4 text-xs text-slate-500">
+                            {new Date(lead.updated_at || lead.created_at).toLocaleString()}
+                          </td>
+                          <td className="p-4">
+                            <button 
+                              onClick={() => handleDeleteLead(lead.id)}
+                              className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                              title="Excluir Lead"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : !showPayments ? (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left">

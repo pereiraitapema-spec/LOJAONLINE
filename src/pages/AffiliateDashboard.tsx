@@ -28,6 +28,7 @@ interface AffiliateData {
   id: string;
   name: string;
   email: string;
+  whatsapp?: string;
   code?: string;
   commission_rate: number;
   status: string;
