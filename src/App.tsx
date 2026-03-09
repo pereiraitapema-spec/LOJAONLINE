@@ -131,7 +131,10 @@ function AppContent() {
   }, [navigate]);
 
   const handleRoleRedirect = async (session: any) => {
-    if (!session) return;
+    if (!session) {
+      setLoading(false);
+      return;
+    }
     
     const path = window.location.pathname;
     const userEmail = session.user.email;
@@ -139,79 +142,81 @@ function AppContent() {
 
     console.log('🔍 Verificando permissões para:', userEmail);
     
-    // 1. Admin Master (Prioridade Máxima)
-    if (userEmail === 'pereira.itapema@gmail.com') {
-      console.log('👑 Admin Master detectado');
-      
-      // Garantir que o profile de admin master exista
-      await supabase.from('profiles').upsert({
-        id: userId,
-        email: userEmail,
-        role: 'admin',
-        full_name: 'Admin Master'
-      }, { onConflict: 'id' });
-
-      if (path === '/' || path === '/login' || path === '/register') {
-        navigate('/dashboard');
-      }
-      return;
-    }
-
-    // 2. Sincronizar Profile (Garantir que existe)
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (profileError) {
-      console.error('❌ Error fetching profile:', profileError);
-    }
-
-    // Se não existir profile, criar um padrão
-    if (!profile && !profileError) {
-      console.log('🆕 Criando perfil inicial para:', userEmail);
-      await supabase.from('profiles').insert({
-        id: userId,
-        email: userEmail,
-        role: 'customer',
-        full_name: userEmail.split('@')[0]
-      });
-    }
-
-    // 3. Verificar se é Afiliado Aprovado
     try {
-      const { data: affiliate } = await supabase
+      // 1. Admin Master (Prioridade Máxima)
+      if (userEmail === 'pereira.itapema@gmail.com') {
+        console.log('👑 Admin Master detectado');
+        
+        await supabase.from('profiles').upsert({
+          id: userId,
+          email: userEmail,
+          role: 'admin',
+          full_name: 'Admin Master'
+        }, { onConflict: 'id' });
+
+        if (path === '/' || path === '/login' || path === '/register') {
+          navigate('/dashboard');
+        }
+        setLoading(false);
+        return;
+      }
+
+      // 2. Verificar se é Afiliado Aprovado (Consulta rápida)
+      const { data: affiliate, error: affError } = await supabase
         .from('affiliates')
-        .select('*')
+        .select('status, active')
         .eq('user_id', userId)
         .maybeSingle();
 
-      // Se for aprovado explicitamente ou se for ativo (fallback para sistemas sem coluna status)
+      if (affError) console.warn('⚠️ Erro ao buscar afiliado:', affError);
+
       if (affiliate && (affiliate.status === 'approved' || (affiliate.active && !affiliate.status))) {
         console.log('🤝 Afiliado aprovado detectado');
         if (path === '/' || path === '/login' || path === '/register') {
           navigate('/affiliate-dashboard');
         }
+        setLoading(false);
         return;
       }
-    } catch (e) {
-      console.warn('⚠️ Erro ao verificar status de afiliado:', e);
-    }
 
-    // 4. Verificar se é Admin secundário
-    if (profile?.role === 'admin') {
-      console.log('🛠️ Admin secundário detectado');
-      if (path === '/' || path === '/login' || path === '/register') {
-        navigate('/dashboard');
+      // 3. Sincronizar Profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profileError) console.warn('⚠️ Erro ao buscar perfil:', profileError);
+
+      if (!profile && !profileError) {
+        console.log('🆕 Criando perfil inicial para:', userEmail);
+        await supabase.from('profiles').insert({
+          id: userId,
+          email: userEmail,
+          role: 'customer',
+          full_name: userEmail.split('@')[0]
+        });
       }
-      return;
-    }
 
-    // 5. Cliente Normal
-    console.log('👤 Usuário comum detectado');
-    if (path === '/login' || path === '/register') {
-      navigate('/');
+      // 4. Verificar se é Admin secundário
+      if (profile?.role === 'admin') {
+        console.log('🛠️ Admin secundário detectado');
+        if (path === '/' || path === '/login' || path === '/register') {
+          navigate('/dashboard');
+        }
+        setLoading(false);
+        return;
+      }
+
+      // 5. Cliente Normal
+      console.log('👤 Usuário comum detectado');
+      if (path === '/login' || path === '/register') {
+        navigate('/');
+      }
+    } catch (err) {
+      console.error('❌ Erro crítico no redirecionamento:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
