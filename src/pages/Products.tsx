@@ -40,6 +40,10 @@ interface Product {
   composition?: string;
   price: number;
   cost_price?: number;
+  tax_percentage?: number;
+  shipping_cost?: number;
+  operational_cost?: number;
+  marketing_cost?: number;
   discount_price?: number;
   affiliate_commission?: number;
   category_id?: string;
@@ -65,6 +69,10 @@ export default function Products() {
     composition: '',
     price: '',
     cost_price: '',
+    tax_percentage: '0',
+    shipping_cost: '0',
+    operational_cost: '0',
+    marketing_cost: '0',
     discount_price: '',
     affiliate_commission: '0',
     category_id: '',
@@ -233,6 +241,10 @@ export default function Products() {
         composition: productForm.composition,
         price: parseFloat(productForm.price),
         cost_price: productForm.cost_price ? parseFloat(productForm.cost_price) : null,
+        tax_percentage: parseFloat(productForm.tax_percentage || '0'),
+        shipping_cost: parseFloat(productForm.shipping_cost || '0'),
+        operational_cost: parseFloat(productForm.operational_cost || '0'),
+        marketing_cost: parseFloat(productForm.marketing_cost || '0'),
         discount_price: productForm.discount_price ? parseFloat(productForm.discount_price) : null,
         affiliate_commission: parseFloat(productForm.affiliate_commission),
         category_id: productForm.category_id || null,
@@ -477,6 +489,10 @@ export default function Products() {
       composition: '',
       price: '',
       cost_price: '',
+      tax_percentage: '0',
+      shipping_cost: '0',
+      operational_cost: '0',
+      marketing_cost: '0',
       discount_price: '',
       affiliate_commission: '0',
       category_id: '',
@@ -498,6 +514,10 @@ export default function Products() {
       composition: product.composition || '',
       price: product.price.toString(),
       cost_price: product.cost_price?.toString() || '',
+      tax_percentage: (product as any).tax_percentage?.toString() || '0',
+      shipping_cost: (product as any).shipping_cost?.toString() || '0',
+      operational_cost: (product as any).operational_cost?.toString() || '0',
+      marketing_cost: (product as any).marketing_cost?.toString() || '0',
       discount_price: product.discount_price?.toString() || '',
       affiliate_commission: (product.affiliate_commission || 0).toString(),
       category_id: product.category_id || '',
@@ -877,18 +897,7 @@ export default function Products() {
                         </select>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-1">Preço Custo (R$)</label>
-                          <input 
-                            type="number" 
-                            step="0.01"
-                            value={productForm.cost_price}
-                            onChange={e => setProductForm({...productForm, cost_price: e.target.value})}
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="0.00"
-                          />
-                        </div>
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className={`block text-sm font-bold mb-1 ${errors.price ? 'text-red-500' : 'text-slate-700'}`}>
                             Preço Venda *
@@ -915,6 +924,114 @@ export default function Products() {
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
                             placeholder="Opcional"
                           />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-1">Preço Custo (R$)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={productForm.cost_price}
+                            onChange={e => setProductForm({...productForm, cost_price: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-1">Imposto (NF) (%)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={productForm.tax_percentage}
+                            onChange={e => setProductForm({...productForm, tax_percentage: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="0"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-1">Transporte (R$)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={productForm.shipping_cost}
+                            onChange={e => setProductForm({...productForm, shipping_cost: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-1">Operacional (R$)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={productForm.operational_cost}
+                            onChange={e => setProductForm({...productForm, operational_cost: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-1">Marketing (R$)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={productForm.marketing_cost}
+                            onChange={e => setProductForm({...productForm, marketing_cost: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-1">Comissão Afiliado</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={productForm.affiliate_commission}
+                            onChange={e => setProductForm({...productForm, affiliate_commission: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Profitability Preview */}
+                      <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Simulação de Lucratividade</h4>
+                        <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-xs">
+                          <div className="flex justify-between border-b border-white/10 pb-1">
+                            <span className="text-slate-400">Preço de Venda:</span>
+                            <span className="font-bold">R$ {parseFloat(productForm.discount_price || productForm.price || '0').toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-white/10 pb-1">
+                            <span className="text-slate-400">Custo Produto:</span>
+                            <span className="font-bold text-rose-400">- R$ {parseFloat(productForm.cost_price || '0').toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-white/10 pb-1">
+                            <span className="text-slate-400">Imposto ({productForm.tax_percentage}%):</span>
+                            <span className="font-bold text-rose-400">- R$ {(parseFloat(productForm.discount_price || productForm.price || '0') * parseFloat(productForm.tax_percentage || '0') / 100).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-white/10 pb-1">
+                            <span className="text-slate-400">Comissão Afiliado:</span>
+                            <span className="font-bold text-rose-400">- R$ {parseFloat(productForm.affiliate_commission || '0').toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-white/10 pb-1">
+                            <span className="text-slate-400">Outros Custos:</span>
+                            <span className="font-bold text-rose-400">- R$ {(parseFloat(productForm.shipping_cost || '0') + parseFloat(productForm.operational_cost || '0') + parseFloat(productForm.marketing_cost || '0')).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between pt-1">
+                            <span className="text-indigo-400 font-black uppercase">Lucro Líquido:</span>
+                            <span className="font-black text-emerald-400">
+                              R$ {(
+                                parseFloat(productForm.discount_price || productForm.price || '0') -
+                                parseFloat(productForm.cost_price || '0') -
+                                (parseFloat(productForm.discount_price || productForm.price || '0') * parseFloat(productForm.tax_percentage || '0') / 100) -
+                                parseFloat(productForm.affiliate_commission || '0') -
+                                (parseFloat(productForm.shipping_cost || '0') + parseFloat(productForm.operational_cost || '0') + parseFloat(productForm.marketing_cost || '0'))
+                              ).toFixed(2)}
+                            </span>
+                          </div>
                         </div>
                       </div>
 

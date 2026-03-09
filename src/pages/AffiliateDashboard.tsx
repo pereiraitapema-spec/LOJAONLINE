@@ -37,6 +37,11 @@ interface AffiliateData {
   balance: number;
   total_paid?: number;
   pix_key?: string;
+  pix_name?: string;
+  pix_cpf?: string;
+  pix_bank?: string;
+  pix_account?: string;
+  pix_agency?: string;
 }
 
 interface Payment {
@@ -76,7 +81,9 @@ export default function AffiliateDashboard() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'coupons' | 'sales' | 'payments'>('products');
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateRange, setDateRange] = useState<'7' | '30' | '90' | 'all'>('30');
+  const [dateRange, setDateRange] = useState<'7' | '30' | '90' | 'all' | 'custom'>('30');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [showCommissionModal, setShowCommissionModal] = useState(false);
   const [productStats, setProductStats] = useState<any[]>([]);
   
@@ -86,7 +93,14 @@ export default function AffiliateDashboard() {
   const [creatingCoupon, setCreatingCoupon] = useState(false);
   
   // Estado para PIX
-  const [pixKey, setPixKey] = useState('');
+  const [pixData, setPixData] = useState({
+    key: '',
+    name: '',
+    cpf: '',
+    bank: '',
+    account: '',
+    agency: ''
+  });
   const [savingPix, setSavingPix] = useState(false);
 
   // Confirmation Modal State
@@ -146,7 +160,14 @@ export default function AffiliateDashboard() {
       }
 
       setAffiliate(affiliateData);
-      setPixKey(affiliateData.pix_key || '');
+      setPixData({
+        key: affiliateData.pix_key || '',
+        name: affiliateData.pix_name || '',
+        cpf: affiliateData.pix_cpf || '',
+        bank: affiliateData.pix_bank || '',
+        account: affiliateData.pix_account || '',
+        agency: affiliateData.pix_agency || ''
+      });
 
       // Carregar produtos e categorias
       console.log('📦 Carregando produtos e categorias...');
@@ -182,7 +203,7 @@ export default function AffiliateDashboard() {
       fetchOrders(affiliate.id, dateRange);
       fetchPayments(affiliate.id, dateRange);
     }
-  }, [dateRange]);
+  }, [dateRange, startDate, endDate]);
 
   const fetchCoupons = async (affiliateId: string) => {
     const { data } = await supabase
@@ -202,10 +223,19 @@ export default function AffiliateDashboard() {
       .order('created_at', { ascending: false });
 
     if (range !== 'all') {
-      const days = parseInt(range);
-      const date = new Date();
-      date.setDate(date.getDate() - days);
-      query = query.gte('created_at', date.toISOString());
+      if (range === 'custom') {
+        if (startDate) query = query.gte('created_at', new Date(startDate).toISOString());
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          query = query.lte('created_at', end.toISOString());
+        }
+      } else {
+        const days = parseInt(range);
+        const date = new Date();
+        date.setDate(date.getDate() - days);
+        query = query.gte('created_at', date.toISOString());
+      }
     }
 
     const { data, error } = await query;
@@ -264,10 +294,19 @@ export default function AffiliateDashboard() {
       .order('created_at', { ascending: false });
 
     if (range !== 'all') {
-      const days = parseInt(range);
-      const date = new Date();
-      date.setDate(date.getDate() - days);
-      query = query.gte('created_at', date.toISOString());
+      if (range === 'custom') {
+        if (startDate) query = query.gte('created_at', new Date(startDate).toISOString());
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          query = query.lte('created_at', end.toISOString());
+        }
+      } else {
+        const days = parseInt(range);
+        const date = new Date();
+        date.setDate(date.getDate() - days);
+        query = query.gte('created_at', date.toISOString());
+      }
     }
 
     const { data } = await query;
@@ -383,7 +422,12 @@ export default function AffiliateDashboard() {
               affiliate_id: affiliate.id,
               amount: affiliate.balance,
               status: 'pending',
-              pix_key: affiliate.pix_key
+              pix_key: affiliate.pix_key,
+              pix_name: affiliate.pix_name,
+              pix_cpf: affiliate.pix_cpf,
+              pix_bank: affiliate.pix_bank,
+              pix_account: affiliate.pix_account,
+              pix_agency: affiliate.pix_agency
             }]);
 
           if (error) throw error;
@@ -416,13 +460,28 @@ export default function AffiliateDashboard() {
     try {
       const { error } = await supabase
         .from('affiliates')
-        .update({ pix_key: pixKey })
+        .update({ 
+          pix_key: pixData.key,
+          pix_name: pixData.name,
+          pix_cpf: pixData.cpf,
+          pix_bank: pixData.bank,
+          pix_account: pixData.account,
+          pix_agency: pixData.agency
+        })
         .eq('id', affiliate.id);
 
       if (error) throw error;
       
-      setAffiliate({ ...affiliate, pix_key: pixKey });
-      toast.success('Chave PIX atualizada!');
+      setAffiliate({ 
+        ...affiliate, 
+        pix_key: pixData.key,
+        pix_name: pixData.name,
+        pix_cpf: pixData.cpf,
+        pix_bank: pixData.bank,
+        pix_account: pixData.account,
+        pix_agency: pixData.agency
+      });
+      toast.success('Dados PIX atualizados!');
     } catch (error: any) {
       toast.error('Erro ao atualizar PIX: ' + error.message);
     } finally {
@@ -565,26 +624,46 @@ export default function AffiliateDashboard() {
             <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Valor médio do pedido</p>
           </div>
 
-          {/* Filtro de Período */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-center">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-slate-50 text-slate-600 rounded-xl">
-                <Calendar size={20} />
-              </div>
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Período</span>
-            </div>
-            <div className="flex gap-1">
-              {(['7', '30', '90', 'all'] as const).map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setDateRange(range)}
-                  className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${dateRange === range ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                >
-                  {range === 'all' ? 'Tudo' : `${range}D`}
-                </button>
-              ))}
-            </div>
+      {/* Filtro de Período */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-center">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="p-2 bg-slate-50 text-slate-600 rounded-xl">
+            <Calendar size={20} />
           </div>
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Período</span>
+        </div>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-1">
+            {(['7', '30', '90', 'all', 'custom'] as const).map((range) => (
+              <button
+                key={range}
+                onClick={() => setDateRange(range)}
+                className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${dateRange === range ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+              >
+                {range === 'all' ? 'Tudo' : range === 'custom' ? 'Personalizar' : `${range}D`}
+              </button>
+            ))}
+          </div>
+          
+          {dateRange === 'custom' && (
+            <div className="flex items-center gap-2 mt-2">
+              <input 
+                type="date" 
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+              <span className="text-slate-400 text-[10px]">até</span>
+              <input 
+                type="date" 
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
+          )}
+        </div>
+      </div>
         </div>
 
         {/* Tabs */}
@@ -792,22 +871,37 @@ export default function AffiliateDashboard() {
                     ) : (
                       coupons.map(coupon => (
                         <div key={coupon.id} className="bg-white border border-slate-200 rounded-xl p-4 flex justify-between items-center hover:shadow-md transition-shadow">
-                          <div>
+                          <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <span className="font-black text-slate-900 text-lg">{coupon.code}</span>
                               <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full">
                                 {coupon.discount_percentage}% OFF
                               </span>
                             </div>
-                            <p className="text-xs text-slate-400 mt-1">Criado em {new Date(coupon.created_at).toLocaleDateString()}</p>
+                            <p className="text-[10px] text-slate-400 mt-1 font-mono truncate max-w-[200px]">
+                              {window.location.origin}/?ref={affiliate.code || affiliate.id}&coupon={coupon.code}
+                            </p>
                           </div>
-                          <button 
-                            onClick={() => handleDeleteCoupon(coupon.id)}
-                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Excluir Cupom"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => {
+                                const url = `${window.location.origin}/?ref=${affiliate.code || affiliate.id}&coupon=${coupon.code}`;
+                                navigator.clipboard.writeText(url);
+                                toast.success('Link do cupom copiado!');
+                              }}
+                              className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                              title="Copiar Link do Cupom"
+                            >
+                              <Copy size={18} />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteCoupon(coupon.id)}
+                              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Excluir Cupom"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}
@@ -883,29 +977,100 @@ export default function AffiliateDashboard() {
           {/* Aba Pagamentos */}
           {activeTab === 'payments' && (
             <div>
+              <div className="mb-8">
+                <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter mb-6">Configuração de Recebimento</h2>
+                
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl mb-6 flex items-start gap-3">
+                  <Info className="text-amber-600 shrink-0 mt-0.5" size={20} />
+                  <div>
+                    <p className="text-sm font-bold text-amber-900">Atenção aos Dados!</p>
+                    <p className="text-xs text-amber-800">A conta bancária e a chave PIX devem estar obrigatoriamente no seu nome completo e CPF cadastrados. Não realizamos pagamentos para terceiros.</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleUpdatePix} className="bg-slate-50 p-6 rounded-3xl border border-slate-200">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Nome Completo (Titular)</label>
+                      <input 
+                        type="text" 
+                        value={pixData.name}
+                        onChange={(e) => setPixData({ ...pixData, name: e.target.value })}
+                        placeholder="Nome como consta no banco"
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">CPF do Titular</label>
+                      <input 
+                        type="text" 
+                        value={pixData.cpf}
+                        onChange={(e) => setPixData({ ...pixData, cpf: e.target.value.replace(/\D/g, '') })}
+                        placeholder="Apenas números"
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold"
+                        maxLength={11}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Banco</label>
+                      <input 
+                        type="text" 
+                        value={pixData.bank}
+                        onChange={(e) => setPixData({ ...pixData, bank: e.target.value })}
+                        placeholder="Ex: Nubank, Itaú, Bradesco"
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Chave PIX</label>
+                      <input 
+                        type="text" 
+                        value={pixData.key}
+                        onChange={(e) => setPixData({ ...pixData, key: e.target.value })}
+                        placeholder="CPF, E-mail, Celular ou Aleatória"
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Agência</label>
+                      <input 
+                        type="text" 
+                        value={pixData.agency}
+                        onChange={(e) => setPixData({ ...pixData, agency: e.target.value })}
+                        placeholder="0001"
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Conta com Dígito</label>
+                      <input 
+                        type="text" 
+                        value={pixData.account}
+                        onChange={(e) => setPixData({ ...pixData, account: e.target.value })}
+                        placeholder="12345-6"
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end">
+                    <button 
+                      type="submit"
+                      disabled={savingPix}
+                      className="bg-emerald-600 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                    >
+                      {savingPix ? 'Salvando...' : 'Salvar Dados de Pagamento'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
                 <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Histórico de Pagamentos</h2>
-                
-                {/* Formulário PIX rápido */}
-                <form onSubmit={handleUpdatePix} className="flex items-center gap-2 w-full md:w-auto">
-                  <div className="relative flex-1 md:w-64">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input 
-                      type="text" 
-                      value={pixKey}
-                      onChange={(e) => setPixKey(e.target.value)}
-                      placeholder="Sua Chave PIX"
-                      className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
-                    />
-                  </div>
-                  <button 
-                    type="submit"
-                    disabled={savingPix || pixKey === affiliate?.pix_key}
-                    className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase hover:bg-slate-800 transition-colors disabled:opacity-50 whitespace-nowrap"
-                  >
-                    {savingPix ? 'Salvando...' : 'Salvar PIX'}
-                  </button>
-                </form>
               </div>
               
               <div className="overflow-x-auto">

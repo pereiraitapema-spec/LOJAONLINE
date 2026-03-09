@@ -34,6 +34,11 @@ interface AffiliateData {
   balance: number;
   total_paid?: number;
   pix_key: string;
+  pix_name?: string;
+  pix_cpf?: string;
+  pix_bank?: string;
+  pix_account?: string;
+  pix_agency?: string;
   active: boolean;
   status: string;
   created_at: string;
@@ -46,6 +51,11 @@ interface Payment {
   status: string;
   receipt_url?: string;
   pix_key?: string;
+  pix_name?: string;
+  pix_cpf?: string;
+  pix_bank?: string;
+  pix_account?: string;
+  pix_agency?: string;
   created_at: string;
   paid_at?: string;
   affiliate_name?: string;
@@ -292,7 +302,12 @@ export default function Affiliates() {
         .select(`
           *,
           affiliates (
-            name
+            name,
+            pix_name,
+            pix_cpf,
+            pix_bank,
+            pix_account,
+            pix_agency
           )
         `)
         .order('created_at', { ascending: false });
@@ -301,7 +316,12 @@ export default function Affiliates() {
       
       const mapped = data.map((p: any) => ({
         ...p,
-        affiliate_name: p.affiliates?.name || 'Desconhecido'
+        affiliate_name: p.affiliates?.name || 'Desconhecido',
+        pix_name: p.pix_name || p.affiliates?.pix_name,
+        pix_cpf: p.pix_cpf || p.affiliates?.pix_cpf,
+        pix_bank: p.pix_bank || p.affiliates?.pix_bank,
+        pix_account: p.pix_account || p.affiliates?.pix_account,
+        pix_agency: p.pix_agency || p.affiliates?.pix_agency
       }));
       
       setPaymentsList(mapped);
@@ -774,8 +794,15 @@ export default function Affiliates() {
                           <td className="p-4 font-bold text-indigo-600">
                             R$ {payment.amount.toFixed(2)}
                           </td>
-                          <td className="p-4 text-sm text-slate-600">
-                            {payment.pix_key || 'Não informada'}
+                          <td className="p-4">
+                            <div className="text-sm font-bold text-slate-900">{payment.pix_key || 'Não informada'}</div>
+                            {(payment.pix_name || payment.pix_cpf) && (
+                              <div className="text-[10px] text-slate-500 mt-1">
+                                {payment.pix_name} - {payment.pix_cpf}
+                                <br />
+                                {payment.pix_bank} | Ag: {payment.pix_agency} | Cc: {payment.pix_account}
+                              </div>
+                            )}
                           </td>
                           <td className="p-4">
                             <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${
