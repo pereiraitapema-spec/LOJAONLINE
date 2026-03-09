@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { 
   LogOut, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, 
-  ShoppingBag, Megaphone, Users, Plus, Edit2, Trash2, Save, X, CreditCard, ToggleLeft, ToggleRight
+  ShoppingBag, Megaphone, Users, Plus, Edit2, Trash2, Save, X, CreditCard, ToggleLeft, ToggleRight,
+  Eye, EyeOff
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -22,6 +23,8 @@ export default function PaymentGateways() {
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [showPublicKey, setShowPublicKey] = useState(false);
+  const [showAccessToken, setShowAccessToken] = useState(false);
   const [currentGateway, setCurrentGateway] = useState<Partial<Gateway>>({});
   const navigate = useNavigate();
 
@@ -93,6 +96,23 @@ export default function PaymentGateways() {
       fetchGateways();
     } catch (error: any) {
       toast.error('Erro ao alterar status: ' + error.message);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este gateway?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('payment_gateways')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      toast.success('Gateway excluído!');
+      fetchGateways();
+    } catch (error: any) {
+      toast.error('Erro ao excluir: ' + error.message);
     }
   };
 
@@ -187,6 +207,13 @@ export default function PaymentGateways() {
                   >
                     <Edit2 size={16} /> Editar
                   </button>
+                  <button 
+                    onClick={() => handleDelete(gateway.id)}
+                    className="p-2 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-100 transition-all"
+                    title="Excluir"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -246,30 +273,48 @@ export default function PaymentGateways() {
 
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Public Key (ID de Teste)</label>
-                <input 
-                  type="text"
-                  value={currentGateway.config?.public_key || ''}
-                  onChange={e => setCurrentGateway({
-                    ...currentGateway, 
-                    config: { ...currentGateway.config, public_key: e.target.value }
-                  })}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
-                  placeholder="Ex: APP_USR-..."
-                />
+                <div className="relative">
+                  <input 
+                    type={showPublicKey ? "text" : "password"}
+                    value={currentGateway.config?.public_key || ''}
+                    onChange={e => setCurrentGateway({
+                      ...currentGateway, 
+                      config: { ...currentGateway.config, public_key: e.target.value }
+                    })}
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all pr-14"
+                    placeholder="Ex: APP_USR-..."
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPublicKey(!showPublicKey)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
+                  >
+                    {showPublicKey ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Access Token (Chave Secreta)</label>
-                <input 
-                  type="password"
-                  value={currentGateway.config?.access_token || ''}
-                  onChange={e => setCurrentGateway({
-                    ...currentGateway, 
-                    config: { ...currentGateway.config, access_token: e.target.value }
-                  })}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
-                  placeholder="Ex: APP_USR-..."
-                />
+                <div className="relative">
+                  <input 
+                    type={showAccessToken ? "text" : "password"}
+                    value={currentGateway.config?.access_token || ''}
+                    onChange={e => setCurrentGateway({
+                      ...currentGateway, 
+                      config: { ...currentGateway.config, access_token: e.target.value }
+                    })}
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all pr-14"
+                    placeholder="Ex: APP_USR-..."
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowAccessToken(!showAccessToken)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
+                  >
+                    {showAccessToken ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
 
               <div className="flex gap-4 pt-4">
