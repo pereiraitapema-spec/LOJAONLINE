@@ -12,7 +12,12 @@ import {
   XCircle,
   Clock,
   Eye,
-  Filter
+  Filter,
+  Plus,
+  User,
+  Trash2,
+  Save,
+  X
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -57,9 +62,190 @@ export default function Orders() {
   const [showFilters, setShowFilters] = useState(false);
   const [activeTab, setActiveTab] = useState<'orders' | 'abandoned'>('orders');
 
+  // Manual Order State
+  const [showManualOrderModal, setShowManualOrderModal] = useState(false);
+  const [products, setProducts] = useState<any[]>([]);
+  const [selectedItems, setSelectedItems] = useState<any[]>([]);
+  const [manualOrderData, setManualOrderData] = useState({
+    customer_name: '',
+    customer_email: '',
+    customer_phone: '',
+    customer_document: '',
+    payment_method: 'cash',
+    shipping_method: 'pickup',
+    affiliate_id: '',
+    discount: 0,
+    shipping_cost: 0,
+    operational_cost: 0,
+    marketing_cost: 0
+  });
+  const [savingManualOrder, setSavingManualOrder] = useState(false);
+  const [affiliates, setAffiliates] = useState<any[]>([]);
+
   useEffect(() => {
     fetchData();
-  }, [activeTab]);
+    if (isAdmin) {
+      fetchProducts();
+      fetchAffiliates();
+    }
+  }, [activeTab, isAdmin]);
+
+  const fetchProducts = async () => {
+    const { data } = await supabase.from('products').select('*').eq('active', true);
+    setProducts(data || []);
+  };
+
+  const fetchAffiliates = async () => {
+    const { data } = await supabase.from('affiliates').select('id, name, code').eq('active', true);
+    setAffiliates(data || []);
+  };
+
+  const addItemToOrder = (product: any) => {
+    const existing = selectedItems.find(item => item.id === product.id);
+    if (existing) {
+      setSelectedItems(selectedItems.map(item => 
+        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+      ));
+    } else {
+      setSelectedItems([...selectedItems, { 
+        id: product.id, 
+        name: product.name, 
+        price: product.discount_price || product.price, 
+        cost_price: product.cost_price || 0,
+        tax_percentage: product.tax_percentage || 0,
+        affiliate_commission: product.affiliate_commission || 0,
+        quantity: 1 
+      }]);
+    }
+  };
+
+  const removeItemFromOrder = (id: string) => {
+    setSelectedItems(selectedItems.filter(item => item.id !== id));
+  };
+
+  const calculateManualTotal = () => {
+    const subtotal = selectedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    return subtotal + manualOrderData.shipping_cost - manualOrderData.discount;
+  };
+
+  const saveManualOrder = async () => {
+    if (selectedItems.length === 0) {
+      toast.error('Adicione pelo menos um produto.');
+      return;
+    }
+    if (!manualOrderData.customer_name) {
+      toast.error('Nome do cliente é obrigatório.');
+      return;
+    }
+
+    setSavingManualOrder(true);
+    try {
+      const total = calculateManualTotal();
+      
+      // 0. Calcular comissão do afiliado se houver
+      let commissionValue = 0;
+      if (manualOrderData.affiliate_id) {
+        const { data: affiliate } = await supabase
+          .from('affiliates')
+          .select('commission_rate')
+          .eq('id', manualOrderData.affiliate_id)
+          .single();
+        
+        const defaultRate = affiliate?.commission_rate || 0;
+        
+        // Encontrar a maior taxa entre os produtos selecionados e a taxa padrão do afiliado
+        const productRates = selectedItems.map(item => item.affiliate_commission || 0);
+        const maxRate = Math.max(defaultRate, ...productRates);
+        
+        commissionValue = selectedItems.reduce((acc, item) => {
+          return acc + ((item.price * maxRate / 100) * item.quantity);
+        }, 0);
+      }
+
+      // 1. Criar o pedido
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert([{
+          customer_name: manualOrderData.customer_name,
+          customer_email: manualOrderData.customer_email,
+          customer_phone: manualOrderData.customer_phone,
+          customer_document: manualOrderData.customer_document,
+          total: total,
+          status: 'paid',
+          payment_method: manualOrderData.payment_method,
+          shipping_method: manualOrderData.shipping_method,
+          affiliate_id: manualOrderData.affiliate_id || null,
+          commission_value: commissionValue,
+          shipping_address: { type: 'pickup', street: 'Balcão/Local' },
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+          operational_cost: manualOrderData.operational_cost,
+          marketing_cost: manualOrderData.marketing_cost
+        }])
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // 1.1 Se houver comissão, atualizar saldo do afiliado
+      if (commissionValue > 0 && manualOrderData.affiliate_id) {
+        const { data: aff } = await supabase
+          .from('affiliates')
+          .select('balance')
+          .eq('id', manualOrderData.affiliate_id)
+          .single();
+        
+        if (aff) {
+          await supabase
+            .from('affiliates')
+            .update({ balance: (aff.balance || 0) + commissionValue })
+            .eq('id', manualOrderData.affiliate_id);
+        }
+      }
+
+      // 2. Criar os itens do pedido
+      const itemsToInsert = selectedItems.map(item => ({
+        order_id: order.id,
+        product_id: item.id,
+        product_name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        cost_price: item.cost_price // Salvando custo histórico
+      }));
+
+      const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
+      if (itemsError) throw itemsError;
+
+      // 3. Atualizar estoque
+      for (const item of selectedItems) {
+        const { data: prod } = await supabase.from('products').select('stock').eq('id', item.id).single();
+        if (prod) {
+          await supabase.from('products').update({ stock: Math.max(0, prod.stock - item.quantity) }).eq('id', item.id);
+        }
+      }
+
+      toast.success('Pedido de balcão registrado com sucesso!');
+      setShowManualOrderModal(false);
+      setSelectedItems([]);
+      setManualOrderData({
+        customer_name: '',
+        customer_email: '',
+        customer_phone: '',
+        customer_document: '',
+        payment_method: 'cash',
+        shipping_method: 'pickup',
+        affiliate_id: '',
+        discount: 0,
+        shipping_cost: 0,
+        operational_cost: 0,
+        marketing_cost: 0
+      });
+      fetchData();
+    } catch (error: any) {
+      toast.error('Erro ao salvar pedido: ' + error.message);
+    } finally {
+      setSavingManualOrder(false);
+    }
+  };
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<any[]>([]);
@@ -247,19 +433,28 @@ export default function Orders() {
           </div>
 
           {isAdmin && (
-            <div className="flex bg-slate-100 p-1 rounded-xl">
+            <div className="flex items-center gap-3">
               <button
-                onClick={() => setActiveTab('orders')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'orders' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                onClick={() => setShowManualOrderModal(true)}
+                className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center gap-2"
               >
-                Pedidos
+                <Plus size={20} />
+                Novo Pedido (Balcão)
               </button>
-              <button
-                onClick={() => setActiveTab('abandoned')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'abandoned' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                Abandonados
-              </button>
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                <button
+                  onClick={() => setActiveTab('orders')}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'orders' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Pedidos
+                </button>
+                <button
+                  onClick={() => setActiveTab('abandoned')}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'abandoned' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Abandonados
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -462,6 +657,235 @@ export default function Orders() {
           </div>
         )}
       </div>
+
+      {/* Modal de Pedido Manual (Balcão) */}
+      {showManualOrderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          >
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-emerald-600 text-white">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <ShoppingBag size={24} />
+                Novo Pedido de Balcão
+              </h2>
+              <button onClick={() => setShowManualOrderModal(false)} className="hover:rotate-90 transition-transform">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Esquerda: Seleção de Produtos */}
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <Package size={18} className="text-emerald-600" />
+                    Produtos Disponíveis
+                  </h3>
+                  <div className="relative mb-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      type="text" 
+                      placeholder="Buscar produto..."
+                      className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto pr-2">
+                    {products.map(product => (
+                      <button
+                        key={product.id}
+                        onClick={() => addItemToOrder(product)}
+                        className="flex items-center gap-3 p-2 bg-slate-50 hover:bg-emerald-50 border border-slate-100 rounded-xl transition-all text-left group"
+                      >
+                        <img src={product.image_url} alt="" className="w-10 h-10 object-contain bg-white rounded-lg border border-slate-200" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-900 truncate">{product.name}</p>
+                          <p className="text-xs text-slate-500">Estoque: {product.stock} | R$ {(product.discount_price || product.price).toFixed(2)}</p>
+                        </div>
+                        <Plus size={16} className="text-slate-400 group-hover:text-emerald-600" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <ShoppingBag size={18} className="text-emerald-600" />
+                    Itens Selecionados
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedItems.map(item => (
+                      <div key={item.id} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-900 truncate">{item.name}</p>
+                          <p className="text-xs text-slate-500">{item.quantity}x R$ {item.price.toFixed(2)}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => {
+                              if (item.quantity > 1) {
+                                setSelectedItems(selectedItems.map(i => i.id === item.id ? { ...i, quantity: i.quantity - 1 } : i));
+                              } else {
+                                removeItemFromOrder(item.id);
+                              }
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-600"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                          <span className="font-bold text-slate-900 w-8 text-center">{item.quantity}</span>
+                          <button 
+                            onClick={() => addItemToOrder(item)}
+                            className="p-1 text-slate-400 hover:text-emerald-600"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {selectedItems.length === 0 && (
+                      <div className="text-center py-8 text-slate-400 italic text-sm">Nenhum item selecionado</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Direita: Dados do Cliente e Custos */}
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <User size={18} className="text-emerald-600" />
+                    Dados do Cliente
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo</label>
+                      <input 
+                        type="text"
+                        value={manualOrderData.customer_name}
+                        onChange={e => setManualOrderData({...manualOrderData, customer_name: e.target.value})}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
+                        placeholder="Nome do cliente"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">WhatsApp</label>
+                      <input 
+                        type="text"
+                        value={manualOrderData.customer_phone}
+                        onChange={e => setManualOrderData({...manualOrderData, customer_phone: e.target.value})}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
+                        placeholder="(00) 00000-0000"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">CPF/CNPJ</label>
+                      <input 
+                        type="text"
+                        value={manualOrderData.customer_document}
+                        onChange={e => setManualOrderData({...manualOrderData, customer_document: e.target.value})}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
+                        placeholder="000.000.000-00"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <Clock size={18} className="text-emerald-600" />
+                    Pagamento e Custos
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Forma de Pagamento</label>
+                      <select 
+                        value={manualOrderData.payment_method}
+                        onChange={e => setManualOrderData({...manualOrderData, payment_method: e.target.value})}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
+                      >
+                        <option value="cash">Dinheiro</option>
+                        <option value="pix">PIX</option>
+                        <option value="credit_card">Cartão de Crédito</option>
+                        <option value="debit_card">Cartão de Débito</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Afiliado (Opcional)</label>
+                      <select 
+                        value={manualOrderData.affiliate_id}
+                        onChange={e => setManualOrderData({...manualOrderData, affiliate_id: e.target.value})}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
+                      >
+                        <option value="">Nenhum</option>
+                        {affiliates.map(aff => (
+                          <option key={aff.id} value={aff.id}>{aff.name} ({aff.code})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Desconto (R$)</label>
+                      <input 
+                        type="number"
+                        value={manualOrderData.discount}
+                        onChange={e => setManualOrderData({...manualOrderData, discount: parseFloat(e.target.value) || 0})}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Frete/Entrega (R$)</label>
+                      <input 
+                        type="number"
+                        value={manualOrderData.shipping_cost}
+                        onChange={e => setManualOrderData({...manualOrderData, shipping_cost: parseFloat(e.target.value) || 0})}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-slate-900 text-white rounded-3xl space-y-4">
+                  <div className="flex justify-between items-center text-sm opacity-70">
+                    <span>Subtotal</span>
+                    <span>R$ {selectedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm text-rose-400">
+                    <span>Desconto</span>
+                    <span>- R$ {manualOrderData.discount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm text-emerald-400">
+                    <span>Frete</span>
+                    <span>+ R$ {manualOrderData.shipping_cost.toFixed(2)}</span>
+                  </div>
+                  <div className="pt-4 border-t border-white/10 flex justify-between items-center">
+                    <span className="font-bold uppercase tracking-widest text-xs">Total Final</span>
+                    <span className="text-3xl font-black">R$ {calculateManualTotal().toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button 
+                onClick={() => setShowManualOrderModal(false)}
+                className="px-6 py-3 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={saveManualOrder}
+                disabled={savingManualOrder || selectedItems.length === 0}
+                className="px-10 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50 flex items-center gap-2"
+              >
+                {savingManualOrder ? <Loading message="" /> : <Save size={20} />}
+                Finalizar Pedido
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Modal de Detalhes do Pedido */}
       {showDetailsModal && selectedOrder && (

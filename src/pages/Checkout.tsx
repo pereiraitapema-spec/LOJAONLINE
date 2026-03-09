@@ -465,17 +465,14 @@ export default function Checkout() {
       }
       
       if (affiliateId) {
-        // Calculate commission based on products
+        // Encontrar a maior taxa entre os produtos no carrinho e a taxa padrão do afiliado
+        const productRates = cart.map(item => item.product.affiliate_commission || 0);
+        const maxRate = Math.max(commissionRate, ...productRates);
+        
+        // Calculate commission based on the highest rate
         commissionValue = cart.reduce((acc, item) => {
           const price = item.product.discount_price || item.product.price;
-          const productCommissionRate = item.product.affiliate_commission;
-          
-          // Use product commission rate if set (> 0), otherwise use affiliate's default rate
-          const rate = (productCommissionRate !== undefined && productCommissionRate > 0) 
-            ? productCommissionRate 
-            : commissionRate;
-          
-          return acc + ((price * rate / 100) * item.quantity);
+          return acc + ((price * maxRate / 100) * item.quantity);
         }, 0);
       }
 
@@ -571,6 +568,22 @@ export default function Checkout() {
           payment_id: `sim_${activeGateway.provider}_${Math.random().toString(36).substr(2, 9)}` 
         })
         .eq('id', orderData.id);
+
+      // 3.1 Se houver comissão, atualizar saldo do afiliado
+      if (commissionValue > 0 && affiliateId) {
+        const { data: aff } = await supabase
+          .from('affiliates')
+          .select('balance')
+          .eq('id', affiliateId)
+          .single();
+        
+        if (aff) {
+          await supabase
+            .from('affiliates')
+            .update({ balance: (aff.balance || 0) + commissionValue })
+            .eq('id', affiliateId);
+        }
+      }
 
       // Clear cart
       localStorage.removeItem('cart_items');

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { 
   LogOut, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, 
-  Megaphone, Plus, Edit2, Trash2, Save, X, Upload, Link as LinkIcon, Copy, Check, Tag
+  Megaphone, Plus, Edit2, Trash2, Save, X, Upload, Link as LinkIcon, Copy, Check, Tag, ArrowLeft
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -389,6 +389,13 @@ export default function Campaigns() {
         <div className="max-w-6xl mx-auto">
           <div className="flex justify-between items-center mb-8">
             <div>
+              <button 
+                onClick={() => navigate('/dashboard')}
+                className="flex items-center gap-2 text-slate-500 hover:text-emerald-600 mb-2 transition-colors font-medium"
+              >
+                <ArrowLeft size={18} />
+                Voltar ao Painel
+              </button>
               <h1 className="text-3xl font-bold text-slate-900">Campanhas e Benefícios</h1>
               <p className="text-slate-500 mt-1">Gerencie os cards de benefícios exibidos após o banner principal.</p>
             </div>

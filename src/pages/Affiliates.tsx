@@ -262,7 +262,7 @@ export default function Affiliates() {
     try {
       let query = supabase
         .from('orders')
-        .select('*')
+        .select('*, order_items(*)')
         .eq('affiliate_id', affiliateId)
         .order('created_at', { ascending: false });
 
@@ -885,6 +885,7 @@ export default function Affiliates() {
                     <tr>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase">Data</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase">Cliente</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Produtos</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase">Valor Total</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase">Comissão Gerada</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase">Status do Pedido</th>
@@ -893,7 +894,7 @@ export default function Affiliates() {
                   <tbody className="divide-y divide-slate-100">
                     {affiliateSales.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="p-8 text-center text-slate-500">
+                        <td colSpan={6} className="p-8 text-center text-slate-500">
                           Nenhuma venda encontrada para este período.
                         </td>
                       </tr>
@@ -905,6 +906,16 @@ export default function Affiliates() {
                           </td>
                           <td className="p-4 font-bold text-slate-900">
                             {sale.customer_name}
+                          </td>
+                          <td className="p-4">
+                            <div className="text-[10px] text-slate-500 space-y-1">
+                              {sale.order_items?.map((item: any) => (
+                                <div key={item.id} className="flex justify-between gap-2">
+                                  <span className="truncate max-w-[120px]">{item.product_name}</span>
+                                  <span className="font-bold">x{item.quantity}</span>
+                                </div>
+                              ))}
+                            </div>
                           </td>
                           <td className="p-4 text-sm text-slate-600">
                             R$ {sale.total.toFixed(2)}

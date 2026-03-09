@@ -59,19 +59,25 @@ export default function Dashboard() {
         // Calculate Revenue
         const revenue = orders.reduce((acc, o) => acc + o.total, 0);
 
-        // Calculate Cost (COGS) - using current cost_price as fallback
-        // In a real scenario, cost_price should be stored in order_items at time of purchase
-        const totalCost = orders.reduce((acc, o) => acc + (o.cost_value || 0), 0); 
-        // Note: if cost_value is not in orders, we might need to fetch order_items
+        // Calculate Costs
+        const totalCommissions = orders.reduce((acc, o) => acc + (o.commission_value || 0), 0);
+        const totalOperational = orders.reduce((acc, o) => acc + (o.operational_cost || 0), 0);
+        const totalMarketing = orders.reduce((acc, o) => acc + (o.marketing_cost || 0), 0);
+        const totalShipping = orders.reduce((acc, o) => acc + (o.shipping_cost || 0), 0);
         
-        // Let's try to get a more accurate cost if possible
-        let calculatedCost = 0;
+        // Let's try to get a more accurate COGS (Cost of Goods Sold)
+        let calculatedCOGS = 0;
         if (orders.length > 0) {
-          const { data: items } = await supabase.from('order_items').select('*, product:products(cost_price)').in('order_id', orders.map(o => o.id));
-          calculatedCost = (items || []).reduce((acc, item: any) => acc + (item.quantity * (item.product?.cost_price || 0)), 0);
+          const { data: items } = await supabase
+            .from('order_items')
+            .select('quantity, cost_price')
+            .in('order_id', orders.map(o => o.id));
+          
+          calculatedCOGS = (items || []).reduce((acc, item: any) => acc + (item.quantity * (item.cost_price || 0)), 0);
         }
 
-        const profit = revenue - calculatedCost;
+        const totalExpenses = calculatedCOGS + totalCommissions + totalOperational + totalMarketing;
+        const profit = revenue - totalExpenses;
         const stockValue = products.reduce((acc, p) => acc + (p.stock * (p.cost_price || 0)), 0);
 
         // Ticket Average
@@ -84,7 +90,7 @@ export default function Dashboard() {
 
         setStats({
           revenue,
-          cost: calculatedCost,
+          cost: totalExpenses,
           profit,
           stockValue,
           affiliatesCount: affiliates.length,
@@ -203,13 +209,6 @@ export default function Dashboard() {
             Integrações
           </button>
           <button 
-            onClick={() => navigate('/inventory')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <History size={20} />
-            Estoque
-          </button>
-          <button 
             onClick={() => navigate('/settings')}
             className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
           >
@@ -259,7 +258,8 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <motion.div 
             whileHover={{ y: -5 }}
-            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100"
+            onClick={() => navigate('/orders')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-emerald-200 transition-all"
           >
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
@@ -273,7 +273,8 @@ export default function Dashboard() {
           
           <motion.div 
             whileHover={{ y: -5 }}
-            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100"
+            onClick={() => navigate('/inventory')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-rose-200 transition-all"
           >
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
@@ -287,7 +288,8 @@ export default function Dashboard() {
 
           <motion.div 
             whileHover={{ y: -5 }}
-            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100"
+            onClick={() => navigate('/inventory')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-indigo-200 transition-all"
           >
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
@@ -301,7 +303,8 @@ export default function Dashboard() {
 
           <motion.div 
             whileHover={{ y: -5 }}
-            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100"
+            onClick={() => navigate('/inventory')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-amber-200 transition-all"
           >
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
@@ -333,13 +336,19 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-center items-center text-center">
+          <div 
+            onClick={() => navigate('/affiliates')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-center items-center text-center cursor-pointer hover:border-indigo-200 transition-all"
+          >
             <Users className="text-indigo-600 mb-2" size={32} />
             <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Afiliados Cadastrados</h3>
             <p className="text-4xl font-black text-slate-900">{stats.affiliatesCount}</p>
           </div>
 
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-center items-center text-center">
+          <div 
+            onClick={() => navigate('/products')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-center items-center text-center cursor-pointer hover:border-amber-200 transition-all"
+          >
             <Zap className="text-amber-500 mb-2" size={32} />
             <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Produtos Ativos</h3>
             <p className="text-4xl font-black text-slate-900">{stats.activeProducts}</p>
