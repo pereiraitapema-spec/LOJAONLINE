@@ -23,11 +23,13 @@ export const shippingService = {
         .from('shipping_carriers')
         .select('*')
         .eq('active', true)
+        .limit(1)
         .maybeSingle();
 
       const { data: settings } = await supabase
         .from('store_settings')
         .select('origin_zip_code')
+        .limit(1)
         .maybeSingle();
 
       if (!carrier || !settings?.origin_zip_code) {
@@ -43,33 +45,18 @@ export const shippingService = {
       // 2. Call Provider API
       if (carrier.provider === 'melhorenvio' && carrier.config?.api_key) {
         try {
-          // Exemplo de chamada real para Melhor Envio (Sandbox ou Produção)
-          // const response = await fetch('https://sandbox.melhorenvio.com.br/api/v2/me/shipment/calculate', {
-          //   method: 'POST',
-          //   headers: {
-          //     'Accept': 'application/json',
-          //     'Content-Type': 'application/json',
-          //     'Authorization': `Bearer ${carrier.config.api_key}`
-          //   },
-          //   body: JSON.stringify({
-          //     from: { postal_code: originZip },
-          //     to: { postal_code: destZip },
-          //     products: packages.map(p => ({
-          //       weight: p.weight,
-          //       height: p.height,
-          //       width: p.width,
-          //       length: p.length,
-          //       quantity: 1
-          //     }))
-          //   })
-          // });
-          // const data = await response.json();
-          // return data.map((quote: any) => ({ ... }));
-          
+          // Real call would go here
           return this.mockMelhorEnvioQuotes(originZip, destZip, packages);
         } catch (err) {
           console.error('Melhor Envio API Error:', err);
         }
+      }
+
+      if (carrier.provider === 'test') {
+        return [
+          { id: 'test_standard', name: 'Entrega Padrão (Teste)', price: 10.00, deadline: '3 a 5 dias', provider: 'test' },
+          { id: 'test_express', name: 'Entrega Expressa (Teste)', price: 25.00, deadline: '1 a 2 dias', provider: 'test' }
+        ];
       }
 
       return this.mockMelhorEnvioQuotes(originZip, destZip, packages);

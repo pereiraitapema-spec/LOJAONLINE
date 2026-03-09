@@ -18,6 +18,7 @@ import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { cepService } from '../services/cepService';
 import { shippingService, ShippingPackage } from '../services/shippingService';
+import { leadService } from '../services/leadService';
 
 interface Product {
   id: string;
@@ -490,7 +491,7 @@ export default function Checkout() {
           .from('affiliates')
           .select('commission_rate')
           .eq('id', affiliateId)
-          .single();
+          .maybeSingle();
         commissionRate = affData?.commission_rate || 0;
       } else {
         const affiliateCode = localStorage.getItem('affiliate_code');
@@ -499,7 +500,7 @@ export default function Checkout() {
             .from('affiliates')
             .select('id, commission_rate')
             .eq('code', affiliateCode)
-            .single();
+            .maybeSingle();
           
           if (affiliate) {
             affiliateId = affiliate.id;

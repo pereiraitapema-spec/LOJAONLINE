@@ -246,6 +246,7 @@ export default function ShippingCarriers() {
                   className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
                 >
                   <option value="">Selecione um provedor</option>
+                  <option value="test">Modo Teste (Simulação)</option>
                   <option value="melhorenvio">Melhor Envio</option>
                   <option value="correios">Correios (Direto)</option>
                   <option value="frenet">Frenet</option>

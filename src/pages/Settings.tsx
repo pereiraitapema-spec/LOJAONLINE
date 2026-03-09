@@ -34,6 +34,7 @@ interface StoreSettings {
   products_section_subtitle?: string;
   tracking_pixels: { platform: string; pixel_id: string; active: boolean }[];
   n8n_webhook_url?: string;
+  origin_zip_code?: string;
 }
 
 export default function Settings() {
@@ -194,7 +195,8 @@ export default function Settings() {
           products_section_title: data.products_section_title || 'Novidades da Estação',
           products_section_subtitle: data.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
           tracking_pixels: data.tracking_pixels || [],
-          n8n_webhook_url: data.n8n_webhook_url || ''
+          n8n_webhook_url: data.n8n_webhook_url || '',
+          origin_zip_code: data.origin_zip_code || ''
         });
       }
     } catch (error: any) {
@@ -239,7 +241,8 @@ export default function Settings() {
         products_section_title: settings.products_section_title,
         products_section_subtitle: settings.products_section_subtitle,
         tracking_pixels: settings.tracking_pixels,
-        n8n_webhook_url: settings.n8n_webhook_url
+        n8n_webhook_url: settings.n8n_webhook_url,
+        origin_zip_code: settings.origin_zip_code
       };
 
       console.log('Salvando configurações:', payload);
@@ -1032,12 +1035,13 @@ where not exists (select 1 from public.store_settings);`}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">CEP</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">CEP da Loja (Para cálculo de frete)</label>
                   <input
                     type="text"
-                    value={settings.cep || ''}
-                    onChange={(e) => handleChange('cep', e.target.value)}
+                    value={settings.origin_zip_code || ''}
+                    onChange={(e) => handleChange('origin_zip_code', e.target.value)}
                     className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ex: 01001-000"
                   />
                 </div>
                 <div className="md:col-span-2 pt-4 border-t border-slate-100 mt-4">

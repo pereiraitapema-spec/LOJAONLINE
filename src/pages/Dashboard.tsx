@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign } from 'lucide-react';
+import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 
@@ -19,6 +19,11 @@ export default function Dashboard() {
     cost: 0,
     cogs: 0,
     profit: 0,
+    totalCommissions: 0,
+    totalTaxes: 0,
+    totalMarketing: 0,
+    totalOperational: 0,
+    totalShipping: 0,
     stockValue: 0,
     stockRetailValue: 0,
     projectedProfit: 0,
@@ -87,7 +92,11 @@ export default function Dashboard() {
           calculatedCOGS = (items || []).reduce((acc, item: any) => acc + (item.quantity * (item.cost_price || 0)), 0);
         }
 
-        const totalExpenses = calculatedCOGS + totalCommissions + totalOperational + totalMarketing;
+        // Simulating taxes (Nota Fiscal) for now, e.g., 6% of revenue
+        // You can add a tax_rate to store_settings later if needed
+        const totalTaxes = revenue * 0.06;
+
+        const totalExpenses = calculatedCOGS + totalCommissions + totalOperational + totalMarketing + totalShipping + totalTaxes;
         const profit = revenue - totalExpenses;
         
         // Stock Metrics
@@ -112,6 +121,11 @@ export default function Dashboard() {
           cost: totalExpenses,
           cogs: calculatedCOGS,
           profit,
+          totalCommissions,
+          totalTaxes,
+          totalMarketing,
+          totalOperational,
+          totalShipping,
           stockValue,
           stockRetailValue,
           projectedProfit,
@@ -320,6 +334,21 @@ export default function Dashboard() {
             <p className="text-2xl font-black text-slate-900">R$ {stats.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">VENDAS PAGAS</p>
           </motion.div>
+
+          <motion.div 
+            whileHover={{ y: -5 }}
+            onClick={() => navigate('/inventory')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-indigo-200 transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                <TrendingUp size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Lucro Líquido</span>
+            </div>
+            <p className="text-2xl font-black text-indigo-600">R$ {stats.profit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-bold">RECEITA - TODOS OS CUSTOS</p>
+          </motion.div>
           
           <motion.div 
             whileHover={{ y: -5 }}
@@ -338,17 +367,77 @@ export default function Dashboard() {
 
           <motion.div 
             whileHover={{ y: -5 }}
-            onClick={() => navigate('/inventory')}
-            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-indigo-200 transition-all"
+            onClick={() => navigate('/affiliates')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-rose-200 transition-all"
           >
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                <TrendingUp size={20} />
+              <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                <Users size={20} />
               </div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Lucro Bruto</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Comissões (Afiliados)</span>
             </div>
-            <p className="text-2xl font-black text-indigo-600">R$ {stats.profit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-            <p className="text-[10px] text-slate-400 mt-1 font-bold">RECEITA - CUSTO</p>
+            <p className="text-2xl font-black text-slate-900">R$ {stats.totalCommissions.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-bold">TOTAL PAGO AOS AFILIADOS</p>
+          </motion.div>
+
+          <motion.div 
+            whileHover={{ y: -5 }}
+            onClick={() => navigate('/settings')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-rose-200 transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                <FileText size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Impostos (NF)</span>
+            </div>
+            <p className="text-2xl font-black text-slate-900">R$ {stats.totalTaxes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-bold">ESTIMATIVA DE IMPOSTOS</p>
+          </motion.div>
+
+          <motion.div 
+            whileHover={{ y: -5 }}
+            onClick={() => navigate('/campaigns')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-rose-200 transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                <Megaphone size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Marketing (Ads)</span>
+            </div>
+            <p className="text-2xl font-black text-slate-900">R$ {stats.totalMarketing.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-bold">CUSTO DE AQUISIÇÃO (CAC)</p>
+          </motion.div>
+
+          <motion.div 
+            whileHover={{ y: -5 }}
+            onClick={() => navigate('/orders')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-rose-200 transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                <Settings size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Custo Operacional</span>
+            </div>
+            <p className="text-2xl font-black text-slate-900">R$ {stats.totalOperational.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-bold">EMBALAGEM, MANUSEIO, ETC</p>
+          </motion.div>
+
+          <motion.div 
+            whileHover={{ y: -5 }}
+            onClick={() => navigate('/shipping')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-rose-200 transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                <Truck size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Custo de Frete</span>
+            </div>
+            <p className="text-2xl font-black text-slate-900">R$ {stats.totalShipping.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-bold">PAGO ÀS TRANSPORTADORAS</p>
           </motion.div>
 
           <motion.div 
@@ -364,36 +453,6 @@ export default function Dashboard() {
             </div>
             <p className="text-2xl font-black text-slate-900">R$ {stats.stockValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">VALOR DE CUSTO TOTAL</p>
-          </motion.div>
-
-          <motion.div 
-            whileHover={{ y: -5 }}
-            onClick={() => navigate('/inventory')}
-            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-indigo-200 transition-all"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                <DollarSign size={20} />
-              </div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Estoque (Venda)</span>
-            </div>
-            <p className="text-2xl font-black text-slate-900">R$ {stats.stockRetailValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-            <p className="text-[10px] text-slate-400 mt-1 font-bold">VALOR FINAL DE VENDA</p>
-          </motion.div>
-
-          <motion.div 
-            whileHover={{ y: -5 }}
-            onClick={() => navigate('/inventory')}
-            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-emerald-200 transition-all"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-                <TrendingUp size={20} />
-              </div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Lucro Previsto</span>
-            </div>
-            <p className="text-2xl font-black text-emerald-600">R$ {stats.projectedProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-            <p className="text-[10px] text-slate-400 mt-1 font-bold">LUCRO SE VENDER TUDO</p>
           </motion.div>
         </div>
 

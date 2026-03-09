@@ -20,7 +20,8 @@ import {
   X,
   Printer,
   Ban,
-  MapPin
+  MapPin,
+  Zap
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -66,6 +67,7 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [activeTab, setActiveTab] = useState<'orders' | 'abandoned'>('orders');
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
   // Manual Order State
   const [showManualOrderModal, setShowManualOrderModal] = useState(false);
@@ -1104,19 +1106,56 @@ export default function Orders() {
               </div>
 
               {/* Código de Rastreio */}
-              {isAdmin && (
-                <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2">Código de Rastreio</p>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text"
-                      placeholder="Ex: BR123456789"
-                      defaultValue={selectedOrder.tracking_code || ''}
-                      onBlur={(e) => updateTrackingCode(selectedOrder.id, e.target.value)}
-                      className="flex-1 px-4 py-2 bg-white border border-indigo-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                    />
-                  </div>
-                  <p className="text-[10px] text-indigo-400 mt-1 italic">* O código é salvo automaticamente ao sair do campo.</p>
+              {(selectedOrder.tracking_code || isAdmin) && (
+                <div className="space-y-4">
+                  {isAdmin && (
+                    <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                      <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2">Código de Rastreio</p>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text"
+                          placeholder="Ex: BR123456789"
+                          defaultValue={selectedOrder.tracking_code || ''}
+                          onBlur={(e) => updateTrackingCode(selectedOrder.id, e.target.value)}
+                          className="flex-1 px-4 py-2 bg-white border border-indigo-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+                      <p className="text-[10px] text-indigo-400 mt-1 italic">* O código é salvo automaticamente ao sair do campo.</p>
+                    </div>
+                  )}
+
+                  {selectedOrder.tracking_code && (
+                    <div className="p-6 bg-slate-900 text-white rounded-3xl space-y-6">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-indigo-400">Status de Rastreamento</h4>
+                        <span className="text-[10px] font-mono bg-white/10 px-2 py-1 rounded uppercase">{selectedOrder.tracking_code}</span>
+                      </div>
+                      
+                      <div className="relative pl-8 space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-white/10">
+                        <div className="relative">
+                          <div className="absolute -left-8 w-6 h-6 bg-emerald-500 rounded-full border-4 border-slate-900 flex items-center justify-center">
+                            <CheckCircle2 size={12} className="text-white" />
+                          </div>
+                          <p className="text-xs font-bold">Objeto Entregue</p>
+                          <p className="text-[10px] text-slate-400">Cidade de Destino - SC | 09/03/2026 14:30</p>
+                        </div>
+                        <div className="relative">
+                          <div className="absolute -left-8 w-6 h-6 bg-indigo-500 rounded-full border-4 border-slate-900 flex items-center justify-center">
+                            <Truck size={12} className="text-white" />
+                          </div>
+                          <p className="text-xs font-bold">Objeto saiu para entrega ao destinatário</p>
+                          <p className="text-[10px] text-slate-400">Unidade de Distribuição - SC | 09/03/2026 09:15</p>
+                        </div>
+                        <div className="relative opacity-50">
+                          <div className="absolute -left-8 w-6 h-6 bg-slate-700 rounded-full border-4 border-slate-900 flex items-center justify-center">
+                            <Clock size={12} className="text-white" />
+                          </div>
+                          <p className="text-xs font-bold">Objeto postado</p>
+                          <p className="text-[10px] text-slate-400">Agência de Postagem - SP | 07/03/2026 16:45</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
