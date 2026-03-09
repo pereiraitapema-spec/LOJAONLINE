@@ -46,7 +46,11 @@ export default function ShippingCarriers() {
         .order('name');
       
       if (error) throw error;
-      setCarriers(data || []);
+      const formattedData = (data || []).map(c => ({
+        ...c,
+        config: c.config || {}
+      }));
+      setCarriers(formattedData);
     } catch (error: any) {
       console.error('Error fetching carriers:', error);
       setCarriers([]);

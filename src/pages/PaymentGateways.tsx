@@ -46,7 +46,11 @@ export default function PaymentGateways() {
         .order('name');
       
       if (error) throw error;
-      setGateways(data || []);
+      const formattedData = (data || []).map(g => ({
+        ...g,
+        config: g.config || {}
+      }));
+      setGateways(formattedData);
     } catch (error: any) {
       console.error('Error fetching gateways:', error);
       // Se a tabela não existir, vamos criar um estado inicial vazio

@@ -17,9 +17,13 @@ CREATE TABLE IF NOT EXISTS payment_gateways (
   name text NOT NULL,
   provider text NOT NULL,
   api_key text,
+  config jsonb DEFAULT '{}'::jsonb,
   active boolean DEFAULT true,
   created_at timestamp with time zone DEFAULT now()
 );
+
+-- Ensure config column exists if table was already created
+ALTER TABLE payment_gateways ADD COLUMN IF NOT EXISTS config jsonb DEFAULT '{}'::jsonb;
 
 -- Create shipping_carriers table
 CREATE TABLE IF NOT EXISTS shipping_carriers (
@@ -27,11 +31,15 @@ CREATE TABLE IF NOT EXISTS shipping_carriers (
   name text NOT NULL,
   provider text NOT NULL,
   api_key text,
+  config jsonb DEFAULT '{}'::jsonb,
   active boolean DEFAULT true,
   label_generation boolean DEFAULT false,
   tracking_notifications boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT now()
 );
+
+-- Ensure config column exists if table was already created
+ALTER TABLE shipping_carriers ADD COLUMN IF NOT EXISTS config jsonb DEFAULT '{}'::jsonb;
 
 -- Create integrations table
 CREATE TABLE IF NOT EXISTS integrations (
