@@ -21,6 +21,7 @@ import Orders from './pages/Orders';
 import PaymentGateways from './pages/PaymentGateways';
 import ShippingCarriers from './pages/ShippingCarriers';
 import Integrations from './pages/Integrations';
+import Leads from './pages/Leads';
 import Inventory from './pages/Inventory';
 import NotFound from './pages/NotFound';
 import { Loading } from './components/Loading';
@@ -339,6 +340,10 @@ function AppContent() {
         <Route 
           path="/integrations" 
           element={session ? <Integrations /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/leads" 
+          element={session ? <Leads /> : <Navigate to="/login" replace />} 
         />
         <Route 
           path="/inventory" 

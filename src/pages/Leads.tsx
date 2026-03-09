@@ -1,0 +1,335 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { 
+  Users, 
+  Search, 
+  Filter, 
+  Mail, 
+  Phone, 
+  Calendar, 
+  TrendingUp,
+  ArrowLeft,
+  MoreHorizontal,
+  ExternalLink,
+  MessageCircle,
+  Zap,
+  Star
+} from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { Loading } from '../components/Loading';
+import { motion, AnimatePresence } from 'motion/react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface Lead {
+  id: string;
+  nome: string;
+  email: string;
+  whatsapp: string;
+  status_lead: 'frio' | 'morno' | 'quente' | 'cliente' | 'inativo';
+  score: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export default function Leads() {
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [stats, setStats] = useState({
+    total: 0,
+    hot: 0,
+    warm: 0,
+    cold: 0,
+    customers: 0
+  });
+
+  useEffect(() => {
+    fetchLeads();
+  }, []);
+
+  const fetchLeads = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+      setLeads(data || []);
+      calculateStats(data || []);
+    } catch (error: any) {
+      toast.error('Erro ao carregar leads: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateStats = (data: Lead[]) => {
+    setStats({
+      total: data.length,
+      hot: data.filter(l => l.status_lead === 'quente').length,
+      warm: data.filter(l => l.status_lead === 'morno').length,
+      cold: data.filter(l => l.status_lead === 'frio').length,
+      customers: data.filter(l => l.status_lead === 'cliente').length
+    });
+  };
+
+  const updateLeadStatus = async (id: string, newStatus: Lead['status_lead']) => {
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({ status_lead: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success('Status do lead atualizado!');
+      fetchLeads();
+    } catch (error: any) {
+      toast.error('Erro ao atualizar status: ' + error.message);
+    }
+  };
+
+  const getStatusBadge = (status: Lead['status_lead']) => {
+    const styles = {
+      frio: 'bg-blue-100 text-blue-700',
+      morno: 'bg-amber-100 text-amber-700',
+      quente: 'bg-rose-100 text-rose-700',
+      cliente: 'bg-emerald-100 text-emerald-700',
+      inativo: 'bg-slate-100 text-slate-700'
+    };
+    
+    const labels = {
+      frio: '❄️ Frio',
+      morno: '🔥 Morno',
+      quente: '⚡ Quente',
+      cliente: '🛍️ Cliente',
+      inativo: '💤 Inativo'
+    };
+
+    return (
+      <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${styles[status]}`}>
+        {labels[status]}
+      </span>
+    );
+  };
+
+  const filteredLeads = leads.filter(lead => {
+    const matchesSearch = 
+      lead.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.whatsapp?.includes(searchTerm);
+    
+    const matchesStatus = statusFilter === 'all' || lead.status_lead === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  if (loading) return <Loading message="Carregando CRM de Leads..." />;
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-6 md:p-8">
+      <header className="max-w-7xl mx-auto mb-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => window.location.href = '/dashboard'}
+              className="p-2 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-600 hover:text-indigo-600 transition-colors"
+            >
+              <ArrowLeft size={24} />
+            </button>
+            <div>
+              <h1 className="text-3xl font-black text-slate-900 italic uppercase tracking-tighter flex items-center gap-3">
+                <Users className="text-indigo-600" size={32} />
+                CRM de Leads
+              </h1>
+              <p className="text-slate-500 font-medium">Gerencie seus potenciais clientes e funil de vendas.</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={fetchLeads}
+              className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <Zap size={20} />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Total de Leads</span>
+          <p className="text-3xl font-black text-slate-900">{stats.total}</p>
+        </div>
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 border-l-4 border-l-rose-500">
+          <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block mb-1">Leads Quentes</span>
+          <p className="text-3xl font-black text-slate-900">{stats.hot}</p>
+        </div>
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 border-l-4 border-l-amber-500">
+          <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block mb-1">Leads Mornos</span>
+          <p className="text-3xl font-black text-slate-900">{stats.warm}</p>
+        </div>
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 border-l-4 border-l-blue-500">
+          <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest block mb-1">Leads Frios</span>
+          <p className="text-3xl font-black text-slate-900">{stats.cold}</p>
+        </div>
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 border-l-4 border-l-emerald-500">
+          <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest block mb-1">Clientes</span>
+          <p className="text-3xl font-black text-slate-900">{stats.customers}</p>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between items-center">
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="text" 
+              placeholder="Buscar por nome, email ou whatsapp..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+            />
+          </div>
+          
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <Filter size={20} className="text-slate-400" />
+            <select 
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="flex-1 md:w-48 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-600"
+            >
+              <option value="all">Todos os Status</option>
+              <option value="quente">⚡ Quente</option>
+              <option value="morno">🔥 Morno</option>
+              <option value="frio">❄️ Frio</option>
+              <option value="cliente">🛍️ Cliente</option>
+              <option value="inativo">💤 Inativo</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-slate-50/50">
+                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Lead</th>
+                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Contato</th>
+                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Score</th>
+                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Última Atividade</th>
+                <th className="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredLeads.map((lead) => (
+                <tr key={lead.id} className="hover:bg-slate-50/50 transition-colors group">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center font-black">
+                        {lead.nome?.charAt(0).toUpperCase() || '?'}
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-900">{lead.nome || 'Sem nome'}</p>
+                        <p className="text-xs text-slate-400">ID: {lead.id.split('-')[0]}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <Mail size={14} className="text-slate-400" />
+                        {lead.email}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <Phone size={14} className="text-slate-400" />
+                        {lead.whatsapp || 'Não informado'}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    {getStatusBadge(lead.status_lead)}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full transition-all ${lead.score >= 80 ? 'bg-rose-500' : (lead.score >= 40 ? 'bg-amber-500' : 'bg-blue-500')}`}
+                          style={{ width: `${lead.score}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-slate-600">{lead.score}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <Calendar size={14} className="text-slate-400" />
+                      {format(new Date(lead.updated_at), "dd MMM, HH:mm", { locale: ptBR })}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-2">
+                      <a 
+                        href={`https://wa.me/${lead.whatsapp?.replace(/\D/g, '')}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                        title="Enviar WhatsApp"
+                      >
+                        <MessageCircle size={20} />
+                      </a>
+                      <div className="relative group/menu">
+                        <button className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors">
+                          <MoreHorizontal size={20} />
+                        </button>
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all z-20">
+                          <p className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Mudar Status</p>
+                          <button 
+                            onClick={() => updateLeadStatus(lead.id, 'quente')}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-rose-50 text-rose-600 flex items-center gap-2"
+                          >
+                            <Zap size={14} /> Marcar como Quente
+                          </button>
+                          <button 
+                            onClick={() => updateLeadStatus(lead.id, 'morno')}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-amber-50 text-amber-600 flex items-center gap-2"
+                          >
+                            <TrendingUp size={14} /> Marcar como Morno
+                          </button>
+                          <button 
+                            onClick={() => updateLeadStatus(lead.id, 'cliente')}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-emerald-50 text-emerald-600 flex items-center gap-2"
+                          >
+                            <Star size={14} /> Marcar como Cliente
+                          </button>
+                          <button 
+                            onClick={() => updateLeadStatus(lead.id, 'inativo')}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 text-slate-600 flex items-center gap-2"
+                          >
+                            <ExternalLink size={14} /> Marcar como Inativo
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filteredLeads.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-20 text-center">
+                    <Users className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                    <p className="text-slate-500 font-medium">Nenhum lead encontrado com os filtros atuais.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

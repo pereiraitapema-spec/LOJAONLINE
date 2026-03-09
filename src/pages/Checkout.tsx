@@ -324,6 +324,12 @@ export default function Checkout() {
             .from('abandoned_carts')
             .update(payload)
             .eq('id', abandonedCartId);
+          
+          // Trigger n8n webhook for update
+          leadService.sendToWebhook('cart_updated', {
+            id: abandonedCartId,
+            ...payload
+          });
         } else {
           const { data, error } = await supabase
             .from('abandoned_carts')
@@ -333,6 +339,11 @@ export default function Checkout() {
           
           if (!error && data) {
             setAbandonedCartId(data.id);
+            // Trigger n8n webhook for new abandoned cart
+            leadService.sendToWebhook('cart_abandoned', {
+              id: data.id,
+              ...payload
+            });
           }
         }
       } catch (error) {
@@ -591,6 +602,19 @@ export default function Checkout() {
 
       toast.success('Pedido realizado com sucesso!');
       
+      // Trigger n8n webhook for purchase
+      leadService.sendToWebhook('purchase_complete', {
+        order_id: orderData.id,
+        customer_email: customer.email,
+        customer_name: customer.name,
+        total: finalTotal,
+        items: cart.map(item => ({
+          name: item.product.name,
+          qty: item.quantity,
+          price: item.product.discount_price || item.product.price
+        }))
+      });
+
       // Trigger Purchase Event
       if (settings?.tracking_pixels) {
         settings.tracking_pixels.forEach((pixel: any) => {

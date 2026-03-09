@@ -66,5 +66,35 @@ export const leadService = {
     } catch (error) {
       console.error('❌ Erro ao atualizar status do lead:', error);
     }
+  },
+
+  /**
+   * Envia dados para o webhook do n8n para automação.
+   */
+  async sendToWebhook(event: string, data: any) {
+    try {
+      const { data: settings } = await supabase
+        .from('store_settings')
+        .select('n8n_webhook_url')
+        .maybeSingle();
+
+      if (!settings?.n8n_webhook_url) return;
+
+      const payload = {
+        event,
+        timestamp: new Date().toISOString(),
+        ...data
+      };
+
+      await fetch(settings.n8n_webhook_url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      console.log(`🚀 Evento "${event}" enviado para n8n`);
+    } catch (error) {
+      console.warn('⚠️ Falha ao enviar para n8n:', error);
+    }
   }
 };

@@ -131,7 +131,8 @@ export default function Inventory() {
   );
 
   const totalCostValue = products.reduce((acc, p) => acc + (p.stock * (p.cost_price || 0)), 0);
-  const totalRetailValue = products.reduce((acc, p) => acc + (p.stock * p.price), 0);
+  const totalRetailValue = products.reduce((acc, p) => acc + (p.stock * (p.price || 0)), 0);
+  const projectedProfit = products.reduce((acc, p) => acc + (p.stock * ((p.price || 0) - (p.cost_price || 0))), 0);
   const lowStockCount = products.filter(p => p.stock <= 5).length;
 
   if (loading) return <Loading message="Carregando estoque..." />;
@@ -188,6 +189,16 @@ export default function Inventory() {
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+              <TrendingUp size={20} />
+            </div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Lucro Previsto</span>
+          </div>
+          <p className="text-2xl font-black text-emerald-600">R$ {projectedProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-slate-50 text-slate-600 rounded-xl">
               <Package size={20} />
             </div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total de Itens</span>

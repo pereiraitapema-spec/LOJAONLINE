@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { motion } from 'motion/react';
-import { Save, Plus, Trash2, Image as ImageIcon, Settings as SettingsIcon, Sparkles, Link as LinkIcon, CreditCard, Clock, FileText, ArrowLeft, Truck } from 'lucide-react';
+import { Save, Plus, Trash2, Image as ImageIcon, Settings as SettingsIcon, Sparkles, Link as LinkIcon, CreditCard, Clock, FileText, ArrowLeft, Truck, Zap } from 'lucide-react';
 import { Loading } from '../components/Loading';
 import { GoogleGenAI } from "@google/genai";
 
@@ -33,6 +33,7 @@ interface StoreSettings {
   products_section_title?: string;
   products_section_subtitle?: string;
   tracking_pixels: { platform: string; pixel_id: string; active: boolean }[];
+  n8n_webhook_url?: string;
 }
 
 export default function Settings() {
@@ -192,7 +193,8 @@ export default function Settings() {
           promotions_section_subtitle: data.promotions_section_subtitle || 'Aproveite nossas ofertas exclusivas',
           products_section_title: data.products_section_title || 'Novidades da Estação',
           products_section_subtitle: data.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
-          tracking_pixels: data.tracking_pixels || []
+          tracking_pixels: data.tracking_pixels || [],
+          n8n_webhook_url: data.n8n_webhook_url || ''
         });
       }
     } catch (error: any) {
@@ -236,7 +238,8 @@ export default function Settings() {
         promotions_section_subtitle: settings.promotions_section_subtitle,
         products_section_title: settings.products_section_title,
         products_section_subtitle: settings.products_section_subtitle,
-        tracking_pixels: settings.tracking_pixels
+        tracking_pixels: settings.tracking_pixels,
+        n8n_webhook_url: settings.n8n_webhook_url
       };
 
       console.log('Salvando configurações:', payload);
@@ -1294,6 +1297,34 @@ where not exists (select 1 from public.store_settings);`}
                     <p className="text-slate-500 italic">Nenhum pixel configurado ainda.</p>
                   </div>
                 )}
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
+                  <Zap size={24} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Automação n8n</h2>
+                  <p className="text-slate-500">Recuperação de Carrinho Abandonado e Notificações.</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Webhook URL (n8n)</label>
+                  <input 
+                    type="url"
+                    value={settings.n8n_webhook_url || ''}
+                    onChange={e => handleChange('n8n_webhook_url', e.target.value)}
+                    placeholder="https://seu-n8n.com/webhook/..."
+                    className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-mono text-sm"
+                  />
+                  <p className="text-xs text-slate-400 mt-2">
+                    Este webhook será disparado sempre que um carrinho for abandonado ou um pedido for iniciado.
+                  </p>
+                </div>
               </div>
             </div>
           </motion.div>

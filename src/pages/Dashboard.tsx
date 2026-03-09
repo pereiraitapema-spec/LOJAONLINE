@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp } from 'lucide-react';
+import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 
@@ -10,11 +10,18 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState({
+    start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
+  });
   const [stats, setStats] = useState({
     revenue: 0,
     cost: 0,
+    cogs: 0,
     profit: 0,
     stockValue: 0,
+    stockRetailValue: 0,
+    projectedProfit: 0,
     affiliatesCount: 0,
     activeProducts: 0,
     newCustomers: 0,
@@ -44,7 +51,11 @@ export default function Dashboard() {
 
         // Fetch all necessary data for stats
         const [ordersRes, productsRes, affiliatesRes, profilesRes] = await Promise.all([
-          supabase.from('orders').select('*').eq('status', 'paid'),
+          supabase.from('orders')
+            .select('*')
+            .eq('status', 'paid')
+            .gte('created_at', `${dateRange.start}T00:00:00Z`)
+            .lte('created_at', `${dateRange.end}T23:59:59Z`),
           supabase.from('products').select('*'),
           supabase.from('affiliates').select('*'),
           supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
@@ -78,7 +89,15 @@ export default function Dashboard() {
 
         const totalExpenses = calculatedCOGS + totalCommissions + totalOperational + totalMarketing;
         const profit = revenue - totalExpenses;
+        
+        // Stock Metrics
         const stockValue = products.reduce((acc, p) => acc + (p.stock * (p.cost_price || 0)), 0);
+        const stockRetailValue = products.reduce((acc, p) => acc + (p.stock * (p.discount_price || p.price || 0)), 0);
+        const projectedProfit = products.reduce((acc, p) => {
+          const price = p.discount_price || p.price || 0;
+          const cost = p.cost_price || 0;
+          return acc + (p.stock * (price - cost));
+        }, 0);
 
         // Ticket Average
         const directOrders = orders.filter(o => !o.affiliate_id);
@@ -91,8 +110,11 @@ export default function Dashboard() {
         setStats({
           revenue,
           cost: totalExpenses,
+          cogs: calculatedCOGS,
           profit,
           stockValue,
+          stockRetailValue,
+          projectedProfit,
           affiliatesCount: affiliates.length,
           activeProducts: products.filter(p => p.active).length,
           newCustomers: new Set(orders.map(o => o.customer_email)).size,
@@ -109,7 +131,7 @@ export default function Dashboard() {
     };
 
     fetchData();
-  }, [navigate]);
+  }, [navigate, dateRange]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -188,6 +210,13 @@ export default function Dashboard() {
             Afiliados
           </button>
           <button 
+            onClick={() => navigate('/leads')}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
+          >
+            <Users size={20} />
+            CRM Leads
+          </button>
+          <button 
             onClick={() => navigate('/gateways')}
             className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
           >
@@ -236,7 +265,27 @@ export default function Dashboard() {
             <p className="text-slate-500">Bem-vindo ao seu painel de controle.</p>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3 bg-white p-2 px-4 rounded-2xl shadow-sm border border-slate-100">
+              <Calendar size={18} className="text-slate-400" />
+              <div className="flex items-center gap-2">
+                <input 
+                  type="date" 
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  className="text-xs font-bold text-slate-600 bg-transparent border-none focus:ring-0 p-0"
+                />
+                <span className="text-slate-300">|</span>
+                <input 
+                  type="date" 
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  className="text-xs font-bold text-slate-600 bg-transparent border-none focus:ring-0 p-0"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
             {profile?.role === 'admin' && (
               <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full uppercase tracking-wider">
                 Administrador
@@ -253,9 +302,10 @@ export default function Dashboard() {
               )}
             </button>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <motion.div 
             whileHover={{ y: -5 }}
             onClick={() => navigate('/orders')}
@@ -280,10 +330,10 @@ export default function Dashboard() {
               <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
                 <CreditCard size={20} />
               </div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Custo de Vendas</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Custo de Produtos</span>
             </div>
-            <p className="text-2xl font-black text-slate-900">R$ {stats.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-            <p className="text-[10px] text-slate-400 mt-1 font-bold">CUSTO DE PRODUTOS (COGS)</p>
+            <p className="text-2xl font-black text-slate-900">R$ {stats.cogs.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-bold">VALOR DE CUSTO (COGS)</p>
           </motion.div>
 
           <motion.div 
@@ -310,10 +360,40 @@ export default function Dashboard() {
               <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
                 <Package size={20} />
               </div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Valor em Estoque</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Estoque (Custo)</span>
             </div>
             <p className="text-2xl font-black text-slate-900">R$ {stats.stockValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">VALOR DE CUSTO TOTAL</p>
+          </motion.div>
+
+          <motion.div 
+            whileHover={{ y: -5 }}
+            onClick={() => navigate('/inventory')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-indigo-200 transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                <DollarSign size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Estoque (Venda)</span>
+            </div>
+            <p className="text-2xl font-black text-slate-900">R$ {stats.stockRetailValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-bold">VALOR FINAL DE VENDA</p>
+          </motion.div>
+
+          <motion.div 
+            whileHover={{ y: -5 }}
+            onClick={() => navigate('/inventory')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-emerald-200 transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                <TrendingUp size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Lucro Previsto</span>
+            </div>
+            <p className="text-2xl font-black text-emerald-600">R$ {stats.projectedProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-bold">LUCRO SE VENDER TUDO</p>
           </motion.div>
         </div>
 
