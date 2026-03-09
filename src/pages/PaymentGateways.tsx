@@ -241,16 +241,30 @@ export default function PaymentGateways() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Chave de API / Token</label>
+                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Public Key (ID de Teste)</label>
                 <input 
-                  type="password"
-                  value={currentGateway.config?.api_key || ''}
+                  type="text"
+                  value={currentGateway.config?.public_key || ''}
                   onChange={e => setCurrentGateway({
                     ...currentGateway, 
-                    config: { ...currentGateway.config, api_key: e.target.value }
+                    config: { ...currentGateway.config, public_key: e.target.value }
                   })}
                   className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
-                  placeholder="Insira sua credencial secreta"
+                  placeholder="Ex: APP_USR-..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Access Token (Chave Secreta)</label>
+                <input 
+                  type="password"
+                  value={currentGateway.config?.access_token || ''}
+                  onChange={e => setCurrentGateway({
+                    ...currentGateway, 
+                    config: { ...currentGateway.config, access_token: e.target.value }
+                  })}
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
+                  placeholder="Ex: APP_USR-..."
                 />
               </div>
 

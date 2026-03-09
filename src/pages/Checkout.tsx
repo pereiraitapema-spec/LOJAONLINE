@@ -1061,7 +1061,29 @@ export default function Checkout() {
           </div>
 
           {/* Coluna Direita: Resumo */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-6">
+            {/* Box de Teste */}
+            <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6">
+              <div className="flex items-center gap-2 text-amber-800 font-bold mb-2">
+                <AlertCircle size={18} />
+                Modo de Teste Ativo
+              </div>
+              <p className="text-xs text-amber-700 mb-4">
+                Use os dados abaixo para simular uma compra aprovada:
+              </p>
+              <div className="space-y-2 font-mono text-[10px] text-amber-900 bg-white/50 p-3 rounded-xl border border-amber-100">
+                <p><strong>Cartão:</strong> 4444 4444 4444 4444</p>
+                <p><strong>Validade:</strong> 12/29</p>
+                <p><strong>CVV:</strong> 123</p>
+                <p><strong>Nome:</strong> TESTE APROVADO</p>
+                {gateways.find(g => g.active)?.config?.public_key && (
+                  <div className="mt-2 pt-2 border-t border-amber-200">
+                    <p className="break-all"><strong>Public Key:</strong> {gateways.find(g => g.active)?.config?.public_key}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 sticky top-28">
               <h2 className="text-lg font-bold text-slate-900 mb-6">Resumo do Pedido</h2>
               

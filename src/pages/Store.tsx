@@ -1026,6 +1026,14 @@ export default function Store() {
                     Leve mais, pague menos
                   </div>
                 )}
+
+                {/* Badge de Frete Grátis */}
+                {(product.discount_price || product.price) >= (settings?.free_shipping_threshold || 299) && (settings?.free_shipping_threshold || 0) > 0 && (
+                  <div className={`absolute ${product.tiers && product.tiers.length > 0 ? 'top-12' : 'top-4'} left-4 bg-indigo-600 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase italic tracking-tighter shadow-lg flex items-center gap-1`}>
+                    <Truck size={12} />
+                    Frete Grátis
+                  </div>
+                )}
               </div>
               <h3 className="font-bold text-slate-900 truncate">{product.name}</h3>
               <div className="mt-1 flex items-baseline gap-2">
@@ -1038,7 +1046,8 @@ export default function Store() {
                   <span className="text-slate-900 font-black">R$ {product.price.toFixed(2)}</span>
                 )}
               </div>
-              <div className="mt-0.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <div className="mt-0.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <CreditCard size={10} className="text-emerald-500" />
                 ou {calculateInstallments(product.discount_price || product.price, product.min_installment_value).count}x de R$ {calculateInstallments(product.discount_price || product.price, product.min_installment_value).value.toFixed(2)}
               </div>
 
@@ -1423,6 +1432,14 @@ export default function Store() {
                           <Phone size={20} />
                           Comprar pelo WhatsApp
                         </button>
+
+                        <button 
+                          onClick={() => toggleFavorite(selectedProduct.id)}
+                          className={`w-full py-3 rounded-2xl border-2 flex items-center justify-center gap-2 font-bold transition-all uppercase text-sm tracking-wider ${favorites.includes(selectedProduct.id) ? 'border-pink-500 bg-pink-50 text-pink-600' : 'border-slate-100 text-slate-400 hover:border-pink-200 hover:text-pink-500'}`}
+                        >
+                          <Heart size={20} fill={favorites.includes(selectedProduct.id) ? "currentColor" : "none"} />
+                          {favorites.includes(selectedProduct.id) ? 'Remover dos Favoritos' : 'Adicionar aos Favoritos'}
+                        </button>
                       </div>
 
                       {/* Descrição e Benefícios */}
@@ -1611,26 +1628,28 @@ export default function Store() {
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {/* Barra de Progresso Frete Grátis */}
-                {cartTotal > 0 && (settings?.free_shipping_threshold || 0) > 0 && cartTotal < (settings?.free_shipping_threshold || 0) && (
-                  <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 mb-4">
-                    <p className="text-sm font-bold text-emerald-800 mb-2 text-center">
-                      Faltam apenas <span className="font-black">R$ {((settings?.free_shipping_threshold || 0) - cartTotal).toFixed(2)}</span> para <span className="font-black uppercase">Frete Grátis</span>!
-                    </p>
-                    <div className="w-full bg-emerald-200 rounded-full h-2.5 overflow-hidden">
-                      <motion.div 
-                        animate={{ opacity: [1, 0.5, 1] }}
-                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                        className="bg-emerald-600 h-2.5 rounded-full transition-all duration-500" 
-                        style={{ width: `${(cartTotal / (settings?.free_shipping_threshold || 1)) * 100}%` }}
-                      ></motion.div>
+                {cartTotal > 0 && (settings?.free_shipping_threshold || 0) > 0 && (
+                  <div className="bg-emerald-50 p-5 rounded-3xl border border-emerald-100 mb-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                        {cartTotal >= (settings?.free_shipping_threshold || 0) 
+                          ? "🎉 Frete Grátis Liberado!" 
+                          : `Faltam R$ ${((settings?.free_shipping_threshold || 0) - cartTotal).toFixed(2)}`}
+                      </p>
+                      <Truck size={16} className={cartTotal >= (settings?.free_shipping_threshold || 0) ? 'text-emerald-600' : 'text-slate-400'} />
                     </div>
-                  </div>
-                )}
-                {cartTotal >= (settings?.free_shipping_threshold || 0) && (settings?.free_shipping_threshold || 0) > 0 && (
-                  <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 mb-4 text-center">
-                    <p className="text-sm font-black text-emerald-600 uppercase tracking-wider flex items-center justify-center gap-2">
-                      <Truck size={18} /> Parabéns! Você ganhou Frete Grátis!
-                    </p>
+                    <div className="w-full bg-emerald-200 rounded-full h-3 overflow-hidden shadow-inner">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min((cartTotal / (settings?.free_shipping_threshold || 1)) * 100, 100)}%` }}
+                        className={`h-full rounded-full transition-all duration-700 ${cartTotal >= (settings?.free_shipping_threshold || 0) ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-indigo-500'}`}
+                      />
+                    </div>
+                    {cartTotal < (settings?.free_shipping_threshold || 0) && (
+                      <p className="text-[10px] text-emerald-600 font-bold mt-2 text-center uppercase tracking-widest">
+                        Adicione mais R$ {((settings?.free_shipping_threshold || 0) - cartTotal).toFixed(2)} para ganhar frete grátis
+                      </p>
+                    )}
                   </div>
                 )}
 

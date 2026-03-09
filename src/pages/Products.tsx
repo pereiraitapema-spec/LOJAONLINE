@@ -36,6 +36,7 @@ interface Category {
 interface Product {
   id: string;
   name: string;
+  sku?: string;
   description?: string;
   composition?: string;
   price: number;
@@ -65,6 +66,7 @@ export default function Products() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState({
     name: '',
+    sku: '',
     description: '',
     composition: '',
     price: '',
@@ -237,6 +239,7 @@ export default function Products() {
     try {
       const payload = {
         name: productForm.name,
+        sku: productForm.sku || null,
         description: productForm.description,
         composition: productForm.composition,
         price: parseFloat(productForm.price),
@@ -485,6 +488,7 @@ export default function Products() {
     setEditingProduct(null);
     setProductForm({
       name: '',
+      sku: '',
       description: '',
       composition: '',
       price: '',
@@ -510,6 +514,7 @@ export default function Products() {
     setEditingProduct(product);
     setProductForm({
       name: product.name,
+      sku: product.sku || '',
       description: product.description || '',
       composition: product.composition || '',
       price: product.price.toString(),
@@ -654,9 +659,16 @@ export default function Products() {
 
                 <div className="p-5">
                   <div className="flex justify-between items-start mb-1">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">
-                      {product.category?.name || 'Geral'}
-                    </span>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">
+                        {product.category?.name || 'Geral'}
+                      </span>
+                      {product.sku && (
+                        <span className="text-[9px] font-mono text-slate-400">
+                          SKU: {product.sku}
+                        </span>
+                      )}
+                    </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${product.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                       {product.stock} em estoque
                     </span>
@@ -682,6 +694,7 @@ export default function Products() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Produto</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">SKU</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Categoria</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Preço</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estoque</th>
@@ -705,6 +718,11 @@ export default function Products() {
                         </div>
                         <span className="font-bold text-slate-900">{product.name}</span>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-mono font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                        {product.sku || '---'}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-xs font-bold text-slate-500">{product.category?.name || 'Geral'}</span>
@@ -880,6 +898,17 @@ export default function Products() {
                           }}
                           className={`w-full px-4 py-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${errors.name ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                           placeholder="Ex: Tênis Esportivo Pro"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">SKU (Código de Identificação)</label>
+                        <input 
+                          type="text" 
+                          value={productForm.sku}
+                          onChange={e => setProductForm({...productForm, sku: e.target.value.toUpperCase()})}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                          placeholder="Ex: TENIS-PRO-001"
                         />
                       </div>
 
