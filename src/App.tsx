@@ -134,11 +134,22 @@ function AppContent() {
         console.warn('🛡️ Suprimido erro externo de MetaMask:', event.message);
       }
     };
+
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      const message = event.reason?.message || '';
+      if (message.includes('MetaMask') || message.includes('ethereum') || message.includes('provider')) {
+        event.preventDefault();
+        console.warn('🛡️ Suprimido erro de promessa externa (MetaMask/Web3):', message);
+      }
+    };
+
     window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
 
     return () => {
       subscription.unsubscribe();
       window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
     };
   }, [navigate]);
 

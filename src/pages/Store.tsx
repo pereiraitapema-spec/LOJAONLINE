@@ -196,6 +196,8 @@ export default function Store() {
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
   useEffect(() => {
     const coupon = searchParams.get('coupon');
@@ -205,6 +207,16 @@ export default function Store() {
         icon: '🎁',
         duration: 4000
       });
+    }
+
+    const catId = searchParams.get('category');
+    if (catId) {
+      setSelectedCategoryId(catId);
+    }
+
+    const prodId = searchParams.get('product');
+    if (prodId) {
+      setSelectedProductId(prodId);
     }
   }, [searchParams]);
 
@@ -265,9 +277,18 @@ export default function Store() {
         const urlParams = new URLSearchParams(window.location.search);
         const campaignId = urlParams.get('campaign');
         const refCode = urlParams.get('ref');
+        const prodId = urlParams.get('product');
 
         if (refCode) {
           localStorage.setItem('affiliate_code', refCode);
+        }
+
+        if (prodId && prodRes.data) {
+          const product = prodRes.data.find((p: Product) => p.id === prodId);
+          if (product) {
+            setSelectedProduct(product);
+            setQuantity(1);
+          }
         }
 
         if (campaignId && campRes.data) {
@@ -635,11 +656,20 @@ export default function Store() {
       <div className="bg-white border-b border-slate-100 py-4 overflow-x-auto scrollbar-hide">
         <div className="max-w-7xl mx-auto px-4 flex gap-8 min-w-max">
           <button 
-            onClick={() => setSearchTerm('')}
-            className={`flex flex-col items-center gap-2 group ${!searchTerm ? 'text-emerald-600' : 'text-slate-500 hover:text-emerald-600'}`}
+            onClick={() => {
+              setSearchTerm('');
+              setSelectedCategoryId(null);
+              setSelectedProductId(null);
+              // Limpar URL sem recarregar
+              const url = new URL(window.location.href);
+              url.searchParams.delete('category');
+              url.searchParams.delete('product');
+              window.history.pushState({}, '', url);
+            }}
+            className={`flex flex-col items-center gap-2 group ${(!searchTerm && !selectedCategoryId && !selectedProductId) ? 'text-emerald-600' : 'text-slate-500 hover:text-emerald-600'}`}
           >
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${!searchTerm ? 'bg-emerald-50 border-2 border-emerald-200' : 'bg-slate-50 border border-slate-100 group-hover:bg-emerald-50 group-hover:border-emerald-200'}`}>
-              <Star size={24} className={!searchTerm ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-600'} />
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${(!searchTerm && !selectedCategoryId && !selectedProductId) ? 'bg-emerald-50 border-2 border-emerald-200' : 'bg-slate-50 border border-slate-100 group-hover:bg-emerald-50 group-hover:border-emerald-200'}`}>
+              <Star size={24} className={(!searchTerm && !selectedCategoryId && !selectedProductId) ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-600'} />
             </div>
             <span className="text-xs font-bold uppercase tracking-wider">Todos</span>
           </button>
@@ -653,12 +683,27 @@ export default function Store() {
                                   cat.icon === 'Flame' ? Flame :
                                   cat.icon === 'Heart' ? Heart : Star;
             
-            const isActive = searchTerm.toLowerCase() === cat.name.toLowerCase();
+            const isActive = (searchTerm.toLowerCase() === cat.name.toLowerCase()) || (selectedCategoryId === cat.id);
             
             return (
               <button 
                 key={cat.id}
-                onClick={() => setSearchTerm(isActive ? '' : cat.name)}
+                onClick={() => {
+                  if (isActive) {
+                    setSearchTerm('');
+                    setSelectedCategoryId(null);
+                  } else {
+                    setSearchTerm('');
+                    setSelectedCategoryId(cat.id);
+                    setSelectedProductId(null);
+                  }
+                  // Limpar URL de produto se mudar categoria
+                  const url = new URL(window.location.href);
+                  url.searchParams.delete('product');
+                  if (isActive) url.searchParams.delete('category');
+                  else url.searchParams.set('category', cat.id);
+                  window.history.pushState({}, '', url);
+                }}
                 className={`flex flex-col items-center gap-2 group ${isActive ? 'text-emerald-600' : 'text-slate-500 hover:text-emerald-600'}`}
               >
                 <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all overflow-hidden ${isActive ? 'bg-emerald-50 border-2 border-emerald-200' : 'bg-slate-50 border border-slate-100 group-hover:bg-emerald-50 group-hover:border-emerald-200'}`}>
@@ -903,6 +948,16 @@ export default function Store() {
         {/* Grid de Produtos */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {products.filter(p => {
+            // Filtro por Produto Específico (Link Direto)
+            if (selectedProductId) {
+              return p.id === selectedProductId;
+            }
+
+            // Filtro por Categoria (Link Direto)
+            if (selectedCategoryId) {
+              return (p as any).category_id === selectedCategoryId;
+            }
+
             if (!searchTerm) return true;
             const term = searchTerm.toLowerCase();
             // Verifica se o termo de busca bate com o nome do produto ou com a categoria

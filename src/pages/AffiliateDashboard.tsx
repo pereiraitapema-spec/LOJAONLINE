@@ -491,6 +491,32 @@ export default function AffiliateDashboard() {
       </div>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Link Geral de Afiliado */}
+        {affiliate && (
+          <div className="mb-8 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-3xl p-6 text-white shadow-xl shadow-emerald-600/20 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center">
+                <LinkIcon size={24} />
+              </div>
+              <div>
+                <h2 className="font-black text-xl uppercase italic tracking-tighter">Seu Link Geral da Loja</h2>
+                <p className="text-emerald-100 text-sm">Divulgue a loja inteira e ganhe comissões em qualquer compra.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="flex-1 md:w-64 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-4 py-3 text-sm font-mono truncate">
+                {window.location.origin}/?ref={affiliate.code || affiliate.id}
+              </div>
+              <button 
+                onClick={() => generateLink('store')}
+                className="bg-white text-emerald-600 px-6 py-3 rounded-xl font-black uppercase tracking-wider hover:bg-emerald-50 transition-all flex items-center gap-2 shrink-0"
+              >
+                <Copy size={18} /> Copiar
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {/* Top Product */}
