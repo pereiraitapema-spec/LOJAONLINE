@@ -15,6 +15,7 @@ import Settings from './pages/Settings';
 import Affiliates from './pages/Affiliates';
 import AffiliateRegister from './pages/AffiliateRegister';
 import AffiliateDashboard from './pages/AffiliateDashboard';
+import Success from './pages/Success';
 import Checkout from './pages/Checkout';
 import Orders from './pages/Orders';
 import PaymentGateways from './pages/PaymentGateways';
@@ -30,6 +31,17 @@ function AppContent() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  // Safety timeout for loading state
+  useEffect(() => {
+    if (loading) {
+      const timer = setTimeout(() => {
+        console.warn('⚠️ Loading timeout reached in App.tsx, forcing loading to false');
+        setLoading(false);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [loading]);
 
   useEffect(() => {
     // 0. Testar conexão com banco de dados
@@ -140,9 +152,10 @@ function AppContent() {
     const userEmail = session.user.email;
     const userId = session.user.id;
 
-    console.log('🔍 Verificando permissões para:', userEmail);
+    console.log('🔍 Verificando permissões para:', userEmail, 'ID:', userId);
     
     try {
+      console.log('⏱️ Iniciando verificação de Admin Master...');
       // 1. Admin Master (Prioridade Máxima)
       if (userEmail === 'pereira.itapema@gmail.com') {
         console.log('👑 Admin Master detectado');
@@ -155,30 +168,41 @@ function AppContent() {
         }, { onConflict: 'id' });
 
         if (path === '/' || path === '/login' || path === '/register') {
+          console.log('🚀 Redirecionando Admin Master para /dashboard');
           navigate('/dashboard');
         }
         setLoading(false);
         return;
       }
 
+      console.log('⏱️ Verificando tabela de afiliados...');
       // 2. Verificar se é Afiliado Aprovado (Consulta rápida)
       const { data: affiliate, error: affError } = await supabase
         .from('affiliates')
-        .select('status, active')
+        .select('id, status, active')
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (affError) console.warn('⚠️ Erro ao buscar afiliado:', affError);
+      if (affError) {
+        console.warn('⚠️ Erro ao buscar afiliado:', affError);
+      }
+      console.log('📊 Dados Afiliado encontrados:', affiliate);
 
       if (affiliate && (affiliate.status === 'approved' || (affiliate.active && !affiliate.status))) {
         console.log('🤝 Afiliado aprovado detectado');
         if (path === '/' || path === '/login' || path === '/register') {
+          console.log('🚀 Redirecionando Afiliado para /affiliate-dashboard');
           navigate('/affiliate-dashboard');
         }
         setLoading(false);
         return;
       }
+      
+      if (affiliate && affiliate.status === 'pending') {
+        console.log('⏳ Afiliado pendente detectado, tratando como cliente por enquanto');
+      }
 
+      console.log('⏱️ Verificando tabela de perfis...');
       // 3. Sincronizar Profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -187,6 +211,7 @@ function AppContent() {
         .maybeSingle();
 
       if (profileError) console.warn('⚠️ Erro ao buscar perfil:', profileError);
+      console.log('📊 Dados Perfil encontrados:', profile);
 
       if (!profile && !profileError) {
         console.log('🆕 Criando perfil inicial para:', userEmail);
@@ -202,6 +227,7 @@ function AppContent() {
       if (profile?.role === 'admin') {
         console.log('🛠️ Admin secundário detectado');
         if (path === '/' || path === '/login' || path === '/register') {
+          console.log('🚀 Redirecionando Admin secundário para /dashboard');
           navigate('/dashboard');
         }
         setLoading(false);
@@ -211,11 +237,13 @@ function AppContent() {
       // 5. Cliente Normal
       console.log('👤 Usuário comum detectado');
       if (path === '/login' || path === '/register') {
+        console.log('🚀 Redirecionando Cliente para /');
         navigate('/');
       }
     } catch (err) {
       console.error('❌ Erro crítico no redirecionamento:', err);
     } finally {
+      console.log('🏁 Finalizando handleRoleRedirect, loading -> false');
       setLoading(false);
     }
   };
@@ -247,6 +275,7 @@ function AppContent() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/affiliate-register" element={<AffiliateRegister />} />
         <Route path="/affiliate-dashboard" element={<AffiliateDashboard />} />
+        <Route path="/success" element={<Success />} />
         
         <Route 
           path="/checkout" 

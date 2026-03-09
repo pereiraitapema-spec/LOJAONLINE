@@ -109,8 +109,10 @@ export default function AffiliateDashboard() {
 
   const checkAffiliateStatus = async () => {
     try {
+      console.log('🛡️ Verificando status do afiliado...');
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
+        console.log('🚫 Sem sessão, redirecionando para login');
         navigate('/login');
         return;
       }
@@ -120,17 +122,26 @@ export default function AffiliateDashboard() {
         .from('affiliates')
         .select('*')
         .eq('user_id', session.user.id)
-        .single();
+        .maybeSingle();
 
-      if (error || !affiliateData) {
+      if (error) {
+        console.error('❌ Erro ao buscar dados do afiliado:', error);
+        toast.error('Erro ao carregar dados da conta.');
+        navigate('/');
+        return;
+      }
+
+      if (!affiliateData) {
+        console.log('🚫 Registro de afiliado não encontrado para o usuário:', session.user.id);
         toast.error('Conta de afiliado não encontrada.');
         navigate('/');
         return;
       }
 
+      console.log('📊 Status do afiliado:', affiliateData.status);
       if (affiliateData.status !== 'approved') {
         toast.error('Sua conta ainda está em análise.');
-        navigate('/'); // Ou uma página de "Em análise"
+        navigate('/');
         return;
       }
 
@@ -138,6 +149,7 @@ export default function AffiliateDashboard() {
       setPixKey(affiliateData.pix_key || '');
 
       // Carregar produtos e categorias
+      console.log('📦 Carregando produtos e categorias...');
       const [prodRes, catRes] = await Promise.all([
         supabase.from('products').select('*').eq('active', true),
         supabase.from('categories').select('*')
@@ -155,10 +167,12 @@ export default function AffiliateDashboard() {
       // Carregar pagamentos
       fetchPayments(affiliateData.id, dateRange);
 
-      setLoading(false);
-
-    } catch (error) {
-      console.error('Erro ao carregar dashboard:', error);
+    } catch (error: any) {
+      console.error('❌ Erro crítico no dashboard:', error);
+      toast.error('Erro ao carregar dashboard: ' + error.message);
+      navigate('/');
+    } finally {
+      console.log('🏁 Finalizando carregamento do dashboard');
       setLoading(false);
     }
   };

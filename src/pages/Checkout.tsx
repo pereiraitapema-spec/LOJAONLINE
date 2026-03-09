@@ -536,8 +536,8 @@ export default function Checkout() {
         });
       }
 
-      // Redirect to success page or clear state
-      navigate('/'); // Or create a /success page
+      // Redirect to success page
+      navigate(`/success?orderId=${orderData.id}`);
       
     } catch (error: any) {
       toast.error('Erro ao processar pagamento: ' + error.message);
