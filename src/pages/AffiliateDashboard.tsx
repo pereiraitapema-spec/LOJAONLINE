@@ -5,10 +5,11 @@ import { supabase } from '../lib/supabase';
 import { 
   ShoppingBag, DollarSign, Link as LinkIcon, Copy, 
   LogOut, User, BarChart, Tag, Percent, ArrowRight,
-  ChevronRight, Package, Grid, Trash2, CheckCircle
+  ChevronRight, Package, Grid, Trash2, CheckCircle, Calendar, Info, TrendingUp, Filter
 } from 'lucide-react';
 import { Loading } from '../components/Loading';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface Product {
   id: string;
@@ -75,6 +76,9 @@ export default function AffiliateDashboard() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'coupons' | 'sales' | 'payments'>('products');
   const [searchTerm, setSearchTerm] = useState('');
+  const [dateRange, setDateRange] = useState<'7' | '30' | '90' | 'all'>('30');
+  const [showCommissionModal, setShowCommissionModal] = useState(false);
+  const [productStats, setProductStats] = useState<any[]>([]);
   
   // Estado para criação de cupom
   const [couponCode, setCouponCode] = useState('');
@@ -146,10 +150,10 @@ export default function AffiliateDashboard() {
       fetchCoupons(affiliateData.id);
       
       // Carregar vendas (orders)
-      fetchOrders(affiliateData.id);
+      fetchOrders(affiliateData.id, dateRange);
 
       // Carregar pagamentos
-      fetchPayments(affiliateData.id);
+      fetchPayments(affiliateData.id, dateRange);
 
       setLoading(false);
 
@@ -158,6 +162,13 @@ export default function AffiliateDashboard() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (affiliate) {
+      fetchOrders(affiliate.id, dateRange);
+      fetchPayments(affiliate.id, dateRange);
+    }
+  }, [dateRange]);
 
   const fetchCoupons = async (affiliateId: string) => {
     const { data } = await supabase
@@ -169,13 +180,27 @@ export default function AffiliateDashboard() {
     if (data) setCoupons(data);
   };
 
-  const fetchOrders = async (affiliateId: string) => {
-    const { data } = await supabase
+  const fetchOrders = async (affiliateId: string, range: string) => {
+    let query = supabase
       .from('orders')
-      .select('*')
+      .select('*, order_items(*)')
       .eq('affiliate_id', affiliateId)
       .order('created_at', { ascending: false });
+
+    if (range !== 'all') {
+      const days = parseInt(range);
+      const date = new Date();
+      date.setDate(date.getDate() - days);
+      query = query.gte('created_at', date.toISOString());
+    }
+
+    const { data, error } = await query;
     
+    if (error) {
+      console.error('Erro ao buscar vendas:', error);
+      return;
+    }
+
     if (data) {
       const mappedOrders = data.map((order: any) => ({
         id: order.id,
@@ -183,19 +208,55 @@ export default function AffiliateDashboard() {
         customer_name: order.customer_name || 'Cliente',
         total: order.total,
         commission_value: order.commission_value || 0,
-        status: order.status
+        status: order.status,
+        items: order.order_items || []
       }));
       setOrders(mappedOrders);
+
+      // Calcular estatísticas por produto
+      const statsMap = new Map();
+      data.forEach((order: any) => {
+        if (order.status === 'paid' || order.status === 'delivered' || order.status === 'shipped') {
+          (order.order_items || []).forEach((item: any) => {
+            const existing = statsMap.get(item.product_id) || { 
+              id: item.product_id, 
+              name: item.product_name, 
+              quantity: 0, 
+              total_value: 0, 
+              total_commission: 0 
+            };
+            
+            // Estimar comissão do item se não estiver gravada no item
+            // (Idealmente a comissão deveria estar gravada no order_item ou order)
+            // Como temos commission_value na order, vamos ratear ou usar a taxa do produto
+            const itemCommission = (item.price * item.quantity * (affiliate?.commission_rate || 0)) / 100;
+
+            existing.quantity += item.quantity;
+            existing.total_value += (item.price * item.quantity);
+            existing.total_commission += itemCommission;
+            statsMap.set(item.product_id, existing);
+          });
+        }
+      });
+      setProductStats(Array.from(statsMap.values()).sort((a, b) => b.total_commission - a.total_commission));
     }
   };
 
-  const fetchPayments = async (affiliateId: string) => {
-    const { data } = await supabase
+  const fetchPayments = async (affiliateId: string, range: string) => {
+    let query = supabase
       .from('affiliate_payments')
       .select('*')
       .eq('affiliate_id', affiliateId)
       .order('created_at', { ascending: false });
-    
+
+    if (range !== 'all') {
+      const days = parseInt(range);
+      const date = new Date();
+      date.setDate(date.getDate() - days);
+      query = query.gte('created_at', date.toISOString());
+    }
+
+    const { data } = await query;
     if (data) setPayments(data);
   };
 
@@ -323,7 +384,7 @@ export default function AffiliateDashboard() {
 
           setAffiliate({ ...affiliate, balance: 0 });
           toast.success('Solicitação de saque enviada com sucesso!');
-          fetchPayments(affiliate.id);
+          fetchPayments(affiliate.id, dateRange);
         } catch (error: any) {
           toast.error('Erro ao solicitar saque: ' + error.message);
         } finally {
@@ -379,27 +440,29 @@ export default function AffiliateDashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-6 bg-emerald-800/50 px-6 py-3 rounded-2xl border border-emerald-700">
+          <div className="flex flex-wrap items-center gap-4 bg-emerald-800/50 px-6 py-3 rounded-2xl border border-emerald-700">
             <div className="text-center">
-              <span className="block text-xs text-emerald-300 uppercase tracking-wider">A Receber</span>
-              <span className="block font-black text-xl">R$ {affiliate?.balance?.toFixed(2) || '0.00'}</span>
+              <span className="block text-[10px] text-emerald-300 uppercase tracking-wider font-bold">A Receber</span>
+              <span className="block font-black text-lg">R$ {affiliate?.balance?.toFixed(2) || '0.00'}</span>
               <button 
                 onClick={handleRequestWithdrawal}
                 disabled={!affiliate || affiliate.balance <= 0}
-                className="text-[10px] bg-emerald-700 hover:bg-emerald-600 px-2 py-0.5 rounded mt-1 transition-colors disabled:opacity-50"
+                className="text-[9px] bg-emerald-700 hover:bg-emerald-600 px-2 py-0.5 rounded mt-1 transition-colors disabled:opacity-50 font-bold uppercase"
               >
                 Solicitar Saque
               </button>
             </div>
-            <div className="w-px h-8 bg-emerald-700"></div>
+            <div className="w-px h-8 bg-emerald-700 hidden sm:block"></div>
             <div className="text-center">
-              <span className="block text-xs text-emerald-300 uppercase tracking-wider">Já Recebido</span>
-              <span className="block font-black text-xl">R$ {affiliate?.total_paid?.toFixed(2) || '0.00'}</span>
+              <span className="block text-[10px] text-emerald-300 uppercase tracking-wider font-bold">Já Recebido</span>
+              <span className="block font-black text-lg">R$ {affiliate?.total_paid?.toFixed(2) || '0.00'}</span>
             </div>
-            <div className="w-px h-8 bg-emerald-700"></div>
-            <div className="text-center">
-              <span className="block text-xs text-emerald-300 uppercase tracking-wider">Comissão</span>
-              <span className="block font-black text-xl">{affiliate?.commission_rate}%</span>
+            <div className="w-px h-8 bg-emerald-700 hidden sm:block"></div>
+            <div className="text-center cursor-pointer hover:bg-emerald-700/50 p-1 rounded-lg transition-all" onClick={() => setShowCommissionModal(true)}>
+              <span className="block text-[10px] text-emerald-300 uppercase tracking-wider font-bold flex items-center justify-center gap-1">
+                Comissão <Info size={10} />
+              </span>
+              <span className="block font-black text-lg">{affiliate?.commission_rate}%</span>
             </div>
           </div>
 
@@ -414,6 +477,76 @@ export default function AffiliateDashboard() {
       </div>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Top Product */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                <TrendingUp size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Top Produto (Comissão)</span>
+            </div>
+            {productStats.length > 0 ? (
+              <div>
+                <h3 className="font-black text-slate-900 text-lg truncate mb-1">{productStats[0].name}</h3>
+                <p className="text-xs text-emerald-600 font-bold">R$ {productStats[0].total_commission.toFixed(2)} acumulados</p>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400 italic">Sem vendas ainda</p>
+            )}
+          </div>
+
+          {/* Ticket Médio Comissão */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                <DollarSign size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ticket Médio Comissão</span>
+            </div>
+            <h3 className="font-black text-slate-900 text-2xl">
+              R$ {orders.length > 0 ? (orders.reduce((acc, o) => acc + o.commission_value, 0) / orders.length).toFixed(2) : '0.00'}
+            </h3>
+            <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Média por venda</p>
+          </div>
+
+          {/* Ticket Médio Venda */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                <ShoppingBag size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ticket Médio Venda</span>
+            </div>
+            <h3 className="font-black text-slate-900 text-2xl">
+              R$ {orders.length > 0 ? (orders.reduce((acc, o) => acc + o.total, 0) / orders.length).toFixed(2) : '0.00'}
+            </h3>
+            <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Valor médio do pedido</p>
+          </div>
+
+          {/* Filtro de Período */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-center">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-slate-50 text-slate-600 rounded-xl">
+                <Calendar size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Período</span>
+            </div>
+            <div className="flex gap-1">
+              {(['7', '30', '90', 'all'] as const).map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setDateRange(range)}
+                  className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${dateRange === range ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                >
+                  {range === 'all' ? 'Tudo' : `${range}D`}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Tabs */}
         <div className="flex gap-4 mb-8 overflow-x-auto pb-2 scrollbar-hide">
           <button 
@@ -473,36 +606,45 @@ export default function AffiliateDashboard() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).map(product => {
-                  const price = product.discount_price || product.price;
-                  // Use product specific commission or 0
-                  const rate = product.affiliate_commission || 0;
-                  const commission = (price * rate) / 100;
-                  
-                  return (
-                    <div key={product.id} className="border border-slate-100 rounded-2xl p-4 flex gap-4 hover:shadow-md transition-shadow">
-                      <div className="w-20 h-20 bg-slate-50 rounded-xl flex-shrink-0">
-                        <img src={product.image_url} alt={product.name} className="w-full h-full object-contain p-2" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-slate-900 text-sm line-clamp-2 mb-1">{product.name}</h3>
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className="text-xs text-slate-500">Preço: R$ {price.toFixed(2)}</span>
-                          <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                            Comissão: {rate}% (R$ {commission.toFixed(2)})
-                          </span>
+                {products
+                  .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                  .sort((a, b) => {
+                    const priceA = a.discount_price || a.price;
+                    const commissionA = (priceA * (a.affiliate_commission || affiliate?.commission_rate || 0)) / 100;
+                    const priceB = b.discount_price || b.price;
+                    const commissionB = (priceB * (b.affiliate_commission || affiliate?.commission_rate || 0)) / 100;
+                    return commissionB - commissionA;
+                  })
+                  .map(product => {
+                    const price = product.discount_price || product.price;
+                    // Use product specific commission or fallback to affiliate rate
+                    const rate = product.affiliate_commission || affiliate?.commission_rate || 0;
+                    const commission = (price * rate) / 100;
+                    
+                    return (
+                      <div key={product.id} className="border border-slate-100 rounded-2xl p-4 flex gap-4 hover:shadow-md transition-shadow bg-white">
+                        <div className="w-20 h-20 bg-slate-50 rounded-xl flex-shrink-0">
+                          <img src={product.image_url} alt={product.name} className="w-full h-full object-contain p-2" />
                         </div>
-                        <button 
-                          onClick={() => generateLink('product', product.id)}
-                          className="w-full bg-slate-900 text-white py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
-                        >
-                          <LinkIcon size={14} />
-                          Copiar Link
-                        </button>
+                        <div className="flex-1">
+                          <h3 className="font-bold text-slate-900 text-sm line-clamp-2 mb-1">{product.name}</h3>
+                          <div className="flex flex-col gap-1 mb-3">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">Preço: R$ {price.toFixed(2)}</span>
+                            <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg inline-block w-fit">
+                              Comissão: {rate}% (R$ {commission.toFixed(2)})
+                            </span>
+                          </div>
+                          <button 
+                            onClick={() => generateLink('product', product.id)}
+                            className="w-full bg-slate-900 text-white py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <LinkIcon size={14} />
+                            Copiar Link
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -798,6 +940,78 @@ export default function AffiliateDashboard() {
         message={confirmModal.message}
         variant={confirmModal.variant}
       />
+
+      {/* Modal de Detalhes da Comissão */}
+      <AnimatePresence>
+        {showCommissionModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-emerald-600 text-white">
+                <div>
+                  <h2 className="text-xl font-black uppercase italic tracking-tighter">Detalhamento de Comissões</h2>
+                  <p className="text-[10px] opacity-80 font-bold uppercase tracking-widest">Baseado em vendas confirmadas</p>
+                </div>
+                <button onClick={() => setShowCommissionModal(false)} className="hover:rotate-90 transition-transform p-2 bg-white/10 rounded-xl">
+                  <CheckCircle size={24} />
+                </button>
+              </div>
+
+              <div className="p-6 max-h-[60vh] overflow-y-auto">
+                {productStats.length === 0 ? (
+                  <div className="text-center py-12">
+                    <BarChart size={48} className="mx-auto text-slate-200 mb-4" />
+                    <p className="text-slate-500 font-bold">Nenhuma venda registrada no período.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-4 text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">
+                      <div className="col-span-2">Produto</div>
+                      <div className="text-center">Qtd</div>
+                      <div className="text-right">Total Comissão</div>
+                    </div>
+                    {productStats.map((stat) => (
+                      <div key={stat.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
+                        <div className="col-span-2 flex-1">
+                          <p className="font-bold text-slate-900 text-sm">{stat.name}</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">Venda Total: R$ {stat.total_value.toFixed(2)}</p>
+                        </div>
+                        <div className="w-16 text-center">
+                          <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg text-xs font-black">
+                            {stat.quantity}
+                          </span>
+                        </div>
+                        <div className="w-32 text-right">
+                          <p className="font-black text-emerald-600">R$ {stat.total_commission.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                <div>
+                  <span className="block text-[10px] text-slate-400 font-black uppercase tracking-widest">Total Acumulado</span>
+                  <span className="text-2xl font-black text-slate-900">
+                    R$ {productStats.reduce((acc, s) => acc + s.total_commission, 0).toFixed(2)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowCommissionModal(false)}
+                  className="px-8 py-3 bg-slate-900 text-white font-black rounded-2xl hover:bg-slate-800 transition-all uppercase tracking-widest text-xs"
+                >
+                  Fechar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
