@@ -478,9 +478,15 @@ export default function Checkout() {
       if (affiliateId) {
         // Encontrar a maior taxa entre os produtos no carrinho e a taxa padrão do afiliado
         const productRates = cart.map(item => item.product.affiliate_commission || 0);
-        const maxRate = Math.max(commissionRate, ...productRates);
+        let maxRate = Math.max(commissionRate, ...productRates);
         
-        // Calculate commission based on the highest rate
+        // Se houver cupom de afiliado, descontar metade do valor do cupom da comissão do afiliado
+        if (affiliateCoupon) {
+          const commissionDeduction = affiliateCoupon.discount_percentage / 2;
+          maxRate = Math.max(0, maxRate - commissionDeduction);
+        }
+        
+        // Calculate commission based on the highest rate (adjusted by coupon if applicable)
         commissionValue = cart.reduce((acc, item) => {
           const price = item.product.discount_price || item.product.price;
           return acc + ((price * maxRate / 100) * item.quantity);

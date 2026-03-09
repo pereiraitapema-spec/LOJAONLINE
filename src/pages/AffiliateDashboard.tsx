@@ -728,11 +728,16 @@ export default function AffiliateDashboard() {
                 {products
                   .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
                   .sort((a, b) => {
+                    const rateA = a.affiliate_commission || affiliate?.commission_rate || 0;
+                    const rateB = b.affiliate_commission || affiliate?.commission_rate || 0;
+                    
+                    // Primeiro ordena por maior taxa de comissão (%)
+                    if (rateB !== rateA) return rateB - rateA;
+                    
+                    // Se as taxas forem iguais, ordena pelo maior ticket médio (preço)
                     const priceA = a.discount_price || a.price;
-                    const commissionA = (priceA * (a.affiliate_commission || affiliate?.commission_rate || 0)) / 100;
                     const priceB = b.discount_price || b.price;
-                    const commissionB = (priceB * (b.affiliate_commission || affiliate?.commission_rate || 0)) / 100;
-                    return commissionB - commissionA;
+                    return priceB - priceA;
                   })
                   .map(product => {
                     const price = product.discount_price || product.price;
@@ -808,6 +813,15 @@ export default function AffiliateDashboard() {
           {/* Aba Cupons */}
           {activeTab === 'coupons' && (
             <div className="max-w-4xl mx-auto">
+              <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl mb-8">
+                <div className="flex gap-3">
+                  <Info className="text-amber-600 shrink-0" size={20} />
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    <strong>Regra de Comissão:</strong> Ao usar um cupom, metade da porcentagem de desconto é deduzida da sua comissão. 
+                    <br />Ex: Cupom de 10% OFF → Desconto de 5% na sua taxa de comissão. O desconto máximo permitido é 10%.
+                  </p>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Formulário de Criação */}
                 <div>

@@ -454,9 +454,17 @@ export default function Campaigns() {
           {isEditing ? (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-slate-900">
-                  {currentCampaign.id ? 'Editar Campanha' : 'Nova Campanha'}
-                </h2>
+                <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => setIsEditing(false)}
+                    className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"
+                  >
+                    <ArrowLeft size={20} />
+                  </button>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    {currentCampaign.id ? 'Editar Campanha' : 'Nova Campanha'}
+                  </h2>
+                </div>
                 <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-slate-600">
                   <X size={24} />
                 </button>
