@@ -147,6 +147,7 @@ export default function Store() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [selectedInstitutionalLink, setSelectedInstitutionalLink] = useState<{ label: string; content: string } | null>(null);
+  const [affiliateCoupon, setAffiliateCoupon] = useState<any>(null);
   
   // Favoritos
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -246,6 +247,21 @@ export default function Store() {
     
     const fetchData = async () => {
       try {
+        // Buscar cupom aplicado se existir
+        const savedCoupon = localStorage.getItem('applied_coupon');
+        if (savedCoupon) {
+          const { data: couponData } = await supabase
+            .from('affiliate_coupons')
+            .select('*')
+            .eq('code', savedCoupon.toUpperCase())
+            .eq('active', true)
+            .maybeSingle();
+          
+          if (couponData) {
+            setAffiliateCoupon(couponData);
+          }
+        }
+
         const [bannerRes, prodRes, catRes, campRes, settingsRes, contentRes] = await Promise.all([
           supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }),
           supabase.from('products')
@@ -453,6 +469,9 @@ export default function Store() {
     return acc + total;
   }, 0);
 
+  const discountValue = affiliateCoupon ? (cartTotal * affiliateCoupon.discount_percentage / 100) : 0;
+  const finalTotal = cartTotal - discountValue;
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       {/* Top Bar */}
@@ -647,6 +666,11 @@ export default function Store() {
                 <span className="text-[10px] uppercase font-bold text-slate-400">Minhas Compras</span>
                 <span className="text-sm font-black text-slate-800">R$ {cartTotal.toFixed(2)}</span>
               </div>
+              {affiliateCoupon && (
+                <div className="absolute -top-2 -left-2 bg-emerald-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase shadow-sm animate-bounce">
+                  -{affiliateCoupon.discount_percentage}%
+                </div>
+              )}
             </button>
           </div>
         </div>
@@ -1689,8 +1713,26 @@ export default function Store() {
                   <div className="flex flex-col mb-6">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-slate-500 font-bold">Subtotal</span>
-                      <span className="text-3xl font-black text-slate-900 tracking-tighter">R$ {cartTotal.toFixed(2)}</span>
+                      <span className={`font-black text-slate-900 tracking-tighter ${discountValue > 0 ? 'text-xl line-through opacity-50' : 'text-3xl'}`}>
+                        R$ {cartTotal.toFixed(2)}
+                      </span>
                     </div>
+                    
+                    {discountValue > 0 && (
+                      <div className="flex items-center justify-between mb-2 text-emerald-600">
+                        <div className="flex items-center gap-1">
+                          <Tag size={14} />
+                          <span className="text-sm font-bold uppercase">Cupom {affiliateCoupon.code}</span>
+                        </div>
+                        <span className="text-2xl font-black tracking-tighter">- R$ {discountValue.toFixed(2)}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-slate-900 font-black uppercase text-sm">Total</span>
+                      <span className="text-4xl font-black text-slate-900 tracking-tighter">R$ {finalTotal.toFixed(2)}</span>
+                    </div>
+
                     <p className="text-right text-xs font-bold text-slate-400 uppercase tracking-widest">
                       ou em até {(() => {
                         const minInstallmentValue = cart.reduce((min, item) => {
@@ -1698,17 +1740,17 @@ export default function Store() {
                           return productMin < min ? productMin : min;
                         }, 50);
                         const maxInstallments = 10;
-                        let possibleInstallments = Math.floor(cartTotal / minInstallmentValue);
+                        let possibleInstallments = Math.floor(finalTotal / minInstallmentValue);
                         if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
                         if (possibleInstallments < 1) possibleInstallments = 1;
                         return possibleInstallments;
-                      })()}x de R$ {(cartTotal / (() => {
+                      })()}x de R$ {(finalTotal / (() => {
                         const minInstallmentValue = cart.reduce((min, item) => {
                           const productMin = item.product.min_installment_value || 50;
                           return productMin < min ? productMin : min;
                         }, 50);
                         const maxInstallments = 10;
-                        let possibleInstallments = Math.floor(cartTotal / minInstallmentValue);
+                        let possibleInstallments = Math.floor(finalTotal / minInstallmentValue);
                         if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
                         if (possibleInstallments < 1) possibleInstallments = 1;
                         return possibleInstallments;

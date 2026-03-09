@@ -49,6 +49,7 @@ export default function Checkout() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [gateways, setGateways] = useState<any[]>([]);
   const [carriers, setCarriers] = useState<any[]>([]);
+  const [affiliateCoupon, setAffiliateCoupon] = useState<any>(null);
   
   // Form state
   const [customer, setCustomer] = useState({
@@ -90,8 +91,19 @@ export default function Checkout() {
         const savedCoupon = localStorage.getItem('applied_coupon');
         if (savedCoupon) {
           setCouponCode(savedCoupon);
-          // Opcional: limpar após carregar para não persistir eternamente se o usuário quiser trocar
-          // localStorage.removeItem('applied_coupon');
+          
+          // Buscar detalhes do cupom de afiliado
+          const { data: affCoupon } = await supabase
+            .from('affiliate_coupons')
+            .select('*, affiliate:affiliates(name)')
+            .eq('code', savedCoupon.toUpperCase())
+            .eq('active', true)
+            .maybeSingle();
+          
+          if (affCoupon) {
+            setAffiliateCoupon(affCoupon);
+            toast.success(`Cupom de afiliado ${savedCoupon} aplicado!`, { icon: '🤝' });
+          }
         }
 
         const savedCart = localStorage.getItem('cart_items');
@@ -176,6 +188,38 @@ export default function Checkout() {
     loadData();
   }, [navigate]);
 
+  // Validar cupom quando o código mudar
+  useEffect(() => {
+    const validateCoupon = async () => {
+      if (!couponCode) {
+        setAffiliateCoupon(null);
+        return;
+      }
+
+      // Se já for o mesmo cupom, não busca de novo
+      if (affiliateCoupon && affiliateCoupon.code.toUpperCase() === couponCode.toUpperCase()) {
+        return;
+      }
+
+      const { data: affCoupon } = await supabase
+        .from('affiliate_coupons')
+        .select('*, affiliate:affiliates(name)')
+        .eq('code', couponCode.toUpperCase())
+        .eq('active', true)
+        .maybeSingle();
+      
+      if (affCoupon) {
+        setAffiliateCoupon(affCoupon);
+        localStorage.setItem('applied_coupon', couponCode.toUpperCase());
+      } else {
+        setAffiliateCoupon(null);
+      }
+    };
+
+    const timer = setTimeout(validateCoupon, 500);
+    return () => clearTimeout(timer);
+  }, [couponCode]);
+
   const calculatePrice = (product: Product, quantity: number) => {
     const unitPrice = product.discount_price || product.price;
     return {
@@ -239,11 +283,20 @@ export default function Checkout() {
         }
       }
 
+      // 3. Check Affiliate Coupon
+      if (affiliateCoupon && couponCode.toUpperCase() === affiliateCoupon.code.toUpperCase()) {
+        const discountValue = (currentTotal * affiliateCoupon.discount_percentage) / 100;
+        newDiscounts.push({ 
+          name: `Cupom Afiliado: ${affiliateCoupon.code}`, 
+          value: discountValue 
+        });
+      }
+
       setAppliedDiscounts(newDiscounts);
     };
 
     calculateDiscounts();
-  }, [cartTotal, discountRules, campaigns, paymentMethod, isFirstPurchase, couponCode]);
+  }, [cartTotal, discountRules, campaigns, paymentMethod, isFirstPurchase, couponCode, affiliateCoupon]);
 
   const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
   const currentShipping = shippingMethods[selectedShipping];
@@ -381,34 +434,49 @@ export default function Checkout() {
     setProcessing(true);
 
     try {
-      // 0. Check for Affiliate Code
+      // 0. Check for Affiliate Code or Coupon
       let affiliateId = null;
       let commissionValue = 0;
-      const affiliateCode = localStorage.getItem('affiliate_code');
+      let commissionRate = 0;
       
-      if (affiliateCode) {
-        const { data: affiliate } = await supabase
+      if (affiliateCoupon) {
+        affiliateId = affiliateCoupon.affiliate_id;
+        // Buscar taxa de comissão do afiliado do cupom
+        const { data: affData } = await supabase
           .from('affiliates')
-          .select('id, commission_rate')
-          .eq('code', affiliateCode)
+          .select('commission_rate')
+          .eq('id', affiliateId)
           .single();
-        
-        if (affiliate) {
-          affiliateId = affiliate.id;
+        commissionRate = affData?.commission_rate || 0;
+      } else {
+        const affiliateCode = localStorage.getItem('affiliate_code');
+        if (affiliateCode) {
+          const { data: affiliate } = await supabase
+            .from('affiliates')
+            .select('id, commission_rate')
+            .eq('code', affiliateCode)
+            .single();
           
-          // Calculate commission based on products
-          commissionValue = cart.reduce((acc, item) => {
-            const price = item.product.discount_price || item.product.price;
-            const productCommissionRate = item.product.affiliate_commission;
-            
-            // Use product commission rate if set (> 0), otherwise use affiliate's default rate
-            const rate = (productCommissionRate !== undefined && productCommissionRate > 0) 
-              ? productCommissionRate 
-              : (affiliate.commission_rate || 0);
-              
-            return acc + ((price * rate / 100) * item.quantity);
-          }, 0);
+          if (affiliate) {
+            affiliateId = affiliate.id;
+            commissionRate = affiliate.commission_rate || 0;
+          }
         }
+      }
+      
+      if (affiliateId) {
+        // Calculate commission based on products
+        commissionValue = cart.reduce((acc, item) => {
+          const price = item.product.discount_price || item.product.price;
+          const productCommissionRate = item.product.affiliate_commission;
+          
+          // Use product commission rate if set (> 0), otherwise use affiliate's default rate
+          const rate = (productCommissionRate !== undefined && productCommissionRate > 0) 
+            ? productCommissionRate 
+            : commissionRate;
+          
+          return acc + ((price * rate / 100) * item.quantity);
+        }, 0);
       }
 
       // 1. Create Order in Supabase
