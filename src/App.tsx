@@ -23,6 +23,7 @@ import ShippingCarriers from './pages/ShippingCarriers';
 import Integrations from './pages/Integrations';
 import Leads from './pages/Leads';
 import Inventory from './pages/Inventory';
+import AbandonedCarts from './pages/AbandonedCarts';
 import NotFound from './pages/NotFound';
 import { Loading } from './components/Loading';
 import { leadService } from './services/leadService';
@@ -72,6 +73,18 @@ function AppContent() {
         return;
       }
 
+      // Detectar se o usuário clicou no link de reset de senha (PKCE flow)
+      // O Supabase redireciona com ?code=... e nós salvamos no localStorage
+      if (window.location.search.includes('type=recovery') || (window.location.search.includes('code=') && localStorage.getItem('password_reset_requested') === 'true')) {
+        console.log('🔑 Password reset code detected in URL');
+        localStorage.removeItem('password_reset_requested');
+        if (path !== '/reset-password') {
+          navigate('/reset-password' + window.location.search);
+        }
+        setLoading(false);
+        return;
+      }
+
       if (session) {
         // Só redirecionar se estiver no login ou register
         if (path === '/login' || path === '/register') {
@@ -93,6 +106,16 @@ function AppContent() {
         const hash = window.location.hash;
         if (window.location.pathname !== '/reset-password') {
           navigate('/reset-password' + hash);
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (event === 'SIGNED_IN' && (window.location.search.includes('type=recovery') || (window.location.search.includes('code=') && localStorage.getItem('password_reset_requested') === 'true'))) {
+        console.log('🔑 Password reset code detected in URL during SIGNED_IN');
+        localStorage.removeItem('password_reset_requested');
+        if (window.location.pathname !== '/reset-password') {
+          navigate('/reset-password' + window.location.search);
         }
         setLoading(false);
         return;
@@ -344,6 +367,10 @@ function AppContent() {
         <Route 
           path="/leads" 
           element={session ? <Leads /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/abandoned-carts" 
+          element={session ? <AbandonedCarts /> : <Navigate to="/login" replace />} 
         />
         <Route 
           path="/inventory" 

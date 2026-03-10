@@ -98,7 +98,7 @@ export default function ResetPassword() {
           <div className="w-20 h-20 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <AlertCircle className="w-10 h-10 text-rose-600" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Sessão Inválida</h1>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Sessão inválida ou expirada</h1>
           <p className="text-slate-600 mb-8">
             O link de redefinição de senha expirou ou é inválido. Por favor, solicite um novo link na página de login.
           </p>

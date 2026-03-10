@@ -263,8 +263,10 @@ export default function Login() {
       // Em iframes do AI Studio, isso deve retornar a URL .run.app corretamente.
       const origin = window.location.origin;
 
+      localStorage.setItem('password_reset_requested', 'true');
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${origin}/reset-password`,
+        redirectTo: `${origin}/reset-password?type=recovery`,
       });
       
       if (error) throw error;

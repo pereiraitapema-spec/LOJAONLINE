@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText } from 'lucide-react';
+import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 
@@ -229,6 +229,13 @@ export default function Dashboard() {
           >
             <Users size={20} />
             CRM Leads
+          </button>
+          <button 
+            onClick={() => navigate('/abandoned-carts')}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
+          >
+            <ShoppingCart size={20} />
+            Carrinhos Abandonados
           </button>
           <button 
             onClick={() => navigate('/gateways')}
