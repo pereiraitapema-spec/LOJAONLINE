@@ -45,8 +45,43 @@ export const shippingService = {
       // 2. Call Provider API
       if (carrier.provider === 'melhorenvio' && carrier.config?.api_key) {
         try {
-          // Real call would go here
-          return this.mockMelhorEnvioQuotes(originZip, destZip, packages);
+          const response = await fetch('https://www.melhorenvio.com.br/api/v2/me/shipment/calculate', {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${carrier.config.api_key}`,
+              'User-Agent': 'Magnifique4Life (contato@magnifique4life.com.br)'
+            },
+            body: JSON.stringify({
+              from: { postal_code: originZip },
+              to: { postal_code: destZip },
+              products: packages.map((p, i) => ({
+                id: `p${i}`,
+                width: p.width,
+                height: p.height,
+                length: p.length,
+                weight: p.weight,
+                insurance_value: 100,
+                quantity: 1
+              }))
+            })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            return data
+              .filter((quote: any) => !quote.error)
+              .map((quote: any) => ({
+                id: quote.id.toString(),
+                name: quote.name,
+                price: parseFloat(quote.price),
+                deadline: `${quote.delivery_range.min} a ${quote.delivery_range.max} dias úteis`,
+                provider: 'melhorenvio'
+              }));
+          } else {
+            console.warn('Melhor Envio API returned error, falling back to mock.');
+          }
         } catch (err) {
           console.error('Melhor Envio API Error:', err);
         }
