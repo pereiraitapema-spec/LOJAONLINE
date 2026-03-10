@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { LogIn, Mail, Lock, Eye, EyeOff, Phone } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { leadService } from '../services/leadService';
@@ -10,6 +10,7 @@ export default function Login() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [confirmEmail, setConfirmEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -61,6 +62,10 @@ export default function Login() {
     if (mode === 'register') {
       if (email !== confirmEmail) {
         toast.error('Os e-mails digitados não coincidem.');
+        return;
+      }
+      if (!phone || phone.length < 10) {
+        toast.error('Por favor, insira um número de telefone válido.');
         return;
       }
       if (password !== confirmPassword) {
@@ -121,6 +126,7 @@ export default function Login() {
           options: {
             data: {
               full_name: email.split('@')[0],
+              phone: phone,
               role: 'customer'
             }
           }
@@ -388,6 +394,25 @@ export default function Login() {
                   required
                 />
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              </div>
+            </div>
+          )}
+
+          {mode === 'register' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                WhatsApp / Telefone
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="(00) 00000-0000"
+                  required
+                />
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
               </div>
             </div>
           )}

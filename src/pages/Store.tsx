@@ -145,6 +145,8 @@ export default function Store() {
 
   const [isModalMuted, setIsModalMuted] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [selectedInstitutionalLink, setSelectedInstitutionalLink] = useState<{ label: string; content: string } | null>(null);
   const [affiliateCoupon, setAffiliateCoupon] = useState<any>(null);
@@ -548,12 +550,62 @@ export default function Store() {
               type="text" 
               placeholder="O que você está buscando hoje?"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setShowSearchSuggestions(e.target.value.length > 0);
+              }}
+              onFocus={() => setShowSearchSuggestions(searchTerm.length > 0)}
               className="w-full bg-slate-100 text-slate-700 px-6 py-3 rounded-full outline-none focus:ring-2 focus:ring-emerald-600 transition-all font-medium placeholder:text-slate-400"
             />
             <button className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-emerald-600 text-white rounded-full hover:bg-emerald-700 transition-colors">
               <Search size={18} />
             </button>
+
+            {/* Sugestões de Busca */}
+            <AnimatePresence>
+              {showSearchSuggestions && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50"
+                >
+                  <div className="p-2">
+                    {products
+                      .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                      .slice(0, 5)
+                      .map(product => (
+                        <button
+                          key={product.id}
+                          onClick={() => {
+                            handleSelectProduct(product);
+                            setShowSearchSuggestions(false);
+                            setSearchTerm('');
+                          }}
+                          className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl transition-colors text-left"
+                        >
+                          <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
+                            {product.image_url && (
+                              <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm">{product.name}</div>
+                            <div className="text-xs text-emerald-600 font-bold">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.discount_price || product.price)}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    {products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                      <div className="p-4 text-center text-slate-500 text-sm font-medium">
+                        Nenhum produto encontrado para "{searchTerm}"
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Ações */}
@@ -964,9 +1016,36 @@ export default function Store() {
           <h1 className="text-4xl md:text-6xl font-black text-slate-900 mb-4 italic uppercase tracking-tighter">
             {settings?.products_section_title || 'Novidades da Estação'}
           </h1>
-          <p className="text-slate-500 text-lg max-w-2xl mx-auto">
+          <p className="text-slate-500 text-lg max-w-2xl mx-auto mb-8">
             {settings?.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.'}
           </p>
+
+          {/* Filtro de Categorias */}
+          <div className="flex flex-wrap justify-center gap-2 mt-8">
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
+                selectedCategory === null 
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
+                  : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+              }`}
+            >
+              Todos
+            </button>
+            {categories.map(category => (
+              <button
+                key={category.id}
+                onClick={() => setSelectedCategory(category.id)}
+                className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
+                  selectedCategory === category.id 
+                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
+                    : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+                }`}
+              >
+                {category.name}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Grid de Produtos */}
@@ -977,9 +1056,10 @@ export default function Store() {
               return p.id === selectedProductId;
             }
 
-            // Filtro por Categoria (Link Direto)
-            if (selectedCategoryId) {
-              return (p as any).category_id === selectedCategoryId;
+            // Filtro por Categoria (Link Direto ou Seleção)
+            const catId = selectedCategory || selectedCategoryId;
+            if (catId) {
+              if ((p as any).category_id !== catId) return false;
             }
 
             if (!searchTerm) return true;
