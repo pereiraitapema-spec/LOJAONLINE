@@ -91,6 +91,24 @@ export default function Affiliates() {
   const [showPayments, setShowPayments] = useState(false);
   const [showLeads, setShowLeads] = useState(false);
   const [uploadingReceipt, setUploadingReceipt] = useState<string | null>(null);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [leadOrders, setLeadOrders] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (selectedLead) {
+      const fetchOrders = async () => {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('customer_email', selectedLead.email);
+        
+        if (data) setLeadOrders(data);
+      };
+      fetchOrders();
+    } else {
+      setLeadOrders([]);
+    }
+  }, [selectedLead]);
 
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
@@ -432,6 +450,7 @@ export default function Affiliates() {
           
           setLeadsList(leadsList.filter(l => l.id !== leadId));
           toast.success('Lead excluído!');
+          setConfirmModal({ ...confirmModal, isOpen: false });
         } catch (error: any) {
           toast.error('Erro ao excluir lead: ' + error.message);
         }
@@ -630,7 +649,7 @@ export default function Affiliates() {
                       </tr>
                     ) : (
                       leadsList.map(lead => (
-                        <tr key={lead.id} className="hover:bg-slate-50">
+                        <tr key={lead.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedLead(lead)}>
                           <td className="p-4">
                             <div className="font-bold text-slate-900">{lead.nome || 'Sem nome'}</div>
                             <div className="text-xs text-slate-500">{lead.email}</div>
@@ -1229,6 +1248,49 @@ export default function Affiliates() {
         message={confirmModal.message}
         variant={confirmModal.variant}
       />
+
+      {selectedLead && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-slate-900">Detalhes do Lead</h3>
+              <button onClick={() => setSelectedLead(null)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Nome</label>
+                <p className="font-bold text-slate-900">{selectedLead.nome}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">WhatsApp</label>
+                <p className="font-bold text-indigo-600">{selectedLead.whatsapp || 'Não informado'}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Status</label>
+                <p className="font-bold text-slate-900">{selectedLead.status_lead}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Score</label>
+                <p className="font-bold text-slate-900">{selectedLead.score}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Histórico de Compras</label>
+                {leadOrders.length > 0 ? (
+                  <ul className="space-y-2 mt-2">
+                    {leadOrders.map(order => (
+                      <li key={order.id} className="text-sm border-b pb-2">
+                        <span className="font-bold">R$ {order.total.toFixed(2)}</span> - {order.status} - {new Date(order.created_at).toLocaleDateString()}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-500">Nenhuma compra encontrada.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

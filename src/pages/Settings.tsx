@@ -152,12 +152,12 @@ export default function Settings() {
         
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
         if (blob) {
-          fileToUpload = new File([blob], `${file.name.split('.')[0]}.png`, { type: 'image/png' });
+          fileToUpload = new File([blob], `${key}.png`, { type: 'image/png' });
         }
         URL.revokeObjectURL(objectUrl);
       }
 
-      const fileName = `site/${key}_${new Date().getTime()}.png`;
+      const fileName = `site/${key}.png`;
       
       const { error: uploadError } = await supabase.storage
         .from('banners')
