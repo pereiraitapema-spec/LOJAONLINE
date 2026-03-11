@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, Send, X, User, Bot, Sparkles, LogIn } from 'lucide-react';
@@ -155,7 +156,7 @@ export default function SmartChat() {
               const stockText = p.stock <= 5 ? ` - APENAS ${p.stock} UNIDADES EM ESTOQUE!` : '';
               const productLink = `${window.location.origin}/?product=${p.id}`;
               
-              return `Nome: ${p.name}\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nDescrição: ${p.description}\nComposição: ${p.composition}\nLink para compra: ${productLink}`;
+              return `Nome: [${p.name}](${productLink})\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nDescrição: ${p.description}\nComposição: ${p.composition}`;
             }).join('\n\n');
           }).join('\n\n---\n\n')
         : 'Nenhum produto encontrado no catálogo no momento.';
@@ -259,7 +260,7 @@ export default function SmartChat() {
                       ? 'bg-emerald-600 text-white rounded-tr-none' 
                       : 'bg-white text-slate-700 shadow-sm border border-slate-100 rounded-tl-none'
                   }`}>
-                    {msg.content}
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
                   </div>
                 </div>
               ))}
