@@ -1812,11 +1812,19 @@ create policy "Enable delete for authenticated users only" on public.automations
                 <label className="block text-sm font-bold text-slate-700 uppercase tracking-widest">Logo Principal (SVG ou PNG)</label>
                 <div className="aspect-video bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden group">
                   {siteContent.find(c => c.key === 'site_logo')?.value ? (
-                    <img 
-                      src={siteContent.find(c => c.key === 'site_logo')?.value} 
-                      alt="Logo" 
-                      className="max-h-32 object-contain p-4"
-                    />
+                    <>
+                      <img 
+                        src={siteContent.find(c => c.key === 'site_logo')?.value} 
+                        alt="Logo" 
+                        className="max-h-32 object-contain p-4"
+                      />
+                      <button 
+                        onClick={() => updateSiteContent('site_logo', '')}
+                        className="absolute top-2 right-2 p-2 bg-rose-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </>
                   ) : (
                     <ImageIcon className="text-slate-300" size={48} />
                   )}
@@ -1837,11 +1845,19 @@ create policy "Enable delete for authenticated users only" on public.automations
                 <label className="block text-sm font-bold text-slate-700 uppercase tracking-widest">Favicon (Ícone da Aba)</label>
                 <div className="w-24 h-24 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden group">
                   {siteContent.find(c => c.key === 'site_favicon')?.value ? (
-                    <img 
-                      src={siteContent.find(c => c.key === 'site_favicon')?.value} 
-                      alt="Favicon" 
-                      className="w-12 h-12 object-contain"
-                    />
+                    <>
+                      <img 
+                        src={siteContent.find(c => c.key === 'site_favicon')?.value} 
+                        alt="Favicon" 
+                        className="w-12 h-12 object-contain"
+                      />
+                      <button 
+                        onClick={() => updateSiteContent('site_favicon', '')}
+                        className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </>
                   ) : (
                     <ImageIcon className="text-slate-300" size={24} />
                   )}
