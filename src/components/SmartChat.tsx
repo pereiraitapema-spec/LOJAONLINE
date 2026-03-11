@@ -142,16 +142,22 @@ export default function SmartChat() {
       }
 
       const context = products && products.length > 0 
-        ? products.map(p => {
-            const currentPrice = p.discount_price || p.price;
-            const hasDiscount = p.discount_price && p.discount_price < p.price;
-            const discountText = hasDiscount ? ` (EM PROMOÇÃO! De R$ ${p.price} por R$ ${p.discount_price})` : '';
-            const stockText = p.stock <= 5 ? ` - APENAS ${p.stock} UNIDADES EM ESTOQUE!` : '';
-            const productLink = `${window.location.origin}/?product=${p.id}`;
-            const categoryName = (p.category as any)?.name || 'Sem Categoria';
-            
-            return `Produto ID: ${p.id}\nNome: ${p.name}\nCategoria: ${categoryName}\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nDescrição: ${p.description}\nComposição: ${p.composition}\nLink para compra: ${productLink}`;
-          }).join('\n\n')
+        ? Object.entries(products.reduce((acc, p) => {
+            const cat = (p.category as any)?.name || 'Sem Categoria';
+            if (!acc[cat]) acc[cat] = [];
+            acc[cat].push(p);
+            return acc;
+          }, {} as Record<string, any[]>)).map(([cat, prods]) => {
+            return `Categoria: ${cat}\n\n` + prods.map(p => {
+              const currentPrice = p.discount_price || p.price;
+              const hasDiscount = p.discount_price && p.discount_price < p.price;
+              const discountText = hasDiscount ? ` (EM PROMOÇÃO! De R$ ${p.price} por R$ ${p.discount_price})` : '';
+              const stockText = p.stock <= 5 ? ` - APENAS ${p.stock} UNIDADES EM ESTOQUE!` : '';
+              const productLink = `${window.location.origin}/?product=${p.id}`;
+              
+              return `Nome: ${p.name}\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nDescrição: ${p.description}\nComposição: ${p.composition}\nLink para compra: ${productLink}`;
+            }).join('\n\n');
+          }).join('\n\n---\n\n')
         : 'Nenhum produto encontrado no catálogo no momento.';
 
       // 3. Call Gemini
