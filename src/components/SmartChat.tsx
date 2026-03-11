@@ -83,6 +83,15 @@ export default function SmartChat() {
   }, [isOpen]);
 
   useEffect(() => {
+    if (isOpen && messagesEndRef.current) {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      }, 100);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
@@ -125,7 +134,7 @@ export default function SmartChat() {
       // 2. Fetch Product Context for "Memory"
       const { data: products } = await supabase
         .from('products')
-        .select('name, description, composition, price, discount_price, stock_quantity')
+        .select('id, name, description, composition, price, discount_price, stock_quantity')
         .eq('active', true);
 
       const context = products?.map(p => {
@@ -133,8 +142,9 @@ export default function SmartChat() {
         const hasDiscount = p.discount_price && p.discount_price < p.price;
         const discountText = hasDiscount ? ` (EM PROMOÇÃO! De R$ ${p.price} por R$ ${p.discount_price})` : '';
         const stockText = p.stock_quantity <= 5 ? ` - APENAS ${p.stock_quantity} UNIDADES EM ESTOQUE!` : '';
+        const productLink = `${window.location.origin}/?product=${p.id}`;
         
-        return `Produto: ${p.name}\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nDescrição: ${p.description}\nComposição: ${p.composition}`;
+        return `Produto ID: ${p.id}\nNome: ${p.name}\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nDescrição: ${p.description}\nComposição: ${p.composition}\nLink para compra: ${productLink}`;
       }).join('\n\n') || '';
 
       // 3. Call Gemini
@@ -175,7 +185,9 @@ export default function SmartChat() {
           REGRAS DE RESPOSTA OBRIGATÓRIAS:
           1. Responda com no máximo 4 linhas.
           2. Finalize SEMPRE sua resposta com uma pergunta para continuar a conversa.
-          3. Use APENAS as informações dos produtos fornecidas abaixo. Se o produto não estiver na lista, diga que não temos esse produto ou ofereça uma alternativa similar da lista. NÃO invente produtos.
+          3. Use APENAS as informações dos produtos fornecidas abaixo.
+          4. Ao mencionar um produto, cite o NOME EXATO do produto, descreva brevemente sua função baseada na descrição e composição fornecidas, e forneça o LINK PARA COMPRA.
+          5. NÃO invente nomes de produtos, preços ou benefícios. Se o produto não estiver na lista, diga que não temos esse produto ou ofereça uma alternativa similar da lista.
           
           Contexto dos Produtos (Conhecimento da IA):\n${context}
           
