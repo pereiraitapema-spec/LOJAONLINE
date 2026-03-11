@@ -132,20 +132,27 @@ export default function SmartChat() {
       }
 
       // 2. Fetch Product Context for "Memory"
-      const { data: products } = await supabase
+      const { data: products, error: prodError } = await supabase
         .from('products')
-        .select('id, name, description, composition, price, discount_price, stock_quantity')
+        .select('id, name, description, composition, price, discount_price, stock_quantity, category:categories(name)')
         .eq('active', true);
 
-      const context = products?.map(p => {
-        const currentPrice = p.discount_price || p.price;
-        const hasDiscount = p.discount_price && p.discount_price < p.price;
-        const discountText = hasDiscount ? ` (EM PROMOÇÃO! De R$ ${p.price} por R$ ${p.discount_price})` : '';
-        const stockText = p.stock_quantity <= 5 ? ` - APENAS ${p.stock_quantity} UNIDADES EM ESTOQUE!` : '';
-        const productLink = `${window.location.origin}/?product=${p.id}`;
-        
-        return `Produto ID: ${p.id}\nNome: ${p.name}\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nDescrição: ${p.description}\nComposição: ${p.composition}\nLink para compra: ${productLink}`;
-      }).join('\n\n') || '';
+      if (prodError) {
+        console.error('Error fetching products:', prodError);
+      }
+
+      const context = products && products.length > 0 
+        ? products.map(p => {
+            const currentPrice = p.discount_price || p.price;
+            const hasDiscount = p.discount_price && p.discount_price < p.price;
+            const discountText = hasDiscount ? ` (EM PROMOÇÃO! De R$ ${p.price} por R$ ${p.discount_price})` : '';
+            const stockText = p.stock_quantity <= 5 ? ` - APENAS ${p.stock_quantity} UNIDADES EM ESTOQUE!` : '';
+            const productLink = `${window.location.origin}/?product=${p.id}`;
+            const categoryName = (p.category as any)?.name || 'Sem Categoria';
+            
+            return `Produto ID: ${p.id}\nNome: ${p.name}\nCategoria: ${categoryName}\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nDescrição: ${p.description}\nComposição: ${p.composition}\nLink para compra: ${productLink}`;
+          }).join('\n\n')
+        : 'Nenhum produto encontrado no catálogo no momento.';
 
       // 3. Call Gemini
       const ai = new GoogleGenAI({ apiKey: keys.key_value });
@@ -183,7 +190,8 @@ export default function SmartChat() {
           2. FINALIZAÇÃO: Termine SEMPRE sua resposta com uma pergunta para engajar o usuário.
           3. DADOS: Use APENAS as informações dos produtos fornecidas abaixo.
           4. PRODUTOS: Ao mencionar um produto, cite o NOME EXATO e copie o LINK PARA COMPRA exatamente como fornecido. NÃO use placeholders.
-          5. PROIBIÇÕES: NÃO invente produtos, preços ou benefícios. Se não estiver no contexto, diga que não temos ou sugira um similar da lista.
+          5. CATEGORIAS: Organize suas recomendações por categoria para facilitar a escolha do usuário.
+          6. PROIBIÇÕES: NÃO invente produtos, preços ou benefícios. Se o contexto abaixo disser que não há produtos, informe educadamente que estamos atualizando o catálogo e pergunte se deseja ser avisado.
           
           Contexto dos Produtos (Conhecimento da IA):\n${context}
           
