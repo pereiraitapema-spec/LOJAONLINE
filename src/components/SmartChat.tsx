@@ -192,13 +192,7 @@ export default function SmartChat() {
         config: {
           systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
           
-          REGRAS DE RESPOSTA OBRIGATÓRIAS (SIGA RIGOROSAMENTE):
-          1. RESPOSTA CURTA: Máximo absoluto de 4 linhas. Seja direto e objetivo.
-          2. FINALIZAÇÃO: Termine SEMPRE sua resposta com uma pergunta para engajar o usuário.
-          3. DADOS: Use APENAS as informações dos produtos fornecidas abaixo.
-          4. PRODUTOS: Ao mencionar um produto, cite o NOME EXATO e copie o LINK PARA COMPRA exatamente como fornecido. NÃO use placeholders.
-          5. CATEGORIAS: Organize suas recomendações por categoria para facilitar a escolha do usuário.
-          6. PROIBIÇÕES: NÃO invente produtos, preços ou benefícios. Se o contexto abaixo disser que não há produtos, informe educadamente que estamos atualizando o catálogo e pergunte se deseja ser avisado.
+          ${aiSettings.rules || 'Siga as instruções padrão de atendimento.'}
           
           Contexto dos Produtos (Conhecimento da IA):\n${context}
           
@@ -260,7 +254,13 @@ export default function SmartChat() {
                       ? 'bg-emerald-600 text-white rounded-tr-none' 
                       : 'bg-white text-slate-700 shadow-sm border border-slate-100 rounded-tl-none'
                   }`}>
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown 
+                      components={{
+                        a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline font-bold" />
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
                   </div>
                 </div>
               ))}
