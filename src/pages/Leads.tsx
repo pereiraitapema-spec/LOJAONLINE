@@ -78,18 +78,28 @@ export default function Leads() {
   const handleBulkDelete = async () => {
     if (selectedLeads.length === 0) return;
     try {
+      setLoading(true);
       const { error } = await supabase
         .from('leads')
         .delete()
         .in('id', selectedLeads);
 
       if (error) throw error;
-      toast.success(`${selectedLeads.length} leads excluídos!`);
+      
+      // Update local state immediately
+      setLeads(prev => {
+        const updatedLeads = prev.filter(l => !selectedLeads.includes(l.id));
+        calculateStats(updatedLeads);
+        return updatedLeads;
+      });
+      
+      toast.success(`${selectedLeads.length} leads excluídos permanentemente!`);
       setSelectedLeads([]);
       setBulkDeleteModal(false);
-      fetchLeads();
     } catch (error: any) {
       toast.error('Erro ao excluir leads: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -167,8 +177,14 @@ export default function Leads() {
         .eq('id', id);
 
       if (error) throw error;
+      
+      // Update local state immediately for better UX
+      setLeads(prev => {
+        const updatedLeads = prev.map(l => l.id === id ? { ...l, status_lead: newStatus, updated_at: new Date().toISOString() } : l);
+        calculateStats(updatedLeads);
+        return updatedLeads;
+      });
       toast.success('Status do lead atualizado!');
-      fetchLeads();
     } catch (error: any) {
       toast.error('Erro ao atualizar status: ' + error.message);
     }
@@ -176,17 +192,28 @@ export default function Leads() {
 
   const handleDeleteLead = async (id: string) => {
     try {
+      setLoading(true);
       const { error } = await supabase
         .from('leads')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+      
+      // Update local state immediately to ensure it doesn't "come back"
+      setLeads(prev => {
+        const updatedLeads = prev.filter(l => l.id !== id);
+        calculateStats(updatedLeads);
+        return updatedLeads;
+      });
+      setSelectedLeads(prev => prev.filter(leadId => leadId !== id));
+      
       toast.success('Lead excluído com sucesso!');
       setConfirmModal({ isOpen: false, leadId: null, leadName: '' });
-      fetchLeads();
     } catch (error: any) {
       toast.error('Erro ao excluir lead: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
