@@ -14,7 +14,9 @@ import {
   MessageCircle,
   Zap,
   Star,
-  Trash2
+  Trash2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -64,6 +66,32 @@ export default function Leads() {
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [showSendMessageModal, setShowSendMessageModal] = useState(false);
   const [messageText, setMessageText] = useState('');
+  const [expandedEmails, setExpandedEmails] = useState<string[]>([]);
+  const [bulkDeleteModal, setBulkDeleteModal] = useState(false);
+
+  const toggleExpand = (email: string) => {
+    setExpandedEmails(prev => 
+      prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedLeads.length === 0) return;
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .in('id', selectedLeads);
+
+      if (error) throw error;
+      toast.success(`${selectedLeads.length} leads excluídos!`);
+      setSelectedLeads([]);
+      setBulkDeleteModal(false);
+      fetchLeads();
+    } catch (error: any) {
+      toast.error('Erro ao excluir leads: ' + error.message);
+    }
+  };
 
   const toggleLeadSelection = (leadId: string) => {
     setSelectedLeads(prev => 
@@ -237,15 +265,24 @@ export default function Leads() {
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2">
             {selectedLeads.length > 0 && (
-              <button 
-                onClick={() => setShowSendMessageModal(true)}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center gap-2"
-              >
-                <MessageCircle size={18} />
-                Enviar Mensagem ({selectedLeads.length})
-              </button>
+              <>
+                <button 
+                  onClick={() => setShowSendMessageModal(true)}
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center gap-2"
+                >
+                  <MessageCircle size={18} />
+                  Enviar ({selectedLeads.length})
+                </button>
+                <button 
+                  onClick={() => setBulkDeleteModal(true)}
+                  className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-red-700 transition-all flex items-center gap-2"
+                >
+                  <Trash2 size={18} />
+                  Excluir ({selectedLeads.length})
+                </button>
+              </>
             )}
             <button 
               onClick={fetchLeads}
@@ -377,27 +414,33 @@ export default function Leads() {
               {Object.entries(groupedLeads).map(([email, leads]) => {
                 const allSelected = leads.every(l => selectedLeads.includes(l.id));
                 const someSelected = leads.some(l => selectedLeads.includes(l.id));
+                const isExpanded = expandedEmails.includes(email);
                 
                 return (
                   <tr key={email} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-6 py-8" colSpan={6}>
+                    <td className="px-6 py-4" colSpan={6}>
                       <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
                         {/* Header do Card Unificado */}
-                        <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                        <div 
+                          className="bg-slate-50/50 px-6 py-4 border-b border-slate-100 flex items-center justify-between cursor-pointer hover:bg-slate-100/50 transition-colors"
+                          onClick={() => toggleExpand(email)}
+                        >
                           <div className="flex items-center gap-4">
-                            <input 
-                              type="checkbox" 
-                              checked={allSelected}
-                              ref={el => el && (el.indeterminate = someSelected && !allSelected)}
-                              onChange={() => {
-                                if (allSelected) {
-                                  setSelectedLeads(prev => prev.filter(id => !leads.map(l => l.id).includes(id)));
-                                } else {
-                                  setSelectedLeads(prev => [...new Set([...prev, ...leads.map(l => l.id)])]);
-                                }
-                              }}
-                              className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                            />
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <input 
+                                type="checkbox" 
+                                checked={allSelected}
+                                ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                                onChange={() => {
+                                  if (allSelected) {
+                                    setSelectedLeads(prev => prev.filter(id => !leads.map(l => l.id).includes(id)));
+                                  } else {
+                                    setSelectedLeads(prev => [...new Set([...prev, ...leads.map(l => l.id)])]);
+                                  }
+                                }}
+                                className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              />
+                            </div>
                             <div>
                               <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
                                 <Mail size={18} className="text-indigo-500" />
@@ -409,90 +452,102 @@ export default function Leads() {
                             </div>
                           </div>
                           
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-4">
                             <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">
                               Lead Unificado
                             </span>
+                            {isExpanded ? <ChevronUp size={20} className="text-slate-400" /> : <ChevronDown size={20} className="text-slate-400" />}
                           </div>
                         </div>
 
-                        {/* Lista de Leads dentro do Card */}
-                        <div className="divide-y divide-slate-50">
-                          {leads.map(lead => (
-                            <div key={lead.id} className="p-6 hover:bg-slate-50/30 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                              <div className="flex items-center gap-4 flex-1">
-                                <input 
-                                  type="checkbox" 
-                                  checked={selectedLeads.includes(lead.id)} 
-                                  onChange={() => toggleLeadSelection(lead.id)}
-                                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                />
-                                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-2xl flex items-center justify-center font-black text-lg shadow-sm">
-                                  {lead.nome?.charAt(0).toUpperCase() || '?'}
-                                </div>
-                                <div>
-                                  <p className="font-black text-slate-900 text-base">{lead.nome || 'Sem nome'}</p>
-                                  <div className="flex items-center gap-3 mt-1">
-                                    {getStatusBadge(lead.status_lead)}
-                                    <span className="flex items-center gap-1 text-xs text-slate-400 font-medium">
-                                      <Calendar size={12} />
-                                      {format(new Date(lead.created_at), "dd MMM yyyy", { locale: ptBR })}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
+                        {/* Lista de Leads dentro do Card (Collapsible) */}
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="divide-y divide-slate-50">
+                                {leads.map(lead => (
+                                  <div key={lead.id} className="p-6 hover:bg-slate-50/30 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                                    <div className="flex items-center gap-4 flex-1">
+                                      <input 
+                                        type="checkbox" 
+                                        checked={selectedLeads.includes(lead.id)} 
+                                        onChange={() => toggleLeadSelection(lead.id)}
+                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                      />
+                                      <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-2xl flex items-center justify-center font-black text-lg shadow-sm">
+                                        {lead.nome?.charAt(0).toUpperCase() || '?'}
+                                      </div>
+                                      <div>
+                                        <p className="font-black text-slate-900 text-base">{lead.nome || 'Sem nome'}</p>
+                                        <div className="flex items-center gap-3 mt-1">
+                                          {getStatusBadge(lead.status_lead)}
+                                          <span className="flex items-center gap-1 text-xs text-slate-400 font-medium">
+                                            <Calendar size={12} />
+                                            {format(new Date(lead.created_at), "dd MMM yyyy", { locale: ptBR })}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
 
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-8 flex-[2]">
-                                <div className="space-y-1">
-                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">WhatsApp</span>
-                                  <div className="flex items-center gap-2 text-slate-600 font-bold text-sm">
-                                    <Phone size={14} className="text-emerald-500" />
-                                    {lead.whatsapp || 'Não informado'}
-                                  </div>
-                                </div>
-                                
-                                <div className="space-y-1">
-                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Score</span>
-                                  <div className="flex items-center gap-2 text-slate-900 font-black text-sm">
-                                    <Star size={14} className="text-amber-400 fill-amber-400" />
-                                    {lead.score || 0} pts
-                                  </div>
-                                </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-8 flex-[2]">
+                                      <div className="space-y-1">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">WhatsApp</span>
+                                        <div className="flex items-center gap-2 text-slate-600 font-bold text-sm">
+                                          <Phone size={14} className="text-emerald-500" />
+                                          {lead.whatsapp || 'Não informado'}
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="space-y-1">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Score</span>
+                                        <div className="flex items-center gap-2 text-slate-900 font-black text-sm">
+                                          <Star size={14} className="text-amber-400 fill-amber-400" />
+                                          {lead.score || 0} pts
+                                        </div>
+                                      </div>
 
-                                <div className="space-y-1">
-                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tags</span>
-                                  <div className="flex flex-wrap gap-1">
-                                    {lead.tags && lead.tags.length > 0 ? (
-                                      lead.tags.map(tag => (
-                                        <span key={tag} className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-bold">
-                                          {tag}
-                                        </span>
-                                      ))
-                                    ) : (
-                                      <span className="text-[10px] text-slate-300 font-medium italic">Nenhuma tag</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
+                                      <div className="space-y-1">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tags</span>
+                                        <div className="flex flex-wrap gap-1">
+                                          {lead.tags && lead.tags.length > 0 ? (
+                                            lead.tags.map(tag => (
+                                              <span key={tag} className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-bold">
+                                                {tag}
+                                              </span>
+                                            ))
+                                          ) : (
+                                            <span className="text-[10px] text-slate-300 font-medium italic">Nenhuma tag</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
 
-                              <div className="flex items-center gap-2 justify-end">
-                                <button 
-                                  onClick={() => setConfirmModal({ isOpen: true, leadId: lead.id, leadName: lead.nome || 'este lead' })}
-                                  className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-all"
-                                  title="Excluir Lead"
-                                >
-                                  <Trash2 size={20} />
-                                </button>
-                                <button 
-                                  className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-all"
-                                  title="Ver Detalhes"
-                                >
-                                  <ExternalLink size={20} />
-                                </button>
+                                    <div className="flex items-center gap-2 justify-end">
+                                      <button 
+                                        onClick={() => setConfirmModal({ isOpen: true, leadId: lead.id, leadName: lead.nome || 'este lead' })}
+                                        className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-all"
+                                        title="Excluir Lead"
+                                      >
+                                        <Trash2 size={20} />
+                                      </button>
+                                      <button 
+                                        className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-all"
+                                        title="Ver Detalhes"
+                                      >
+                                        <ExternalLink size={20} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                            </div>
-                          ))}
-                        </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     </td>
                   </tr>
@@ -518,6 +573,16 @@ export default function Leads() {
         title="Excluir Lead"
         message={`Tem certeza que deseja excluir o lead "${confirmModal.leadName}"? Esta ação não pode ser desfeita.`}
         confirmText="Excluir"
+        variant="danger"
+      />
+
+      <ConfirmationModal
+        isOpen={bulkDeleteModal}
+        onClose={() => setBulkDeleteModal(false)}
+        onConfirm={handleBulkDelete}
+        title="Excluir Leads Selecionados"
+        message={`Tem certeza que deseja excluir os ${selectedLeads.length} leads selecionados? Esta ação não pode ser desfeita.`}
+        confirmText="Excluir Tudo"
         variant="danger"
       />
 
