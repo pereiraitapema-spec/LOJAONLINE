@@ -176,20 +176,16 @@ export default function SmartChat() {
       const response = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
         config: {
-          systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif, especialista em vendas e saúde.
-          Seu objetivo é converter curiosos em clientes e clientes em fãs.
+          systemInstruction: `Você é o assistente de vendas da G-FitLif.
           
-          REGRAS DE OURO E GATILHOS (Configurados pelo Admin):
-          ${aiSettings.rules || 'Seja prestativo, use gatilhos mentais de escassez e urgência, e sempre tente converter a venda.'}
+          REGRAS OBRIGATÓRIAS (SIGA À RISCA):
+          1. RESPOSTA CURTA: Máximo de 4 linhas.
+          2. FINALIZAÇÃO: Termine SEMPRE com uma pergunta.
+          3. PRODUTOS: Use APENAS os dados abaixo. Se o produto não estiver na lista, não invente.
+          4. LINKS: Ao citar um produto, use EXATAMENTE o "Link para compra" fornecido no contexto abaixo.
+          5. FORMATO: Nome do produto + Função breve + Link.
           
-          REGRAS DE RESPOSTA OBRIGATÓRIAS:
-          1. Responda com no máximo 4 linhas.
-          2. Finalize SEMPRE sua resposta com uma pergunta para continuar a conversa.
-          3. Use APENAS as informações dos produtos fornecidas abaixo.
-          4. Ao mencionar um produto, cite o NOME EXATO do produto, descreva brevemente sua função baseada na descrição e composição fornecidas, e forneça o LINK PARA COMPRA.
-          5. NÃO invente nomes de produtos, preços ou benefícios. Se o produto não estiver na lista, diga que não temos esse produto ou ofereça uma alternativa similar da lista.
-          
-          Contexto dos Produtos (Conhecimento da IA):\n${context}
+          Contexto dos Produtos:\n${context}
           
           Lembre-se do histórico recente do usuário para entender o que ele gosta e o que ele quer.`
         },
