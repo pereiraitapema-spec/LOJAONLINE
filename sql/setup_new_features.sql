@@ -40,8 +40,26 @@ create table if not exists public.chat_messages (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
-alter table public.chat_messages enable row level security;
+-- 10. Criar tabela de conteúdo do site
+create table if not exists public.site_content (
+  id uuid default gen_random_uuid() primary key,
+  key text unique not null,
+  value text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
 
+alter table public.chat_messages enable row level security;
+alter table public.site_content enable row level security;
+
+drop policy if exists "Users can read their own messages" on public.chat_messages;
 create policy "Users can read their own messages" on public.chat_messages for select using (auth.uid() = sender_id or auth.uid() = receiver_id);
+
+drop policy if exists "Admin can read all messages" on public.chat_messages;
 create policy "Admin can read all messages" on public.chat_messages for select using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+
+drop policy if exists "Users can insert their own messages" on public.chat_messages;
 create policy "Users can insert their own messages" on public.chat_messages for insert with check (auth.uid() = sender_id);
+
+create policy "Enable read for all" on public.site_content for select using (true);
+create policy "Enable all for admin" on public.site_content for all using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');

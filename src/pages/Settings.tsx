@@ -111,6 +111,20 @@ export default function Settings() {
     }
   };
 
+  const deleteSiteContent = async (key: string) => {
+    try {
+      const { error } = await supabase
+        .from('site_content')
+        .delete()
+        .eq('key', key);
+      if (error) throw error;
+      fetchSiteContent();
+      toast.success('Conteúdo removido!');
+    } catch (error: any) {
+      toast.error('Erro ao remover: ' + error.message);
+    }
+  };
+
   const handleSiteImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, key: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1819,7 +1833,7 @@ create policy "Enable delete for authenticated users only" on public.automations
                         className="max-h-32 object-contain p-4"
                       />
                       <button 
-                        onClick={() => updateSiteContent('site_logo', '')}
+                        onClick={() => deleteSiteContent('site_logo')}
                         className="absolute top-2 right-2 p-2 bg-rose-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         <Trash2 size={16} />
@@ -1852,7 +1866,7 @@ create policy "Enable delete for authenticated users only" on public.automations
                         className="w-12 h-12 object-contain"
                       />
                       <button 
-                        onClick={() => updateSiteContent('site_favicon', '')}
+                        onClick={() => deleteSiteContent('site_favicon')}
                         className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         <Trash2 size={12} />
