@@ -91,16 +91,16 @@ export default function Affiliates() {
   const [showPayments, setShowPayments] = useState(false);
   const [showLeads, setShowLeads] = useState(false);
   const [uploadingReceipt, setUploadingReceipt] = useState<string | null>(null);
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedLeads, setSelectedLeads] = useState<Lead[] | null>(null);
   const [leadOrders, setLeadOrders] = useState<any[]>([]);
 
   useEffect(() => {
-    if (selectedLead) {
+    if (selectedLeads && selectedLeads.length > 0) {
       const fetchOrders = async () => {
         const { data, error } = await supabase
           .from('orders')
           .select('*')
-          .eq('customer_email', selectedLead.email);
+          .eq('customer_email', selectedLeads[0].email);
         
         if (data) setLeadOrders(data);
       };
@@ -108,7 +108,7 @@ export default function Affiliates() {
     } else {
       setLeadOrders([]);
     }
-  }, [selectedLead]);
+  }, [selectedLeads]);
 
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
@@ -448,9 +448,9 @@ export default function Affiliates() {
 
           if (error) throw error;
           
-          setLeadsList(leadsList.filter(l => l.id !== leadId));
+          setLeadsList(prev => prev.filter(l => l.id !== leadId));
           toast.success('Lead excluído!');
-          setConfirmModal({ ...confirmModal, isOpen: false });
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
         } catch (error: any) {
           toast.error('Erro ao excluir lead: ' + error.message);
         }
@@ -613,98 +613,20 @@ export default function Affiliates() {
                   <TrendingUp size={24} className="text-indigo-600" />
                   Gestão de Leads (CRM)
                 </h2>
-                <div className="flex gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-blue-400"></span>
-                    <span className="text-xs font-bold text-slate-500">Frio</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-amber-400"></span>
-                    <span className="text-xs font-bold text-slate-500">Morno</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-red-400"></span>
-                    <span className="text-xs font-bold text-slate-500">Quente</span>
-                  </div>
-                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Lead</th>
-                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">WhatsApp</th>
-                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Status</th>
-                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Score</th>
-                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Última Atividade</th>
-                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {leadsList.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-8 text-center text-slate-500">
-                          Nenhum lead encontrado.
-                        </td>
-                      </tr>
-                    ) : (
-                      leadsList.map(lead => (
-                        <tr key={lead.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedLead(lead)}>
-                          <td className="p-4">
-                            <div className="font-bold text-slate-900">{lead.nome || 'Sem nome'}</div>
-                            <div className="text-xs text-slate-500">{lead.email}</div>
-                          </td>
-                          <td className="p-4 text-sm text-slate-600">{lead.whatsapp || '-'}</td>
-                          <td className="p-4">
-                            <select 
-                              value={lead.status_lead}
-                              onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value as Lead['status_lead'])}
-                              className={`px-2 py-1 rounded-lg text-xs font-bold border-none outline-none cursor-pointer ${
-                                lead.status_lead === 'frio' ? 'bg-blue-100 text-blue-800' :
-                                lead.status_lead === 'morno' ? 'bg-amber-100 text-amber-800' :
-                                lead.status_lead === 'quente' ? 'bg-red-100 text-red-800' :
-                                lead.status_lead === 'cliente' ? 'bg-emerald-100 text-emerald-800' :
-                                'bg-slate-100 text-slate-800'
-                              }`}
-                            >
-                              <option value="frio">Lead Frio (Curioso)</option>
-                              <option value="morno">Lead Morno (Formulário)</option>
-                              <option value="quente">Lead Quente (Interesse Real)</option>
-                              <option value="cliente">Cliente (Fechou)</option>
-                              <option value="inativo">Inativo</option>
-                            </select>
-                          </td>
-                          <td className="p-4">
-                            <div className="flex items-center gap-2">
-                              <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                <div 
-                                  className={`h-full ${
-                                    lead.score >= 80 ? 'bg-emerald-500' :
-                                    lead.score >= 40 ? 'bg-amber-500' : 'bg-blue-500'
-                                  }`}
-                                  style={{ width: `${Math.min(100, lead.score)}%` }}
-                                ></div>
-                              </div>
-                              <span className="text-xs font-bold text-slate-600">{lead.score}</span>
-                            </div>
-                          </td>
-                          <td className="p-4 text-xs text-slate-500">
-                            {new Date(lead.updated_at || lead.created_at).toLocaleString()}
-                          </td>
-                          <td className="p-4">
-                            <button 
-                              onClick={() => handleDeleteLead(lead.id)}
-                              className="p-2 text-slate-400 hover:text-red-600 transition-colors"
-                              title="Excluir Lead"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
+                {Object.entries(leadsList.reduce((acc, lead) => {
+                  const key = lead.email;
+                  if (!acc[key]) acc[key] = [];
+                  acc[key].push(lead);
+                  return acc;
+                }, {} as Record<string, Lead[]>)).map(([email, leads]) => (
+                  <div key={email} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 cursor-pointer hover:shadow-md transition-all" onClick={() => setSelectedLeads(leads)}>
+                    <h3 className="font-bold text-slate-900">{leads[0].nome}</h3>
+                    <p className="text-sm text-slate-500">{email}</p>
+                    <p className="text-sm text-indigo-600 font-bold mt-2">{leads.length} registro(s)</p>
+                  </div>
+                ))}
               </div>
             </div>
           ) : !showPayments ? (
@@ -1249,29 +1171,21 @@ export default function Affiliates() {
         variant={confirmModal.variant}
       />
 
-      {selectedLead && (
+      {selectedLeads && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-slate-900">Detalhes do Lead</h3>
-              <button onClick={() => setSelectedLead(null)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+              <button onClick={() => setSelectedLeads(null)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
             </div>
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Nome</label>
-                <p className="font-bold text-slate-900">{selectedLead.nome}</p>
+                <p className="font-bold text-slate-900">{selectedLeads[0].nome}</p>
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">WhatsApp</label>
-                <p className="font-bold text-indigo-600">{selectedLead.whatsapp || 'Não informado'}</p>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Status</label>
-                <p className="font-bold text-slate-900">{selectedLead.status_lead}</p>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Score</label>
-                <p className="font-bold text-slate-900">{selectedLead.score}</p>
+                <p className="font-bold text-indigo-600">{selectedLeads[0].whatsapp || 'Não informado'}</p>
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Histórico de Compras</label>
