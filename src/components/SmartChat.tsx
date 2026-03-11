@@ -115,6 +115,19 @@ export default function SmartChat() {
 
       // 3. Call Gemini
       const ai = new GoogleGenAI({ apiKey: keys.key_value });
+      
+      const chatHistory = messages
+        .filter((msg, index) => !(index === 0 && msg.role === 'bot')) // Remove initial greeting to avoid role sequence errors
+        .map(msg => ({
+          role: msg.role === 'bot' ? 'model' : 'user',
+          parts: [{ text: msg.content }]
+        }));
+        
+      chatHistory.push({
+        role: 'user',
+        parts: [{ text: userMessage }]
+      });
+
       const response = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
         config: {
@@ -126,7 +139,7 @@ export default function SmartChat() {
           
           Contexto dos Produtos (Conhecimento da IA):\n${context}`
         },
-        contents: [{ parts: [{ text: userMessage }] }]
+        contents: chatHistory
       });
 
       const botResponse = response.text || 'Desculpe, não consegui processar sua solicitação.';
