@@ -30,8 +30,18 @@ alter table public.discount_rules enable row level security;
 alter table public.inventory_logs enable row level security;
 alter table public.chat_memory enable row level security;
 
--- 8. Políticas RLS básicas
-drop policy if exists "Enable read for all" on public.discount_rules;
-create policy "Enable read for all" on public.discount_rules for select using (true);
-drop policy if exists "Enable all for authenticated" on public.discount_rules;
-create policy "Enable all for authenticated" on public.discount_rules for all using (auth.role() = 'authenticated');
+-- 9. Criar tabela de mensagens do chat
+create table if not exists public.chat_messages (
+  id uuid default gen_random_uuid() primary key,
+  sender_id uuid references auth.users(id) not null,
+  receiver_id uuid references auth.users(id) not null,
+  message text not null,
+  is_read boolean default false,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.chat_messages enable row level security;
+
+create policy "Users can read their own messages" on public.chat_messages for select using (auth.uid() = sender_id or auth.uid() = receiver_id);
+create policy "Admin can read all messages" on public.chat_messages for select using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+create policy "Users can insert their own messages" on public.chat_messages for insert with check (auth.uid() = sender_id);

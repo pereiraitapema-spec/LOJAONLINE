@@ -68,8 +68,26 @@ export default function SmartChat() {
     };
     fetchAiSettings();
 
-    return () => subscription.unsubscribe();
-  }, []);
+    // Subscription for real-time messages
+    const channel = supabase
+      .channel('chat_messages')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'chat_messages',
+        filter: `receiver_id=eq.${session?.user?.id}`
+      }, (payload) => {
+        const newMessage = payload.new;
+        setMessages(prev => [...prev, { role: 'bot', content: newMessage.message }]);
+        setShowNotification(true);
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id]);
 
   useEffect(() => {
     // Simular notificação após 5 segundos
@@ -110,9 +128,16 @@ export default function SmartChat() {
     const userMessage = input.trim();
     setInput('');
     
-    const updatedMessages = [...messages, { role: 'user', content: userMessage }].slice(-40);
+    const updatedMessages = [...messages, { role: 'user' as const, content: userMessage }].slice(-40);
     setMessages(updatedMessages);
     localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(updatedMessages));
+    
+    // Save to DB
+    await supabase.from('chat_messages').insert({
+      sender_id: session.user.id,
+      receiver_id: '00000000-0000-0000-0000-000000000000', // Placeholder
+      message: userMessage
+    });
     
     setLoading(true);
 
@@ -132,17 +157,30 @@ export default function SmartChat() {
         throw new Error('Assistente indisponível no momento.');
       }
 
-      // 2. Fetch Product Context for "Memory"
-      const { data: products, error: prodError } = await supabase
-        .from('products')
-        .select('id, name, description, composition, price, discount_price, stock, category:categories(name)')
-        .eq('active', true);
+      // 2. Fetch Context for "Memory"
+      const [
+        { data: products, error: prodError },
+        { data: settings, error: settingsError },
+        { data: siteContent, error: contentError }
+      ] = await Promise.all([
+        supabase.from('products').select('id, name, description, composition, price, discount_price, stock, category:categories(name)').eq('active', true),
+        supabase.from('store_settings').select('*').maybeSingle(),
+        supabase.from('site_content').select('*')
+      ]);
 
-      if (prodError) {
-        console.error('Error fetching products:', prodError);
+      if (prodError) console.error('Error fetching products:', prodError);
+      if (settingsError) console.error('Error fetching settings:', settingsError);
+      if (contentError) console.error('Error fetching content:', contentError);
+
+      let context = 'Informações da Loja:\n';
+      if (settings) {
+        context += `Nome: ${settings.company_name}\nEndereço: ${settings.address}\nWhatsApp: ${settings.whatsapp}\nHorário: ${settings.business_hours}\n`;
+      }
+      if (siteContent) {
+        context += 'Conteúdo do Site:\n' + siteContent.map(c => `${c.key}: ${c.value}`).join('\n') + '\n';
       }
 
-      const context = products && products.length > 0 
+      context += '\nProdutos:\n' + (products && products.length > 0 
         ? Object.entries(products.reduce((acc, p) => {
             const cat = (p.category as any)?.name || 'Sem Categoria';
             if (!acc[cat]) acc[cat] = [];
@@ -159,7 +197,7 @@ export default function SmartChat() {
               return `Nome: [${p.name}](${productLink})\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nDescrição: ${p.description}\nComposição: ${p.composition}`;
             }).join('\n\n');
           }).join('\n\n---\n\n')
-        : 'Nenhum produto encontrado no catálogo no momento.';
+        : 'Nenhum produto encontrado no catálogo no momento.');
 
       // 3. Call Gemini
       const ai = new GoogleGenAI({ apiKey: keys.key_value });
@@ -192,7 +230,13 @@ export default function SmartChat() {
         config: {
           systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
           
-          ${aiSettings.rules || 'Siga as instruções padrão de atendimento.'}
+          REGRAS OBRIGATÓRIAS DE VENDAS E ATENDIMENTO:
+          1. Responda com no máximo 4 linhas.
+          2. Finalize SEMPRE com uma pergunta para continuar a conversa.
+          3. Use APENAS informações dos produtos fornecidos no contexto. É PROIBIDO inventar nomes, preços, descrições, composições ou links. Se não houver informação, diga que não sabe.
+          4. Analise a descrição e composição de TODOS os produtos no contexto para recomendar a melhor opção para a necessidade do usuário.
+          5. Ao recomendar, mencione o nome exato do produto e o link de compra fornecido.
+          6. Aplique os gatilhos e regras de vendas configurados: ${aiSettings.rules || 'Siga as instruções padrão de atendimento.'}
           
           Contexto dos Produtos (Conhecimento da IA):\n${context}
           
@@ -203,12 +247,12 @@ export default function SmartChat() {
 
       const botResponse = response.text || 'Desculpe, não consegui processar sua solicitação.';
 
-      const finalMessages = [...updatedMessages, { role: 'bot', content: botResponse }].slice(-40);
+      const finalMessages = [...updatedMessages, { role: 'bot' as const, content: botResponse }].slice(-40);
       setMessages(finalMessages);
       localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(finalMessages));
     } catch (error: any) {
       console.error('Chat Error:', error);
-      const errorMessages = [...updatedMessages, { role: 'bot', content: 'Ops! Tive um problema técnico. Pode tentar novamente?' }].slice(-40);
+      const errorMessages = [...updatedMessages, { role: 'bot' as const, content: 'Ops! Tive um problema técnico. Pode tentar novamente?' }].slice(-40);
       setMessages(errorMessages);
       localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(errorMessages));
     } finally {
