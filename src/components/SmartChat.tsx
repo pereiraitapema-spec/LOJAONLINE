@@ -134,7 +134,7 @@ export default function SmartChat() {
       // 2. Fetch Product Context for "Memory"
       const { data: products, error: prodError } = await supabase
         .from('products')
-        .select('id, name, description, composition, price, discount_price, stock_quantity, category:categories(name)')
+        .select('id, name, description, composition, price, discount_price, stock, category:categories(name)')
         .eq('active', true);
 
       if (prodError) {
@@ -146,7 +146,7 @@ export default function SmartChat() {
             const currentPrice = p.discount_price || p.price;
             const hasDiscount = p.discount_price && p.discount_price < p.price;
             const discountText = hasDiscount ? ` (EM PROMOÇÃO! De R$ ${p.price} por R$ ${p.discount_price})` : '';
-            const stockText = p.stock_quantity <= 5 ? ` - APENAS ${p.stock_quantity} UNIDADES EM ESTOQUE!` : '';
+            const stockText = p.stock <= 5 ? ` - APENAS ${p.stock} UNIDADES EM ESTOQUE!` : '';
             const productLink = `${window.location.origin}/?product=${p.id}`;
             const categoryName = (p.category as any)?.name || 'Sem Categoria';
             
