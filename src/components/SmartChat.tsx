@@ -172,6 +172,11 @@ export default function SmartChat() {
           REGRAS DE OURO E GATILHOS (Configurados pelo Admin):
           ${aiSettings.rules || 'Seja prestativo, use gatilhos mentais de escassez e urgência, e sempre tente converter a venda.'}
           
+          REGRAS DE RESPOSTA OBRIGATÓRIAS:
+          1. Responda com no máximo 4 linhas.
+          2. Finalize SEMPRE sua resposta com uma pergunta para continuar a conversa.
+          3. Use APENAS as informações dos produtos fornecidas abaixo. Se o produto não estiver na lista, diga que não temos esse produto ou ofereça uma alternativa similar da lista. NÃO invente produtos.
+          
           Contexto dos Produtos (Conhecimento da IA):\n${context}
           
           Lembre-se do histórico recente do usuário para entender o que ele gosta e o que ele quer.`
