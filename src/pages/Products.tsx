@@ -193,22 +193,23 @@ export default function Products() {
     try {
       const ai = new GoogleGenAI({ apiKey: geminiKey });
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: `Crie uma descrição comercial extremamente persuasiva, expandida e detalhada para o produto "${productForm.name}".
+        model: "gemini-3-flash-preview",
+        contents: `Crie uma descrição comercial extremamente persuasiva, altamente focada em conversão, para o produto "${productForm.name}".
       
       REGRAS CRÍTICAS E OBRIGATÓRIAS:
       1. NÃO USE NENHUMA TAG HTML (como <p>, <strong>, <ul>, etc). O texto deve ser LIMPO.
       2. Use apenas quebras de linha para separar parágrafos.
-      3. Foque intensamente em BENEFÍCIOS reais e GATILHOS MENTAIS de venda (autoridade, escassez, prova social implícita, reciprocidade).
-      4. Destaque como o produto resolve dores específicas do cliente e transforma sua vida.
-      5. Estrutura sugerida:
-         - Gancho inicial irresistível.
-         - Seção detalhada de benefícios (use "-" para listas).
-         - Por que este produto é a melhor escolha do mercado.
-         - Chamada para ação persuasiva.
-      6. O texto deve ser LONGO, ENVOLVENTE e PROFISSIONAL.
-      7. NÃO use blocos de código markdown (\`\`\`html ou \`\`\`).
-      8. Retorne APENAS o texto da descrição.`,
+      3. FOCO TOTAL EM BENEFÍCIOS: Não liste apenas características técnicas. Transforme cada característica em um benefício emocional ou prático que melhore a vida do cliente.
+      4. GATILHOS MENTAIS: Utilize gatilhos de Autoridade, Escassez, Urgência, Prova Social e Reciprocidade de forma natural.
+      5. ESTRUTURA DE VENDAS:
+         - Gancho: Uma frase inicial que captura a atenção imediatamente e toca em uma dor ou desejo profundo.
+         - Benefícios: Liste os benefícios usando "-" para facilitar a leitura.
+         - Transformação: Descreva como a vida do cliente será melhor após usar este produto.
+         - Fechamento: Uma chamada para ação (CTA) forte e persuasiva.
+      6. TOM DE VOZ: Profissional, entusiasmado, confiante e empático.
+      7. O texto deve ser LONGO, ENVOLVENTE e PROFISSIONAL.
+      8. NÃO use blocos de código markdown (\`\`\`html ou \`\`\`).
+      9. Retorne APENAS o texto da descrição.`,
       });
       let text = response.text || '';
       

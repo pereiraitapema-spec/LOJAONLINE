@@ -51,17 +51,24 @@ export const leadService = {
         }
       } else {
         // Criar novo lead se não existir
-        await supabase
+        const newLead = {
+          nome: name,
+          email: email,
+          whatsapp: session.user.user_metadata?.phone || 'Não informado',
+          status_lead: status,
+          score: status === 'frio' ? 10 : (status === 'morno' ? 30 : 100)
+        };
+
+        const { data: createdLead, error: insertError } = await supabase
           .from('leads')
-          .insert([{
-            nome: name,
-            email: email,
-            whatsapp: session.user.user_metadata?.phone || 'Não informado',
-            status_lead: status,
-            score: status === 'frio' ? 10 : (status === 'morno' ? 30 : 100)
-          }]);
+          .insert([newLead])
+          .select()
+          .single();
         
+        if (insertError) throw insertError;
+
         console.log(`❄️ Novo lead criado como: ${status}`);
+        await this.sendToWebhook('lead:created', createdLead);
       }
     } catch (error) {
       console.error('❌ Erro ao atualizar status do lead:', error);

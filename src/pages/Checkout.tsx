@@ -734,7 +734,7 @@ export default function Checkout() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Nome Completo *</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Nome Completo / Razão Social *</label>
                   <input 
                     type="text" 
                     value={customer.name}
@@ -756,7 +756,7 @@ export default function Checkout() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">CPF/CNPJ *</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">CPF / CNPJ *</label>
                   <input 
                     type="text" 
                     value={customer.document}
@@ -764,6 +764,14 @@ export default function Checkout() {
                     placeholder="000.000.000-00"
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Inscrição Estadual (Opcional)</label>
+                  <input 
+                    type="text" 
+                    placeholder="000.000.000.000"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   />
                 </div>
                 <div className="md:col-span-2">

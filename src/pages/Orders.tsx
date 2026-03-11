@@ -1108,6 +1108,25 @@ export default function Orders() {
               {/* Código de Rastreio */}
               {(selectedOrder.tracking_code || isAdmin) && (
                 <div className="space-y-4">
+                  {/* Tracking info display */}
+                  {selectedOrder.tracking_code && (
+                    <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-4">
+                      <div className="flex items-center gap-2 text-indigo-700 font-bold mb-2">
+                        <Truck size={18} />
+                        Rastreamento
+                      </div>
+                      <p className="text-sm text-indigo-600 font-mono">{selectedOrder.tracking_code}</p>
+                      <a 
+                        href={`https://www.melhorenvio.com.br/rastreio/${selectedOrder.tracking_code}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-xs font-bold text-indigo-700 hover:underline mt-2 block"
+                      >
+                        Acompanhar no site da transportadora
+                      </a>
+                    </div>
+                  )}
+
                   {isAdmin && (
                     <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
                       <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2">Código de Rastreio</p>
