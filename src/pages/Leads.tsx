@@ -234,53 +234,23 @@ export default function Leads() {
             </div>
           </div>
           
-  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
-  const [showSendMessageModal, setShowSendMessageModal] = useState(false);
-  const [messageText, setMessageText] = useState('');
-
-  const toggleLeadSelection = (leadId: string) => {
-    setSelectedLeads(prev => 
-      prev.includes(leadId) ? prev.filter(id => id !== leadId) : [...prev, leadId]
-    );
-  };
-
-  const sendMessageToSelected = async () => {
-    if (!messageText.trim() || selectedLeads.length === 0) return;
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const messages = selectedLeads.map(leadId => ({
-      sender_id: user.id,
-      receiver_id: leadId,
-      message: messageText,
-      is_human: true
-    }));
-
-    await supabase.from('chat_messages').insert(messages);
-    toast.success('Mensagens enviadas!');
-    setShowSendMessageModal(false);
-    setMessageText('');
-    setSelectedLeads([]);
-  };
-
-  // ... (inside render)
-  <div className="flex items-center gap-2">
-    {selectedLeads.length > 0 && (
-      <button 
-        onClick={() => setShowSendMessageModal(true)}
-        className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700"
-      >
-        Enviar Mensagem ({selectedLeads.length})
-      </button>
-    )}
-    <button 
-      onClick={fetchLeads}
-      className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-600 hover:bg-slate-50 transition-colors"
-    >
-      <Zap size={20} />
-    </button>
-  </div>
+          <div className="flex items-center gap-2">
+            {selectedLeads.length > 0 && (
+              <button 
+                onClick={() => setShowSendMessageModal(true)}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center gap-2"
+              >
+                <MessageCircle size={18} />
+                Enviar Mensagem ({selectedLeads.length})
+              </button>
+            )}
+            <button 
+              onClick={fetchLeads}
+              className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <Zap size={20} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -405,11 +375,25 @@ export default function Leads() {
                 <tr key={email} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-4" colSpan={6}>
                     <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                      <h3 className="font-bold text-slate-900 mb-2">{email}</h3>
+                      <div className="flex items-center gap-3 mb-2">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedLeads.includes(leads[0].id)} 
+                          onChange={() => toggleLeadSelection(leads[0].id)}
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <h3 className="font-bold text-slate-900">{email}</h3>
+                      </div>
                       <div className="space-y-2">
                         {leads.map(lead => (
                           <div key={lead.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
                             <div className="flex items-center gap-3">
+                              <input 
+                                type="checkbox" 
+                                checked={selectedLeads.includes(lead.id)} 
+                                onChange={() => toggleLeadSelection(lead.id)}
+                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              />
                               <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center font-black text-xs">
                                 {lead.nome?.charAt(0).toUpperCase() || '?'}
                               </div>
@@ -452,6 +436,25 @@ export default function Leads() {
         confirmText="Excluir"
         variant="danger"
       />
+
+      {showSendMessageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Enviar Mensagem</h2>
+            <textarea 
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              className="w-full p-3 border border-slate-200 rounded-xl mb-4"
+              rows={4}
+              placeholder="Digite sua mensagem..."
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowSendMessageModal(false)} className="px-4 py-2 text-slate-600">Cancelar</button>
+              <button onClick={sendMessageToSelected} className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold">Enviar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
