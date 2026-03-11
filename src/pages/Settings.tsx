@@ -35,6 +35,8 @@ interface StoreSettings {
   tracking_pixels: { platform: string; pixel_id: string; active: boolean }[];
   n8n_webhook_url?: string;
   origin_zip_code?: string;
+  ai_chat_rules?: string;
+  ai_chat_triggers?: string;
 }
 
 export default function Settings() {
@@ -196,7 +198,9 @@ export default function Settings() {
           products_section_subtitle: data.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
           tracking_pixels: data.tracking_pixels || [],
           n8n_webhook_url: data.n8n_webhook_url || '',
-          origin_zip_code: data.origin_zip_code || ''
+          origin_zip_code: data.origin_zip_code || '',
+          ai_chat_rules: data.ai_chat_rules || '1. Use gatilhos mentais: Escassez ("Últimas unidades com desconto"), Urgência, Autoridade e Prova Social.\n2. Conhecimento do Site: Use o contexto abaixo para falar com propriedade sobre cada produto.\n3. Se o cliente demonstrar interesse em emagrecimento, sugira o combo mais vendido.\n4. Sempre termine com uma pergunta que incentive a continuação da conversa ou a compra.\n5. Use emojis moderadamente para parecer amigável, mas mantenha o profissionalismo.\n6. Se o cliente perguntar sobre frete, mencione que temos condições especiais para compras acima de R$ 200.',
+          ai_chat_triggers: data.ai_chat_triggers || 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?'
         });
       }
     } catch (error: any) {
@@ -629,7 +633,56 @@ select
     '[]'::jsonb, 
     '[]'::jsonb,
     '[]'::jsonb
-where not exists (select 1 from public.store_settings);`}
+where not exists (select 1 from public.store_settings);
+
+-- 7. Adicionar colunas para PIX de afiliados e Chat IA
+do $$
+begin
+    -- Afiliados
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_name') then
+        alter table public.affiliates add column pix_name text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_cpf') then
+        alter table public.affiliates add column pix_cpf text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_bank') then
+        alter table public.affiliates add column pix_bank text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_account') then
+        alter table public.affiliates add column pix_account text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_agency') then
+        alter table public.affiliates add column pix_agency text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'total_paid') then
+        alter table public.affiliates add column total_paid numeric(10,2) default 0;
+    end if;
+
+    -- Pagamentos de Afiliados
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_name') then
+        alter table public.affiliate_payments add column pix_name text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_cpf') then
+        alter table public.affiliate_payments add column pix_cpf text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_bank') then
+        alter table public.affiliate_payments add column pix_bank text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_account') then
+        alter table public.affiliate_payments add column pix_account text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_agency') then
+        alter table public.affiliate_payments add column pix_agency text;
+    end if;
+
+    -- Configurações da Loja (IA)
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_rules') then
+        alter table public.store_settings add column ai_chat_rules text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
+        alter table public.store_settings add column ai_chat_triggers text;
+    end if;
+end $$;`}
             </pre>
           </div>
           <button
@@ -870,7 +923,56 @@ select
     '[]'::jsonb, 
     '[]'::jsonb,
     '[]'::jsonb
-where not exists (select 1 from public.store_settings);`}
+where not exists (select 1 from public.store_settings);
+
+-- 7. Adicionar colunas para PIX de afiliados e Chat IA
+do $$
+begin
+    -- Afiliados
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_name') then
+        alter table public.affiliates add column pix_name text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_cpf') then
+        alter table public.affiliates add column pix_cpf text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_bank') then
+        alter table public.affiliates add column pix_bank text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_account') then
+        alter table public.affiliates add column pix_account text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_agency') then
+        alter table public.affiliates add column pix_agency text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'total_paid') then
+        alter table public.affiliates add column total_paid numeric(10,2) default 0;
+    end if;
+
+    -- Pagamentos de Afiliados
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_name') then
+        alter table public.affiliate_payments add column pix_name text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_cpf') then
+        alter table public.affiliate_payments add column pix_cpf text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_bank') then
+        alter table public.affiliate_payments add column pix_bank text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_account') then
+        alter table public.affiliate_payments add column pix_account text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_agency') then
+        alter table public.affiliate_payments add column pix_agency text;
+    end if;
+
+    -- Configurações da Loja (IA)
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_rules') then
+        alter table public.store_settings add column ai_chat_rules text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
+        alter table public.store_settings add column ai_chat_triggers text;
+    end if;
+end $$;`}
           </pre>
         </div>
       )}
@@ -885,6 +987,7 @@ where not exists (select 1 from public.store_settings);`}
           { id: 'shipping', label: 'Frete', icon: Truck },
           { id: 'hours', label: 'Horários', icon: Clock },
           { id: 'visual', label: 'Conteúdo Visual', icon: ImageIcon },
+          { id: 'ai_chat', label: 'Chat Inteligente', icon: Sparkles },
         ].map(tab => (
           <button
             key={tab.id}
@@ -902,6 +1005,38 @@ where not exists (select 1 from public.store_settings);`}
       </div>
 
       <div className="space-y-8">
+        {activeTab === 'ai_chat' && (
+          <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <Sparkles className="text-indigo-600" />
+              Configurações do Chat Inteligente (IA)
+            </h2>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Mensagem de Notificação (Gatilho)</label>
+                <p className="text-xs text-slate-500 mb-2">Esta mensagem aparecerá como um balão para chamar a atenção do usuário após alguns segundos.</p>
+                <input
+                  type="text"
+                  value={settings.ai_chat_triggers || ''}
+                  onChange={(e) => handleChange('ai_chat_triggers', e.target.value)}
+                  className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Ex: Olá! Tenho uma oferta especial para você hoje. Vamos conversar?"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Regras de Vendas e Comportamento da IA</label>
+                <p className="text-xs text-slate-500 mb-2">Defina como a IA deve se comportar, quais gatilhos mentais usar e como converter vendas. A IA já conhece todos os produtos ativos (nome, preço, estoque, composição e descrição).</p>
+                <textarea
+                  value={settings.ai_chat_rules || ''}
+                  onChange={(e) => handleChange('ai_chat_rules', e.target.value)}
+                  className="w-full h-64 p-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+                  placeholder="Ex: 1. Use gatilhos mentais de escassez..."
+                />
+              </div>
+            </div>
+          </section>
+        )}
+
         {activeTab === 'general' && (
           <>
             {/* Informações da Empresa */}

@@ -22,6 +22,7 @@ export default function SmartChat() {
   const [loading, setLoading] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [session, setSession] = useState<any>(null);
+  const [aiSettings, setAiSettings] = useState({ rules: '', triggers: '' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -33,6 +34,18 @@ export default function SmartChat() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
+
+    // Fetch AI Settings
+    const fetchAiSettings = async () => {
+      const { data } = await supabase.from('store_settings').select('ai_chat_rules, ai_chat_triggers').maybeSingle();
+      if (data) {
+        setAiSettings({
+          rules: data.ai_chat_rules || '',
+          triggers: data.ai_chat_triggers || 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?'
+        });
+      }
+    };
+    fetchAiSettings();
 
     return () => subscription.unsubscribe();
   }, []);
@@ -103,20 +116,15 @@ export default function SmartChat() {
       // 3. Call Gemini
       const ai = new GoogleGenAI({ apiKey: keys.key_value });
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-pro-preview",
         config: {
           systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif, especialista em vendas e saúde.
           Seu objetivo é converter curiosos em clientes e clientes em fãs.
           
-          REGRAS DE OURO:
-          1. Use gatilhos mentais: Escassez ("Últimas unidades com desconto"), Urgência, Autoridade e Prova Social.
-          2. Conhecimento do Site: Use o contexto abaixo para falar com propriedade sobre cada produto.
-          3. Se o cliente demonstrar interesse em emagrecimento, sugira o combo mais vendido.
-          4. Sempre termine com uma pergunta que incentive a continuação da conversa ou a compra.
-          5. Use emojis moderadamente para parecer amigável, mas mantenha o profissionalismo.
-          6. Se o cliente perguntar sobre frete, mencione que temos condições especiais para compras acima de R$ 200.
+          REGRAS DE OURO E GATILHOS (Configurados pelo Admin):
+          ${aiSettings.rules || 'Seja prestativo, use gatilhos mentais de escassez e urgência, e sempre tente converter a venda.'}
           
-          Contexto dos Produtos:\n${context}`
+          Contexto dos Produtos (Conhecimento da IA):\n${context}`
         },
         contents: [{ parts: [{ text: userMessage }] }]
       });
@@ -240,7 +248,7 @@ export default function SmartChat() {
             className="absolute right-20 bottom-2 bg-white p-3 rounded-2xl shadow-xl border border-slate-100 w-48 text-left"
           >
             <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Novidade!</p>
-            <p className="text-xs text-slate-600 font-medium leading-tight">Olá! Tenho uma oferta especial para você hoje. Vamos conversar?</p>
+            <p className="text-xs text-slate-600 font-medium leading-tight">{aiSettings.triggers || 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?'}</p>
             <div className="absolute right-[-8px] top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-r border-b border-slate-100 rotate-[-45deg]"></div>
           </motion.div>
         )}
