@@ -26,13 +26,33 @@ export default function SmartChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
+  const loadHistory = (userId: string) => {
+    const saved = localStorage.getItem(`gfitlif_chat_history_${userId}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.length > 0) {
+          setMessages(parsed);
+          return;
+        }
+      } catch (e) {}
+    }
+    setMessages([{ role: 'bot', content: 'Olá! Sou seu assistente inteligente G-FitLif. Como posso te ajudar hoje?' }]);
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session) loadHistory(session.user.id);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session) {
+        loadHistory(session.user.id);
+      } else {
+        setMessages([{ role: 'bot', content: 'Olá! Sou seu assistente inteligente G-FitLif. Como posso te ajudar hoje?' }]);
+      }
     });
 
     // Fetch AI Settings
@@ -79,7 +99,11 @@ export default function SmartChat() {
 
     const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    
+    const updatedMessages = [...messages, { role: 'user', content: userMessage }].slice(-40);
+    setMessages(updatedMessages);
+    localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(updatedMessages));
+    
     setLoading(true);
 
     // Marcar como lead morno ao interagir no chat
@@ -116,17 +140,28 @@ export default function SmartChat() {
       // 3. Call Gemini
       const ai = new GoogleGenAI({ apiKey: keys.key_value });
       
-      const chatHistory = messages
-        .filter((msg, index) => !(index === 0 && msg.role === 'bot')) // Remove initial greeting to avoid role sequence errors
-        .map(msg => ({
-          role: msg.role === 'bot' ? 'model' : 'user',
-          parts: [{ text: msg.content }]
-        }));
-        
-      chatHistory.push({
-        role: 'user',
-        parts: [{ text: userMessage }]
-      });
+      const rawHistory = updatedMessages.map(msg => ({
+        role: msg.role === 'bot' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+      }));
+      
+      while (rawHistory.length > 0 && rawHistory[0].role === 'model') {
+        rawHistory.shift();
+      }
+      
+      const alternatingHistory: any[] = [];
+      for (const msg of rawHistory) {
+        if (alternatingHistory.length === 0) {
+          if (msg.role === 'user') alternatingHistory.push(msg);
+        } else {
+          const lastRole = alternatingHistory[alternatingHistory.length - 1].role;
+          if (msg.role !== lastRole) {
+            alternatingHistory.push(msg);
+          } else {
+            alternatingHistory[alternatingHistory.length - 1].parts[0].text += '\n\n' + msg.parts[0].text;
+          }
+        }
+      }
 
       const response = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
@@ -137,17 +172,23 @@ export default function SmartChat() {
           REGRAS DE OURO E GATILHOS (Configurados pelo Admin):
           ${aiSettings.rules || 'Seja prestativo, use gatilhos mentais de escassez e urgência, e sempre tente converter a venda.'}
           
-          Contexto dos Produtos (Conhecimento da IA):\n${context}`
+          Contexto dos Produtos (Conhecimento da IA):\n${context}
+          
+          Lembre-se do histórico recente do usuário para entender o que ele gosta e o que ele quer.`
         },
-        contents: chatHistory
+        contents: alternatingHistory
       });
 
       const botResponse = response.text || 'Desculpe, não consegui processar sua solicitação.';
 
-      setMessages(prev => [...prev, { role: 'bot', content: botResponse }]);
+      const finalMessages = [...updatedMessages, { role: 'bot', content: botResponse }].slice(-40);
+      setMessages(finalMessages);
+      localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(finalMessages));
     } catch (error: any) {
       console.error('Chat Error:', error);
-      setMessages(prev => [...prev, { role: 'bot', content: 'Ops! Tive um problema técnico. Pode tentar novamente?' }]);
+      const errorMessages = [...updatedMessages, { role: 'bot', content: 'Ops! Tive um problema técnico. Pode tentar novamente?' }].slice(-40);
+      setMessages(errorMessages);
+      localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(errorMessages));
     } finally {
       setLoading(false);
     }
@@ -184,7 +225,7 @@ export default function SmartChat() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
-              {messages.map((msg, idx) => (
+              {messages.slice(-10).map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
                     msg.role === 'user' 

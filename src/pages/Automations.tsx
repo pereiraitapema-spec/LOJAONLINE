@@ -37,6 +37,7 @@ export default function Automations() {
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<Automation | null>(null);
+  const [tableError, setTableError] = useState(false);
   
   const [form, setForm] = useState({
     name: '',
@@ -62,8 +63,15 @@ export default function Automations() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setAutomations(data || []);
+      if (error) {
+        if (error.code === '42P01') { // table does not exist
+          setTableError(true);
+        } else {
+          throw error;
+        }
+      } else {
+        setAutomations(data || []);
+      }
     } catch (error: any) {
       toast.error('Erro ao carregar automações: ' + error.message);
     } finally {
@@ -170,6 +178,31 @@ export default function Automations() {
   };
 
   if (loading) return <Loading message="Carregando fluxos..." />;
+
+  if (tableError) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 mb-6 transition-colors cursor-pointer" onClick={() => navigate('/dashboard')}>
+            <ArrowLeft size={18} />
+            Voltar ao Painel
+          </div>
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 text-center">
+            <h2 className="text-2xl font-bold text-rose-700 mb-4">Banco de Dados Incompleto</h2>
+            <p className="text-rose-600 mb-6">
+              A tabela de automações não foi encontrada. Por favor, vá até a página de <strong>Configurações</strong> e execute o <strong>SQL de Instalação</strong> no Supabase.
+            </p>
+            <button
+              onClick={() => navigate('/settings')}
+              className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+            >
+              Ir para Configurações
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
