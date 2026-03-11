@@ -161,13 +161,28 @@ export default function Leads() {
     }
   };
 
-  // Group leads by email
-  const groupedLeads = filteredLeads.reduce((acc, lead) => {
-    const email = lead.email || 'sem-email';
-    if (!acc[email]) acc[email] = [];
-    acc[email].push(lead);
-    return acc;
-  }, {} as Record<string, Lead[]>);
+  const filteredLeads = leads.filter(lead => {
+    const matchesSearch = 
+      lead.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.whatsapp?.includes(searchTerm);
+    
+    const matchesStatus = statusFilter === 'all' || lead.status_lead === statusFilter;
+
+    const matchesTags = !tagFilter || lead.tags?.some(tag => tag.toLowerCase().includes(tagFilter.toLowerCase()));
+
+    const leadDate = new Date(lead.created_at);
+    const matchesDate = (!startDate || leadDate >= new Date(startDate)) && 
+                        (!endDate || leadDate <= new Date(endDate + 'T23:59:59'));
+
+    const interactionDate = new Date(lead.updated_at);
+    const matchesInteraction = (!interactionStartDate || interactionDate >= new Date(interactionStartDate)) && 
+                               (!interactionEndDate || interactionDate <= new Date(interactionEndDate + 'T23:59:59'));
+    
+    return matchesSearch && matchesStatus && matchesTags && matchesDate && matchesInteraction;
+  });
+
+  const getStatusBadge = (status: Lead['status_lead']) => {
     const styles = {
       frio: 'bg-blue-100 text-blue-700',
       morno: 'bg-amber-100 text-amber-700',
@@ -191,26 +206,13 @@ export default function Leads() {
     );
   };
 
-  const filteredLeads = leads.filter(lead => {
-    const matchesSearch = 
-      lead.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.whatsapp?.includes(searchTerm);
-    
-    const matchesStatus = statusFilter === 'all' || lead.status_lead === statusFilter;
-
-    const matchesTags = !tagFilter || lead.tags?.some(tag => tag.toLowerCase().includes(tagFilter.toLowerCase()));
-
-    const leadDate = new Date(lead.created_at);
-    const matchesDate = (!startDate || leadDate >= new Date(startDate)) && 
-                        (!endDate || leadDate <= new Date(endDate + 'T23:59:59'));
-
-    const interactionDate = new Date(lead.updated_at);
-    const matchesInteraction = (!interactionStartDate || interactionDate >= new Date(interactionStartDate)) && 
-                               (!interactionEndDate || interactionDate <= new Date(interactionEndDate + 'T23:59:59'));
-    
-    return matchesSearch && matchesStatus && matchesTags && matchesDate && matchesInteraction;
-  });
+  // Group leads by email
+  const groupedLeads = filteredLeads.reduce((acc, lead) => {
+    const email = lead.email || 'sem-email';
+    if (!acc[email]) acc[email] = [];
+    acc[email].push(lead);
+    return acc;
+  }, {} as Record<string, Lead[]>);
 
   if (loading) return <Loading message="Carregando CRM de Leads..." />;
 
