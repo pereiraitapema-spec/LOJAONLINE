@@ -61,6 +61,43 @@ export default function Leads() {
     leadId: null,
     leadName: ''
   });
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [showSendMessageModal, setShowSendMessageModal] = useState(false);
+  const [messageText, setMessageText] = useState('');
+
+  const toggleLeadSelection = (leadId: string) => {
+    setSelectedLeads(prev => 
+      prev.includes(leadId) ? prev.filter(id => id !== leadId) : [...prev, leadId]
+    );
+  };
+
+  const toggleAllLeads = () => {
+    if (selectedLeads.length === filteredLeads.length) {
+      setSelectedLeads([]);
+    } else {
+      setSelectedLeads(filteredLeads.map(l => l.id));
+    }
+  };
+
+  const sendMessageToSelected = async () => {
+    if (!messageText.trim() || selectedLeads.length === 0) return;
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const messages = selectedLeads.map(leadId => ({
+      sender_id: user.id,
+      receiver_id: leadId,
+      message: messageText,
+      is_human: true
+    }));
+
+    await supabase.from('chat_messages').insert(messages);
+    toast.success('Mensagens enviadas!');
+    setShowSendMessageModal(false);
+    setMessageText('');
+    setSelectedLeads([]);
+  };
 
   useEffect(() => {
     fetchLeads();
@@ -124,7 +161,13 @@ export default function Leads() {
     }
   };
 
-  const getStatusBadge = (status: Lead['status_lead']) => {
+  // Group leads by email
+  const groupedLeads = filteredLeads.reduce((acc, lead) => {
+    const email = lead.email || 'sem-email';
+    if (!acc[email]) acc[email] = [];
+    acc[email].push(lead);
+    return acc;
+  }, {} as Record<string, Lead[]>);
     const styles = {
       frio: 'bg-blue-100 text-blue-700',
       morno: 'bg-amber-100 text-amber-700',
@@ -191,14 +234,53 @@ export default function Leads() {
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={fetchLeads}
-              className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-600 hover:bg-slate-50 transition-colors"
-            >
-              <Zap size={20} />
-            </button>
-          </div>
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [showSendMessageModal, setShowSendMessageModal] = useState(false);
+  const [messageText, setMessageText] = useState('');
+
+  const toggleLeadSelection = (leadId: string) => {
+    setSelectedLeads(prev => 
+      prev.includes(leadId) ? prev.filter(id => id !== leadId) : [...prev, leadId]
+    );
+  };
+
+  const sendMessageToSelected = async () => {
+    if (!messageText.trim() || selectedLeads.length === 0) return;
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const messages = selectedLeads.map(leadId => ({
+      sender_id: user.id,
+      receiver_id: leadId,
+      message: messageText,
+      is_human: true
+    }));
+
+    await supabase.from('chat_messages').insert(messages);
+    toast.success('Mensagens enviadas!');
+    setShowSendMessageModal(false);
+    setMessageText('');
+    setSelectedLeads([]);
+  };
+
+  // ... (inside render)
+  <div className="flex items-center gap-2">
+    {selectedLeads.length > 0 && (
+      <button 
+        onClick={() => setShowSendMessageModal(true)}
+        className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700"
+      >
+        Enviar Mensagem ({selectedLeads.length})
+      </button>
+    )}
+    <button 
+      onClick={fetchLeads}
+      className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-600 hover:bg-slate-50 transition-colors"
+    >
+      <Zap size={20} />
+    </button>
+  </div>
         </div>
       </header>
 
@@ -319,106 +401,30 @@ export default function Leads() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredLeads.map((lead) => (
-                <tr key={lead.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center font-black">
-                        {lead.nome?.charAt(0).toUpperCase() || '?'}
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900">{lead.nome || 'Sem nome'}</p>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {lead.tags?.map((tag, i) => (
-                            <span key={i} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-bold rounded uppercase tracking-wider">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <Mail size={14} className="text-slate-400" />
-                        {lead.email}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <Phone size={14} className="text-slate-400" />
-                        {lead.whatsapp || 'Não informado'}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    {getStatusBadge(lead.status_lead)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full transition-all ${lead.score >= 80 ? 'bg-rose-500' : (lead.score >= 40 ? 'bg-amber-500' : 'bg-blue-500')}`}
-                          style={{ width: `${lead.score}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-bold text-slate-600">{lead.score}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <Calendar size={14} className="text-slate-400" />
-                      {format(new Date(lead.updated_at), "dd MMM, HH:mm", { locale: ptBR })}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <a 
-                        href={`https://wa.me/${lead.whatsapp?.replace(/\D/g, '')}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                        title="Enviar WhatsApp"
-                      >
-                        <MessageCircle size={20} />
-                      </a>
-                      <div className="relative group/menu">
-                        <button className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors">
-                          <MoreHorizontal size={20} />
-                        </button>
-                        <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all z-20">
-                          <p className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Mudar Status</p>
-                          <button 
-                            onClick={() => updateLeadStatus(lead.id, 'quente')}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-rose-50 text-rose-600 flex items-center gap-2"
-                          >
-                            <Zap size={14} /> Marcar como Quente
-                          </button>
-                          <button 
-                            onClick={() => updateLeadStatus(lead.id, 'morno')}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-amber-50 text-amber-600 flex items-center gap-2"
-                          >
-                            <TrendingUp size={14} /> Marcar como Morno
-                          </button>
-                          <button 
-                            onClick={() => updateLeadStatus(lead.id, 'cliente')}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-emerald-50 text-emerald-600 flex items-center gap-2"
-                          >
-                            <Star size={14} /> Marcar como Cliente
-                          </button>
-                          <button 
-                            onClick={() => updateLeadStatus(lead.id, 'inativo')}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 text-slate-600 flex items-center gap-2"
-                          >
-                            <ExternalLink size={14} /> Marcar como Inativo
-                          </button>
-                          <div className="border-t border-slate-100 my-1" />
-                          <button 
-                            onClick={() => setConfirmModal({ isOpen: true, leadId: lead.id, leadName: lead.nome || 'este lead' })}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
-                          >
-                            <Trash2 size={14} /> Excluir Lead
-                          </button>
-                        </div>
+              {Object.entries(groupedLeads).map(([email, leads]) => (
+                <tr key={email} className="hover:bg-slate-50/50 transition-colors group">
+                  <td className="px-6 py-4" colSpan={6}>
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                      <h3 className="font-bold text-slate-900 mb-2">{email}</h3>
+                      <div className="space-y-2">
+                        {leads.map(lead => (
+                          <div key={lead.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center font-black text-xs">
+                                {lead.nome?.charAt(0).toUpperCase() || '?'}
+                              </div>
+                              <p className="font-bold text-slate-900 text-sm">{lead.nome || 'Sem nome'}</p>
+                              {getStatusBadge(lead.status_lead)}
+                            </div>
+                            <button 
+                              onClick={() => setConfirmModal({ isOpen: true, leadId: lead.id, leadName: lead.nome || 'este lead' })}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Excluir Lead"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </td>

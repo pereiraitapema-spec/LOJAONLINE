@@ -399,6 +399,22 @@ export default function Orders() {
     }
   };
 
+  const deleteOrder = async (orderId: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .delete()
+        .eq('id', orderId);
+
+      if (error) throw error;
+      
+      setOrders(orders.filter(o => o.id !== orderId));
+      toast.success('Pedido excluído com sucesso!');
+    } catch (error: any) {
+      toast.error('Erro ao excluir pedido: ' + error.message);
+    }
+  };
+
   const [sendingRecovery, setSendingRecovery] = useState<string | null>(null);
 
   const handleManualRecovery = async (cart: AbandonedCart) => {
@@ -673,7 +689,7 @@ export default function Orders() {
                         {getStatusText(order.status)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
                       <button 
                         onClick={() => {
                           setSelectedOrder(order);
@@ -685,6 +701,15 @@ export default function Orders() {
                       >
                         <Eye size={18} />
                       </button>
+                      {isAdmin && (
+                        <button 
+                          onClick={() => deleteOrder(order.id)}
+                          className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex"
+                          title="Excluir Pedido"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
