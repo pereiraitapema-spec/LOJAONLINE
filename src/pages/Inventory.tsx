@@ -233,6 +233,7 @@ export default function Inventory() {
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Estoque</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Custo</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Venda</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Margem</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
                   </tr>
                 </thead>
@@ -262,6 +263,9 @@ export default function Inventory() {
                       </td>
                       <td className="px-6 py-4 text-right text-sm font-black text-slate-900">
                         R$ {product.price.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 text-right text-sm font-bold text-emerald-600">
+                        {product.price > 0 ? (((product.price - (product.cost_price || 0)) / product.price) * 100).toFixed(0) : 0}%
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button
