@@ -469,7 +469,7 @@ export default function Settings() {
             Por favor, execute o comando SQL abaixo no Editor SQL do Supabase.
           </p>
           <div className="bg-slate-900 rounded-xl p-4 text-left overflow-x-auto mb-6">
-            <pre className="text-emerald-400 text-xs font-mono">
+            <pre id="sql-code-main" className="text-emerald-400 text-xs font-mono">
 {`-- Execute este SQL no Editor SQL do Supabase para corrigir os erros
 
 -- 0. Adicionar colunas de Frete e Social (Novo)
@@ -686,13 +686,41 @@ begin
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
         alter table public.store_settings add column ai_chat_triggers text;
     end if;
-end $$;`}
+end $$;
+
+-- 8. Tabela de Automações (n8n-like)
+create table if not exists public.automations (
+    id uuid default gen_random_uuid() primary key,
+    name text not null,
+    trigger_type text not null,
+    action_type text not null,
+    config jsonb default '{}'::jsonb,
+    active boolean default true,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.automations enable row level security;
+
+drop policy if exists "Enable read access for all users" on public.automations;
+create policy "Enable read access for all users" on public.automations for select using (true);
+
+drop policy if exists "Enable insert for authenticated users only" on public.automations;
+create policy "Enable insert for authenticated users only" on public.automations for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Enable update for authenticated users only" on public.automations;
+create policy "Enable update for authenticated users only" on public.automations for update using (auth.role() = 'authenticated');
+
+drop policy if exists "Enable delete for authenticated users only" on public.automations;
+create policy "Enable delete for authenticated users only" on public.automations for delete using (auth.role() = 'authenticated');`}
             </pre>
           </div>
           <button
             onClick={() => {
-              navigator.clipboard.writeText(`-- SQL Copiado --`);
-              toast.success('SQL copiado para a área de transferência!');
+              const codeElement = document.getElementById('sql-code-main');
+              if (codeElement) {
+                navigator.clipboard.writeText(codeElement.innerText);
+                toast.success('SQL copiado para a área de transferência!');
+              }
             }}
             className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
           >
@@ -976,7 +1004,32 @@ begin
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
         alter table public.store_settings add column ai_chat_triggers text;
     end if;
-end $$;`}
+end $$;
+
+-- 8. Tabela de Automações (n8n-like)
+create table if not exists public.automations (
+    id uuid default gen_random_uuid() primary key,
+    name text not null,
+    trigger_type text not null,
+    action_type text not null,
+    config jsonb default '{}'::jsonb,
+    active boolean default true,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.automations enable row level security;
+
+drop policy if exists "Enable read access for all users" on public.automations;
+create policy "Enable read access for all users" on public.automations for select using (true);
+
+drop policy if exists "Enable insert for authenticated users only" on public.automations;
+create policy "Enable insert for authenticated users only" on public.automations for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Enable update for authenticated users only" on public.automations;
+create policy "Enable update for authenticated users only" on public.automations for update using (auth.role() = 'authenticated');
+
+drop policy if exists "Enable delete for authenticated users only" on public.automations;
+create policy "Enable delete for authenticated users only" on public.automations for delete using (auth.role() = 'authenticated');`}
           </pre>
         </div>
       )}
