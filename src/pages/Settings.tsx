@@ -513,6 +513,7 @@ drop policy if exists "Enable read for authenticated users" on public.abandoned_
 create policy "Enable read for authenticated users" on public.abandoned_carts for select using (auth.role() = 'authenticated');
 drop policy if exists "Enable insert/update for all" on public.abandoned_carts;
 create policy "Enable insert/update for all" on public.abandoned_carts for insert with check (true);
+drop policy if exists "Enable update for all" on public.abandoned_carts;
 create policy "Enable update for all" on public.abandoned_carts for update using (true);
 
 -- 1. Atualizar tabela de categorias (Novo)
@@ -831,6 +832,7 @@ drop policy if exists "Enable read for authenticated users" on public.abandoned_
 create policy "Enable read for authenticated users" on public.abandoned_carts for select using (auth.role() = 'authenticated');
 drop policy if exists "Enable insert/update for all" on public.abandoned_carts;
 create policy "Enable insert/update for all" on public.abandoned_carts for insert with check (true);
+drop policy if exists "Enable update for all" on public.abandoned_carts;
 create policy "Enable update for all" on public.abandoned_carts for update using (true);
 
 -- 1. Atualizar tabela de categorias (Novo)
