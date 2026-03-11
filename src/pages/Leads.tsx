@@ -155,6 +155,7 @@ export default function Leads() {
 
       if (error) throw error;
       toast.success('Lead excluído com sucesso!');
+      setConfirmModal({ isOpen: false, leadId: null, leadName: '' });
       fetchLeads();
     } catch (error: any) {
       toast.error('Erro ao excluir lead: ' + error.message);
@@ -373,49 +374,130 @@ export default function Leads() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {Object.entries(groupedLeads).map(([email, leads]) => (
-                <tr key={email} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-6 py-4" colSpan={6}>
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                      <div className="flex items-center gap-3 mb-2">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedLeads.includes(leads[0].id)} 
-                          onChange={() => toggleLeadSelection(leads[0].id)}
-                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <h3 className="font-bold text-slate-900">{email}</h3>
-                      </div>
-                      <div className="space-y-2">
-                        {leads.map(lead => (
-                          <div key={lead.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <input 
-                                type="checkbox" 
-                                checked={selectedLeads.includes(lead.id)} 
-                                onChange={() => toggleLeadSelection(lead.id)}
-                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                              />
-                              <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center font-black text-xs">
-                                {lead.nome?.charAt(0).toUpperCase() || '?'}
-                              </div>
-                              <p className="font-bold text-slate-900 text-sm">{lead.nome || 'Sem nome'}</p>
-                              {getStatusBadge(lead.status_lead)}
+              {Object.entries(groupedLeads).map(([email, leads]) => {
+                const allSelected = leads.every(l => selectedLeads.includes(l.id));
+                const someSelected = leads.some(l => selectedLeads.includes(l.id));
+                
+                return (
+                  <tr key={email} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="px-6 py-8" colSpan={6}>
+                      <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
+                        {/* Header do Card Unificado */}
+                        <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <input 
+                              type="checkbox" 
+                              checked={allSelected}
+                              ref={el => el && (el.indeterminate = someSelected && !allSelected)}
+                              onChange={() => {
+                                if (allSelected) {
+                                  setSelectedLeads(prev => prev.filter(id => !leads.map(l => l.id).includes(id)));
+                                } else {
+                                  setSelectedLeads(prev => [...new Set([...prev, ...leads.map(l => l.id)])]);
+                                }
+                              }}
+                              className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                            <div>
+                              <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
+                                <Mail size={18} className="text-indigo-500" />
+                                {email}
+                              </h3>
+                              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
+                                {leads.length} {leads.length === 1 ? 'Registro encontrado' : 'Registros encontrados'}
+                              </p>
                             </div>
-                            <button 
-                              onClick={() => setConfirmModal({ isOpen: true, leadId: lead.id, leadName: lead.nome || 'este lead' })}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Excluir Lead"
-                            >
-                              <Trash2 size={16} />
-                            </button>
                           </div>
-                        ))}
+                          
+                          <div className="flex items-center gap-2">
+                            <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                              Lead Unificado
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Lista de Leads dentro do Card */}
+                        <div className="divide-y divide-slate-50">
+                          {leads.map(lead => (
+                            <div key={lead.id} className="p-6 hover:bg-slate-50/30 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                              <div className="flex items-center gap-4 flex-1">
+                                <input 
+                                  type="checkbox" 
+                                  checked={selectedLeads.includes(lead.id)} 
+                                  onChange={() => toggleLeadSelection(lead.id)}
+                                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                />
+                                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-2xl flex items-center justify-center font-black text-lg shadow-sm">
+                                  {lead.nome?.charAt(0).toUpperCase() || '?'}
+                                </div>
+                                <div>
+                                  <p className="font-black text-slate-900 text-base">{lead.nome || 'Sem nome'}</p>
+                                  <div className="flex items-center gap-3 mt-1">
+                                    {getStatusBadge(lead.status_lead)}
+                                    <span className="flex items-center gap-1 text-xs text-slate-400 font-medium">
+                                      <Calendar size={12} />
+                                      {format(new Date(lead.created_at), "dd MMM yyyy", { locale: ptBR })}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-8 flex-[2]">
+                                <div className="space-y-1">
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">WhatsApp</span>
+                                  <div className="flex items-center gap-2 text-slate-600 font-bold text-sm">
+                                    <Phone size={14} className="text-emerald-500" />
+                                    {lead.whatsapp || 'Não informado'}
+                                  </div>
+                                </div>
+                                
+                                <div className="space-y-1">
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Score</span>
+                                  <div className="flex items-center gap-2 text-slate-900 font-black text-sm">
+                                    <Star size={14} className="text-amber-400 fill-amber-400" />
+                                    {lead.score || 0} pts
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tags</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {lead.tags && lead.tags.length > 0 ? (
+                                      lead.tags.map(tag => (
+                                        <span key={tag} className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-bold">
+                                          {tag}
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span className="text-[10px] text-slate-300 font-medium italic">Nenhuma tag</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 justify-end">
+                                <button 
+                                  onClick={() => setConfirmModal({ isOpen: true, leadId: lead.id, leadName: lead.nome || 'este lead' })}
+                                  className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-all"
+                                  title="Excluir Lead"
+                                >
+                                  <Trash2 size={20} />
+                                </button>
+                                <button 
+                                  className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-all"
+                                  title="Ver Detalhes"
+                                >
+                                  <ExternalLink size={20} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredLeads.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-6 py-20 text-center">
