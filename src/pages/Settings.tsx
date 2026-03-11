@@ -100,11 +100,13 @@ export default function Settings() {
         .maybeSingle();
 
       if (existing) {
-        await supabase.from('site_content').update({ value }).eq('key', key);
+        const { error: updateError } = await supabase.from('site_content').update({ value }).eq('key', key);
+        if (updateError) throw updateError;
       } else {
-        await supabase.from('site_content').insert([{ key, value }]);
+        const { error: insertError } = await supabase.from('site_content').insert([{ key, value }]);
+        if (insertError) throw insertError;
       }
-      fetchSiteContent();
+      await fetchSiteContent();
       toast.success('Conteúdo atualizado!');
     } catch (error: any) {
       toast.error('Erro ao salvar: ' + error.message);
