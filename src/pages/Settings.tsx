@@ -133,12 +133,35 @@ export default function Settings() {
 
     setSaving(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `site/${key}_${Math.random()}.${fileExt}`;
+      // Converter para PNG se não for
+      let fileToUpload = file;
+      if (!file.type.includes('png')) {
+        const canvas = document.createElement('canvas');
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        
+        await new Promise((resolve) => {
+          img.onload = resolve;
+          img.src = objectUrl;
+        });
+        
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0);
+        
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+        if (blob) {
+          fileToUpload = new File([blob], `${file.name.split('.')[0]}.png`, { type: 'image/png' });
+        }
+        URL.revokeObjectURL(objectUrl);
+      }
+
+      const fileName = `site/${key}_${new Date().getTime()}.png`;
       
       const { error: uploadError } = await supabase.storage
         .from('banners')
-        .upload(fileName, file);
+        .upload(fileName, fileToUpload, { contentType: 'image/png', upsert: true });
 
       if (uploadError) throw uploadError;
 
