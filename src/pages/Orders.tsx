@@ -1105,6 +1105,49 @@ export default function Orders() {
                 </div>
               </div>
 
+              {/* Dados para Faturamento e Logística */}
+              <div className="space-y-4">
+                <h3 className="font-bold text-slate-900 border-b border-slate-100 pb-2">Dados para Faturamento e Logística</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Nome/Razão Social</p>
+                    <p className="text-sm font-bold text-slate-900">{selectedOrder.customer_name}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">CPF/CNPJ</p>
+                    <p className="text-sm font-bold text-slate-900">{selectedOrder.customer_document}</p>
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Endereço Completo</p>
+                    <p className="text-sm text-slate-700">
+                      {selectedOrder.shipping_address?.street}, {selectedOrder.shipping_address?.number} {selectedOrder.shipping_address?.complement && `- ${selectedOrder.shipping_address.complement}`}
+                      <br />
+                      {selectedOrder.shipping_address?.neighborhood}, {selectedOrder.shipping_address?.city} - {selectedOrder.shipping_address?.state}
+                      <br />
+                      CEP: {selectedOrder.shipping_address?.zipCode}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Total do Pedido</p>
+                    <p className="text-sm font-bold text-slate-900">R$ {selectedOrder.total.toFixed(2)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Peso Total (Est.)</p>
+                    <p className="text-sm font-bold text-slate-900">{orderItems.reduce((acc, item) => acc + (item.quantity * 0.5), 0).toFixed(2)} kg</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    const text = `Nome: ${selectedOrder.customer_name}\nDoc: ${selectedOrder.customer_document}\nEndereço: ${selectedOrder.shipping_address?.street}, ${selectedOrder.shipping_address?.number}, ${selectedOrder.shipping_address?.neighborhood}, ${selectedOrder.shipping_address?.city}-${selectedOrder.shipping_address?.state}, CEP: ${selectedOrder.shipping_address?.zipCode}\nTotal: R$ ${selectedOrder.total.toFixed(2)}`;
+                    navigator.clipboard.writeText(text);
+                    toast.success('Dados copiados para a área de transferência!');
+                  }}
+                  className="w-full py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-300 transition-colors"
+                >
+                  Copiar todos os dados
+                </button>
+              </div>
+
               {/* Código de Rastreio */}
               {(selectedOrder.tracking_code || isAdmin) && (
                 <div className="space-y-4">
