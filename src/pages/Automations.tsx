@@ -274,9 +274,9 @@ export default function Automations() {
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden"
+              className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-600 text-white">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-600 text-white shrink-0">
                 <h2 className="text-xl font-bold flex items-center gap-2">
                   <Zap size={24} />
                   {editingAutomation ? 'Editar Automação' : 'Novo Fluxo de Automação'}
@@ -286,8 +286,9 @@ export default function Automations() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="overflow-y-auto p-8">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="col-span-full">
                     <label className="block text-sm font-bold text-slate-700 mb-2">Nome da Automação</label>
                     <input 
@@ -407,6 +408,7 @@ export default function Automations() {
                   </button>
                 </div>
               </form>
+              </div>
             </motion.div>
           </div>
         )}

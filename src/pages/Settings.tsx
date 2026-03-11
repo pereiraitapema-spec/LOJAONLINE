@@ -217,7 +217,7 @@ export default function Settings() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (showToast = true) => {
     if (!settings) return;
     setSaving(true);
     try {
@@ -246,7 +246,9 @@ export default function Settings() {
         products_section_subtitle: settings.products_section_subtitle,
         tracking_pixels: settings.tracking_pixels,
         n8n_webhook_url: settings.n8n_webhook_url,
-        origin_zip_code: settings.origin_zip_code
+        origin_zip_code: settings.origin_zip_code,
+        ai_chat_rules: settings.ai_chat_rules,
+        ai_chat_triggers: settings.ai_chat_triggers
       };
 
       console.log('Salvando configurações:', payload);
@@ -257,7 +259,9 @@ export default function Settings() {
         .eq('id', settings.id);
 
       if (error) throw error;
-      toast.success('Configurações salvas e aplicadas na loja!');
+      if (showToast) {
+        toast.success('Configurações salvas e aplicadas na loja!');
+      }
     } catch (error: any) {
       console.error('Error saving settings:', error);
       toast.error('Erro ao salvar: ' + error.message);
@@ -1007,10 +1011,31 @@ end $$;`}
       <div className="space-y-8">
         {activeTab === 'ai_chat' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <Sparkles className="text-indigo-600" />
-              Configurações do Chat Inteligente (IA)
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <Sparkles className="text-indigo-600" />
+                Configurações do Chat Inteligente (IA)
+              </h2>
+              <button
+                onClick={async () => {
+                  await handleSave(false);
+                  toast.success('Memória da IA salva com sucesso!', {
+                    icon: '🧠',
+                    duration: 4000,
+                    style: {
+                      borderRadius: '10px',
+                      background: '#333',
+                      color: '#fff',
+                    },
+                  });
+                }}
+                disabled={saving}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {saving ? <Loading message="" /> : <Save size={18} />}
+                Salvar Memória
+              </button>
+            </div>
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">Mensagem de Notificação (Gatilho)</label>
