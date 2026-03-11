@@ -13,10 +13,12 @@ import {
   ExternalLink,
   MessageCircle,
   Zap,
-  Star
+  Star,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -28,6 +30,7 @@ interface Lead {
   whatsapp: string;
   status_lead: 'frio' | 'morno' | 'quente' | 'cliente' | 'inativo';
   score: number;
+  tags: string[];
   created_at: string;
   updated_at: string;
 }
@@ -37,12 +40,26 @@ export default function Leads() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [tagFilter, setTagFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [interactionStartDate, setInteractionStartDate] = useState('');
+  const [interactionEndDate, setInteractionEndDate] = useState('');
   const [stats, setStats] = useState({
     total: 0,
     hot: 0,
     warm: 0,
     cold: 0,
     customers: 0
+  });
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    leadId: string | null;
+    leadName: string;
+  }>({
+    isOpen: false,
+    leadId: null,
+    leadName: ''
   });
 
   useEffect(() => {
@@ -92,6 +109,21 @@ export default function Leads() {
     }
   };
 
+  const handleDeleteLead = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success('Lead excluído com sucesso!');
+      fetchLeads();
+    } catch (error: any) {
+      toast.error('Erro ao excluir lead: ' + error.message);
+    }
+  };
+
   const getStatusBadge = (status: Lead['status_lead']) => {
     const styles = {
       frio: 'bg-blue-100 text-blue-700',
@@ -123,8 +155,18 @@ export default function Leads() {
       lead.whatsapp?.includes(searchTerm);
     
     const matchesStatus = statusFilter === 'all' || lead.status_lead === statusFilter;
+
+    const matchesTags = !tagFilter || lead.tags?.some(tag => tag.toLowerCase().includes(tagFilter.toLowerCase()));
+
+    const leadDate = new Date(lead.created_at);
+    const matchesDate = (!startDate || leadDate >= new Date(startDate)) && 
+                        (!endDate || leadDate <= new Date(endDate + 'T23:59:59'));
+
+    const interactionDate = new Date(lead.updated_at);
+    const matchesInteraction = (!interactionStartDate || interactionDate >= new Date(interactionStartDate)) && 
+                               (!interactionEndDate || interactionDate <= new Date(interactionEndDate + 'T23:59:59'));
     
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesTags && matchesDate && matchesInteraction;
   });
 
   if (loading) return <Loading message="Carregando CRM de Leads..." />;
@@ -184,32 +226,83 @@ export default function Leads() {
       </div>
 
       <div className="max-w-7xl mx-auto bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between items-center">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-            <input 
-              type="text" 
-              placeholder="Buscar por nome, email ou whatsapp..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-            />
+        <div className="p-6 border-b border-slate-100 space-y-6">
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+            <div className="relative w-full md:w-96">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <input 
+                type="text" 
+                placeholder="Buscar por nome, email ou whatsapp..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+              />
+            </div>
+            
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <Filter size={20} className="text-slate-400" />
+              <select 
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="flex-1 md:w-48 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-600"
+              >
+                <option value="all">Todos os Status</option>
+                <option value="quente">⚡ Quente</option>
+                <option value="morno">🔥 Morno</option>
+                <option value="frio">❄️ Frio</option>
+                <option value="cliente">🛍️ Cliente</option>
+                <option value="inativo">💤 Inativo</option>
+              </select>
+            </div>
           </div>
-          
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <Filter size={20} className="text-slate-400" />
-            <select 
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="flex-1 md:w-48 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-slate-600"
-            >
-              <option value="all">Todos os Status</option>
-              <option value="quente">⚡ Quente</option>
-              <option value="morno">🔥 Morno</option>
-              <option value="frio">❄️ Frio</option>
-              <option value="cliente">🛍️ Cliente</option>
-              <option value="inativo">💤 Inativo</option>
-            </select>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Tags</label>
+              <input 
+                type="text" 
+                placeholder="Filtrar por tag..."
+                value={tagFilter}
+                onChange={(e) => setTagFilter(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Criação (De)</label>
+              <input 
+                type="date" 
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Criação (Até)</label>
+              <input 
+                type="date" 
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Interação (De)</label>
+              <input 
+                type="date" 
+                value={interactionStartDate}
+                onChange={(e) => setInteractionStartDate(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Interação (Até)</label>
+              <input 
+                type="date" 
+                value={interactionEndDate}
+                onChange={(e) => setInteractionEndDate(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
           </div>
         </div>
 
@@ -235,7 +328,13 @@ export default function Leads() {
                       </div>
                       <div>
                         <p className="font-bold text-slate-900">{lead.nome || 'Sem nome'}</p>
-                        <p className="text-xs text-slate-400">ID: {lead.id.split('-')[0]}</p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {lead.tags?.map((tag, i) => (
+                            <span key={i} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-bold rounded uppercase tracking-wider">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -312,6 +411,13 @@ export default function Leads() {
                           >
                             <ExternalLink size={14} /> Marcar como Inativo
                           </button>
+                          <div className="border-t border-slate-100 my-1" />
+                          <button 
+                            onClick={() => setConfirmModal({ isOpen: true, leadId: lead.id, leadName: lead.nome || 'este lead' })}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
+                          >
+                            <Trash2 size={14} /> Excluir Lead
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -330,6 +436,16 @@ export default function Leads() {
           </table>
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={() => confirmModal.leadId && handleDeleteLead(confirmModal.leadId)}
+        title="Excluir Lead"
+        message={`Tem certeza que deseja excluir o lead "${confirmModal.leadName}"? Esta ação não pode ser desfeita.`}
+        confirmText="Excluir"
+        variant="danger"
+      />
     </div>
   );
 }
