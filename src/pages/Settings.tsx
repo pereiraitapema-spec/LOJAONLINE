@@ -144,8 +144,13 @@ export default function Settings() {
         .from('banners')
         .getPublicUrl(fileName);
 
-      await updateSiteContent(key, publicUrl);
+      // Adiciona timestamp para forçar atualização e evitar cache
+      const urlWithTimestamp = `${publicUrl}?t=${new Date().getTime()}`;
+      console.log('Upload bem-sucedido. URL:', urlWithTimestamp);
+
+      await updateSiteContent(key, urlWithTimestamp);
     } catch (error: any) {
+      console.error('Erro no upload:', error);
       toast.error('Erro no upload: ' + error.message);
     } finally {
       setSaving(false);
@@ -1831,6 +1836,7 @@ create policy "Enable delete for authenticated users only" on public.automations
                         src={siteContent.find(c => c.key === 'site_logo')?.value} 
                         alt="Logo" 
                         className="max-h-32 object-contain p-4"
+                        key={siteContent.find(c => c.key === 'site_logo')?.value}
                       />
                       <button 
                         onClick={() => deleteSiteContent('site_logo')}
@@ -1864,6 +1870,7 @@ create policy "Enable delete for authenticated users only" on public.automations
                         src={siteContent.find(c => c.key === 'site_favicon')?.value} 
                         alt="Favicon" 
                         className="w-12 h-12 object-contain"
+                        key={siteContent.find(c => c.key === 'site_favicon')?.value}
                       />
                       <button 
                         onClick={() => deleteSiteContent('site_favicon')}
