@@ -10,6 +10,7 @@ import {
 import { Loading } from '../components/Loading';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { motion, AnimatePresence } from 'motion/react';
+import SmartChat from '../components/SmartChat';
 
 interface Product {
   id: string;
@@ -1231,6 +1232,7 @@ export default function AffiliateDashboard() {
           </div>
         )}
       </AnimatePresence>
+      <SmartChat />
     </div>
   );
 }

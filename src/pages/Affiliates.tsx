@@ -83,7 +83,9 @@ export default function Affiliates() {
   const [editRate, setEditRate] = useState<number>(0);
   const [selectedAffiliateForSales, setSelectedAffiliateForSales] = useState<string | null>(null);
   const [affiliateSales, setAffiliateSales] = useState<any[]>([]);
-  const [salesFilter, setSalesFilter] = useState<'all' | '30days' | '7days'>('all');
+  const [salesFilter, setSalesFilter] = useState<'all' | '30days' | '7days' | 'custom'>('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
   const [leadsList, setLeadsList] = useState<Lead[]>([]);
   const [showPayments, setShowPayments] = useState(false);
@@ -258,7 +260,7 @@ export default function Affiliates() {
     }
   };
 
-  const fetchAffiliateSales = async (affiliateId: string, filter: 'all' | '30days' | '7days' = 'all') => {
+  const fetchAffiliateSales = async (affiliateId: string, filter: 'all' | '30days' | '7days' | 'custom' = 'all') => {
     try {
       let query = supabase
         .from('orders')
@@ -274,6 +276,9 @@ export default function Affiliates() {
         const date = new Date();
         date.setDate(date.getDate() - 7);
         query = query.gte('created_at', date.toISOString());
+      } else if (filter === 'custom' && startDate && endDate) {
+        query = query.gte('created_at', new Date(startDate).toISOString())
+                     .lte('created_at', new Date(endDate).toISOString());
       }
 
       const { data, error } = await query;
@@ -282,6 +287,12 @@ export default function Affiliates() {
     } catch (error: any) {
       toast.error('Erro ao carregar vendas: ' + error.message);
     }
+  };
+
+  const calculateAverageTicket = (sales: any[]) => {
+    if (sales.length === 0) return 0;
+    const total = sales.reduce((acc, sale) => acc + (sale.total || 0), 0);
+    return total / sales.length;
   };
 
   const handleViewSales = (affiliateId: string) => {
@@ -423,6 +434,29 @@ export default function Affiliates() {
           toast.success('Lead excluído!');
         } catch (error: any) {
           toast.error('Erro ao excluir lead: ' + error.message);
+        }
+      }
+    });
+  };
+
+  const handleDeleteAffiliate = async (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Excluir Afiliado',
+      message: 'Tem certeza que deseja excluir este afiliado permanentemente? Esta ação removerá todos os dados vinculados a ele.',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('affiliates')
+            .delete()
+            .eq('id', id);
+
+          if (error) throw error;
+          toast.success('Afiliado excluído com sucesso!');
+          fetchAllAffiliates();
+        } catch (error: any) {
+          toast.error('Erro ao excluir: ' + error.message);
         }
       }
     });
@@ -745,6 +779,13 @@ export default function Affiliates() {
                                 >
                                   Suspender
                                 </button>
+                                <button 
+                                  onClick={() => handleDeleteAffiliate(aff.id)}
+                                  className="p-2 text-slate-400 hover:text-red-600 transition-colors ml-2"
+                                  title="Excluir Afiliado Permanentemente"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
                               </>
                             )}
                           </div>
@@ -857,20 +898,55 @@ export default function Affiliates() {
                   <DollarSign size={24} />
                   Vendas do Afiliado: {affiliatesList.find(a => a.id === selectedAffiliateForSales)?.name}
                 </h2>
-                <div className="flex gap-2">
-                  <select 
-                    value={salesFilter}
-                    onChange={(e) => {
-                      const filter = e.target.value as 'all' | '30days' | '7days';
-                      setSalesFilter(filter);
-                      fetchAffiliateSales(selectedAffiliateForSales, filter);
-                    }}
-                    className="px-4 py-2 bg-white border border-indigo-200 rounded-lg text-sm font-bold text-indigo-700 outline-none"
-                  >
-                    <option value="all">Todo o Período</option>
-                    <option value="30days">Últimos 30 dias</option>
-                    <option value="7days">Últimos 7 dias</option>
-                  </select>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="bg-white px-4 py-2 rounded-xl border border-indigo-100 shadow-sm">
+                    <span className="text-[10px] font-black text-slate-400 uppercase block">Ticket Médio</span>
+                    <span className="text-lg font-black text-indigo-600">R$ {calculateAverageTicket(affiliateSales).toFixed(2)}</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-indigo-100">
+                    <select 
+                      value={salesFilter}
+                      onChange={(e) => {
+                        const filter = e.target.value as 'all' | '30days' | '7days' | 'custom';
+                        setSalesFilter(filter);
+                        if (filter !== 'custom') {
+                          fetchAffiliateSales(selectedAffiliateForSales, filter);
+                        }
+                      }}
+                      className="px-3 py-2 bg-transparent text-sm font-bold text-indigo-700 outline-none"
+                    >
+                      <option value="all">Todo o Período</option>
+                      <option value="30days">Últimos 30 dias</option>
+                      <option value="7days">Últimos 7 dias</option>
+                      <option value="custom">Período Personalizado</option>
+                    </select>
+
+                    {salesFilter === 'custom' && (
+                      <div className="flex items-center gap-2 px-2 border-l border-indigo-50">
+                        <input 
+                          type="date" 
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="bg-transparent text-xs font-bold text-slate-600 outline-none"
+                        />
+                        <span className="text-slate-300">até</span>
+                        <input 
+                          type="date" 
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="bg-transparent text-xs font-bold text-slate-600 outline-none"
+                        />
+                        <button 
+                          onClick={() => fetchAffiliateSales(selectedAffiliateForSales, 'custom')}
+                          className="p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                        >
+                          <Check size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   <button 
                     onClick={() => setSelectedAffiliateForSales(null)}
                     className="p-2 bg-white text-slate-500 rounded-lg border border-slate-200 hover:bg-slate-50"

@@ -23,6 +23,7 @@ import ShippingCarriers from './pages/ShippingCarriers';
 import Integrations from './pages/Integrations';
 import Leads from './pages/Leads';
 import Inventory from './pages/Inventory';
+import Automations from './pages/Automations';
 import AbandonedCarts from './pages/AbandonedCarts';
 import NotFound from './pages/NotFound';
 import { Loading } from './components/Loading';
@@ -375,6 +376,10 @@ function AppContent() {
         <Route 
           path="/inventory" 
           element={session ? <Inventory /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="/automations" 
+          element={session ? <Automations /> : <Navigate to="/login" replace />} 
         />
 
         {/* Fallback */}

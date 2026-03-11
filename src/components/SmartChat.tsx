@@ -20,6 +20,7 @@ export default function SmartChat() {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showNotification, setShowNotification] = useState(false);
   const [session, setSession] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -35,6 +36,18 @@ export default function SmartChat() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    // Simular notificação após 5 segundos
+    const timer = setTimeout(() => {
+      if (!isOpen) setShowNotification(true);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) setShowNotification(false);
+  }, [isOpen]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -75,21 +88,34 @@ export default function SmartChat() {
       // 2. Fetch Product Context for "Memory"
       const { data: products } = await supabase
         .from('products')
-        .select('name, description, composition, price')
+        .select('name, description, composition, price, discount_price, stock_quantity')
         .eq('active', true);
 
-      const context = products?.map(p => 
-        `Produto: ${p.name}\nPreço: R$ ${p.price}\nDescrição: ${p.description}\nComposição: ${p.composition}`
-      ).join('\n\n') || '';
+      const context = products?.map(p => {
+        const currentPrice = p.discount_price || p.price;
+        const hasDiscount = p.discount_price && p.discount_price < p.price;
+        const discountText = hasDiscount ? ` (EM PROMOÇÃO! De R$ ${p.price} por R$ ${p.discount_price})` : '';
+        const stockText = p.stock_quantity <= 5 ? ` - APENAS ${p.stock_quantity} UNIDADES EM ESTOQUE!` : '';
+        
+        return `Produto: ${p.name}\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nDescrição: ${p.description}\nComposição: ${p.composition}`;
+      }).join('\n\n') || '';
 
       // 3. Call Gemini
       const ai = new GoogleGenAI({ apiKey: keys.key_value });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         config: {
-          systemInstruction: `Você é o assistente inteligente da G-FitLif, uma loja de produtos de emagrecimento e saúde. 
-          Use o contexto abaixo para responder às dúvidas dos clientes de forma profissional, persuasiva e empática.
-          Se não souber algo, peça para o cliente entrar em contato com o suporte humano.
+          systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif, especialista em vendas e saúde.
+          Seu objetivo é converter curiosos em clientes e clientes em fãs.
+          
+          REGRAS DE OURO:
+          1. Use gatilhos mentais: Escassez ("Últimas unidades com desconto"), Urgência, Autoridade e Prova Social.
+          2. Conhecimento do Site: Use o contexto abaixo para falar com propriedade sobre cada produto.
+          3. Se o cliente demonstrar interesse em emagrecimento, sugira o combo mais vendido.
+          4. Sempre termine com uma pergunta que incentive a continuação da conversa ou a compra.
+          5. Use emojis moderadamente para parecer amigável, mas mantenha o profissionalismo.
+          6. Se o cliente perguntar sobre frete, mencione que temos condições especiais para compras acima de R$ 200.
+          
           Contexto dos Produtos:\n${context}`
         },
         contents: [{ parts: [{ text: userMessage }] }]
@@ -206,6 +232,17 @@ export default function SmartChat() {
           <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-[10px] font-black px-2 py-1 rounded-full animate-bounce">
             IA ON
           </span>
+        )}
+        {showNotification && !isOpen && (
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="absolute right-20 bottom-2 bg-white p-3 rounded-2xl shadow-xl border border-slate-100 w-48 text-left"
+          >
+            <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Novidade!</p>
+            <p className="text-xs text-slate-600 font-medium leading-tight">Olá! Tenho uma oferta especial para você hoje. Vamos conversar?</p>
+            <div className="absolute right-[-8px] top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-r border-b border-slate-100 rotate-[-45deg]"></div>
+          </motion.div>
         )}
       </button>
     </div>

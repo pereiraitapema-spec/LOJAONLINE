@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText } from 'lucide-react';
+import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText, Share2 } from 'lucide-react';
+import SmartChat from '../components/SmartChat';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 
@@ -255,8 +256,15 @@ export default function Dashboard() {
             onClick={() => navigate('/integrations')}
             className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
           >
-            <Zap size={20} />
+            <Share2 size={20} />
             Integrações
+          </button>
+          <button 
+            onClick={() => navigate('/automations')}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
+          >
+            <Zap size={20} />
+            Automações
           </button>
           <button 
             onClick={() => navigate('/settings')}
@@ -501,6 +509,7 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
+      <SmartChat />
     </div>
   );
 }

@@ -13,6 +13,7 @@ export default function Login() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [marketingOptIn, setMarketingOptIn] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -127,7 +128,8 @@ export default function Login() {
             data: {
               full_name: email.split('@')[0],
               phone: phone,
-              role: 'customer'
+              role: 'customer',
+              marketing_opt_in: marketingOptIn
             }
           }
         });
@@ -457,6 +459,21 @@ export default function Login() {
                 />
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
               </div>
+            </div>
+          )}
+
+          {mode === 'register' && (
+            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+              <input 
+                type="checkbox" 
+                id="marketing"
+                checked={marketingOptIn}
+                onChange={(e) => setMarketingOptIn(e.target.checked)}
+                className="mt-1 w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
+              />
+              <label htmlFor="marketing" className="text-xs text-slate-600 leading-relaxed cursor-pointer">
+                Aceito receber comunicações de marketing, novidades e ofertas exclusivas via <strong>E-mail, WhatsApp e Chat</strong>.
+              </label>
             </div>
           )}
 

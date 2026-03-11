@@ -2219,7 +2219,7 @@ export default function Store() {
         </div>
       )}
       {/* Chat Inteligente */}
-      {session && <SmartChat />}
+      <SmartChat />
     </div>
   );
 }

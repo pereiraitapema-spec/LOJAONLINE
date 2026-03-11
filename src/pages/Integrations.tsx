@@ -47,7 +47,19 @@ export default function Integrations() {
         .order('name');
       
       if (error) throw error;
-      setIntegrations(data || []);
+      
+      if (!data || data.length === 0) {
+        // Se a tabela estiver vazia, mostrar os padrões
+        setIntegrations([
+          { id: 'bling', name: 'Bling ERP', type: 'erp', status: 'disconnected', config: {} },
+          { id: 'bitrix24', name: 'Bitrix24 CRM', type: 'crm', status: 'disconnected', config: {} },
+          { id: 'tray', name: 'Tray E-commerce', type: 'marketplace', status: 'disconnected', config: {} },
+          { id: 'n8n', name: 'n8n / Automação', type: 'automation', status: 'disconnected', config: {} },
+          { id: 'evolution', name: 'Evolution API (WhatsApp)', type: 'whatsapp', status: 'disconnected', config: {} }
+        ]);
+      } else {
+        setIntegrations(data);
+      }
     } catch (error: any) {
       console.error('Error fetching integrations:', error);
       // Estado inicial com as integrações solicitadas

@@ -417,6 +417,22 @@ create trigger on_leads_updated
 -- 5. Configurar RLS (Segurança)
 alter table public.leads enable row level security;
 
+-- Tabela de Automações (n8n-like)
+create table if not exists public.automations (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  trigger_type text not null, -- 'new_lead', 'abandoned_cart', 'new_order', 'status_change'
+  action_type text not null, -- 'whatsapp', 'email', 'webhook', 'chat_notification'
+  config jsonb default '{}'::jsonb,
+  active boolean default true,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.automations enable row level security;
+create policy "Public read automations" on public.automations for select using (true);
+create policy "Auth all automations" on public.automations for all using (auth.role() = 'authenticated');
+
 drop policy if exists "Admin read all leads" on public.leads;
 create policy "Admin read all leads" on public.leads 
   for select using (auth.role() = 'authenticated');
