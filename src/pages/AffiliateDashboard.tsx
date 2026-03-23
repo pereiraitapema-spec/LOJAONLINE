@@ -128,6 +128,16 @@ export default function AffiliateDashboard() {
     onConfirm: () => {},
   });
 
+  // Helper para timeout em chamadas Supabase
+  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 5000): Promise<T> => {
+    return Promise.race([
+      promise as Promise<T>,
+      new Promise<T>((_, reject) => 
+        setTimeout(() => reject(new Error(`Timeout de ${timeoutMs}ms atingido`)), timeoutMs)
+      )
+    ]);
+  };
+
   useEffect(() => {
     checkAffiliateStatus();
   }, []);
@@ -135,7 +145,7 @@ export default function AffiliateDashboard() {
   const checkAffiliateStatus = async () => {
     try {
       console.log('🛡️ Verificando status do afiliado...');
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await withTimeout(supabase.auth.getSession());
       if (!session) {
         console.log('🚫 Sem sessão, redirecionando para login');
         navigate('/login');
@@ -143,11 +153,13 @@ export default function AffiliateDashboard() {
       }
 
       // Buscar dados do afiliado
-      const { data: affiliateData, error } = await supabase
-        .from('affiliates')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
+      const { data: affiliateData, error } = await withTimeout(
+        supabase
+          .from('affiliates')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .maybeSingle()
+      );
 
       if (error) {
         console.error('❌ Erro ao buscar dados do afiliado:', error);
@@ -186,8 +198,8 @@ export default function AffiliateDashboard() {
       // Carregar produtos e categorias
       console.log('📦 Carregando produtos e categorias...');
       const [prodRes, catRes] = await Promise.all([
-        supabase.from('products').select('*').eq('active', true),
-        supabase.from('categories').select('*')
+        withTimeout(supabase.from('products').select('*').eq('active', true)),
+        withTimeout(supabase.from('categories').select('*'))
       ]);
 
       setProducts(prodRes.data || []);

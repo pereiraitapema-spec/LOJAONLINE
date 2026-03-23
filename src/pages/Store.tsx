@@ -237,71 +237,103 @@ export default function Store() {
     }
   }, [searchParams]);
 
+  // Helper para timeout em chamadas Supabase
+  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 5000): Promise<T> => {
+    return Promise.race([
+      promise as Promise<T>,
+      new Promise<T>((_, reject) => 
+        setTimeout(() => reject(new Error(`Timeout de ${timeoutMs}ms atingido`)), timeoutMs)
+      )
+    ]);
+  };
+
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      
-      if (session) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .maybeSingle();
-
-        if (profile?.role === 'admin' || session.user.email === 'pereira.itapema@gmail.com') {
-          setIsAdmin(true);
-        }
-
-        // Buscar dados do afiliado
-        const { data: affData } = await supabase
-          .from('affiliates')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .eq('status', 'approved')
-          .maybeSingle();
+      try {
+        const { data: { session } } = await withTimeout(supabase.auth.getSession());
+        setSession(session);
         
-        if (affData) {
-          setAffiliateData(affData);
+        if (session) {
+          const { data: profile } = await withTimeout(
+            supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', session.user.id)
+              .maybeSingle()
+          );
+
+          if (profile?.role === 'admin' || session.user.email === 'pereira.itapema@gmail.com') {
+            setIsAdmin(true);
+          }
+
+          // Buscar dados do afiliado
+          const { data: affData } = await withTimeout(
+            supabase
+              .from('affiliates')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .eq('status', 'approved')
+              .maybeSingle()
+          );
+          
+          if (affData) {
+            setAffiliateData(affData);
+          }
         }
+      } catch (err) {
+        console.warn('⚠️ Erro ao verificar usuário (timeout?):', err);
       }
     };
 
     const fetchData = async () => {
       try {
+        console.log('📦 Iniciando fetchData no Store...');
         // Buscar cupom aplicado se existir
         const savedCoupon = localStorage.getItem('applied_coupon');
         if (savedCoupon) {
-          const { data: couponData } = await supabase
-            .from('affiliate_coupons')
-            .select('*')
-            .eq('code', savedCoupon.toUpperCase())
-            .eq('active', true)
-            .maybeSingle();
-          
-          if (couponData) {
-            setAffiliateCoupon(couponData);
+          try {
+            const { data: couponData } = await withTimeout(
+              supabase
+                .from('affiliate_coupons')
+                .select('*')
+                .eq('code', savedCoupon.toUpperCase())
+                .eq('active', true)
+                .maybeSingle()
+            );
+            
+            if (couponData) {
+              setAffiliateCoupon(couponData);
+            }
+          } catch (e) {
+            console.warn('⚠️ Erro ao buscar cupom:', e);
           }
         }
 
+        console.log('⏱️ Buscando dados principais (banners, produtos, etc)...');
         const [bannerRes, prodRes, catRes, campRes, settingsRes, contentRes] = await Promise.all([
-          supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }),
-          supabase.from('products')
+          withTimeout(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true })),
+          withTimeout(supabase.from('products')
             .select('*, tiers:product_tiers(*), media:product_media(*)')
             .eq('active', true)
             .order('created_at', { ascending: false })
-            .order('position', { foreignTable: 'product_media', ascending: true }),
-          supabase.from('categories').select('*').order('name'),
-          supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }),
-          supabase.from('store_settings').select('*').maybeSingle(),
-          supabase.from('site_content').select('*')
+            .order('position', { foreignTable: 'product_media', ascending: true })),
+          withTimeout(supabase.from('categories').select('*').order('name')),
+          withTimeout(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true })),
+          withTimeout(supabase.from('store_settings').select('*').maybeSingle()),
+          withTimeout(supabase.from('site_content').select('*'))
         ]);
         
         console.log('📦 Products Fetch Result:', { 
           count: prodRes.data?.length, 
           error: prodRes.error,
-          data: prodRes.data 
+          status: prodRes.status
         });
+
+        if (prodRes.data?.length === 0) {
+          console.log('🔍 Nenhum produto ativo encontrado. Verificando total na tabela...');
+          const { count } = await withTimeout(supabase.from('products').select('*', { count: 'exact', head: true }));
+          console.log('📊 Total de produtos na tabela (incluindo inativos):', count);
+        }
 
         if (prodRes.error) {
           console.error('❌ Error fetching products:', prodRes.error);

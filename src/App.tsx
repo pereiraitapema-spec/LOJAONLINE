@@ -36,19 +36,37 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // Helper para timeout em chamadas Supabase
+  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 5000): Promise<T> => {
+    return Promise.race([
+      promise as Promise<T>,
+      new Promise<T>((_, reject) => 
+        setTimeout(() => reject(new Error(`Timeout de ${timeoutMs}ms atingido`)), timeoutMs)
+      )
+    ]);
+  };
+
   const fetchUserRole = async (userId: string, email?: string) => {
     if (email === 'pereira.itapema@gmail.com') return 'admin';
     
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .maybeSingle();
+      console.log('🔍 Buscando role para:', userId);
+      const { data: profile, error } = await withTimeout(
+        supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle()
+      );
+      
+      if (error) {
+        console.warn('⚠️ Erro ao buscar role:', error);
+        return 'customer';
+      }
       
       return profile?.role || 'customer';
     } catch (error) {
-      console.error('Error fetching user role:', error);
+      console.error('❌ Erro crítico ao buscar user role:', error);
       return 'customer';
     }
   };
@@ -219,12 +237,14 @@ function AppContent() {
       if (userEmail === 'pereira.itapema@gmail.com') {
         console.log('👑 Admin Master detectado');
         
-        await supabase.from('profiles').upsert({
-          id: userId,
-          email: userEmail,
-          role: 'admin',
-          full_name: 'Admin Master'
-        }, { onConflict: 'id' });
+        await withTimeout(
+          supabase.from('profiles').upsert({
+            id: userId,
+            email: userEmail,
+            role: 'admin',
+            full_name: 'Admin Master'
+          }, { onConflict: 'id' })
+        );
 
         setUserRole('admin');
 
@@ -238,11 +258,13 @@ function AppContent() {
 
       console.log('⏱️ Verificando tabela de afiliados...');
       // 2. Verificar se é Afiliado Aprovado (Consulta rápida)
-      const { data: affiliate, error: affError } = await supabase
-        .from('affiliates')
-        .select('id, status, active')
-        .eq('user_id', userId)
-        .maybeSingle();
+      const { data: affiliate, error: affError } = await withTimeout(
+        supabase
+          .from('affiliates')
+          .select('id, status, active')
+          .eq('user_id', userId)
+          .maybeSingle()
+      );
 
       if (affError) {
         console.warn('⚠️ Erro ao buscar afiliado:', affError);
@@ -273,23 +295,27 @@ function AppContent() {
 
       console.log('⏱️ Verificando tabela de perfis...');
       // 3. Sincronizar Profile
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .maybeSingle();
+      const { data: profile, error: profileError } = await withTimeout(
+        supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle()
+      );
 
       if (profileError) console.warn('⚠️ Erro ao buscar perfil:', profileError);
       console.log('📊 Dados Perfil encontrados:', profile);
 
       if (!profile && !profileError) {
         console.log('🆕 Criando perfil inicial para:', userEmail);
-        await supabase.from('profiles').insert({
-          id: userId,
-          email: userEmail,
-          role: 'customer',
-          full_name: userEmail.split('@')[0]
-        });
+        await withTimeout(
+          supabase.from('profiles').insert({
+            id: userId,
+            email: userEmail,
+            role: 'customer',
+            full_name: userEmail.split('@')[0]
+          })
+        );
         setUserRole('customer');
       } else if (profile) {
         setUserRole(profile.role);
