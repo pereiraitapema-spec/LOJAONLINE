@@ -87,6 +87,8 @@ create table if not exists public.products (
   sku text unique,
   weight_kg numeric(10,3) default 0,
   dimensions_cm jsonb default '{"width": 0, "height": 0, "depth": 0}'::jsonb,
+  quantity_info text, -- Ex: "60 cápsulas", "500ml"
+  usage_instructions text, -- Ex: "Tomar 2 cápsulas ao dia"
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );

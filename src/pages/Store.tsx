@@ -74,7 +74,8 @@ interface Product {
   min_installment_value?: number;
   tiers: ProductTier[];
   media: ProductMedia[];
-  capsules?: number;
+  quantity_info?: string;
+  usage_instructions?: string;
   affiliate_commission?: number;
 }
 
@@ -1160,6 +1161,9 @@ export default function Store() {
                 )}
               </div>
               <h3 className="font-bold text-slate-900 truncate">{product.name}</h3>
+              {product.quantity_info && (
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">{product.quantity_info}</span>
+              )}
               <div className="mt-1 flex items-baseline gap-2">
                 {product.discount_price !== null && product.discount_price !== undefined && product.discount_price > 0 ? (
                   <>
@@ -1591,7 +1595,7 @@ export default function Store() {
                           <div className="grid grid-cols-2 gap-4">
                             <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-sm">
                               <span className="text-[10px] text-slate-400 uppercase font-black block mb-1">Conteúdo</span>
-                              <span className="text-lg font-black text-slate-900">{selectedProduct.capsules || 60} Cápsulas</span>
+                              <span className="text-lg font-black text-slate-900">{selectedProduct.quantity_info || '60 cápsulas'}</span>
                             </div>
                             <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-sm">
                               <span className="text-[10px] text-slate-400 uppercase font-black block mb-1">Fórmula</span>
@@ -1599,6 +1603,15 @@ export default function Store() {
                             </div>
                           </div>
                           
+                          {selectedProduct.usage_instructions && (
+                            <div className="mt-4 pt-4 border-t border-emerald-100">
+                              <span className="text-[10px] text-slate-400 uppercase font-black block mb-2">Como Tomar</span>
+                              <p className="text-sm text-slate-700 font-medium leading-relaxed">
+                                {selectedProduct.usage_instructions}
+                              </p>
+                            </div>
+                          )}
+
                           {selectedProduct.composition && (
                             <div className="mt-4 pt-4 border-t border-emerald-100">
                               <span className="text-[10px] text-slate-400 uppercase font-black block mb-2">Composição</span>

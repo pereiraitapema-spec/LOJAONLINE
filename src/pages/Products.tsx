@@ -52,7 +52,8 @@ interface Product {
   min_installment_value?: number;
   image_url?: string;
   active: boolean;
-  capsules?: number;
+  quantity_info?: string;
+  usage_instructions?: string;
   category?: { name: string };
   tiers?: { quantity: number; discount_percentage: number }[];
   media?: { url: string; type: 'image' | 'video'; position: number }[];
@@ -83,7 +84,8 @@ export default function Products() {
     min_installment_value: '50.00',
     image_url: '',
     active: true,
-    capsules: '60',
+    quantity_info: '60 cápsulas',
+    usage_instructions: 'Tomar 2 cápsulas ao dia',
     weight: '0.5',
     height: '10',
     width: '10',
@@ -214,7 +216,7 @@ export default function Products() {
       DADOS DO PRODUTO:
       - Nome: ${productForm.name}
       - Composição/Fórmula: ${productForm.composition || 'Não informada'}
-      - Quantidade: ${productForm.capsules} cápsulas
+      - Quantidade: ${productForm.quantity_info}
       
       REGRAS CRÍTICAS E OBRIGATÓRIAS:
       1. NÃO USE NENHUMA TAG HTML (como <p>, <strong>, <ul>, etc). O texto deve ser LIMPO.
@@ -226,8 +228,8 @@ export default function Products() {
          - Gancho: Uma frase inicial que captura a atenção imediatamente e toca em uma dor ou desejo profundo.
          - Benefícios: Liste os benefícios usando "-" para facilitar a leitura.
          - Transformação: Descreva como a vida do cliente será melhor após usar este produto.
-         - Composição e Uso: Liste os ingredientes da fórmula e a quantidade de cápsulas (${productForm.capsules}).
-         - Instrução de Uso Importante: Informe que o cliente pode começar tomando apenas METADE da dose recomendada (metade das cápsulas diárias), o que fará o produto render por 2 MESES. Caso prefira resultados mais intensos, deve tomar a dose completa conforme a indicação, e o frasco durará 1 MÊS.
+         - Composição e Uso: Liste os ingredientes da fórmula e a quantidade (${productForm.quantity_info}).
+         - Instrução de Uso Importante: ${productForm.usage_instructions || 'Informe como o cliente deve utilizar o produto para obter os melhores resultados.'}
          - Fechamento: Uma chamada para ação (CTA) forte e persuasiva.
       6. TOM DE VOZ: Profissional, entusiasmado, confiante e empático.
       7. O texto deve ser LONGO, ENVOLVENTE e PROFISSIONAL. Organize em parágrafos claros.
@@ -284,7 +286,8 @@ export default function Products() {
         min_installment_value: parseFloat(productForm.min_installment_value || '50'),
         image_url: productForm.image_url,
         active: productForm.active,
-        capsules: parseInt(productForm.capsules) || 60,
+        quantity_info: productForm.quantity_info,
+        usage_instructions: productForm.usage_instructions,
         weight: parseFloat(productForm.weight || '0.5'),
         height: parseFloat(productForm.height || '10'),
         width: parseFloat(productForm.width || '10'),
@@ -538,7 +541,8 @@ export default function Products() {
       image_url: '',
       min_installment_value: '50',
       active: true,
-      capsules: '60',
+      quantity_info: '60 cápsulas',
+      usage_instructions: 'Tomar 2 cápsulas ao dia',
       weight: '0.5',
       height: '10',
       width: '10',
@@ -569,7 +573,8 @@ export default function Products() {
       image_url: product.image_url || '',
       min_installment_value: (product as any).min_installment_value?.toString() || '50',
       active: product.active,
-      capsules: (product.capsules || 60).toString(),
+      quantity_info: product.quantity_info || '60 cápsulas',
+      usage_instructions: product.usage_instructions || 'Tomar 2 cápsulas ao dia',
       weight: (product as any).weight?.toString() || '0.5',
       height: (product as any).height?.toString() || '10',
       width: (product as any).width?.toString() || '10',
@@ -957,15 +962,25 @@ export default function Products() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-1">Qtd. Cápsulas</label>
+                          <label className="block text-sm font-bold text-slate-700 mb-1">Quantidade (Cápsulas/ML)</label>
                           <input 
-                            type="number" 
-                            value={productForm.capsules}
-                            onChange={e => setProductForm({...productForm, capsules: e.target.value})}
+                            type="text" 
+                            value={productForm.quantity_info}
+                            onChange={e => setProductForm({...productForm, quantity_info: e.target.value})}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="Ex: 60"
+                            placeholder="Ex: 60 cápsulas ou 500ml"
                           />
                         </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">Como Tomar / Instruções de Uso</label>
+                        <textarea 
+                          value={productForm.usage_instructions}
+                          onChange={e => setProductForm({...productForm, usage_instructions: e.target.value})}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none min-h-[100px]"
+                          placeholder="Ex: Tomar 2 cápsulas ao dia, preferencialmente após as refeições."
+                        />
                       </div>
 
                       <div>
