@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -29,12 +30,14 @@ import NotFound from './pages/NotFound';
 import { Loading } from './components/Loading';
 import { leadService } from './services/leadService';
 import { toast } from 'react-hot-toast';
+import SmartChat from './components/SmartChat';
 
 function AppContent() {
   const [session, setSession] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Helper para timeout em chamadas Supabase
   const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 5000): Promise<T> => {
@@ -458,6 +461,9 @@ function AppContent() {
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
+      {!['/login', '/register', '/reset-password', '/affiliate-register'].includes(location.pathname) && (
+        <SmartChat />
+      )}
     </>
   );
 }

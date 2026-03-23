@@ -76,23 +76,28 @@ export default function SmartChat() {
     fetchAiSettings();
 
     // Subscription for real-time messages
-    const channel = supabase
-      .channel('chat_messages')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'chat_messages',
-        filter: `receiver_id=eq.${session?.user?.id}`
-      }, (payload) => {
-        const newMessage = payload.new;
-        setMessages(prev => [...prev, { role: 'bot', content: newMessage.message }]);
-        setShowNotification(true);
-      })
-      .subscribe();
+    let channel: any = null;
+    if (session?.user?.id) {
+      channel = supabase
+        .channel('chat_messages')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `receiver_id=eq.${session.user.id}`
+        }, (payload) => {
+          const newMessage = payload.new;
+          if (newMessage && newMessage.message) {
+            setMessages(prev => [...prev, { role: 'bot', content: newMessage.message }]);
+            setShowNotification(true);
+          }
+        })
+        .subscribe();
+    }
 
     return () => {
       subscription.unsubscribe();
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
     };
   }, [session?.user?.id]);
 
@@ -417,6 +422,26 @@ export default function SmartChat() {
     }
   };
 
+  const isInternalLink = (url: string) => {
+    try {
+      if (!url) return false;
+      const parsed = new URL(url, window.location.origin);
+      return parsed.origin === window.location.origin;
+    } catch (e) {
+      return url.startsWith('/') || url.startsWith('?');
+    }
+  };
+
+  const handleInternalLink = (url: string) => {
+    try {
+      const parsed = new URL(url, window.location.origin);
+      const path = parsed.pathname + parsed.search;
+      navigate(path);
+    } catch (e) {
+      navigate(url);
+    }
+  };
+
   return (
     <div className="fixed bottom-6 right-6 z-50">
       <AnimatePresence>
@@ -449,20 +474,38 @@ export default function SmartChat() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
-              {messages.slice(-10).map((msg, idx) => (
-                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {messages.slice(-20).map((msg, idx) => (
+                <div key={`${idx}-${msg.role}-${msg.content.substring(0, 10)}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
                     msg.role === 'user' 
                       ? 'bg-emerald-600 text-white rounded-tr-none' 
                       : 'bg-white text-slate-700 shadow-sm border border-slate-100 rounded-tl-none'
                   }`}>
-                    <ReactMarkdown 
-                      components={{
-                        a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline font-bold" />
-                      }}
-                    >
-                      {msg.content || ''}
-                    </ReactMarkdown>
+                    <div className="prose prose-sm max-w-none">
+                      <ReactMarkdown 
+                        components={{
+                          a: ({node, ...props}) => {
+                            const isInternal = isInternalLink(props.href || '');
+                            if (isInternal) {
+                              return (
+                                <button 
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    handleInternalLink(props.href || '');
+                                  }}
+                                  className="text-emerald-700 underline font-bold hover:text-emerald-800 transition-colors inline-block"
+                                >
+                                  {props.children}
+                                </button>
+                              );
+                            }
+                            return <a {...props} target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline font-bold" />;
+                          }
+                        }}
+                      >
+                        {msg.content || ''}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 </div>
               ))}

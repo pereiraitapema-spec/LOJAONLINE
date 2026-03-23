@@ -343,13 +343,21 @@ export default function AffiliateDashboard() {
   };
 
   const fetchLeads = async (affiliateId: string) => {
-    const { data } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('affiliate_id', affiliateId)
-      .order('created_at', { ascending: false });
-    
-    if (data) setLeads(data);
+    try {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('affiliate_id', affiliateId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.warn('⚠️ Erro ao buscar leads (pode ser falta da coluna affiliate_id):', error);
+        return;
+      }
+      if (data) setLeads(data);
+    } catch (err) {
+      console.error('❌ Erro ao buscar leads:', err);
+    }
   };
 
   const generateLink = (type: 'product' | 'category' | 'store', id?: string) => {
@@ -1337,7 +1345,6 @@ export default function AffiliateDashboard() {
           </div>
         )}
       </AnimatePresence>
-      <SmartChat />
     </div>
   );
 }

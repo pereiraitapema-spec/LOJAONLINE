@@ -192,6 +192,14 @@ export default function Store() {
   const [quantity, setQuantity] = useState(1);
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
 
+  const closeProductModal = () => {
+    setSelectedProduct(null);
+    setActiveMediaIndex(0);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('product');
+    navigate(`/?${newParams.toString()}`, { replace: true });
+  };
+
   // Marcar como lead morno ao ver detalhes do produto
   const handleSelectProduct = (product: Product) => {
     setSelectedProduct(product);
@@ -234,8 +242,20 @@ export default function Store() {
     const prodId = searchParams.get('product');
     if (prodId) {
       setSelectedProductId(prodId);
+    } else {
+      setSelectedProductId(null);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (selectedProductId && products.length > 0) {
+      const product = products.find(p => p.id === selectedProductId);
+      if (product) {
+        setSelectedProduct(product);
+        setQuantity(1);
+      }
+    }
+  }, [selectedProductId, products]);
 
   // Helper para timeout em chamadas Supabase
   const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 10000): Promise<T> => {
@@ -536,7 +556,7 @@ export default function Store() {
     // Marcar como lead morno ao adicionar ao carrinho
     leadService.updateStatus('morno');
     
-    setSelectedProduct(null);
+    closeProductModal();
     setShowCart(true);
   };
 
@@ -1377,7 +1397,7 @@ export default function Store() {
               className="bg-white w-full max-w-6xl h-[90vh] rounded-[40px] shadow-2xl overflow-hidden relative flex flex-col md:flex-row"
             >
               <button 
-                onClick={() => { setSelectedProduct(null); setActiveMediaIndex(0); }}
+                onClick={closeProductModal}
                 className="absolute top-6 left-6 z-20 flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-md text-slate-900 rounded-full hover:bg-white transition-colors shadow-lg font-bold text-sm border border-slate-200"
               >
                 <ChevronLeft size={20} />
@@ -1392,7 +1412,7 @@ export default function Store() {
                   <Heart size={24} fill={favorites.includes(selectedProduct.id) ? "currentColor" : "none"} />
                 </button>
                 <button 
-                  onClick={() => { setSelectedProduct(null); setActiveMediaIndex(0); }}
+                  onClick={closeProductModal}
                   className="p-2 bg-white/90 backdrop-blur-md text-slate-900 rounded-full hover:bg-white transition-colors shadow-lg border border-slate-200"
                 >
                   <X size={24} />
@@ -2414,7 +2434,6 @@ export default function Store() {
         </div>
       )}
       {/* Chat Inteligente */}
-      <SmartChat />
     </div>
   );
 }
