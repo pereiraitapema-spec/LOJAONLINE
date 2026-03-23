@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, Send, X, User, Bot, Sparkles, LogIn } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
@@ -161,16 +161,19 @@ export default function SmartChat() {
       const [
         { data: products, error: prodError },
         { data: settings, error: settingsError },
-        { data: siteContent, error: contentError }
+        { data: siteContent, error: contentError },
+        { data: knowledge, error: knowledgeError }
       ] = await Promise.all([
         supabase.from('products').select('id, name, description, composition, price, discount_price, stock, quantity_info, usage_instructions, category:categories(name)').eq('active', true),
         supabase.from('store_settings').select('*').maybeSingle(),
-        supabase.from('site_content').select('*')
+        supabase.from('site_content').select('*'),
+        supabase.from('ai_knowledge_base').select('*')
       ]);
 
       if (prodError) console.error('Error fetching products:', prodError);
       if (settingsError) console.error('Error fetching settings:', settingsError);
       if (contentError) console.error('Error fetching content:', contentError);
+      if (knowledgeError) console.error('Error fetching knowledge:', knowledgeError);
 
       let context = 'Informações da Loja:\n';
       if (settings) {
@@ -178,6 +181,9 @@ export default function SmartChat() {
       }
       if (siteContent) {
         context += 'Conteúdo do Site:\n' + siteContent.map(c => `${c.key}: ${c.value}`).join('\n') + '\n';
+      }
+      if (knowledge && knowledge.length > 0) {
+        context += '\nConhecimento Adicional (Memória):\n' + knowledge.map(k => `${k.topic}: ${k.content}`).join('\n') + '\n';
       }
 
       context += '\nProdutos:\n' + (products && products.length > 0 
@@ -202,6 +208,19 @@ export default function SmartChat() {
       // 3. Call Gemini
       const ai = new GoogleGenAI({ apiKey: keys.key_value });
       
+      const saveKnowledge: FunctionDeclaration = {
+        name: "save_knowledge",
+        description: "Salva uma informação ou diferença entre produtos no banco de dados para uso futuro.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            topic: { type: Type.STRING, description: "O tópico ou nome do produto/comparação." },
+            content: { type: Type.STRING, description: "A informação detalhada para salvar." }
+          },
+          required: ["topic", "content"]
+        }
+      };
+
       const rawHistory = updatedMessages.map(msg => ({
         role: msg.role === 'bot' ? 'model' : 'user',
         parts: [{ text: msg.content }]
@@ -231,19 +250,46 @@ export default function SmartChat() {
           systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
           
           REGRAS OBRIGATÓRIAS DE VENDAS E ATENDIMENTO:
-          1. Responda com no máximo 4 linhas.
+          1. Responda com no máximo 4 linhas, a menos que precise listar produtos.
           2. Finalize SEMPRE com uma pergunta para continuar a conversa.
-          3. Use APENAS informações dos produtos fornecidos no contexto. É PROIBIDO inventar nomes, preços, descrições, composições ou links. MANTENHA OS NOMES DOS PRODUTOS EXATAMENTE COMO FORNECIDOS, NÃO OS TRADUZA PARA PORTUGUÊS.
-          4. Analise a descrição e composição de TODOS os produtos no contexto para recomendar a melhor opção para a necessidade do usuário.
-          5. Ao recomendar, mencione o nome exato do produto e o link de compra fornecido.
-          6. Aplique os gatilhos e regras de vendas configurados: ${aiSettings.rules || 'Siga as instruções padrão de atendimento.'}
+          3. Use APENAS informações dos produtos fornecidos no contexto. É PROIBIDO inventar nomes, preços, descrições, composições ou links.
+          4. Ao recomendar, mencione o nome exato do produto e o link de compra fornecido.
+          5. Aplique os gatilhos e regras de vendas configurados: ${aiSettings.rules || 'Siga as instruções padrão de atendimento.'}
+          
+          LÓGICA DE EMAGRECIMENTO:
+          - Se o cliente perguntar "quero emagrecer" ou sobre "emagrecimento", você DEVE listar TODAS as opções de produtos para emagrecer disponíveis no contexto, mostrando o NOME e o VALOR (Preço Atual) de cada um lado a lado.
+          
+          LÓGICA DE "COMO TOMAR" E DURAÇÃO:
+          - Informe SEMPRE como tomar o produto conforme o campo "Como Tomar".
+          - Calcule a duração do produto (quantos meses dura) baseando-se no "Conteúdo" (ex: 60 cápsulas) e "Como Tomar" (ex: 2 cápsulas ao dia). Ex: 60/2 = 30 dias = 1 mês.
+          - Se o cliente achar CARO, faça as contas para ele: "Este produto dura [X] meses, então o seu investimento mensal é de apenas R$ [Preço/X]". Mostre que o custo-benefício é alto.
+          
+          LÓGICA DE MEMÓRIA E PESQUISA:
+          - Se o usuário perguntar a diferença entre produtos e você não tiver a resposta completa no contexto, use a ferramenta 'googleSearch' para pesquisar.
+          - Após pesquisar ou chegar a uma conclusão importante sobre diferenças, use a ferramenta 'save_knowledge' para salvar essa informação. Na próxima vez, ela estará no seu contexto de "Memória".
           
           Contexto dos Produtos (Conhecimento da IA):\n${context}
           
-          Lembre-se do histórico recente do usuário.`
+          Lembre-se do histórico recente do usuário.`,
+          tools: [
+            { googleSearch: {} },
+            { functionDeclarations: [saveKnowledge] }
+          ],
+          toolConfig: { includeServerSideToolInvocations: true }
         },
         contents: alternatingHistory
       });
+
+      // Handle Function Calls
+      if (response.functionCalls) {
+        for (const call of response.functionCalls) {
+          if (call.name === 'save_knowledge') {
+            const { topic, content } = call.args as any;
+            await supabase.from('ai_knowledge_base').upsert({ topic, content }, { onConflict: 'topic' });
+            console.log('🧠 IA salvou novo conhecimento:', topic);
+          }
+        }
+      }
 
       const botResponse = response.text || 'Desculpe, não consegui processar sua solicitação.';
 
