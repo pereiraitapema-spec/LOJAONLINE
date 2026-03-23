@@ -163,7 +163,7 @@ export default function SmartChat() {
         { data: settings, error: settingsError },
         { data: siteContent, error: contentError }
       ] = await Promise.all([
-        supabase.from('products').select('id, name, description, composition, price, discount_price, stock, category:categories(name)').eq('active', true),
+        supabase.from('products').select('id, name, description, composition, price, discount_price, stock, quantity_info, usage_instructions, category:categories(name)').eq('active', true),
         supabase.from('store_settings').select('*').maybeSingle(),
         supabase.from('site_content').select('*')
       ]);
@@ -194,7 +194,7 @@ export default function SmartChat() {
               const stockText = p.stock <= 5 ? ` - APENAS ${p.stock} UNIDADES EM ESTOQUE!` : '';
               const productLink = `${window.location.origin}/?product=${p.id}`;
               
-              return `Nome: [${p.name}](${productLink})\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nDescrição: ${p.description}\nComposição: ${p.composition}`;
+              return `Nome: [${p.name}](${productLink})\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nConteúdo: ${p.quantity_info || 'Não informado'}\nComo Tomar: ${p.usage_instructions || 'Não informado'}\nDescrição: ${p.description}\nComposição: ${p.composition}`;
             }).join('\n\n');
           }).join('\n\n---\n\n')
         : 'Nenhum produto encontrado no catálogo no momento.');

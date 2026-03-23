@@ -163,8 +163,11 @@ export default function AffiliateDashboard() {
         return;
       }
 
-      console.log('📊 Status do afiliado:', affiliateData.status);
-      if (affiliateData.status !== 'approved') {
+      console.log('📊 Status do afiliado:', affiliateData.status, 'Ativo:', affiliateData.active);
+      const isApproved = affiliateData.status === 'approved' || (affiliateData.active && !affiliateData.status);
+      
+      if (!isApproved) {
+        console.warn('🚫 Afiliado não aprovado, redirecionando para home');
         toast.error('Sua conta ainda está em análise.');
         navigate('/');
         return;
@@ -342,7 +345,7 @@ export default function AffiliateDashboard() {
     
     const baseUrl = window.location.origin;
     // Usar o código do afiliado em vez do ID para o link ser mais amigável
-    const ref = affiliate.code || affiliate.id;
+    const ref = affiliate?.code || affiliate?.id;
     let url = `${baseUrl}/?ref=${ref}`;
 
     if (type === 'product' && id) {
@@ -371,7 +374,7 @@ export default function AffiliateDashboard() {
         .from('affiliate_coupons')
         .insert([{
           affiliate_id: affiliate.id,
-          code: couponCode,
+          code: couponCode.toUpperCase(),
           discount_percentage: couponDiscount,
           active: true
         }])
@@ -380,13 +383,13 @@ export default function AffiliateDashboard() {
 
       if (error) throw error;
 
-      toast.success(`Cupom ${couponCode} criado com sucesso!`);
+      toast.success(`Cupom ${couponCode.toUpperCase()} criado com sucesso!`);
       setCoupons([data, ...coupons]);
       setCouponCode('');
       
       // Gerar link com cupom automaticamente
       const baseUrl = window.location.origin;
-      const url = `${baseUrl}/?ref=${affiliate.id}&coupon=${couponCode}`;
+      const url = `${baseUrl}/?ref=${affiliate.code || affiliate.id}&coupon=${couponCode.toUpperCase()}`;
       navigator.clipboard.writeText(url);
       toast.success('Link com cupom copiado!');
 
@@ -519,7 +522,11 @@ export default function AffiliateDashboard() {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50">Carregando painel...</div>;
+    return <Loading />;
+  }
+
+  if (!affiliate) {
+    return null;
   }
 
   return (
@@ -588,7 +595,7 @@ export default function AffiliateDashboard() {
             </div>
             <div className="flex items-center gap-3 w-full md:w-auto">
               <div className="flex-1 md:w-64 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-4 py-3 text-sm font-mono truncate">
-                {window.location.origin}/?ref={affiliate.code || affiliate.id}
+                {window.location.origin}/?ref={affiliate?.code || affiliate?.id}
               </div>
               <button 
                 onClick={() => generateLink('store')}

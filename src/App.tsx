@@ -107,10 +107,9 @@ function AppContent() {
       if (session) {
         const role = await fetchUserRole(session.user.id, session.user.email);
         setUserRole(role);
-        // Só redirecionar se estiver no login ou register
-        if (path === '/login' || path === '/register' || (session.user.email === 'pereira.itapema@gmail.com' && role !== 'admin')) {
-          await handleRoleRedirect(session);
-        }
+        
+        // Sempre verificar redirecionamento se houver sessão
+        await handleRoleRedirect(session);
       }
       
       setLoading(false);
@@ -160,8 +159,8 @@ function AppContent() {
         leadService.updateStatus('frio');
 
         const path = window.location.pathname;
-        // Se estivermos em páginas de auth, decidir para onde ir
-        if (path === '/login' || path === '/register' || path === '/callback.html') {
+        // Se estivermos em páginas de auth ou na home, decidir para onde ir
+        if (path === '/login' || path === '/register' || path === '/' || path === '/callback.html') {
           await handleRoleRedirect(session);
         }
       }
@@ -253,7 +252,14 @@ function AppContent() {
       if (affiliate && (affiliate.status === 'approved' || (affiliate.active && !affiliate.status))) {
         console.log('🤝 Afiliado aprovado detectado');
         setUserRole('affiliate');
-        if (path === '/login' || path === '/register') {
+        
+        // Evitar redirecionamento se já estivermos no dashboard de afiliados
+        if (path === '/affiliate-dashboard') {
+          setLoading(false);
+          return;
+        }
+
+        if (path === '/login' || path === '/register' || path === '/') {
           console.log('🚀 Redirecionando Afiliado para /affiliate-dashboard');
           navigate('/affiliate-dashboard');
         }
