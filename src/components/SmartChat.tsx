@@ -177,6 +177,9 @@ export default function SmartChat() {
     let context = '';
     let alternatingHistory: any[] = [];
 
+    const maxLinesMatch = aiSettings.rules.match(/(\d+)\s*linhas/i);
+    const maxLines = maxLinesMatch ? parseInt(maxLinesMatch[1]) : 4;
+
     try {
       // 1. Fetch API Key
       const { data: keysData } = await supabase
@@ -283,9 +286,6 @@ export default function SmartChat() {
         }
       }
 
-      const maxLinesMatch = aiSettings.rules.match(/(\d+)\s*linhas/i);
-      const maxLines = maxLinesMatch ? parseInt(maxLinesMatch[1]) : 4;
-
       const response = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
         contents: alternatingHistory,
@@ -295,21 +295,28 @@ export default function SmartChat() {
         ] : [],
         toolConfig: aiSettings.autoLearning ? { 
           includeServerSideToolInvocations: true,
-          // @ts-ignore
-          include_server_side_tool_invocations: true 
-        } : undefined as any,
+          include_server_side_tool_invocations: true
+        } : undefined,
         config: {
+          toolConfig: aiSettings.autoLearning ? { 
+            includeServerSideToolInvocations: true,
+            include_server_side_tool_invocations: true
+          } : undefined,
+          tool_config: aiSettings.autoLearning ? { 
+            include_server_side_tool_invocations: true 
+          } : undefined,
           systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
           
           REGRAS OBRIGATÓRIAS DE VENDAS E ATENDIMENTO (EXECUÇÃO RÍGIDA):
           1. Responda com no máximo ${maxLines} linhas por mensagem. Se precisar de mais espaço para explicar, você DEVE usar o separador [SPLIT] para dividir sua resposta em múltiplas mensagens.
           2. NUNCA envie mais de ${maxLines} linhas em um único bloco de texto.
-          3. Finalize SEMPRE com uma pergunta para continuar a conversa.
-          4. FONTES DE INFORMAÇÃO:
+          3. Use o separador [SPLIT] sempre que atingir o limite de ${maxLines} linhas.
+          4. Finalize SEMPRE com uma pergunta para continuar a conversa.
+          5. FONTES DE INFORMAÇÃO:
              - PRODUTOS DA LOJA (Catálogo): Use APENAS o contexto fornecido para listar quais produtos existem, preços, links e estoque. É PROIBIDO usar a internet para inventar ou buscar produtos que não estão no catálogo da loja. Perguntas sobre "quais produtos tem" ou "outros produtos" são respondidas APENAS com o catálogo.
              - INTERNET (Google Search): Use APENAS para pesquisar sobre COMPOSIÇÃO química, benefícios para a SAÚDE de ingredientes ou fatos científicos que ajudem a convencer o cliente a comprar os produtos da loja.
-          5. Ao recomendar, mencione o nome exato do produto e o link de compra fornecido.
-          6. APLIQUE RIGIDAMENTE as seguintes regras configuradas pelo administrador (ESTAS SÃO AS REGRAS DA MEMÓRIA):
+          6. Ao recomendar, mencione o nome exato do produto e o link de compra fornecido.
+          7. APLIQUE RIGIDAMENTE as seguintes regras configuradas pelo administrador (ESTAS SÃO AS REGRAS DA MEMÓRIA):
              --- REGRAS DA MEMÓRIA ---
              ${aiSettings.rules || 'Siga as instruções padrão de atendimento.'}
              --- FIM DAS REGRAS ---
@@ -358,14 +365,15 @@ export default function SmartChat() {
       const botResponse = response.text || 'Desculpe, não consegui processar sua solicitação.';
 
       // Split response into multiple messages if needed
-      // First split by [SPLIT] or double newlines
-      const rawParts = botResponse.split(/\[SPLIT\]|\n\n+/).filter(p => p.trim());
+      // First split by [SPLIT]
+      const rawParts = botResponse.split('[SPLIT]').filter(p => p.trim());
       
       // Further split any part that has more than maxLines
       const parts: string[] = [];
       for (const part of rawParts) {
         const lines = part.split('\n').filter(l => l.trim());
         if (lines.length > maxLines) {
+          // If the part is too long, split it into chunks of maxLines
           for (let i = 0; i < lines.length; i += maxLines) {
             const chunk = lines.slice(i, i + maxLines).join('\n').trim();
             if (chunk) parts.push(chunk);
@@ -390,7 +398,7 @@ export default function SmartChat() {
       console.error('Chat Error:', error);
       
       // Fallback if tool hybrid mode fails
-      if (error.message?.includes('include_server_side_tool_invocations') || error.message?.includes('INVALID_ARGUMENT')) {
+      if (error.message?.includes('include_server_side_tool_invocations') || error.message?.includes('INVALID_ARGUMENT') || error.message?.includes('tool_config')) {
         try {
           const ai = new GoogleGenAI({ apiKey: keys.key_value });
           const retryResponse = await ai.models.generateContent({
@@ -399,6 +407,9 @@ export default function SmartChat() {
               systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
               (RETRY MODE - SEM FERRAMENTAS)
               Responda com base APENAS no contexto fornecido abaixo.
+              
+              REGRAS DE LINHAS:
+              Responda com no máximo ${maxLines} linhas por mensagem.
               
               Contexto:\n${context}`,
             },
