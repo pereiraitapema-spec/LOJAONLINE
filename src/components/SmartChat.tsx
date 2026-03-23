@@ -305,12 +305,13 @@ export default function SmartChat() {
           - Explique brevemente a diferença entre eles e DEIXE O CLIENTE ESCOLHER qual prefere.
           - Para cada produto listado, mostre o NOME (com o link) e o VALOR (Preço Atual) lado a lado. Ex: "Produto X (link) - R$ 100,00".
           
-          LÓGICA DE "COMO TOMAR" E DURAÇÃO:
+          LÓGICA DE "COMO TOMAR", DURAÇÃO E RESISTÊNCIA À INSULINA:
           - Informe SEMPRE como tomar o produto conforme o campo "Como Tomar" (usage_instructions).
           - Calcule a duração do produto (quantos meses dura) baseando-se no "Conteúdo" (quantity_info) e "Como Tomar" (usage_instructions). Ex: 60 cápsulas / 2 cápsulas ao dia = 30 dias = 1 mês.
-          - Se o produto durar para 2, 3 ou 4 meses (conforme a descrição), e o cliente achar CARO, faça as contas para ele: "Este produto custa R$ X, mas como dura Y meses, o seu investimento mensal é de apenas R$ (X/Y)".
-          - Destaque o custo-benefício da duração prolongada.
-          - Mencione que temos descontos progressivos (Tiers) para compras de mais unidades.
+          - REGRA DE RESISTÊNCIA À INSULINA: Informe ao cliente que a duração do produto e o valor do investimento mensal dependem da resistência à insulina do corpo dele.
+          - Se a pessoa NÃO tiver resistência à insulina, o produto pode durar mais meses (conforme a dosagem mínima recomendada), e o valor mensal fica proporcionalmente menor.
+          - Se o produto durar para 2, 3 ou 4 meses (conforme a descrição), e o cliente achar CARO, faça as contas para ele: "Este produto custa R$ X, mas se você não tiver resistência à insulina, ele pode durar até Y meses, e seu investimento mensal será de apenas R$ (X/Y)".
+          - Destaque o custo-benefício da duração prolongada e mencione os descontos progressivos (Tiers).
           
           LÓGICA DE MEMÓRIA E PESQUISA (AUTO CONHECIMENTO):
           ${aiSettings.autoLearning ? `
