@@ -238,7 +238,7 @@ export default function Store() {
   }, [searchParams]);
 
   // Helper para timeout em chamadas Supabase
-  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 5000): Promise<T> => {
+  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 10000): Promise<T> => {
     return Promise.race([
       promise as Promise<T>,
       new Promise<T>((_, reject) => 
@@ -246,6 +246,8 @@ export default function Store() {
       )
     ]);
   };
+
+  const isFetchingRef = React.useRef(false);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -286,7 +288,13 @@ export default function Store() {
     };
 
     const fetchData = async () => {
+      if (isFetchingRef.current) {
+        console.log('⏳ fetchData já em execução, pulando...');
+        return;
+      }
+      
       try {
+        isFetchingRef.current = true;
         console.log('📦 Iniciando fetchData no Store...');
         // Buscar cupom aplicado se existir
         const savedCoupon = localStorage.getItem('applied_coupon');
@@ -337,7 +345,10 @@ export default function Store() {
 
         if (prodRes.error) {
           console.error('❌ Error fetching products:', prodRes.error);
-          toast.error('Erro ao carregar produtos. Verifique as permissões.');
+          // Se for erro de abort/lock, não mostrar toast para o usuário, apenas logar
+          if (!prodRes.error.message?.includes('AbortError') && !prodRes.error.message?.includes('Lock broken')) {
+            toast.error('Erro ao carregar produtos. Verifique as permissões.');
+          }
         }
 
         setBanners(bannerRes.data || []);
@@ -375,22 +386,33 @@ export default function Store() {
         }
       } catch (err) {
         console.error('❌ Critical Fetch Error:', err);
-        toast.error('Falha na conexão com o servidor.');
+        // Não mostrar toast se for erro de timeout/abort silencioso
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes('Timeout') && !msg.includes('AbortError')) {
+          toast.error('Falha na conexão com o servidor.');
+        }
+      } finally {
+        isFetchingRef.current = false;
       }
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('🔔 Store Auth Event:', event);
       setSession(session);
-      fetchData();
+      // Só re-buscar se o evento for relevante
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
+        fetchData();
+      }
     });
 
     checkUser();
-    fetchData();
-
+    // fetchData() será chamado pelo INITIAL_SESSION no onAuthStateChange
+    
     return () => {
       subscription.unsubscribe();
     };
   }, []);
+
 
   // Lógica do Carrossel
   useEffect(() => {

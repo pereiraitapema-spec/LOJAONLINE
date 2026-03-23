@@ -164,7 +164,7 @@ export default function SmartChat() {
         { data: siteContent, error: contentError },
         { data: knowledge, error: knowledgeError }
       ] = await Promise.all([
-        supabase.from('products').select('id, name, description, composition, price, discount_price, stock, quantity_info, usage_instructions, category:categories(name)').eq('active', true),
+        supabase.from('products').select('id, name, description, composition, price, discount_price, stock, quantity_info, usage_instructions, category:categories(name), tiers:product_tiers(*)').eq('active', true),
         supabase.from('store_settings').select('*').maybeSingle(),
         supabase.from('site_content').select('*'),
         supabase.from('ai_knowledge_base').select('*')
@@ -199,8 +199,11 @@ export default function SmartChat() {
               const discountText = hasDiscount ? ` (EM PROMOÇÃO! De R$ ${p.price} por R$ ${p.discount_price})` : '';
               const stockText = p.stock <= 5 ? ` - APENAS ${p.stock} UNIDADES EM ESTOQUE!` : '';
               const productLink = `${window.location.origin}/?product=${p.id}`;
+              const tiersText = p.tiers && p.tiers.length > 0 
+                ? `\nDescontos Progressivos: ${p.tiers.map((t: any) => `${t.quantity} unidades com ${t.discount_percentage}% de desconto`).join(', ')}`
+                : '';
               
-              return `Nome: [${p.name}](${productLink})\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}\nConteúdo: ${p.quantity_info || 'Não informado'}\nComo Tomar: ${p.usage_instructions || 'Não informado'}\nDescrição: ${p.description}\nComposição: ${p.composition}`;
+              return `Nome: [${p.name}](${productLink})\nPreço Atual: R$ ${currentPrice}${discountText}${stockText}${tiersText}\nConteúdo: ${p.quantity_info || 'Não informado'}\nComo Tomar: ${p.usage_instructions || 'Não informado'}\nDescrição: ${p.description}\nComposição: ${p.composition}`;
             }).join('\n\n');
           }).join('\n\n---\n\n')
         : 'Nenhum produto encontrado no catálogo no momento.');
@@ -257,12 +260,14 @@ export default function SmartChat() {
           5. Aplique os gatilhos e regras de vendas configurados: ${aiSettings.rules || 'Siga as instruções padrão de atendimento.'}
           
           LÓGICA DE EMAGRECIMENTO:
-          - Se o cliente perguntar "quero emagrecer" ou sobre "emagrecimento", você DEVE listar TODAS as opções de produtos para emagrecer disponíveis no contexto, mostrando o NOME e o VALOR (Preço Atual) de cada um lado a lado.
+          - Se o cliente perguntar "quero emagrecer" ou sobre "emagrecimento", você DEVE listar TODAS as opções de produtos para emagrecer disponíveis no contexto (verifique a categoria ou descrição).
+          - Para cada produto, mostre o NOME (com o link) e o VALOR (Preço Atual) lado a lado. Ex: "Produto X (link) - R$ 100,00".
           
           LÓGICA DE "COMO TOMAR" E DURAÇÃO:
           - Informe SEMPRE como tomar o produto conforme o campo "Como Tomar".
           - Calcule a duração do produto (quantos meses dura) baseando-se no "Conteúdo" (ex: 60 cápsulas) e "Como Tomar" (ex: 2 cápsulas ao dia). Ex: 60/2 = 30 dias = 1 mês.
           - Se o cliente achar CARO, faça as contas para ele: "Este produto dura [X] meses, então o seu investimento mensal é de apenas R$ [Preço/X]". Mostre que o custo-benefício é alto.
+          - Mencione também os descontos progressivos (levar mais unidades) se disponíveis no contexto para mostrar que o preço unitário cai.
           
           LÓGICA DE MEMÓRIA E PESQUISA:
           - Se o usuário perguntar a diferença entre produtos e você não tiver a resposta completa no contexto, use a ferramenta 'googleSearch' para pesquisar.
