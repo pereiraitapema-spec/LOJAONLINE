@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -169,6 +169,14 @@ export default function Store() {
   });
   const [showCart, setShowCart] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
+  
+  const productsRef = useRef<HTMLDivElement>(null);
+
+  const scrollToProducts = () => {
+    if (productsRef.current) {
+      productsRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
   
   useEffect(() => {
     localStorage.setItem('cart_items', JSON.stringify(cart));
@@ -753,6 +761,7 @@ export default function Store() {
               setSearchTerm('');
               setSelectedCategoryId(null);
               setSelectedProductId(null);
+              scrollToProducts();
               // Limpar URL sem recarregar
               const url = new URL(window.location.href);
               url.searchParams.delete('category');
@@ -789,6 +798,7 @@ export default function Store() {
                     setSearchTerm('');
                     setSelectedCategoryId(cat.id);
                     setSelectedProductId(null);
+                    scrollToProducts();
                   }
                   // Limpar URL de produto se mudar categoria
                   const url = new URL(window.location.href);
@@ -1044,6 +1054,7 @@ export default function Store() {
                 setSelectedCategory(null);
                 setSelectedCategoryId(null);
                 setSelectedProductId(null);
+                scrollToProducts();
               }}
               className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
                 (selectedCategory === null && selectedCategoryId === null)
@@ -1060,6 +1071,7 @@ export default function Store() {
                   setSelectedCategory(category.id);
                   setSelectedCategoryId(null);
                   setSelectedProductId(null);
+                  scrollToProducts();
                 }}
                 className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
                   (selectedCategory === category.id || selectedCategoryId === category.id)
@@ -1074,7 +1086,7 @@ export default function Store() {
         </div>
 
         {/* Grid de Produtos */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div ref={productsRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {(() => {
             const filtered = products.filter(p => {
               // Filtro por Categoria (Link Direto ou Seleção)
@@ -2148,6 +2160,41 @@ export default function Store() {
                   </>
                 )}
               </div>
+            </div>
+
+            {/* Categorias */}
+            <div>
+              <h4 className="font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm">Categorias</h4>
+              <ul className="space-y-4">
+                <li>
+                  <button 
+                    onClick={() => {
+                      setSelectedCategory(null);
+                      setSelectedCategoryId(null);
+                      setSelectedProductId(null);
+                      scrollToProducts();
+                    }}
+                    className="text-slate-600 hover:text-emerald-600 transition-colors text-sm text-left"
+                  >
+                    Todos os Produtos
+                  </button>
+                </li>
+                {categories.map(cat => (
+                  <li key={cat.id}>
+                    <button 
+                      onClick={() => {
+                        setSelectedCategory(cat.id);
+                        setSelectedCategoryId(null);
+                        setSelectedProductId(null);
+                        scrollToProducts();
+                      }}
+                      className="text-slate-600 hover:text-emerald-600 transition-colors text-sm text-left"
+                    >
+                      {cat.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
 
             {/* Sua Conta */}
