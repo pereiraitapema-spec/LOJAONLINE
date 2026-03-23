@@ -266,7 +266,7 @@ export default function Store() {
         }
       }
     };
-    
+
     const fetchData = async () => {
       try {
         // Buscar cupom aplicado se existir
@@ -347,8 +347,17 @@ export default function Store() {
       }
     };
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      fetchData();
+    });
+
     checkUser();
     fetchData();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Lógica do Carrossel
@@ -1462,6 +1471,18 @@ export default function Store() {
                       <h2 className="text-3xl md:text-5xl font-black text-slate-900 italic uppercase tracking-tighter mb-4 leading-tight">
                         {selectedProduct.name}
                       </h2>
+
+                      {selectedProduct.usage_instructions && (
+                        <div className="mb-6 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm">
+                          <span className="text-[10px] text-emerald-600 uppercase font-black block mb-2 flex items-center gap-1">
+                            <Activity size={12} />
+                            Como Tomar
+                          </span>
+                          <p className="text-sm text-slate-700 font-bold leading-relaxed italic">
+                            {selectedProduct.usage_instructions}
+                          </p>
+                        </div>
+                      )}
                       
                       <div className="flex flex-col mb-6">
                         {selectedProduct.discount_price !== null && selectedProduct.discount_price !== undefined && selectedProduct.discount_price > 0 ? (
@@ -1603,15 +1624,6 @@ export default function Store() {
                             </div>
                           </div>
                           
-                          {selectedProduct.usage_instructions && (
-                            <div className="mt-4 pt-4 border-t border-emerald-100">
-                              <span className="text-[10px] text-slate-400 uppercase font-black block mb-2">Como Tomar</span>
-                              <p className="text-sm text-slate-700 font-medium leading-relaxed">
-                                {selectedProduct.usage_instructions}
-                              </p>
-                            </div>
-                          )}
-
                           {selectedProduct.composition && (
                             <div className="mt-4 pt-4 border-t border-emerald-100">
                               <span className="text-[10px] text-slate-400 uppercase font-black block mb-2">Composição</span>
