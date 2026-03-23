@@ -268,9 +268,10 @@ export default function SmartChat() {
              ${aiSettings.rules || 'Siga as instruções padrão de atendimento.'}
              --- FIM DAS REGRAS ---
           
-          LÓGICA DE EMAGRECIMENTO:
-          - Se o cliente perguntar "quero emagrecer" ou sobre "emagrecimento", você DEVE listar TODAS as opções de produtos para emagrecer disponíveis no contexto (verifique a categoria ou descrição).
-          - Para cada produto, mostre o NOME (com o link) e o VALOR (Preço Atual) lado a lado. Ex: "Produto X (link) - R$ 100,00".
+          LÓGICA DE OBJETIVOS E ESCOLHA:
+          - Se houver mais de um produto no sistema com o mesmo objetivo (ex: emagrecimento, ganho de massa, energia), você DEVE apresentar TODOS esses produtos ao cliente.
+          - Explique brevemente a diferença entre eles e DEIXE O CLIENTE ESCOLHER qual prefere.
+          - Para cada produto listado, mostre o NOME (com o link) e o VALOR (Preço Atual) lado a lado. Ex: "Produto X (link) - R$ 100,00".
           
           LÓGICA DE "COMO TOMAR" E DURAÇÃO:
           - Informe SEMPRE como tomar o produto conforme o campo "Como Tomar" (usage_instructions).
