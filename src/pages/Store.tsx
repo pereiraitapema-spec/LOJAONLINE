@@ -258,7 +258,7 @@ export default function Store() {
   }, [selectedProductId, products]);
 
   // Helper para timeout em chamadas Supabase
-  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 10000): Promise<T> => {
+  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 15000): Promise<T> => {
     return Promise.race([
       promise as Promise<T>,
       new Promise<T>((_, reject) => 

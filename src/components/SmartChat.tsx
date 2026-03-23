@@ -289,6 +289,15 @@ export default function SmartChat() {
       const response = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
         contents: alternatingHistory,
+        tools: aiSettings.autoLearning ? [
+          { googleSearch: {} },
+          { functionDeclarations: [saveKnowledge] }
+        ] : [],
+        toolConfig: aiSettings.autoLearning ? { 
+          includeServerSideToolInvocations: true,
+          // @ts-ignore
+          include_server_side_tool_invocations: true 
+        } : undefined as any,
         config: {
           systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
           
@@ -311,12 +320,13 @@ export default function SmartChat() {
           - Para cada produto listado, mostre o NOME (com o link) e o VALOR (Preço Atual) lado a lado. Ex: "Produto X (link) - R$ 100,00".
           
           LÓGICA DE "COMO TOMAR", DURAÇÃO E RESISTÊNCIA À INSULINA:
-          - Informe SEMPRE como tomar o produto conforme o campo "Como Tomar" (usage_instructions).
-          - Calcule a duração do produto (quantos meses dura) baseando-se no "Conteúdo" (quantity_info) e "Como Tomar" (usage_instructions). Ex: 60 cápsulas / 2 cápsulas ao dia = 30 dias = 1 mês.
-          - REGRA DE RESISTÊNCIA À INSULINA: Informe ao cliente que a duração do produto e o valor do investimento mensal dependem da resistência à insulina do corpo dele.
-          - Se a pessoa NÃO tiver resistência à insulina, o produto pode durar mais meses (conforme a dosagem mínima recomendada), e o valor mensal fica proporcionalmente menor.
-          - Se o produto durar para 2, 3 ou 4 meses (conforme a descrição), e o cliente achar CARO, faça as contas para ele: "Este produto custa R$ X, mas se você não tiver resistência à insulina, ele pode durar até Y meses, e seu investimento mensal será de apenas R$ (X/Y)".
-          - Destaque o custo-benefício da duração prolongada e mencione os descontos progressivos (Tiers).
+          - Sempre que o cliente perguntar o PREÇO ou você informar o valor de um produto, você DEVE IMEDIATAMENTE explicar que o investimento pode ser diluído em vários meses.
+          - Informe como tomar o produto conforme o campo "Como Tomar" (usage_instructions).
+          - CALCULE E INFORME A DURAÇÃO: Baseie-se no "Conteúdo" (quantity_info) e "Como Tomar" (usage_instructions). 
+          - REGRA DE OURO DA INSULINA: Explique que se o cliente NÃO tiver resistência à insulina, ele pode usar a dosagem mínima (ex: 1 cápsula/dia), fazendo o produto durar muito mais (ex: 2, 3 ou 4 meses).
+          - CÁLCULO MENSAL: Mostre o valor por mês nesse cenário favorável. Ex: "O produto custa R$ 200, mas se você não tiver resistência à insulina, ele dura 4 meses, saindo por apenas R$ 50 por mês!".
+          - ALERTA DE RESISTÊNCIA: Ressalte que, se houver resistência à insulina, a dosagem precisará ser maior (conforme a descrição de "Como Tomar"), o que reduz a duração do pote e aumenta o investimento mensal.
+          - Destaque o custo-benefício da duração prolongada e mencione os descontos progressivos (Tiers) para baixar ainda mais o valor mensal.
           
           LÓGICA DE MEMÓRIA E PESQUISA (AUTO CONHECIMENTO):
           ${aiSettings.autoLearning ? `
@@ -331,15 +341,6 @@ export default function SmartChat() {
           Contexto dos Produtos (Conhecimento da IA):\n${context}
           
           Lembre-se do histórico recente do usuário.`,
-          tools: aiSettings.autoLearning ? [
-            { googleSearch: {} },
-            { functionDeclarations: [saveKnowledge] }
-          ] : [],
-          toolConfig: aiSettings.autoLearning ? { 
-            includeServerSideToolInvocations: true,
-            // @ts-ignore
-            include_server_side_tool_invocations: true 
-          } : undefined as any
         }
       } as any);
 
