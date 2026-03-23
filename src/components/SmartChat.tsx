@@ -274,17 +274,28 @@ export default function SmartChat() {
 
       const response = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
+        contents: alternatingHistory,
+        tools: aiSettings.autoLearning ? [
+          { googleSearch: {} },
+          { functionDeclarations: [saveKnowledge] }
+        ] : [],
+        toolConfig: aiSettings.autoLearning ? { 
+          includeServerSideToolInvocations: true,
+          // @ts-ignore
+          include_server_side_tool_invocations: true 
+        } : undefined as any,
         config: {
           systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
           
           REGRAS OBRIGATÓRIAS DE VENDAS E ATENDIMENTO (EXECUÇÃO RÍGIDA):
-          1. Responda com no máximo 4 linhas por parágrafo. Se precisar falar mais, use múltiplos parágrafos (eu vou dividi-los em mensagens separadas).
-          2. Finalize SEMPRE com uma pergunta para continuar a conversa.
-          3. FONTES DE INFORMAÇÃO:
+          1. Responda com no máximo 4 linhas por mensagem. Se precisar de mais espaço para explicar, você DEVE usar o separador [SPLIT] para dividir sua resposta em múltiplas mensagens.
+          2. NUNCA envie mais de 4 linhas em um único bloco de texto.
+          3. Finalize SEMPRE com uma pergunta para continuar a conversa.
+          4. FONTES DE INFORMAÇÃO:
              - PRODUTOS DA LOJA (Catálogo): Use APENAS o contexto fornecido para listar quais produtos existem, preços, links e estoque. É PROIBIDO usar a internet para inventar ou buscar produtos que não estão no catálogo da loja. Perguntas sobre "quais produtos tem" ou "outros produtos" são respondidas APENAS com o catálogo.
              - INTERNET (Google Search): Use APENAS para pesquisar sobre COMPOSIÇÃO química, benefícios para a SAÚDE de ingredientes ou fatos científicos que ajudem a convencer o cliente a comprar os produtos da loja.
-          4. Ao recomendar, mencione o nome exato do produto e o link de compra fornecido.
-          5. APLIQUE RIGIDAMENTE as seguintes regras configuradas pelo administrador (ESTAS SÃO AS REGRAS DA MEMÓRIA):
+          5. Ao recomendar, mencione o nome exato do produto e o link de compra fornecido.
+          6. APLIQUE RIGIDAMENTE as seguintes regras configuradas pelo administrador (ESTAS SÃO AS REGRAS DA MEMÓRIA):
              --- REGRAS DA MEMÓRIA ---
              ${aiSettings.rules || 'Siga as instruções padrão de atendimento.'}
              --- FIM DAS REGRAS ---
@@ -313,19 +324,9 @@ export default function SmartChat() {
           
           Contexto dos Produtos (Conhecimento da IA):\n${context}
           
-          Lembre-se do histórico recente do usuário.`,
-          tools: aiSettings.autoLearning ? [
-            { googleSearch: {} },
-            { functionDeclarations: [saveKnowledge] }
-          ] : [],
-          toolConfig: aiSettings.autoLearning ? { 
-            includeServerSideToolInvocations: true,
-            // @ts-ignore
-            include_server_side_tool_invocations: true 
-          } : undefined as any
-        },
-        contents: alternatingHistory
-      });
+          Lembre-se do histórico recente do usuário.`
+        }
+      } as any);
 
       // Handle Function Calls
       if (response.functionCalls) {
@@ -341,7 +342,22 @@ export default function SmartChat() {
       const botResponse = response.text || 'Desculpe, não consegui processar sua solicitação.';
 
       // Split response into multiple messages if needed
-      const parts = botResponse.split(/\n\n+/).filter(p => p.trim());
+      // First split by [SPLIT] or double newlines
+      const rawParts = botResponse.split(/\[SPLIT\]|\n\n+/).filter(p => p.trim());
+      
+      // Further split any part that has more than 4 lines
+      const parts: string[] = [];
+      for (const part of rawParts) {
+        const lines = part.split('\n').filter(l => l.trim());
+        if (lines.length > 4) {
+          for (let i = 0; i < lines.length; i += 4) {
+            const chunk = lines.slice(i, i + 4).join('\n').trim();
+            if (chunk) parts.push(chunk);
+          }
+        } else {
+          parts.push(part.trim());
+        }
+      }
       
       let latestMessages = currentMessages;
       for (const part of parts) {
