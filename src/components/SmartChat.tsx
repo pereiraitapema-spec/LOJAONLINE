@@ -32,11 +32,17 @@ export default function SmartChat() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.length > 0) {
-          setMessages(parsed);
-          return;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Validate each message has content
+          const validMessages = parsed.filter(msg => msg && typeof msg.content === 'string');
+          if (validMessages.length > 0) {
+            setMessages(validMessages);
+            return;
+          }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('Error loading chat history:', e);
+      }
     }
     setMessages([{ role: 'bot', content: 'Olá! Sou seu assistente inteligente G-FitLif. Como posso te ajudar hoje?' }]);
   };
@@ -454,7 +460,7 @@ export default function SmartChat() {
                         a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline font-bold" />
                       }}
                     >
-                      {msg.content}
+                      {msg.content || ''}
                     </ReactMarkdown>
                   </div>
                 </div>
