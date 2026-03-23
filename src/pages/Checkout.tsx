@@ -90,6 +90,13 @@ export default function Checkout() {
         setUser(session?.user || null);
 
         // Carregar cupom do link se existir
+        const searchParams = new URLSearchParams(window.location.search);
+        const urlCoupon = searchParams.get('coupon');
+        if (urlCoupon) {
+          localStorage.setItem('applied_coupon', urlCoupon.toUpperCase());
+          setCouponCode(urlCoupon.toUpperCase());
+        }
+
         const savedCoupon = localStorage.getItem('applied_coupon');
         if (savedCoupon) {
           setCouponCode(savedCoupon);
@@ -108,16 +115,40 @@ export default function Checkout() {
           }
         }
 
-        const savedCart = localStorage.getItem('cart_items');
-        if (savedCart) {
-          const parsedCart = JSON.parse(savedCart);
-          if (parsedCart.length === 0) {
+        // Lógica de Produto Direto via URL (?product=ID)
+        const urlProductId = searchParams.get('product');
+        const urlQuantity = parseInt(searchParams.get('quantity') || '1');
+
+        if (urlProductId) {
+          const { data: directProduct, error: prodError } = await supabase
+            .from('products')
+            .select('*')
+            .eq('id', urlProductId)
+            .eq('active', true)
+            .single();
+          
+          if (directProduct && !prodError) {
+            const newCartItem = { product: directProduct, quantity: urlQuantity };
+            setCart([newCartItem]);
+            localStorage.setItem('cart_items', JSON.stringify([newCartItem]));
+          } else {
+            toast.error('Produto não encontrado ou indisponível.');
             navigate('/');
             return;
           }
-          setCart(parsedCart);
         } else {
-          navigate('/');
+          const savedCart = localStorage.getItem('cart_items');
+          if (savedCart) {
+            const parsedCart = JSON.parse(savedCart);
+            if (parsedCart.length === 0) {
+              navigate('/');
+              return;
+            }
+            setCart(parsedCart);
+          } else {
+            navigate('/');
+            return;
+          }
         }
 
         // Fetch shipping methods and discount rules

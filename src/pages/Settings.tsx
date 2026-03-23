@@ -37,6 +37,7 @@ interface StoreSettings {
   origin_zip_code?: string;
   ai_chat_rules?: string;
   ai_chat_triggers?: string;
+  ai_auto_learning?: boolean;
 }
 
 export default function Settings() {
@@ -303,7 +304,8 @@ export default function Settings() {
         n8n_webhook_url: settings.n8n_webhook_url,
         origin_zip_code: settings.origin_zip_code,
         ai_chat_rules: settings.ai_chat_rules,
-        ai_chat_triggers: settings.ai_chat_triggers
+        ai_chat_triggers: settings.ai_chat_triggers,
+        ai_auto_learning: settings.ai_auto_learning
       };
 
       console.log('Salvando configurações:', payload);
@@ -1167,6 +1169,25 @@ create policy "Enable delete for authenticated users only" on public.automations
                   className="w-full h-64 p-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
                   placeholder="Ex: 1. Use gatilhos mentais de escassez..."
                 />
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                <div>
+                  <h3 className="font-bold text-indigo-900">Auto Conhecimento (IA Aprendiz)</h3>
+                  <p className="text-xs text-indigo-700">Se ativado, a IA pesquisará na internet quando não souber algo sobre a composição dos produtos e salvará automaticamente na memória.</p>
+                </div>
+                <button
+                  onClick={() => handleChange('ai_auto_learning', !settings.ai_auto_learning)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                    settings.ai_auto_learning ? 'bg-indigo-600' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      settings.ai_auto_learning ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
               </div>
             </div>
           </section>
