@@ -744,6 +744,9 @@ begin
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
         alter table public.store_settings add column ai_chat_triggers text;
     end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_auto_learning') then
+        alter table public.store_settings add column ai_auto_learning boolean default false;
+    end if;
 end $$;
 
 -- 8. Tabela de Automações (n8n-like)
@@ -769,7 +772,27 @@ drop policy if exists "Enable update for authenticated users only" on public.aut
 create policy "Enable update for authenticated users only" on public.automations for update using (auth.role() = 'authenticated');
 
 drop policy if exists "Enable delete for authenticated users only" on public.automations;
-create policy "Enable delete for authenticated users only" on public.automations for delete using (auth.role() = 'authenticated');`}
+create policy "Enable delete for authenticated users only" on public.automations for delete using (auth.role() = 'authenticated');
+
+-- 9. Tabela de Base de Conhecimento da IA (Novo)
+create table if not exists public.ai_knowledge_base (
+    id uuid default gen_random_uuid() primary key,
+    topic text unique not null,
+    content text not null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.ai_knowledge_base enable row level security;
+
+drop policy if exists "Conhecimento público" on public.ai_knowledge_base;
+create policy "Conhecimento público" on public.ai_knowledge_base for select using (true);
+
+drop policy if exists "Qualquer um pode inserir conhecimento" on public.ai_knowledge_base;
+create policy "Qualquer um pode inserir conhecimento" on public.ai_knowledge_base for insert with check (true);
+
+drop policy if exists "Qualquer um pode atualizar conhecimento" on public.ai_knowledge_base;
+create policy "Qualquer um pode atualizar conhecimento" on public.ai_knowledge_base for update using (true);`}
             </pre>
           </div>
           <button
