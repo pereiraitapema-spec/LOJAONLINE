@@ -1389,11 +1389,18 @@ export default function Store() {
       {/* Modal de Detalhes do Produto */}
       <AnimatePresence>
         {selectedProduct && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md"
+            onClick={closeProductModal}
+          >
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
               className="bg-white w-full max-w-6xl h-[90vh] rounded-[40px] shadow-2xl overflow-hidden relative flex flex-col md:flex-row"
             >
               <button 
@@ -1789,26 +1796,26 @@ export default function Store() {
                 </div>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* Modal de Favoritos */}
       <AnimatePresence>
         {showFavorites && (
-          <div className="fixed inset-0 z-[100] flex justify-end">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowFavorites(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            />
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex justify-end bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => setShowFavorites(false)}
+          >
             <motion.div 
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col"
             >
               <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-pink-600 text-white">
@@ -1862,18 +1869,25 @@ export default function Store() {
                 </button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* Modal do Carrinho */}
       <AnimatePresence>
         {showCart && (
-          <div className="fixed inset-0 z-[110] flex items-end md:items-center justify-end md:p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] flex items-end md:items-center justify-end md:p-4 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => setShowCart(false)}
+          >
             <motion.div 
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
+              onClick={(e) => e.stopPropagation()}
               className="bg-white w-full md:w-[450px] h-[90vh] md:h-full md:max-h-[800px] md:rounded-[40px] shadow-2xl flex flex-col overflow-hidden"
             >
               <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-pink-600 text-white">
@@ -2048,7 +2062,7 @@ export default function Store() {
                 </div>
               )}
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -2103,11 +2117,18 @@ export default function Store() {
       {/* Modal de Campanha */}
       <AnimatePresence>
         {selectedCampaign && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => setSelectedCampaign(null)}
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col"
             >
               <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-emerald-600 text-white">
@@ -2181,7 +2202,7 @@ export default function Store() {
                 </div>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
       {/* Footer */}
