@@ -118,7 +118,7 @@ export default function SmartChat() {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || loading) return;
+    if (!input.trim()) return;
 
     if (!session) {
       toast.error('Você precisa estar logado para enviar mensagens.');
@@ -135,19 +135,32 @@ export default function SmartChat() {
     
     // Save to DB
     try {
-      await supabase.from('chat_messages').insert({
+      supabase.from('chat_messages').insert({
         sender_id: session.user.id,
         receiver_id: session.user.id, // Use own ID as receiver for AI chat to avoid FK issues
         message: userMessage
+      }).then(({ error }) => {
+        if (error) console.warn('⚠️ Erro ao salvar mensagem no DB:', error);
       });
     } catch (e) {
       console.warn('⚠️ Erro ao salvar mensagem no DB:', e);
     }
     
-    setLoading(true);
-
     // Marcar como lead morno ao interagir no chat
     leadService.updateStatus('morno');
+  };
+
+  // Effect to trigger AI response when there are new user messages
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role === 'user' && !loading && session) {
+      processAiResponse(messages);
+    }
+  }, [messages, loading, session]);
+
+  const processAiResponse = async (currentMessages: Message[]) => {
+    if (loading) return;
+    setLoading(true);
 
     let keys: any = null;
     let context = '';
@@ -236,7 +249,7 @@ export default function SmartChat() {
         }
       };
 
-      const rawHistory = updatedMessages.map(msg => ({
+      const rawHistory = currentMessages.map(msg => ({
         role: msg.role === 'bot' ? 'model' : 'user',
         parts: [{ text: msg.content }]
       }));
@@ -265,9 +278,11 @@ export default function SmartChat() {
           systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
           
           REGRAS OBRIGATÓRIAS DE VENDAS E ATENDIMENTO (EXECUÇÃO RÍGIDA):
-          1. Responda com no máximo 4 linhas, a menos que precise listar produtos.
+          1. Responda com no máximo 4 linhas por parágrafo. Se precisar falar mais, use múltiplos parágrafos (eu vou dividi-los em mensagens separadas).
           2. Finalize SEMPRE com uma pergunta para continuar a conversa.
-          3. Use APENAS informações dos produtos fornecidos no contexto. É PROIBIDO inventar nomes, preços, descrições, composições ou links.
+          3. FONTES DE INFORMAÇÃO:
+             - PRODUTOS DA LOJA (Catálogo): Use APENAS o contexto fornecido para listar quais produtos existem, preços, links e estoque. É PROIBIDO usar a internet para inventar ou buscar produtos que não estão no catálogo da loja. Perguntas sobre "quais produtos tem" ou "outros produtos" são respondidas APENAS com o catálogo.
+             - INTERNET (Google Search): Use APENAS para pesquisar sobre COMPOSIÇÃO química, benefícios para a SAÚDE de ingredientes ou fatos científicos que ajudem a convencer o cliente a comprar os produtos da loja.
           4. Ao recomendar, mencione o nome exato do produto e o link de compra fornecido.
           5. APLIQUE RIGIDAMENTE as seguintes regras configuradas pelo administrador (ESTAS SÃO AS REGRAS DA MEMÓRIA):
              --- REGRAS DA MEMÓRIA ---
@@ -325,9 +340,20 @@ export default function SmartChat() {
 
       const botResponse = response.text || 'Desculpe, não consegui processar sua solicitação.';
 
-      const finalMessages = [...updatedMessages, { role: 'bot' as const, content: botResponse }].slice(-40);
-      setMessages(finalMessages);
-      localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(finalMessages));
+      // Split response into multiple messages if needed
+      const parts = botResponse.split(/\n\n+/).filter(p => p.trim());
+      
+      let latestMessages = currentMessages;
+      for (const part of parts) {
+        latestMessages = [...latestMessages, { role: 'bot' as const, content: part.trim() }];
+        setMessages(latestMessages);
+        localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(latestMessages));
+        
+        // Small delay between messages for more natural feel
+        if (parts.indexOf(part) < parts.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
     } catch (error: any) {
       console.error('Chat Error:', error);
       
@@ -348,7 +374,7 @@ export default function SmartChat() {
           });
           
           const botResponse = retryResponse.text || 'Desculpe, tive um problema ao processar sua pergunta.';
-          const finalMessages = [...updatedMessages, { role: 'bot' as const, content: botResponse }].slice(-40);
+          const finalMessages = [...currentMessages, { role: 'bot' as const, content: botResponse }].slice(-40);
           setMessages(finalMessages);
           localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(finalMessages));
           return;
@@ -357,7 +383,7 @@ export default function SmartChat() {
         }
       }
 
-      const errorMessages = [...updatedMessages, { role: 'bot' as const, content: 'Ops! Tive um problema técnico. Pode tentar novamente?' }].slice(-40);
+      const errorMessages = [...currentMessages, { role: 'bot' as const, content: 'Ops! Tive um problema técnico. Pode tentar novamente?' }].slice(-40);
       setMessages(errorMessages);
       localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(errorMessages));
     } finally {
@@ -448,7 +474,7 @@ export default function SmartChat() {
                   />
                   <button
                     onClick={handleSend}
-                    disabled={!input.trim() || loading}
+                    disabled={!input.trim()}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
                   >
                     <Send size={16} />
