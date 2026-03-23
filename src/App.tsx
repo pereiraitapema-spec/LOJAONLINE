@@ -36,7 +36,9 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserRole = async (userId: string, email?: string) => {
+    if (email === 'pereira.itapema@gmail.com') return 'admin';
+    
     try {
       const { data: profile } = await supabase
         .from('profiles')
@@ -103,10 +105,10 @@ function AppContent() {
       }
 
       if (session) {
-        const role = await fetchUserRole(session.user.id);
+        const role = await fetchUserRole(session.user.id, session.user.email);
         setUserRole(role);
         // Só redirecionar se estiver no login ou register
-        if (path === '/login' || path === '/register') {
+        if (path === '/login' || path === '/register' || (session.user.email === 'pereira.itapema@gmail.com' && role !== 'admin')) {
           await handleRoleRedirect(session);
         }
       }
@@ -144,7 +146,7 @@ function AppContent() {
       if (event === 'SIGNED_IN' && session) {
         console.log('✅ Usuário logado:', session.user.email);
         
-        const role = await fetchUserRole(session.user.id);
+        const role = await fetchUserRole(session.user.id, session.user.email);
         setUserRole(role);
 
         // Se estivermos em um fluxo de recuperação, NÃO redirecionar para dashboard
