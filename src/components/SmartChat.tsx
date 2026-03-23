@@ -233,7 +233,7 @@ export default function SmartChat() {
           REGRAS OBRIGATÓRIAS DE VENDAS E ATENDIMENTO:
           1. Responda com no máximo 4 linhas.
           2. Finalize SEMPRE com uma pergunta para continuar a conversa.
-          3. Use APENAS informações dos produtos fornecidos no contexto. É PROIBIDO inventar nomes, preços, descrições, composições ou links. Se não houver informação, diga que não sabe.
+          3. Use APENAS informações dos produtos fornecidos no contexto. É PROIBIDO inventar nomes, preços, descrições, composições ou links. MANTENHA OS NOMES DOS PRODUTOS EXATAMENTE COMO FORNECIDOS, NÃO OS TRADUZA PARA PORTUGUÊS.
           4. Analise a descrição e composição de TODOS os produtos no contexto para recomendar a melhor opção para a necessidade do usuário.
           5. Ao recomendar, mencione o nome exato do produto e o link de compra fornecido.
           6. Aplique os gatilhos e regras de vendas configurados: ${aiSettings.rules || 'Siga as instruções padrão de atendimento.'}

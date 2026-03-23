@@ -219,7 +219,8 @@ export default function Products() {
       REGRAS CRÍTICAS E OBRIGATÓRIAS:
       1. NÃO USE NENHUMA TAG HTML (como <p>, <strong>, <ul>, etc). O texto deve ser LIMPO.
       2. Use apenas quebras de linha para separar parágrafos.
-      3. FOCO TOTAL EM BENEFÍCIOS: Não liste apenas características técnicas. Transforme cada característica em um benefício emocional ou prático que melhore a vida do cliente.
+      3. MANTENHA O NOME DO PRODUTO EXATAMENTE COMO FORNECIDO ("${productForm.name}"). NÃO TRADUZA O NOME DO PRODUTO PARA PORTUGUÊS SE ELE ESTIVER EM INGLÊS.
+      4. FOCO TOTAL EM BENEFÍCIOS: Não liste apenas características técnicas. Transforme cada característica em um benefício emocional ou prático que melhore a vida do cliente.
       4. GATILHOS MENTAIS: Utilize gatilhos de Autoridade, Escassez, Urgência, Prova Social e Reciprocidade de forma natural.
       5. ESTRUTURA DE VENDAS:
          - Gancho: Uma frase inicial que captura a atenção imediatamente e toca em uma dor ou desejo profundo.

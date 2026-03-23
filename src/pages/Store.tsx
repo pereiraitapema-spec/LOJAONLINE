@@ -1077,11 +1077,6 @@ export default function Store() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {(() => {
             const filtered = products.filter(p => {
-              // Filtro por Produto Específico (Link Direto)
-              if (selectedProductId) {
-                return p.id === selectedProductId;
-              }
-
               // Filtro por Categoria (Link Direto ou Seleção)
               const catId = selectedCategory || selectedCategoryId;
               if (catId) {
