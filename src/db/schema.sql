@@ -127,13 +127,20 @@ create table if not exists public.api_keys (
 create table if not exists public.orders (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users(id) on delete set null,
+  affiliate_id uuid references public.affiliates(id) on delete set null,
+  commission_value numeric(10,2) default 0,
+  customer_name text,
+  customer_email text,
+  customer_phone text,
+  customer_document text,
   status text default 'pending' check (status in ('pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded')),
   total numeric(10,2) not null,
   subtotal numeric(10,2) not null,
   shipping_cost numeric(10,2) default 0,
-  discount numeric(10,2) default 0,
+  discount_value numeric(10,2) default 0,
   payment_method text,
   payment_id text, -- ID externo (Stripe/MP)
+  shipping_method text,
   shipping_address jsonb not null,
   tracking_code text,
   notes text,
@@ -177,6 +184,26 @@ create table if not exists public.coupons (
   used_count integer default 0,
   expires_at timestamp with time zone,
   active boolean default true,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+create table if not exists public.affiliate_coupons (
+  id uuid default gen_random_uuid() primary key,
+  affiliate_id uuid references public.affiliates(id) on delete cascade,
+  code text unique not null,
+  discount_percentage numeric(5,2) not null check (discount_percentage <= 10),
+  active boolean default true,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+create table if not exists public.affiliate_payments (
+  id uuid default gen_random_uuid() primary key,
+  affiliate_id uuid references public.affiliates(id) on delete cascade,
+  amount numeric(10,2) not null,
+  status text default 'pending' check (status in ('pending', 'paid', 'cancelled')),
+  pix_data jsonb,
+  paid_at timestamp with time zone,
+  receipt_url text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -276,6 +303,8 @@ alter table public.api_keys enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.affiliates enable row level security;
+alter table public.affiliate_coupons enable row level security;
+alter table public.affiliate_payments enable row level security;
 alter table public.store_settings enable row level security;
 
 alter table public.banners enable row level security;
@@ -349,8 +378,62 @@ create policy "Auth all product_tiers" on public.product_tiers for all using (au
 drop policy if exists "Users can view own orders" on public.orders;
 create policy "Users can view own orders" on public.orders for select using (auth.uid() = user_id);
 
+drop policy if exists "Affiliates can view their attributed orders" on public.orders;
+create policy "Affiliates can view their attributed orders" on public.orders for select using (
+  exists (
+    select 1 from public.affiliates
+    where id = public.orders.affiliate_id
+    and user_id = auth.uid()
+  )
+);
+
 drop policy if exists "Users can create orders" on public.orders;
-create policy "Users can create orders" on public.orders for insert with check (auth.uid() = user_id);
+create policy "Users can create orders" on public.orders for insert with check (true); -- Permitir guest checkout
+
+-- Policies para Affiliates
+drop policy if exists "Public read affiliates" on public.affiliates;
+create policy "Public read affiliates" on public.affiliates for select using (true);
+
+drop policy if exists "Users can view own affiliate data" on public.affiliates;
+create policy "Users can view own affiliate data" on public.affiliates for select using (auth.uid() = user_id);
+
+drop policy if exists "Users can update own affiliate data" on public.affiliates;
+create policy "Users can update own affiliate data" on public.affiliates for update using (auth.uid() = user_id);
+
+drop policy if exists "Users can apply for affiliate" on public.affiliates;
+create policy "Users can apply for affiliate" on public.affiliates for insert with check (auth.uid() = user_id);
+
+-- Policies para Affiliate Coupons
+drop policy if exists "Public read affiliate_coupons" on public.affiliate_coupons;
+create policy "Public read affiliate_coupons" on public.affiliate_coupons for select using (true);
+
+drop policy if exists "Affiliates can manage own coupons" on public.affiliate_coupons;
+create policy "Affiliates can manage own coupons" on public.affiliate_coupons for all using (
+  exists (
+    select 1 from public.affiliates
+    where id = public.affiliate_coupons.affiliate_id
+    and user_id = auth.uid()
+  )
+);
+
+-- Policies para Affiliate Payments
+drop policy if exists "Affiliates can view own payments" on public.affiliate_payments;
+create policy "Affiliates can view own payments" on public.affiliate_payments for select using (
+  exists (
+    select 1 from public.affiliates
+    where id = public.affiliate_payments.affiliate_id
+    and user_id = auth.uid()
+  )
+);
+
+drop policy if exists "Affiliates can request payments" on public.affiliate_payments;
+create policy "Affiliates can request payments" on public.affiliate_payments for insert with check (
+  exists (
+    select 1 from public.affiliates
+    where id = public.affiliate_payments.affiliate_id
+    and user_id = auth.uid()
+  )
+);
 
 -- Policies para Store Settings (Público lê, Autenticado edita - refinar para admin depois)
 drop policy if exists "Public read settings" on public.store_settings;
@@ -378,6 +461,7 @@ $$ language plpgsql;
 -- 2. Criar a tabela de leads
 create table if not exists public.leads (
   id uuid default gen_random_uuid() primary key,
+  affiliate_id uuid references public.affiliates(id) on delete set null,
   nome text not null,
   email text,
   whatsapp text not null,
@@ -401,6 +485,16 @@ create table if not exists public.leads (
   opt_in_marketing boolean default true,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Policy para Leads (Afiliados veem seus próprios leads)
+drop policy if exists "Affiliates can view own leads" on public.leads;
+create policy "Affiliates can view own leads" on public.leads for select using (
+  exists (
+    select 1 from public.affiliates
+    where id = public.leads.affiliate_id
+    and user_id = auth.uid()
+  )
 );
 
 -- 3. Criar índices para otimizar buscas do n8n e CRM
