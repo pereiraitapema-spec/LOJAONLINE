@@ -53,7 +53,18 @@ export default function Inventory() {
   useEffect(() => {
     const checkAdmin = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session || session.user.email !== 'pereira.itapema@gmail.com') {
+      if (!session) {
+        navigate('/login');
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (profile?.role !== 'admin' && session.user.email !== 'pereira.itapema@gmail.com') {
         toast.error('Acesso negado.');
         navigate('/');
         return;

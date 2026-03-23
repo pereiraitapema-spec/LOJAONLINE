@@ -32,8 +32,24 @@ import { toast } from 'react-hot-toast';
 
 function AppContent() {
   const [session, setSession] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  const fetchUserRole = async (userId: string) => {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      return profile?.role || 'customer';
+    } catch (error) {
+      console.error('Error fetching user role:', error);
+      return 'customer';
+    }
+  };
 
   // Safety timeout for loading state
   useEffect(() => {
@@ -87,6 +103,8 @@ function AppContent() {
       }
 
       if (session) {
+        const role = await fetchUserRole(session.user.id);
+        setUserRole(role);
         // Só redirecionar se estiver no login ou register
         if (path === '/login' || path === '/register') {
           await handleRoleRedirect(session);
@@ -126,6 +144,9 @@ function AppContent() {
       if (event === 'SIGNED_IN' && session) {
         console.log('✅ Usuário logado:', session.user.email);
         
+        const role = await fetchUserRole(session.user.id);
+        setUserRole(role);
+
         // Se estivermos em um fluxo de recuperação, NÃO redirecionar para dashboard
         if (window.location.hash.includes('type=recovery') || window.location.pathname === '/reset-password') {
           console.log('⏳ Mantendo na página de recuperação...');
@@ -146,6 +167,7 @@ function AppContent() {
       if (event === 'SIGNED_OUT') {
         console.log('🚪 Usuário deslogado');
         setSession(null);
+        setUserRole(null);
         navigate('/login');
       }
 
@@ -203,6 +225,8 @@ function AppContent() {
           full_name: 'Admin Master'
         }, { onConflict: 'id' });
 
+        setUserRole('admin');
+
         if (path === '/login' || path === '/register') {
           console.log('🚀 Redirecionando Admin Master para /dashboard');
           navigate('/dashboard');
@@ -226,6 +250,7 @@ function AppContent() {
 
       if (affiliate && (affiliate.status === 'approved' || (affiliate.active && !affiliate.status))) {
         console.log('🤝 Afiliado aprovado detectado');
+        setUserRole('affiliate');
         if (path === '/login' || path === '/register') {
           console.log('🚀 Redirecionando Afiliado para /affiliate-dashboard');
           navigate('/affiliate-dashboard');
@@ -257,6 +282,9 @@ function AppContent() {
           role: 'customer',
           full_name: userEmail.split('@')[0]
         });
+        setUserRole('customer');
+      } else if (profile) {
+        setUserRole(profile.role);
       }
 
       // 4. Verificar se é Admin secundário
@@ -282,6 +310,17 @@ function AppContent() {
       console.log('🏁 Finalizando handleRoleRedirect, loading -> false');
       setLoading(false);
     }
+  };
+
+  const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+    if (!session) return <Navigate to="/login" replace />;
+    
+    const isMasterAdmin = session.user.email === 'pereira.itapema@gmail.com';
+    if (userRole !== 'admin' && !isMasterAdmin) {
+      toast.error('Acesso restrito a administradores.');
+      return <Navigate to="/" replace />;
+    }
+    return <>{children}</>;
   };
 
   if (loading) {
@@ -327,59 +366,59 @@ function AppContent() {
         {/* Painel Administrativo */}
         <Route 
           path="/dashboard" 
-          element={session ? <Dashboard /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><Dashboard /></AdminRoute>} 
         />
         <Route 
           path="/banners" 
-          element={session ? <Banners /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><Banners /></AdminRoute>} 
         />
         <Route 
           path="/campaigns" 
-          element={session ? <Campaigns /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><Campaigns /></AdminRoute>} 
         />
         <Route 
           path="/products" 
-          element={session ? <Products /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><Products /></AdminRoute>} 
         />
         <Route 
           path="/orders" 
-          element={session ? <Orders /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><Orders /></AdminRoute>} 
         />
         <Route 
           path="/affiliates" 
-          element={session ? <Affiliates /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><Affiliates /></AdminRoute>} 
         />
         <Route 
           path="/settings" 
-          element={session ? <Settings /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><Settings /></AdminRoute>} 
         />
         <Route 
           path="/gateways" 
-          element={session ? <PaymentGateways /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><PaymentGateways /></AdminRoute>} 
         />
         <Route 
           path="/shipping" 
-          element={session ? <ShippingCarriers /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><ShippingCarriers /></AdminRoute>} 
         />
         <Route 
           path="/integrations" 
-          element={session ? <Integrations /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><Integrations /></AdminRoute>} 
         />
         <Route 
           path="/leads" 
-          element={session ? <Leads /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><Leads /></AdminRoute>} 
         />
         <Route 
           path="/abandoned-carts" 
-          element={session ? <AbandonedCarts /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><AbandonedCarts /></AdminRoute>} 
         />
         <Route 
           path="/inventory" 
-          element={session ? <Inventory /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><Inventory /></AdminRoute>} 
         />
         <Route 
           path="/automations" 
-          element={session ? <Automations /> : <Navigate to="/login" replace />} 
+          element={<AdminRoute><Automations /></AdminRoute>} 
         />
 
         {/* Fallback */}

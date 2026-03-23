@@ -47,7 +47,13 @@ export default function Dashboard() {
           return;
         }
 
-        if (session.user.email !== 'pereira.itapema@gmail.com') {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (profileData?.role !== 'admin' && session.user.email !== 'pereira.itapema@gmail.com') {
           toast.error('Acesso negado.');
           navigate('/');
           return;

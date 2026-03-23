@@ -312,7 +312,13 @@ export default function Orders() {
         return;
       }
 
-      const userIsAdmin = session.user.email === 'pereira.itapema@gmail.com';
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      const userIsAdmin = profile?.role === 'admin' || session.user.email === 'pereira.itapema@gmail.com';
       setIsAdmin(userIsAdmin);
 
       if (activeTab === 'orders') {

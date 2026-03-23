@@ -229,7 +229,13 @@ export default function Store() {
       setSession(session);
       
       if (session) {
-        if (session.user.email === 'pereira.itapema@gmail.com') {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (profile?.role === 'admin' || session.user.email === 'pereira.itapema@gmail.com') {
           setIsAdmin(true);
         }
 
