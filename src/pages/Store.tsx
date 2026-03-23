@@ -288,6 +288,12 @@ export default function Store() {
           supabase.from('site_content').select('*')
         ]);
         
+        console.log('📦 Products Fetch Result:', { 
+          count: prodRes.data?.length, 
+          error: prodRes.error,
+          data: prodRes.data 
+        });
+
         if (prodRes.error) {
           console.error('❌ Error fetching products:', prodRes.error);
           toast.error('Erro ao carregar produtos. Verifique as permissões.');
@@ -1034,9 +1040,13 @@ export default function Store() {
           {/* Filtro de Categorias */}
           <div className="flex flex-wrap justify-center gap-2 mt-8">
             <button
-              onClick={() => setSelectedCategory(null)}
+              onClick={() => {
+                setSelectedCategory(null);
+                setSelectedCategoryId(null);
+                setSelectedProductId(null);
+              }}
               className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
-                selectedCategory === null 
+                (selectedCategory === null && selectedCategoryId === null)
                   ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
                   : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
               }`}
@@ -1046,9 +1056,13 @@ export default function Store() {
             {categories.map(category => (
               <button
                 key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
+                onClick={() => {
+                  setSelectedCategory(category.id);
+                  setSelectedCategoryId(null);
+                  setSelectedProductId(null);
+                }}
                 className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
-                  selectedCategory === category.id 
+                  (selectedCategory === category.id || selectedCategoryId === category.id)
                     ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
                     : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
                 }`}
@@ -1061,31 +1075,43 @@ export default function Store() {
 
         {/* Grid de Produtos */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {products.filter(p => {
-            // Filtro por Produto Específico (Link Direto)
-            if (selectedProductId) {
-              return p.id === selectedProductId;
-            }
+          {(() => {
+            const filtered = products.filter(p => {
+              // Filtro por Produto Específico (Link Direto)
+              if (selectedProductId) {
+                return p.id === selectedProductId;
+              }
 
-            // Filtro por Categoria (Link Direto ou Seleção)
-            const catId = selectedCategory || selectedCategoryId;
-            if (catId) {
-              if ((p as any).category_id !== catId) return false;
-            }
+              // Filtro por Categoria (Link Direto ou Seleção)
+              const catId = selectedCategory || selectedCategoryId;
+              if (catId) {
+                if ((p as any).category_id !== catId) return false;
+              }
 
-            if (!searchTerm) return true;
-            const term = searchTerm.toLowerCase();
-            // Verifica se o termo de busca bate com o nome do produto ou com a categoria
-            const matchName = p.name.toLowerCase().includes(term);
-            const matchCategory = categories.find(c => c.id === (p as any).category_id)?.name.toLowerCase() === term;
-            return matchName || matchCategory;
-          }).map((product) => (
-            <motion.div 
-              key={product.id}
-              whileHover={{ y: -10 }}
-              onClick={() => handleSelectProduct(product)}
-              className="group cursor-pointer"
-            >
+              if (!searchTerm) return true;
+              const term = searchTerm.toLowerCase();
+              // Verifica se o termo de busca bate com o nome do produto ou com a categoria
+              const matchName = p.name.toLowerCase().includes(term);
+              const matchCategory = categories.find(c => c.id === (p as any).category_id)?.name.toLowerCase() === term;
+              return matchName || matchCategory;
+            });
+            
+            console.log('🔍 Filtered Products:', {
+              total: products.length,
+              filtered: filtered.length,
+              selectedCategory,
+              selectedCategoryId,
+              selectedProductId,
+              searchTerm
+            });
+            
+            return filtered.map((product) => (
+              <motion.div 
+                key={product.id}
+                whileHover={{ y: -10 }}
+                onClick={() => handleSelectProduct(product)}
+                className="group cursor-pointer"
+              >
               <div className="aspect-[3/4] bg-slate-100 rounded-3xl mb-4 overflow-hidden relative shadow-sm border border-slate-100">
                 {product.image_url ? (
                   <img 
@@ -1173,18 +1199,29 @@ export default function Store() {
                 Comprar
               </button>
             </motion.div>
-          ))}
-          {products.filter(p => {
-            if (!searchTerm) return true;
-            const term = searchTerm.toLowerCase();
-            const matchName = p.name.toLowerCase().includes(term);
-            const matchCategory = categories.find(c => c.id === (p as any).category_id)?.name.toLowerCase() === term;
-            return matchName || matchCategory;
-          }).length === 0 && (
-            <div className="col-span-full text-center py-12 text-slate-500">
-              Nenhum produto encontrado para "{searchTerm}".
-            </div>
-          )}
+          ));
+        })()}
+          {(() => {
+            const filtered = products.filter(p => {
+              if (selectedProductId) return p.id === selectedProductId;
+              const catId = selectedCategory || selectedCategoryId;
+              if (catId && (p as any).category_id !== catId) return false;
+              if (!searchTerm) return true;
+              const term = searchTerm.toLowerCase();
+              const matchName = p.name.toLowerCase().includes(term);
+              const matchCategory = categories.find(c => c.id === (p as any).category_id)?.name.toLowerCase() === term;
+              return matchName || matchCategory;
+            });
+            
+            if (filtered.length === 0 && products.length > 0) {
+              return (
+                <div className="col-span-full text-center py-12 text-slate-500">
+                  Nenhum produto encontrado {searchTerm ? `para "${searchTerm}"` : ''}.
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
 
         {products.length === 0 && (
