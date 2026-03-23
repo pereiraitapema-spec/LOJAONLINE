@@ -74,6 +74,8 @@ interface Product {
   min_installment_value?: number;
   tiers: ProductTier[];
   media: ProductMedia[];
+  capsules?: number;
+  affiliate_commission?: number;
 }
 
 interface StoreSettings {
@@ -97,6 +99,9 @@ interface StoreSettings {
   top_bar_text: string;
   promotions_section_title?: string;
   promotions_section_subtitle?: string;
+  products_section_title?: string;
+  products_section_subtitle?: string;
+  tracking_pixels?: { platform: string; pixel_id: string; active: boolean }[];
 }
 
 export default function Store() {
@@ -1534,6 +1539,32 @@ export default function Store() {
                           <Star size={18} className="text-amber-400" />
                           Por que escolher?
                         </h3>
+                        <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 mb-6">
+                          <h4 className="text-xs font-black text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <Activity size={16} />
+                            Informações do Produto
+                          </h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-sm">
+                              <span className="text-[10px] text-slate-400 uppercase font-black block mb-1">Conteúdo</span>
+                              <span className="text-lg font-black text-slate-900">{selectedProduct.capsules || 60} Cápsulas</span>
+                            </div>
+                            <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-sm">
+                              <span className="text-[10px] text-slate-400 uppercase font-black block mb-1">Fórmula</span>
+                              <span className="text-lg font-black text-slate-900">Premium</span>
+                            </div>
+                          </div>
+                          
+                          {selectedProduct.composition && (
+                            <div className="mt-4 pt-4 border-t border-emerald-100">
+                              <span className="text-[10px] text-slate-400 uppercase font-black block mb-2">Composição</span>
+                              <p className="text-sm text-slate-700 font-medium leading-relaxed">
+                                {selectedProduct.composition}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
                         <div className="bg-emerald-50 rounded-2xl p-6 mb-6 border border-emerald-100">
                           <ul className="space-y-4">
                             <li className="flex items-start gap-3 text-slate-700 text-sm font-medium">

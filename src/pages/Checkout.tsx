@@ -17,7 +17,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { cepService } from '../services/cepService';
-import { shippingService, ShippingPackage } from '../services/shippingService';
+import { shippingService, ShippingPackage, ShippingQuote } from '../services/shippingService';
 import { leadService } from '../services/leadService';
 
 interface Product {
@@ -42,7 +42,7 @@ export default function Checkout() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [user, setUser] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix' | 'boleto' | 'transfer'>('pix');
-  const [shippingMethods, setShippingMethods] = useState<{ name: string; price: number; deadline: string; active: boolean }[]>([]);
+  const [shippingMethods, setShippingMethods] = useState<ShippingQuote[]>([]);
   const [selectedShipping, setSelectedShipping] = useState<number>(0);
   const [discountRules, setDiscountRules] = useState<any[]>([]);
   const [appliedDiscounts, setAppliedDiscounts] = useState<{ name: string; value: number }[]>([]);
@@ -138,8 +138,8 @@ export default function Checkout() {
         } else {
           // Fallback
           setShippingMethods([
-            { name: 'Correios (PAC)', price: 25.90, deadline: '7 a 10 dias úteis', active: true },
-            { name: 'Correios (SEDEX)', price: 45.90, deadline: '2 a 4 dias úteis', active: true }
+            { id: 'pac', name: 'Correios (PAC)', price: 25.90, deadline: '7 a 10 dias úteis', provider: 'correios' },
+            { id: 'sedex', name: 'Correios (SEDEX)', price: 45.90, deadline: '2 a 4 dias úteis', provider: 'correios' }
           ]);
         }
 

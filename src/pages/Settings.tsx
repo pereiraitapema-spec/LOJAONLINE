@@ -819,7 +819,7 @@ create policy "Enable delete for authenticated users only" on public.automations
             {showSql ? 'Ocultar SQL' : 'Ver SQL de Instalação'}
           </button>
           <button
-            onClick={handleSave}
+            onClick={() => handleSave()}
             disabled={saving}
             className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50"
           >
