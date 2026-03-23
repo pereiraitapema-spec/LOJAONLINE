@@ -149,14 +149,20 @@ export default function SmartChat() {
     // Marcar como lead morno ao interagir no chat
     leadService.updateStatus('morno');
 
+    let keys: any = null;
+    let context = '';
+    let alternatingHistory: any[] = [];
+
     try {
       // 1. Fetch API Key
-      const { data: keys } = await supabase
+      const { data: keysData } = await supabase
         .from('api_keys')
         .select('key_value')
         .eq('service', 'gemini')
         .eq('active', true)
         .maybeSingle();
+
+      keys = keysData;
 
       if (!keys?.key_value) {
         throw new Error('Assistente indisponível no momento.');
@@ -180,7 +186,7 @@ export default function SmartChat() {
       if (contentError) console.error('Error fetching content:', contentError);
       if (knowledgeError) console.error('Error fetching knowledge:', knowledgeError);
 
-      let context = 'Informações da Loja:\n';
+      context = 'Informações da Loja:\n';
       if (settings) {
         context += `Nome: ${settings.company_name}\nEndereço: ${settings.address}\nWhatsApp: ${settings.whatsapp}\nHorário: ${settings.business_hours}\n`;
       }
@@ -239,7 +245,7 @@ export default function SmartChat() {
         rawHistory.shift();
       }
       
-      const alternatingHistory: any[] = [];
+      alternatingHistory = [];
       for (const msg of rawHistory) {
         if (alternatingHistory.length === 0) {
           if (msg.role === 'user') alternatingHistory.push(msg);
@@ -293,11 +299,15 @@ export default function SmartChat() {
           Contexto dos Produtos (Conhecimento da IA):\n${context}
           
           Lembre-se do histórico recente do usuário.`,
-          tools: [
+          tools: aiSettings.autoLearning ? [
             { googleSearch: {} },
             { functionDeclarations: [saveKnowledge] }
-          ],
-          toolConfig: { includeServerSideToolInvocations: true } as any
+          ] : [],
+          toolConfig: aiSettings.autoLearning ? { 
+            includeServerSideToolInvocations: true,
+            // @ts-ignore
+            include_server_side_tool_invocations: true 
+          } : undefined as any
         },
         contents: alternatingHistory
       });
@@ -320,6 +330,33 @@ export default function SmartChat() {
       localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(finalMessages));
     } catch (error: any) {
       console.error('Chat Error:', error);
+      
+      // Fallback if tool hybrid mode fails
+      if (error.message?.includes('include_server_side_tool_invocations') || error.message?.includes('INVALID_ARGUMENT')) {
+        try {
+          const ai = new GoogleGenAI({ apiKey: keys.key_value });
+          const retryResponse = await ai.models.generateContent({
+            model: "gemini-3.1-pro-preview",
+            config: {
+              systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
+              (RETRY MODE - SEM FERRAMENTAS)
+              Responda com base APENAS no contexto fornecido abaixo.
+              
+              Contexto:\n${context}`,
+            },
+            contents: alternatingHistory
+          });
+          
+          const botResponse = retryResponse.text || 'Desculpe, tive um problema ao processar sua pergunta.';
+          const finalMessages = [...updatedMessages, { role: 'bot' as const, content: botResponse }].slice(-40);
+          setMessages(finalMessages);
+          localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(finalMessages));
+          return;
+        } catch (retryError) {
+          console.error('Retry Error:', retryError);
+        }
+      }
+
       const errorMessages = [...updatedMessages, { role: 'bot' as const, content: 'Ops! Tive um problema técnico. Pode tentar novamente?' }].slice(-40);
       setMessages(errorMessages);
       localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(errorMessages));
