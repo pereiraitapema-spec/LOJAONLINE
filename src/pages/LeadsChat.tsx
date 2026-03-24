@@ -280,19 +280,39 @@ export default function LeadsChat() {
         .from('chat_messages')
         .select('id, sender_id, receiver_id, message')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(20);
       
       if (countError) {
         console.error('RLS/Table Debug - Error fetching messages:', countError);
       } else {
         console.log(`RLS/Table Debug - Found ${debugMsgs?.length || 0} messages in table.`);
         if (debugMsgs && debugMsgs.length > 0) {
+          const allMsgIds = [...new Set(debugMsgs.flatMap(m => [m.sender_id, m.receiver_id]))];
+          const { data: leadCheck } = await supabase
+            .from('leads')
+            .select('id, nome, email')
+            .in('id', allMsgIds);
+          
+          const { data: profileCheck } = await supabase
+            .from('profiles')
+            .select('id, email')
+            .in('id', allMsgIds);
+
           console.log('--- DEBUG: IDs NO BANCO ---');
           debugMsgs.forEach((m, i) => {
-            console.log(`Msg ${i+1}: Sender=${m.sender_id}, Receiver=${m.receiver_id}, Text=${m.message?.substring(0, 15)}...`);
+            const senderLead = leadCheck?.find(l => l.id === m.sender_id);
+            const receiverLead = leadCheck?.find(l => l.id === m.receiver_id);
+            const senderProfile = profileCheck?.find(p => p.id === m.sender_id);
+            const receiverProfile = profileCheck?.find(p => p.id === m.receiver_id);
+
+            const senderLabel = senderLead ? `Lead:${senderLead.nome}` : (senderProfile ? `Admin:${senderProfile.email}` : 'Unknown');
+            const receiverLabel = receiverLead ? `Lead:${receiverLead.nome}` : (receiverProfile ? `Admin:${receiverProfile.email}` : 'Unknown');
+
+            console.log(`Msg ${i+1}: From=${senderLabel} (${m.sender_id}), To=${receiverLabel} (${m.receiver_id}), Text=${m.message?.substring(0, 15)}...`);
           });
           console.log('--- DEBUG: IDs QUE ESTAMOS PROCURANDO ---');
-          console.log(validLeadIds);
+          console.log('Lead IDs in current group:', validLeadIds);
+          console.log('Current Admin ID:', currentUser?.id);
         } else {
           console.log('A TABELA chat_messages ESTÁ VAZIA PARA VOCÊ.');
         }
