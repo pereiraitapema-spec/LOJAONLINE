@@ -181,7 +181,7 @@ export default function LeadsChat() {
       if (messagesError) {
         console.error('Initial messages fetch error:', messagesError);
         // If it's a Bad Request, it might be a missing column. Try without is_human and is_read
-        if (messagesError.message === 'Bad Request' || messagesError.code === 'PGRST204') {
+        if (messagesError.message === 'Bad Request' || messagesError.code === 'PGRST204' || messagesError.code === '42703') {
           const { data: fallbackData, error: fallbackError } = await supabase
             .from('chat_messages')
             .select('sender_id, receiver_id, message, created_at')
@@ -252,19 +252,21 @@ export default function LeadsChat() {
 
   const fetchMessages = async (leadIds: string[]) => {
     try {
-      // Validate that all IDs are valid UUIDs to avoid PostgREST 400 errors
+      // Validate that all IDs are valid UUIDs
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const validLeadIds = leadIds.filter(id => id && uuidRegex.test(id));
       
       if (validLeadIds.length === 0) {
+        console.warn('No valid lead IDs to fetch messages for');
         setMessages([]);
         return;
       }
 
-      console.log('Fetching messages for leads:', validLeadIds);
+      console.log(`Fetching messages for ${validLeadIds.length} leads in chunks...`);
 
-      // PostgREST/Nginx has URL length limits. If we have too many IDs, we must chunk the request.
-      const CHUNK_SIZE = 50; // Safe size to avoid long URLs
+      // PostgREST/Nginx has URL length limits. 
+      // Using a smaller chunk size for maximum safety
+      const CHUNK_SIZE = 30; 
       const idChunks = [];
       for (let i = 0; i < validLeadIds.length; i += CHUNK_SIZE) {
         idChunks.push(validLeadIds.slice(i, i + CHUNK_SIZE));
@@ -273,7 +275,10 @@ export default function LeadsChat() {
       const columns = 'id, sender_id, receiver_id, message, created_at, is_read, is_human';
       let allMessages: any[] = [];
 
-      for (const chunk of idChunks) {
+      for (let i = 0; i < idChunks.length; i++) {
+        const chunk = idChunks[i];
+        console.log(`Processing chunk ${i + 1}/${idChunks.length} (${chunk.length} IDs)`);
+        
         let sentRes: any;
         let receivedRes: any;
 
@@ -291,32 +296,42 @@ export default function LeadsChat() {
         sentRes = results[0];
         receivedRes = results[1];
 
-        // Fallback if columns are missing (Bad Request)
-        if ((sentRes.error && (sentRes.error.message === 'Bad Request' || sentRes.error.code === 'PGRST204')) || 
-            (receivedRes.error && (receivedRes.error.message === 'Bad Request' || receivedRes.error.code === 'PGRST204'))) {
-          console.warn('Falling back to basic columns for messages fetch');
-          const fallbackColumns = 'id, sender_id, receiver_id, message, created_at';
-          const fallbackResults = await Promise.all([
-            supabase
-              .from('chat_messages')
-              .select(fallbackColumns)
-              .in('sender_id', chunk),
-            supabase
-              .from('chat_messages')
-              .select(fallbackColumns)
-              .in('receiver_id', chunk)
-          ]);
-          sentRes = fallbackResults[0];
-          receivedRes = fallbackResults[1];
+        // Fallback if columns are missing or query is rejected
+        if (sentRes.error || receivedRes.error) {
+          const err = sentRes.error || receivedRes.error;
+          console.warn(`Chunk ${i + 1} failed with:`, err.message);
+          
+          if (err.message === 'Bad Request' || err.code === 'PGRST204' || err.code === '42703') {
+            console.log('Attempting fallback with minimal columns...');
+            const fallbackColumns = 'id, sender_id, receiver_id, message, created_at';
+            const fallbackResults = await Promise.all([
+              supabase
+                .from('chat_messages')
+                .select(fallbackColumns)
+                .in('sender_id', chunk),
+              supabase
+                .from('chat_messages')
+                .select(fallbackColumns)
+                .in('receiver_id', chunk)
+            ]);
+            sentRes = fallbackResults[0];
+            receivedRes = fallbackResults[1];
+          }
         }
 
-        if (sentRes.error) throw sentRes.error;
-        if (receivedRes.error) throw receivedRes.error;
+        if (sentRes.error) {
+          console.error(`Final error in sent messages chunk ${i + 1}:`, sentRes.error);
+          continue; // Skip this chunk instead of crashing everything
+        }
+        if (receivedRes.error) {
+          console.error(`Final error in received messages chunk ${i + 1}:`, receivedRes.error);
+          continue;
+        }
 
         allMessages = [...allMessages, ...(sentRes.data || []), ...(receivedRes.data || [])];
       }
 
-      // Remove duplicates (messages between leads in the same group)
+      // Remove duplicates
       const uniqueMessages: any[] = Array.from(new Map(allMessages.map((m: any) => [m.id, m])).values());
 
       // Sort chronologically
@@ -324,14 +339,14 @@ export default function LeadsChat() {
         const timeA = new Date(a.created_at).getTime();
         const timeB = new Date(b.created_at).getTime();
         if (timeA !== timeB) return timeA - timeB;
-        return (a.id || '').localeCompare(b.id || ''); // Stable sort
+        return (a.id || '').localeCompare(b.id || '');
       });
       
       setMessages(sortedMessages as Message[]);
+      console.log(`Successfully loaded ${sortedMessages.length} messages.`);
     } catch (error: any) {
-      console.error('Detailed error fetching messages:', error);
-      const errorMsg = error.message || error.details || 'Erro de conexão';
-      toast.error('Erro ao carregar mensagens: ' + errorMsg);
+      console.error('Critical error fetching messages:', error);
+      toast.error('Erro ao carregar mensagens. Verifique o console para detalhes.');
     }
   };
 
