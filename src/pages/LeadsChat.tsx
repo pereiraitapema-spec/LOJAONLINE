@@ -237,6 +237,7 @@ export default function LeadsChat() {
         const { data, error } = await supabase
           .from('leads')
           .select('*')
+          .is('affiliate_id', null)
           .order('created_at', { ascending: false });
         if (error) throw error;
         leadsData = data || [];

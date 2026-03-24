@@ -65,7 +65,8 @@ export default function AiAgentSettings() {
             <textarea
               value={settings[type as 'vendas' | 'afiliados'].rules}
               onChange={(e) => setSettings(prev => ({ ...prev, [type]: { ...prev[type as 'vendas' | 'afiliados'], rules: e.target.value } }))}
-              className="w-full h-32 p-3 border rounded-lg"
+              className="w-full h-48 p-3 border rounded-lg font-mono text-sm"
+              placeholder="Adicione novas regras aqui..."
             />
           </div>
           
@@ -74,17 +75,20 @@ export default function AiAgentSettings() {
             <textarea
               value={settings[type as 'vendas' | 'afiliados'].memory}
               onChange={(e) => setSettings(prev => ({ ...prev, [type]: { ...prev[type as 'vendas' | 'afiliados'], memory: e.target.value } }))}
-              className="w-full h-32 p-3 border rounded-lg"
+              className="w-full h-48 p-3 border rounded-lg font-mono text-sm"
+              placeholder="Adicione novas informações de memória aqui..."
             />
           </div>
           
-          <button
-            onClick={() => handleSave(type as 'vendas' | 'afiliados')}
-            disabled={saving}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-          >
-            <Save size={18} /> Salvar {type}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleSave(type as 'vendas' | 'afiliados')}
+              disabled={saving}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+            >
+              <Save size={18} /> Salvar {type}
+            </button>
+          </div>
         </div>
       ))}
     </div>

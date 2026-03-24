@@ -328,6 +328,10 @@ export default function SmartChat() {
       if (settings) {
         context += `Nome: ${settings.company_name}\nEndereço: ${settings.address}\nWhatsApp: ${settings.whatsapp}\nHorário: ${settings.business_hours}\n`;
       }
+      
+      context += `\nRegras do Agente:\n${aiSettings.rules}\n`;
+      context += `\nMemória do Agente:\n${aiSettings.memory}\n`;
+
       if (siteContent) {
         context += 'Conteúdo do Site:\n' + siteContent.map(c => `${c.key}: ${c.value}`).join('\n') + '\n';
       }
