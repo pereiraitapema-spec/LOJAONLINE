@@ -45,7 +45,7 @@ export default function AdminChatDashboard() {
   const sendMessage = async () => {
     if (!input.trim() || !selectedSession) return;
     await supabase.from('chat_messages').insert({
-      sender_id: (await supabase.auth.getUser()).data.user?.id,
+      sender_id: (await supabase.auth.getSession()).data.session?.user?.id,
       receiver_id: selectedSession.user_id,
       message: input
     });

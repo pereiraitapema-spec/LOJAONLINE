@@ -27,7 +27,8 @@ export default function AdminChat() {
 
   const sendMessage = async () => {
     if (!input.trim() || !selectedUser) return;
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return;
 
     await supabase.from('chat_messages').insert({

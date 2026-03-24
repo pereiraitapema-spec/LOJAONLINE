@@ -146,7 +146,8 @@ export default function Leads() {
   const sendMessageToSelected = async () => {
     if (!messageText.trim() || selectedLeads.length === 0) return;
     
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) return;
 
     const messages = selectedLeads.map(leadId => ({

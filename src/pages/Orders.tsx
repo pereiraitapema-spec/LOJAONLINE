@@ -184,7 +184,7 @@ export default function Orders() {
           affiliate_id: manualOrderData.affiliate_id || null,
           commission_value: commissionValue,
           shipping_address: { type: 'pickup', street: 'Balcão/Local' },
-          user_id: (await supabase.auth.getUser()).data.user?.id,
+          user_id: (await supabase.auth.getSession()).data.session?.user?.id,
           shipping_cost: manualOrderData.shipping_cost,
           operational_cost: manualOrderData.operational_cost,
           marketing_cost: manualOrderData.marketing_cost

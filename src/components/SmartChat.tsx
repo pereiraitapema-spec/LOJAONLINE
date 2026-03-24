@@ -62,7 +62,7 @@ export default function SmartChat() {
       if (data && data.length > 0) {
         console.log(`[SmartChat] Histórico carregado do banco de dados: ${data.length} mensagens`, data);
         const dbMessages: Message[] = data.map(msg => ({
-          role: msg.is_human && msg.sender_id === userId ? 'user' : 'bot',
+          role: msg.is_human && msg.sender_id === userId && msg.receiver_id === null ? 'user' : 'bot',
           content: msg.message
         }));
         setMessages(dbMessages);
@@ -131,8 +131,7 @@ export default function SmartChat() {
           filter: `receiver_id=eq.${session.user.id}`
         }, (payload) => {
           const newMessage = payload.new;
-          // Se não for o próprio usuário enviando para si mesmo (como no caso da IA ou Admin)
-          if (newMessage && newMessage.message && newMessage.sender_id !== session.user.id) {
+          if (newMessage && newMessage.message) {
             setMessages(prev => [...prev, { role: 'bot', content: newMessage.message }]);
             setShowNotification(true);
           }

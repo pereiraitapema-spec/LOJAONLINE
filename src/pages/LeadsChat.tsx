@@ -203,7 +203,7 @@ export default function LeadsChat() {
 
   const getCurrentUser = async () => {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser();
+      const { data: { session }, error } = await supabase.auth.getSession();
       if (error) {
         if (error.message.includes('Lock broken')) {
           console.warn('Auth lock broken, retrying...');
@@ -211,7 +211,7 @@ export default function LeadsChat() {
         }
         throw error;
       }
-      setCurrentUser(user);
+      setCurrentUser(session?.user || null);
     } catch (error: any) {
       console.error('Error getting user:', error);
     }
@@ -244,6 +244,8 @@ export default function LeadsChat() {
         const { data, error } = await supabase
           .from('affiliates')
           .select('*')
+          .eq('status', 'approved')
+          .not('user_id', 'is', null)
           .order('created_at', { ascending: false });
         if (error) throw error;
         
@@ -692,7 +694,7 @@ export default function LeadsChat() {
                 >
                   <div className="relative">
                     <div className="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold">
-                      {group.nome.charAt(0).toUpperCase()}
+                      {(group.nome || group.email || group.whatsapp || 'U').charAt(0).toUpperCase()}
                     </div>
                     {group.unread_count && group.unread_count > 0 ? (
                       <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
@@ -748,7 +750,7 @@ export default function LeadsChat() {
                   <ArrowLeft size={20} />
                 </button>
                 <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold">
-                  {selectedGroup.nome.charAt(0).toUpperCase()}
+                  {(selectedGroup.nome || selectedGroup.email || selectedGroup.whatsapp || 'U').charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <h2 className="font-bold text-slate-800 text-sm">{selectedGroup.nome}</h2>
@@ -795,23 +797,29 @@ export default function LeadsChat() {
                   // Uma mensagem é do admin se o sender_id for o admin E o receiver_id NÃO for null.
                   // Se receiver_id for null, significa que a mensagem foi enviada do chat da loja (mesmo que o admin esteja testando).
                   const isFromAdmin = msg.sender_id === currentUser?.id && msg.receiver_id !== null;
+                  const isFromAI = msg.sender_id === null;
+                  const isFromLead = !isFromAdmin && !isFromAI;
                   
                   return (
                   <div 
                     key={msg.id} 
-                    className={`flex ${isFromAdmin ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${isFromAdmin || isFromAI ? 'justify-end' : 'justify-start'}`}
                   >
                     <div className={`max-w-[70%] p-3 rounded-2xl shadow-sm relative ${
                       isFromAdmin 
                         ? 'bg-[#dcf8c6] text-slate-800 rounded-tr-none' 
-                        : 'bg-white text-slate-800 rounded-tl-none'
+                        : isFromAI
+                          ? 'bg-blue-50 text-slate-800 rounded-tr-none border border-blue-100'
+                          : 'bg-white text-slate-800 rounded-tl-none'
                     }`}>
                       {/* Label para identificar quem enviou */}
                       <div className="text-[9px] font-bold mb-1 opacity-50 flex justify-between">
                         <span>
                           {isFromAdmin 
                             ? 'VOCÊ (ADMIN)' 
-                            : (msg.sender_id === null ? 'IA / SISTEMA' : 'LEAD')}
+                            : isFromAI 
+                              ? 'IA / SISTEMA' 
+                              : (activeTab === 'affiliates' ? 'AFILIADO' : 'LEAD')}
                         </span>
                       </div>
 
@@ -843,7 +851,7 @@ export default function LeadsChat() {
                         )}
                       </div>
                       {!msg.is_human && !selectedGroup.leads.some(l => l.id === msg.sender_id) && (
-                        <span className="absolute -top-2 -left-2 bg-emerald-500 text-white p-1 rounded-full shadow-md">
+                        <span className="absolute -top-2 -right-2 bg-emerald-500 text-white p-1 rounded-full shadow-md">
                           <Bot size={10} />
                         </span>
                       )}
@@ -865,7 +873,7 @@ export default function LeadsChat() {
                     <div className="p-6 space-y-6">
                       <div className="text-center">
                         <div className="w-20 h-20 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold text-2xl mx-auto mb-4">
-                          {selectedGroup.nome.charAt(0).toUpperCase()}
+                          {(selectedGroup.nome || selectedGroup.email || selectedGroup.whatsapp || 'U').charAt(0).toUpperCase()}
                         </div>
                         <h3 className="font-bold text-slate-800">{selectedGroup.nome}</h3>
                         <p className="text-xs text-slate-500">{selectedGroup.email}</p>
