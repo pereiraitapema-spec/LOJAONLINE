@@ -357,19 +357,11 @@ export default function SmartChat() {
         tools: aiSettings.autoLearning ? [
           { googleSearch: {} },
           { functionDeclarations: [saveKnowledge] }
-        ] : [],
+        ] : undefined,
         toolConfig: aiSettings.autoLearning ? { 
-          includeServerSideToolInvocations: true,
-          include_server_side_tool_invocations: true
+          includeServerSideToolInvocations: true
         } : undefined,
         config: {
-          toolConfig: aiSettings.autoLearning ? { 
-            includeServerSideToolInvocations: true,
-            include_server_side_tool_invocations: true
-          } : undefined,
-          tool_config: aiSettings.autoLearning ? { 
-            include_server_side_tool_invocations: true 
-          } : undefined,
           systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
           
           REGRAS OBRIGATÓRIAS DE VENDAS E ATENDIMENTO (EXECUÇÃO RÍGIDA):
@@ -548,6 +540,19 @@ export default function SmartChat() {
       const errorMessages = [...currentMessages, { role: 'bot' as const, content: 'Ops! Tive um problema técnico. Pode tentar novamente?' }].slice(-40);
       setMessages(errorMessages);
       localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(errorMessages));
+      
+      // Salvar mensagem de erro no banco para que o CRM também veja
+      try {
+        await supabase.from('chat_messages').insert({
+          sender_id: null,
+          receiver_id: session.user.id,
+          message: 'Ops! Tive um problema técnico. Pode tentar novamente?',
+          is_human: false,
+          is_read: true
+        });
+      } catch (e) {
+        console.error('Erro ao salvar mensagem de erro no DB:', e);
+      }
     } finally {
       setLoading(false);
     }

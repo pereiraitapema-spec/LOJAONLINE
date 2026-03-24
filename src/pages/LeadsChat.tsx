@@ -572,9 +572,9 @@ export default function LeadsChat() {
   };
 
   const filteredLeads = groupedLeads.filter(g => 
-    g.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    g.whatsapp.includes(searchTerm) ||
-    g.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (g.nome || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
+    (g.whatsapp || '').includes(searchTerm) ||
+    (g.email || '').toLowerCase().includes((searchTerm || '').toLowerCase())
   );
 
   return (
@@ -791,22 +791,27 @@ export default function LeadsChat() {
             <div className="flex-1 flex overflow-hidden">
               {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#e5ddd5] bg-opacity-50">
-                {messages.map((msg) => (
+                {messages.map((msg) => {
+                  // Uma mensagem é do admin se o sender_id for o admin E o receiver_id NÃO for null.
+                  // Se receiver_id for null, significa que a mensagem foi enviada do chat da loja (mesmo que o admin esteja testando).
+                  const isFromAdmin = msg.sender_id === currentUser?.id && msg.receiver_id !== null;
+                  
+                  return (
                   <div 
                     key={msg.id} 
-                    className={`flex ${msg.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${isFromAdmin ? 'justify-end' : 'justify-start'}`}
                   >
                     <div className={`max-w-[70%] p-3 rounded-2xl shadow-sm relative ${
-                      msg.sender_id === currentUser?.id 
+                      isFromAdmin 
                         ? 'bg-[#dcf8c6] text-slate-800 rounded-tr-none' 
                         : 'bg-white text-slate-800 rounded-tl-none'
                     }`}>
                       {/* Label para identificar quem enviou */}
                       <div className="text-[9px] font-bold mb-1 opacity-50 flex justify-between">
                         <span>
-                          {msg.sender_id === currentUser?.id 
+                          {isFromAdmin 
                             ? 'VOCÊ (ADMIN)' 
-                            : (selectedGroup.leads.some(l => l.id === msg.sender_id) ? 'LEAD' : 'IA / SISTEMA')}
+                            : (msg.sender_id === null ? 'IA / SISTEMA' : 'LEAD')}
                         </span>
                       </div>
 
@@ -817,10 +822,10 @@ export default function LeadsChat() {
                         <span className="text-[9px] text-slate-500">
                           {format(new Date(msg.created_at), 'HH:mm')}
                         </span>
-                        {msg.sender_id === currentUser?.id && (
+                        {isFromAdmin && (
                           <CheckCheck size={12} className="text-blue-500" />
                         )}
-                        {msg.sender_id === currentUser?.id && (
+                        {isFromAdmin && (
                           <button 
                             onClick={() => {
                               supabase.from('ai_knowledge_base').insert({
@@ -844,7 +849,7 @@ export default function LeadsChat() {
                       )}
                     </div>
                   </div>
-                ))}
+                )})}
                 <div ref={messagesEndRef} />
               </div>
 
