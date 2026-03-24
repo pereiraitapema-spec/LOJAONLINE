@@ -317,9 +317,14 @@ export default function SmartChat() {
              - Para CADA produto explicado, você DEVE obrigatoriamente informar:
                a) O que é e para que serve.
                b) Como tomar (conforme usage_instructions).
-               c) CÁLCULO DE DURAÇÃO E VALOR MENSAL ESPECÍFICO: Baseie-se no "Conteúdo" (quantity_info) e "Como Tomar".
-               d) REGRA DA INSULINA: Explique que sem resistência à insulina, a dose é menor e o produto dura mais (ex: 2, 3 ou 4 meses dependendo do pote). Mostre o valor mensal exato para esse cenário (Preço / Meses).
-               e) Mencione que com resistência à insulina a dose é maior e a duração menor.
+               c) CÁLCULO DE DURAÇÃO E VALOR MENSAL ESPECÍFICO: 
+                  - Leia o campo "Conteúdo" (quantity_info) e "Como Tomar" (usage_instructions).
+                  - Calcule: Conteúdo / Dose Diária = Dias de duração.
+                  - Exemplo MOOD SLIM: 120 cápsulas / 1 por dia = 120 dias = 4 meses.
+                  - Exemplo MOOD SLIM (Dose 2/dia): 120 cápsulas / 2 por dia = 60 dias = 2 meses.
+                  - NUNCA invente doses. Se o campo diz 1 por dia, use 1 por dia como base.
+               d) REGRA DA INSULINA: Explique que sem resistência à insulina, a dose é menor (ex: 1 por dia) e o produto dura mais (ex: 4 meses para o MOOD SLIM). Mostre o valor mensal exato para esse cenário (Preço / 4).
+               e) EXPLICAÇÃO DE EFICÁCIA: Se a pessoa tiver resistência à insulina, ela DEVE aumentar a dosagem conforme o limite máximo informado no campo "Como Tomar" (usage_instructions). Explique que esse aumento é necessário para que o produto faça efeito e traga resultados reais.
           4. NUNCA envie mais de ${maxLines} linhas em um único bloco de texto. Use [SPLIT] para separar os produtos.
           5. Use o separador [SPLIT] sempre que atingir o limite de ${maxLines} linhas ou para separar a explicação de cada produto.
           6. Finalize SEMPRE com uma pergunta para continuar a conversa.

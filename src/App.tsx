@@ -34,7 +34,7 @@ import SmartChat from './components/SmartChat';
 
 function AppContent() {
   const [session, setSession] = useState<any>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(() => localStorage.getItem('user_role'));
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
@@ -54,17 +54,23 @@ function AppContent() {
     
     try {
       console.log('🔍 Buscando role para:', userId);
+      // Timeout reduzido para 5s para não travar o carregamento inicial
       const { data: profile, error } = await withTimeout(
         supabase
           .from('profiles')
           .select('role')
           .eq('id', userId)
-          .maybeSingle()
+          .maybeSingle(),
+        5000
       );
       
       if (error) {
         console.warn('⚠️ Erro ao buscar role:', error);
         return 'customer';
+      }
+      
+      if (profile?.role) {
+        localStorage.setItem('user_role', profile.role);
       }
       
       return profile?.role || 'customer';
@@ -128,9 +134,12 @@ function AppContent() {
       if (session) {
         const role = await fetchUserRole(session.user.id, session.user.email);
         setUserRole(role);
+        localStorage.setItem('user_role', role);
         
         // Sempre verificar redirecionamento se houver sessão
         await handleRoleRedirect(session);
+      } else {
+        localStorage.removeItem('user_role');
       }
       
       setLoading(false);
@@ -190,6 +199,7 @@ function AppContent() {
         console.log('🚪 Usuário deslogado');
         setSession(null);
         setUserRole(null);
+        localStorage.removeItem('user_role');
         navigate('/login');
       }
 

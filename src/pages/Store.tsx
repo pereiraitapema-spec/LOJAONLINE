@@ -10,6 +10,7 @@ import {
   Star, Zap, Leaf, Droplets, Activity, Flame, Megaphone,
   QrCode, Barcode, Landmark, Package, DollarSign, Tag, BarChart, Users, Copy, Link as LinkIcon
 } from 'lucide-react';
+import { Loading } from '../components/Loading';
 import SmartChat from '../components/SmartChat';
 
 import { leadService } from '../services/leadService';
@@ -108,13 +109,34 @@ interface StoreSettings {
 export default function Store() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [affiliateData, setAffiliateData] = useState<any>(null);
-  const [banners, setBanners] = useState<Banner[]>([]);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [settings, setSettings] = useState<StoreSettings | null>(null);
-  const [siteContent, setSiteContent] = useState<any[]>([]);
+  
+  // Cache initialization
+  const [banners, setBanners] = useState<Banner[]>(() => {
+    const saved = localStorage.getItem('cache_banners');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [campaigns, setCampaigns] = useState<Campaign[]>(() => {
+    const saved = localStorage.getItem('cache_campaigns');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [products, setProducts] = useState<Product[]>(() => {
+    const saved = localStorage.getItem('cache_products');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [categories, setCategories] = useState<Category[]>(() => {
+    const saved = localStorage.getItem('cache_categories');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [settings, setSettings] = useState<StoreSettings | null>(() => {
+    const saved = localStorage.getItem('cache_settings');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [siteContent, setSiteContent] = useState<any[]>(() => {
+    const saved = localStorage.getItem('cache_site_content');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const videoRef = React.useRef<HTMLVideoElement>(null);
@@ -316,6 +338,12 @@ export default function Store() {
       try {
         isFetchingRef.current = true;
         console.log('📦 Iniciando fetchData no Store...');
+        
+        // Se já temos dados no cache, não precisamos mostrar o loading full screen
+        if (products.length > 0) {
+          setLoading(false);
+        }
+
         // Buscar cupom aplicado se existir
         const savedCoupon = localStorage.getItem('applied_coupon');
         if (savedCoupon) {
@@ -338,23 +366,30 @@ export default function Store() {
         }
 
         console.log('⏱️ Buscando dados principais (banners, produtos, etc)...');
-        const [bannerRes, prodRes, catRes, campRes, settingsRes, contentRes] = await Promise.all([
-          withTimeout(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true })),
+        const results = await Promise.allSettled([
+          withTimeout(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }), 15000),
           withTimeout(supabase.from('products')
             .select('*, tiers:product_tiers(*), media:product_media(*)')
             .eq('active', true)
             .order('created_at', { ascending: false })
-            .order('position', { foreignTable: 'product_media', ascending: true })),
-          withTimeout(supabase.from('categories').select('*').order('name')),
-          withTimeout(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true })),
-          withTimeout(supabase.from('store_settings').select('*').maybeSingle()),
-          withTimeout(supabase.from('site_content').select('*'))
+            .order('position', { foreignTable: 'product_media', ascending: true }), 15000),
+          withTimeout(supabase.from('categories').select('*').order('name'), 15000),
+          withTimeout(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }), 15000),
+          withTimeout(supabase.from('store_settings').select('*').maybeSingle(), 15000),
+          withTimeout(supabase.from('site_content').select('*'), 15000)
         ]);
+
+        const bannerRes = results[0].status === 'fulfilled' ? results[0].value : { data: [], error: results[0].reason };
+        const prodRes = results[1].status === 'fulfilled' ? results[1].value : { data: [], error: results[1].reason };
+        const catRes = results[2].status === 'fulfilled' ? results[2].value : { data: [], error: results[2].reason };
+        const campRes = results[3].status === 'fulfilled' ? results[3].value : { data: [], error: results[3].reason };
+        const settingsRes = results[4].status === 'fulfilled' ? results[4].value : { data: null, error: results[4].reason };
+        const contentRes = results[5].status === 'fulfilled' ? results[5].value : { data: [], error: results[5].reason };
         
         console.log('📦 Products Fetch Result:', { 
           count: prodRes.data?.length, 
           error: prodRes.error,
-          status: prodRes.status
+          status: results[1].status
         });
 
         if (prodRes.data?.length === 0) {
@@ -379,6 +414,18 @@ export default function Store() {
           setSettings(settingsRes.data);
         }
         setSiteContent(contentRes.data || []);
+
+        // Salvar no cache
+        localStorage.setItem('cache_banners', JSON.stringify(bannerRes.data || []));
+        localStorage.setItem('cache_products', JSON.stringify(prodRes.data || []));
+        localStorage.setItem('cache_categories', JSON.stringify(catRes.data || []));
+        localStorage.setItem('cache_campaigns', JSON.stringify(campRes.data || []));
+        if (settingsRes.data) {
+          localStorage.setItem('cache_settings', JSON.stringify(settingsRes.data));
+        }
+        localStorage.setItem('cache_site_content', JSON.stringify(contentRes.data || []));
+        
+        setLoading(false);
         
         // Check for affiliate link
         const urlParams = new URLSearchParams(window.location.search);
@@ -413,6 +460,7 @@ export default function Store() {
         }
       } finally {
         isFetchingRef.current = false;
+        setLoading(false);
       }
     };
 
@@ -585,6 +633,7 @@ export default function Store() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
+      {loading && products.length === 0 && <Loading message="Preparando sua loja..." />}
       {/* Top Bar */}
       <div className="bg-emerald-800 text-white text-[10px] md:text-xs font-medium py-2 px-4 flex justify-between items-center tracking-wide">
         <span className="hidden md:inline">{settings?.top_bar_text || "Envio Brasil | 7 dias devolução | 10x sem juros | WhatsApp (47)99660-9618"}</span>
