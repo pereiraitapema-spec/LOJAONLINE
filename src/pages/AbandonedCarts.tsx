@@ -10,7 +10,8 @@ import {
   CheckCircle,
   XCircle,
   Phone,
-  Mail
+  Mail,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -74,6 +75,21 @@ export default function AbandonedCarts() {
     
     return matchesSearch && matchesStatus;
   });
+
+  const deleteCart = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este carrinho?')) return;
+    try {
+      const { error } = await supabase
+        .from('abandoned_carts')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      toast.success('Carrinho excluído com sucesso!');
+      fetchCarts();
+    } catch (error: any) {
+      toast.error('Erro ao excluir carrinho: ' + error.message);
+    }
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -166,12 +182,13 @@ export default function AbandonedCarts() {
                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor</th>
                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Atualização</th>
+                <th className="text-right py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {filteredCarts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-500">
+                  <td colSpan={6} className="py-12 text-center text-slate-500">
                     Nenhum carrinho encontrado.
                   </td>
                 </tr>
@@ -219,6 +236,14 @@ export default function AbandonedCarts() {
                         <Clock size={14} />
                         {format(new Date(cart.updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                       </div>
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <button 
+                        onClick={() => deleteCart(cart.id)}
+                        className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     </td>
                   </motion.tr>
                 ))
