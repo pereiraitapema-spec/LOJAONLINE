@@ -64,6 +64,15 @@ interface Message {
 
 export default function LeadsChat() {
   const [groupedLeads, setGroupedLeads] = useState<GroupedLead[]>([]);
+  const groupedLeadsRef = useRef<GroupedLead[]>([]);
+
+  const updateGroupedLeads = (newGroups: GroupedLead[] | ((prev: GroupedLead[]) => GroupedLead[])) => {
+    setGroupedLeads(prev => {
+      const next = typeof newGroups === 'function' ? newGroups(prev) : newGroups;
+      groupedLeadsRef.current = next;
+      return next;
+    });
+  };
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -113,7 +122,6 @@ export default function LeadsChat() {
     const channel = supabase
       .channel('chat_updates')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
-        console.log('🔔 EVENTO REALTIME RECEBIDO:', payload);
         const newMessage = payload.new as Message;
         
         // Update messages if it's for the selected lead(s)
@@ -123,7 +131,6 @@ export default function LeadsChat() {
           const isRelevant = leadIds.includes(newMessage.sender_id) || leadIds.includes(newMessage.receiver_id);
           
           if (isRelevant) {
-            console.log('✨ Nova mensagem relevante para o grupo selecionado:', newMessage);
             setMessages(prev => {
               if (prev.some(m => m.id === newMessage.id)) return prev;
               const updated = [...prev, newMessage].sort((a, b) => 
@@ -134,8 +141,47 @@ export default function LeadsChat() {
           }
         }
 
-        // Refresh leads list in background (without spinner)
-        fetchLeads(false);
+        // Update groupedLeads state locally without fetching from DB
+        const groupExists = groupedLeadsRef.current.some(g => 
+          g.leads.some(l => l.id === newMessage.sender_id || l.id === newMessage.receiver_id)
+        );
+
+        if (groupExists) {
+          updateGroupedLeads(prevGroups => {
+            const updatedGroups = [...prevGroups];
+            
+            // Find the group that this message belongs to
+            const groupIndex = updatedGroups.findIndex(g => 
+              g.leads.some(l => l.id === newMessage.sender_id || l.id === newMessage.receiver_id)
+            );
+
+            if (groupIndex !== -1) {
+              const group = updatedGroups[groupIndex];
+              const leadIds = group.leads.map(l => l.id);
+              
+              // Check if it's a new unread message from the lead
+              const isUnreadFromLead = leadIds.includes(newMessage.sender_id) && newMessage.is_read === false;
+              
+              updatedGroups[groupIndex] = {
+                ...group,
+                last_message: newMessage.message,
+                last_message_time: newMessage.created_at,
+                unread_count: isUnreadFromLead ? (group.unread_count || 0) + 1 : group.unread_count
+              };
+
+              // Re-sort groups so the one with the new message goes to the top
+              return updatedGroups.sort((a, b) => {
+                const timeA = new Date(a.last_message_time).getTime();
+                const timeB = new Date(b.last_message_time).getTime();
+                return timeB - timeA;
+              });
+            }
+            return prevGroups;
+          });
+        } else {
+          // Se não encontrou o grupo, é um lead novo.
+          fetchLeads(false);
+        }
       })
       .subscribe((status) => {
         console.log('📡 Status da Conexão Realtime:', status);
@@ -171,17 +217,47 @@ export default function LeadsChat() {
     }
   };
 
-  const fetchLeads = async (isInitial = false) => {
+  const [activeTab, setActiveTab] = useState<'leads' | 'affiliates'>('leads');
+  const activeTabRef = useRef<'leads' | 'affiliates'>('leads');
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+    fetchLeads(true, activeTab);
+    setSelectedGroupKey(null);
+    setMessages([]);
+  }, [activeTab]);
+
+  const fetchLeads = async (isInitial = false, currentTab = activeTabRef.current) => {
     try {
       if (isInitial) setLoading(true);
       
-      // Fetch all leads
-      const { data: leadsData, error: leadsError } = await supabase
-        .from('leads')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (leadsError) throw leadsError;
+      let leadsData: any[] = [];
+      
+      if (currentTab === 'leads') {
+        const { data, error } = await supabase
+          .from('leads')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        leadsData = data || [];
+      } else {
+        const { data, error } = await supabase
+          .from('affiliates')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        
+        // Map affiliates to match Lead interface for the chat
+        leadsData = (data || []).map(aff => ({
+          id: aff.user_id || aff.id, // Use user_id for chat messages
+          nome: aff.name,
+          email: aff.email,
+          whatsapp: aff.whatsapp,
+          status_lead: aff.status,
+          ai_auto_reply: false,
+          created_at: aff.created_at
+        }));
+      }
 
       // Fetch last messages and unread counts for each lead
       // Using specific columns and handling potential missing columns gracefully
@@ -260,7 +336,7 @@ export default function LeadsChat() {
       return timeB - timeA;
     });
 
-    setGroupedLeads(sortedGroups);
+    updateGroupedLeads(sortedGroups);
   };
 
   const fetchMessages = async (leadIds: string[]) => {
@@ -326,7 +402,7 @@ export default function LeadsChat() {
       }
       
       // Clear unread count locally
-      setGroupedLeads(prev => prev.map(g => {
+      updateGroupedLeads(prev => prev.map(g => {
         const key = g.email && g.email !== 'sem-email' ? g.email : (g.whatsapp || g.leads[0]?.id);
         return key === groupKey ? { ...g, unread_count: 0 } : g;
       }));
@@ -475,7 +551,7 @@ export default function LeadsChat() {
       if (error) throw error;
       
       if (selectedGroup && selectedGroup.leads.some(l => l.id === leadId)) {
-        setGroupedLeads(prev => prev.map(g => {
+        updateGroupedLeads(prev => prev.map(g => {
           const key = g.email && g.email !== 'sem-email' ? g.email : (g.whatsapp || g.leads[0]?.id);
           const selectedKey = selectedGroup.email && selectedGroup.email !== 'sem-email' ? selectedGroup.email : (selectedGroup.whatsapp || selectedGroup.leads[0]?.id);
           return key === selectedKey ? { ...g, ai_auto_reply: !currentMode } : g;
@@ -507,7 +583,7 @@ export default function LeadsChat() {
       <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col ${selectedGroupKey ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 bg-slate-50 border-b border-slate-200">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-xl font-bold text-slate-800 italic uppercase">Unificado</h1>
+            <h1 className="text-xl font-bold text-slate-800 italic uppercase">Conversas</h1>
             <div className="flex gap-2">
               <button 
                 onClick={handleUnifyLeads}
@@ -529,6 +605,25 @@ export default function LeadsChat() {
                 <Filter size={20} />
               </button>
             </div>
+          </div>
+          
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setActiveTab('leads')}
+              className={`flex-1 py-2 text-sm font-bold rounded-xl transition-colors ${
+                activeTab === 'leads' ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              Leads
+            </button>
+            <button
+              onClick={() => setActiveTab('affiliates')}
+              className={`flex-1 py-2 text-sm font-bold rounded-xl transition-colors ${
+                activeTab === 'affiliates' ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              Afiliados
+            </button>
           </div>
           
           {/* Global AI Toggle Placeholder */}
@@ -773,7 +868,7 @@ export default function LeadsChat() {
 
                       <div className="space-y-4">
                         <div>
-                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Informações do Lead</h4>
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Informações do {activeTab === 'leads' ? 'Lead' : 'Afiliado'}</h4>
                           <div className="space-y-2">
                             <div className="flex justify-between text-sm">
                               <span className="text-slate-500">Status:</span>
@@ -784,22 +879,42 @@ export default function LeadsChat() {
                               <span className="font-bold text-slate-800">{selectedGroup.whatsapp}</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                              <span className="text-slate-500">Total de Leads:</span>
+                              <span className="text-slate-500">Total de {activeTab === 'leads' ? 'Leads' : 'Afiliados'}:</span>
                               <span className="font-bold text-slate-800">{selectedGroup.leads.length}</span>
                             </div>
                           </div>
                         </div>
 
-                        <div>
-                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tags</h4>
-                          <div className="flex flex-wrap gap-1">
-                            {selectedGroup.leads.flatMap(l => l.tags || []).map((tag, i) => (
-                              <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold">
-                                {tag}
-                              </span>
-                            ))}
+                        {activeTab === 'leads' && (
+                          <div>
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tags</h4>
+                            <div className="flex flex-wrap gap-1">
+                              {selectedGroup.leads.flatMap(l => l.tags || []).map((tag, i) => (
+                                <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
                           </div>
-                        </div>
+                        )}
+
+                        {activeTab === 'leads' && (
+                          <div>
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Configurações</h4>
+                            <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
+                              <div className="flex items-center gap-2">
+                                <Bot size={16} className={selectedGroup.ai_auto_reply ? 'text-emerald-500' : 'text-slate-400'} />
+                                <span className="text-xs font-bold text-slate-700">IA Atende Automático</span>
+                              </div>
+                              <button 
+                                onClick={() => toggleAiMode(selectedGroup.leads[0].id, selectedGroup.ai_auto_reply)}
+                                className={`w-10 h-5 rounded-full relative transition-colors ${selectedGroup.ai_auto_reply ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                              >
+                                <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${selectedGroup.ai_auto_reply ? 'right-1' : 'left-1'}`} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         <div>
                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Ações Rápidas</h4>

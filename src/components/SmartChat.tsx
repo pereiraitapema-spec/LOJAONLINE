@@ -29,6 +29,7 @@ export default function SmartChat() {
   const navigate = useNavigate();
 
   const loadHistory = async (userId: string) => {
+    console.log(`[SmartChat] Iniciando carregamento de histórico para o usuário: ${userId}`);
     // Primeiro tenta carregar do localStorage para rapidez
     const saved = localStorage.getItem(`gfitlif_chat_history_${userId}`);
     if (saved) {
@@ -37,16 +38,18 @@ export default function SmartChat() {
         if (Array.isArray(parsed) && parsed.length > 0) {
           const validMessages = parsed.filter((msg: any) => msg && typeof msg.content === 'string');
           if (validMessages.length > 0) {
+            console.log(`[SmartChat] Histórico carregado do localStorage: ${validMessages.length} mensagens`);
             setMessages(validMessages);
           }
         }
       } catch (e) {
-        console.error('Error loading chat history from localStorage:', e);
+        console.error('[SmartChat] Error loading chat history from localStorage:', e);
       }
     }
 
     // Busca do banco de dados para garantir sincronia
     try {
+      console.log(`[SmartChat] Buscando histórico no banco de dados para o usuário: ${userId}`);
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
@@ -57,15 +60,18 @@ export default function SmartChat() {
       if (error) throw error;
 
       if (data && data.length > 0) {
+        console.log(`[SmartChat] Histórico carregado do banco de dados: ${data.length} mensagens`, data);
         const dbMessages: Message[] = data.map(msg => ({
           role: msg.is_human && msg.sender_id === userId ? 'user' : 'bot',
           content: msg.message
         }));
         setMessages(dbMessages);
         localStorage.setItem(`gfitlif_chat_history_${userId}`, JSON.stringify(dbMessages));
+      } else {
+        console.log(`[SmartChat] Nenhum histórico encontrado no banco de dados para o usuário: ${userId}`);
       }
     } catch (e) {
-      console.error('Error loading chat history from DB:', e);
+      console.error('[SmartChat] Error loading chat history from DB:', e);
     }
   };
 
@@ -211,20 +217,10 @@ export default function SmartChat() {
           console.warn('⚠️ Erro ao atualizar status do lead:', e);
         }
       }
+
+      // Process AI response directly after sending
+      processAiResponse(updatedMessages);
   };
-
-  const lastProcessedMessageRef = useRef<string | null>(null);
-
-  // Effect to trigger AI response when there are new user messages
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    const messageId = lastMessage?.content + messages.length; // Simple ID for tracking
-    
-    if (lastMessage?.role === 'user' && !loading && session && lastProcessedMessageRef.current !== messageId) {
-      lastProcessedMessageRef.current = messageId;
-      processAiResponse(messages);
-    }
-  }, [messages, loading, session]);
 
   const processAiResponse = async (currentMessages: Message[]) => {
     if (loading) return;

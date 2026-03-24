@@ -1224,15 +1224,6 @@ export default function Store() {
               return matchName || matchCategory;
             });
             
-            console.log('🔍 Filtered Products:', {
-              total: products.length,
-              filtered: filtered.length,
-              selectedCategory,
-              selectedCategoryId,
-              selectedProductId,
-              searchTerm
-            });
-            
             return filtered.map((product) => (
               <motion.div 
                 key={product.id}
