@@ -504,7 +504,7 @@ function AppContent() {
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-      {location.pathname === '/affiliate-dashboard' && (
+      {(location.pathname === '/affiliate-dashboard' || location.pathname === '/') && (
         <SmartChat />
       )}
     </>

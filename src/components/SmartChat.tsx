@@ -45,11 +45,11 @@ export default function SmartChat() {
       
       if (settings) setAiSettings(settings);
 
-      // Fetch agent photo (from admin profile)
+      {/* Fetch agent photo (from admin profile) */}
       const { data: adminProfile } = await supabase
         .from('profiles')
         .select('avatar_url')
-        .eq('role', 'admin')
+        .eq('email', 'pereira.itapema@gmail.com')
         .maybeSingle();
       if (adminProfile) setAgentPhoto(adminProfile.avatar_url);
 
