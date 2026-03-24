@@ -171,88 +171,123 @@ export default function LeadsChat() {
       if (leadsError) throw leadsError;
 
       // Fetch last messages and unread counts for each lead
+      // Using specific columns and handling potential missing columns gracefully
       const { data: messagesData, error: messagesError } = await supabase
         .from('chat_messages')
-        .select('sender_id, receiver_id, message, created_at, is_read')
+        .select('sender_id, receiver_id, message, created_at, is_read, is_human')
         .order('created_at', { ascending: false })
-        .limit(2000); // Increased limit to find more unread messages
+        .limit(2000);
 
-      if (messagesError) throw messagesError;
-
-      // Group by email or whatsapp if email is missing
-      const groups: Record<string, GroupedLead> = {};
-      leadsData.forEach(lead => {
-        const groupKey = lead.email || lead.whatsapp || lead.id;
-        if (!groups[groupKey]) {
-          groups[groupKey] = {
-            email: lead.email || 'sem-email',
-            nome: lead.nome,
-            whatsapp: lead.whatsapp,
-            leads: [],
-            ai_auto_reply: lead.ai_auto_reply,
-            status_lead: lead.status_lead
-          };
+      if (messagesError) {
+        console.error('Initial messages fetch error:', messagesError);
+        // If it's a Bad Request, it might be a missing column. Try without is_human and is_read
+        if (messagesError.message === 'Bad Request' || messagesError.code === 'PGRST204') {
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('chat_messages')
+            .select('sender_id, receiver_id, message, created_at')
+            .order('created_at', { ascending: false })
+            .limit(2000);
+          
+          if (fallbackError) throw fallbackError;
+          // Use fallback data
+          processMessages(leadsData, fallbackData || []);
+        } else {
+          throw messagesError;
         }
-        groups[groupKey].leads.push(lead);
-      });
-
-      // Map last messages and unread counts
-      const finalGroups = Object.values(groups).map(group => {
-        const leadIds = group.leads.map(l => l.id);
-        const groupMessages = messagesData.filter(m => leadIds.includes(m.sender_id) || leadIds.includes(m.receiver_id));
-        const lastMsg = groupMessages[0];
-        
-        // Count unread messages from the lead (where lead is sender and is_read is false)
-        const unreadCount = groupMessages.filter(m => leadIds.includes(m.sender_id) && !m.is_read).length;
-        
-        return {
-          ...group,
-          last_message: lastMsg?.message || 'Nenhuma mensagem',
-          last_message_time: lastMsg?.created_at || group.leads[0].created_at,
-          unread_count: unreadCount
-        };
-      });
-
-      // Sort by last message time
-      const sortedGroups = finalGroups.sort((a, b) => {
-        const timeA = new Date(a.last_message_time).getTime();
-        const timeB = new Date(b.last_message_time).getTime();
-        return timeB - timeA;
-      });
-
-      setGroupedLeads(sortedGroups);
+      } else {
+        processMessages(leadsData, messagesData || []);
+      }
     } catch (error: any) {
-      toast.error('Erro ao carregar leads: ' + error.message);
+      console.error('Error in fetchLeads:', error);
+      toast.error('Erro ao carregar leads: ' + (error.message || 'Erro de conexão'));
     } finally {
       setLoading(false);
     }
   };
 
+  const processMessages = (leadsData: any[], messagesData: any[]) => {
+    // Group by email or whatsapp if email is missing
+    const groups: Record<string, GroupedLead> = {};
+    leadsData.forEach(lead => {
+      const groupKey = lead.email && lead.email !== 'sem-email' ? lead.email : (lead.whatsapp || lead.id);
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          email: lead.email || 'sem-email',
+          nome: lead.nome,
+          whatsapp: lead.whatsapp,
+          leads: [],
+          ai_auto_reply: lead.ai_auto_reply,
+          status_lead: lead.status_lead
+        };
+      }
+      groups[groupKey].leads.push(lead);
+    });
+
+    // Map last messages and unread counts
+    const finalGroups = Object.values(groups).map(group => {
+      const leadIds = group.leads.map(l => l.id);
+      const groupMessages = messagesData.filter(m => leadIds.includes(m.sender_id) || leadIds.includes(m.receiver_id));
+      const lastMsg = groupMessages[0];
+      
+      // Count unread messages from the lead (where lead is sender and is_read is false)
+      const unreadCount = groupMessages.filter(m => leadIds.includes(m.sender_id) && m.is_read === false).length;
+      
+      return {
+        ...group,
+        last_message: lastMsg?.message || 'Nenhuma mensagem',
+        last_message_time: lastMsg?.created_at || group.leads[0].created_at,
+        unread_count: unreadCount
+      };
+    });
+
+    // Sort by last message time
+    const sortedGroups = finalGroups.sort((a, b) => {
+      const timeA = new Date(a.last_message_time).getTime();
+      const timeB = new Date(b.last_message_time).getTime();
+      return timeB - timeA;
+    });
+
+    setGroupedLeads(sortedGroups);
+  };
+
   const fetchMessages = async (leadIds: string[]) => {
     try {
-      const validLeadIds = leadIds.filter(id => id && id !== 'null' && id !== 'undefined');
+      // Validate that all IDs are valid UUIDs to avoid PostgREST 400 errors
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const validLeadIds = leadIds.filter(id => id && uuidRegex.test(id));
+      
       if (validLeadIds.length === 0) {
         setMessages([]);
         return;
       }
 
-      // Split into two queries to avoid complex .or() filters that can cause "Failed to fetch"
-      // due to long URLs or query parsing issues in some environments
+      console.log('Fetching messages for leads:', validLeadIds);
+
+      // Split into two queries to avoid complex .or() filters
+      // Using specific columns to be safer and more efficient
+      const columns = 'id, sender_id, receiver_id, message, created_at, is_read, is_human';
+      
       const [sentRes, receivedRes] = await Promise.all([
         supabase
           .from('chat_messages')
-          .select('*')
+          .select(columns)
           .in('sender_id', validLeadIds),
         supabase
           .from('chat_messages')
-          .select('*')
+          .select(columns)
           .in('receiver_id', validLeadIds)
       ]);
 
-      if (sentRes.error) throw sentRes.error;
-      if (receivedRes.error) throw receivedRes.error;
+      if (sentRes.error) {
+        console.error('Sent messages error:', sentRes.error);
+        throw sentRes.error;
+      }
+      if (receivedRes.error) {
+        console.error('Received messages error:', receivedRes.error);
+        throw receivedRes.error;
+      }
 
-      // Combine and remove duplicates (though there shouldn't be any if sender/receiver are distinct)
+      // Combine and remove duplicates
       const allMessages = [...(sentRes.data || []), ...(receivedRes.data || [])];
       const uniqueMessages = Array.from(new Map(allMessages.map(m => [m.id, m])).values());
 
@@ -261,16 +296,17 @@ export default function LeadsChat() {
         const timeA = new Date(a.created_at).getTime();
         const timeB = new Date(b.created_at).getTime();
         if (timeA !== timeB) return timeA - timeB;
-        return a.id.localeCompare(b.id); // Stable sort
+        return (a.id || '').localeCompare(b.id || ''); // Stable sort
       });
       
       setMessages(sortedMessages);
     } catch (error: any) {
-      console.error('Error fetching messages:', error);
-      if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+      console.error('Detailed error fetching messages:', error);
+      const errorMsg = error.message || error.details || 'Erro de conexão';
+      if (errorMsg === 'Failed to fetch' || error.name === 'TypeError') {
         toast.error('Erro de conexão com o servidor de mensagens.');
       } else {
-        toast.error('Erro ao carregar mensagens: ' + (error.message || 'Erro de conexão'));
+        toast.error('Erro ao carregar mensagens: ' + errorMsg);
       }
     }
   };
