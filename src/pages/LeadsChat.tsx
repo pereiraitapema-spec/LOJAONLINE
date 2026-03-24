@@ -263,49 +263,60 @@ export default function LeadsChat() {
 
       console.log('Fetching messages for leads:', validLeadIds);
 
-      // Split into two queries to avoid complex .or() filters
-      // Using specific columns to be safer and more efficient
-      let columns = 'id, sender_id, receiver_id, message, created_at, is_read, is_human';
-      
-      let [sentRes, receivedRes] = await Promise.all([
-        supabase
-          .from('chat_messages')
-          .select(columns)
-          .in('sender_id', validLeadIds),
-        supabase
-          .from('chat_messages')
-          .select(columns)
-          .in('receiver_id', validLeadIds)
-      ]);
+      // PostgREST/Nginx has URL length limits. If we have too many IDs, we must chunk the request.
+      const CHUNK_SIZE = 50; // Safe size to avoid long URLs
+      const idChunks = [];
+      for (let i = 0; i < validLeadIds.length; i += CHUNK_SIZE) {
+        idChunks.push(validLeadIds.slice(i, i + CHUNK_SIZE));
+      }
 
-      // Fallback if columns are missing (Bad Request)
-      if ((sentRes.error && (sentRes.error.message === 'Bad Request' || sentRes.error.code === 'PGRST204')) || 
-          (receivedRes.error && (receivedRes.error.message === 'Bad Request' || receivedRes.error.code === 'PGRST204'))) {
-        console.warn('Falling back to basic columns for messages fetch');
-        columns = 'id, sender_id, receiver_id, message, created_at';
-        [sentRes, receivedRes] = await Promise.all([
+      const columns = 'id, sender_id, receiver_id, message, created_at, is_read, is_human';
+      let allMessages: any[] = [];
+
+      for (const chunk of idChunks) {
+        let sentRes: any;
+        let receivedRes: any;
+
+        const results = await Promise.all([
           supabase
             .from('chat_messages')
             .select(columns)
-            .in('sender_id', validLeadIds),
+            .in('sender_id', chunk),
           supabase
             .from('chat_messages')
             .select(columns)
-            .in('receiver_id', validLeadIds)
+            .in('receiver_id', chunk)
         ]);
+        
+        sentRes = results[0];
+        receivedRes = results[1];
+
+        // Fallback if columns are missing (Bad Request)
+        if ((sentRes.error && (sentRes.error.message === 'Bad Request' || sentRes.error.code === 'PGRST204')) || 
+            (receivedRes.error && (receivedRes.error.message === 'Bad Request' || receivedRes.error.code === 'PGRST204'))) {
+          console.warn('Falling back to basic columns for messages fetch');
+          const fallbackColumns = 'id, sender_id, receiver_id, message, created_at';
+          const fallbackResults = await Promise.all([
+            supabase
+              .from('chat_messages')
+              .select(fallbackColumns)
+              .in('sender_id', chunk),
+            supabase
+              .from('chat_messages')
+              .select(fallbackColumns)
+              .in('receiver_id', chunk)
+          ]);
+          sentRes = fallbackResults[0];
+          receivedRes = fallbackResults[1];
+        }
+
+        if (sentRes.error) throw sentRes.error;
+        if (receivedRes.error) throw receivedRes.error;
+
+        allMessages = [...allMessages, ...(sentRes.data || []), ...(receivedRes.data || [])];
       }
 
-      if (sentRes.error) {
-        console.error('Sent messages error:', sentRes.error);
-        throw sentRes.error;
-      }
-      if (receivedRes.error) {
-        console.error('Received messages error:', receivedRes.error);
-        throw receivedRes.error;
-      }
-
-      // Combine and remove duplicates
-      const allMessages: any[] = [...(sentRes.data || []), ...(receivedRes.data || [])];
+      // Remove duplicates (messages between leads in the same group)
       const uniqueMessages: any[] = Array.from(new Map(allMessages.map((m: any) => [m.id, m])).values());
 
       // Sort chronologically
@@ -320,11 +331,7 @@ export default function LeadsChat() {
     } catch (error: any) {
       console.error('Detailed error fetching messages:', error);
       const errorMsg = error.message || error.details || 'Erro de conexão';
-      if (errorMsg === 'Failed to fetch' || error.name === 'TypeError') {
-        toast.error('Erro de conexão com o servidor de mensagens.');
-      } else {
-        toast.error('Erro ao carregar mensagens: ' + errorMsg);
-      }
+      toast.error('Erro ao carregar mensagens: ' + errorMsg);
     }
   };
 
