@@ -63,7 +63,7 @@ interface Message {
 
 export default function LeadsChat() {
   const [groupedLeads, setGroupedLeads] = useState<GroupedLead[]>([]);
-  const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -77,14 +77,17 @@ export default function LeadsChat() {
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   const selectedGroupRef = useRef<GroupedLead | undefined>(undefined);
-  const selectedEmailRef = useRef<string | null>(null);
+  const selectedGroupKeyRef = useRef<string | null>(null);
 
-  const selectedGroup = groupedLeads.find(g => g.email === selectedEmail);
+  const selectedGroup = groupedLeads.find(g => {
+    const key = g.email && g.email !== 'sem-email' ? g.email : (g.whatsapp || g.leads[0]?.id);
+    return key === selectedGroupKey;
+  });
 
   useEffect(() => {
     selectedGroupRef.current = selectedGroup;
-    selectedEmailRef.current = selectedEmail;
-  }, [groupedLeads, selectedEmail, selectedGroup]);
+    selectedGroupKeyRef.current = selectedGroupKey;
+  }, [groupedLeads, selectedGroupKey, selectedGroup]);
 
   useEffect(() => {
     let retryCount = 0;
@@ -176,13 +179,13 @@ export default function LeadsChat() {
 
       if (messagesError) throw messagesError;
 
-      // Group by email
+      // Group by email or whatsapp if email is missing
       const groups: Record<string, GroupedLead> = {};
       leadsData.forEach(lead => {
-        const email = lead.email || 'sem-email';
-        if (!groups[email]) {
-          groups[email] = {
-            email,
+        const groupKey = lead.email || lead.whatsapp || lead.id;
+        if (!groups[groupKey]) {
+          groups[groupKey] = {
+            email: lead.email || 'sem-email',
             nome: lead.nome,
             whatsapp: lead.whatsapp,
             leads: [],
@@ -190,7 +193,7 @@ export default function LeadsChat() {
             status_lead: lead.status_lead
           };
         }
-        groups[email].leads.push(lead);
+        groups[groupKey].leads.push(lead);
       });
 
       // Map last messages and unread counts
@@ -233,22 +236,39 @@ export default function LeadsChat() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .or(`sender_id.in.(${validLeadIds.join(',')}),receiver_id.in.(${validLeadIds.join(',')})`)
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true }); // Secondary sort for stability
+      // Split into two queries to avoid complex .or() filters that can cause "Failed to fetch"
+      // due to long URLs or query parsing issues in some environments
+      const [sentRes, receivedRes] = await Promise.all([
+        supabase
+          .from('chat_messages')
+          .select('*')
+          .in('sender_id', validLeadIds),
+        supabase
+          .from('chat_messages')
+          .select('*')
+          .in('receiver_id', validLeadIds)
+      ]);
 
-      if (error) throw error;
+      if (sentRes.error) throw sentRes.error;
+      if (receivedRes.error) throw receivedRes.error;
+
+      // Combine and remove duplicates (though there shouldn't be any if sender/receiver are distinct)
+      const allMessages = [...(sentRes.data || []), ...(receivedRes.data || [])];
+      const uniqueMessages = Array.from(new Map(allMessages.map(m => [m.id, m])).values());
+
+      // Sort chronologically
+      const sortedMessages = uniqueMessages.sort((a, b) => {
+        const timeA = new Date(a.created_at).getTime();
+        const timeB = new Date(b.created_at).getTime();
+        if (timeA !== timeB) return timeA - timeB;
+        return a.id.localeCompare(b.id); // Stable sort
+      });
       
-      // Ensure chronological order and limit to latest 100 for display if needed
-      // (The DB pruning will handle the actual storage limit)
-      setMessages(data || []);
+      setMessages(sortedMessages);
     } catch (error: any) {
       console.error('Error fetching messages:', error);
-      if (error.message === 'Failed to fetch') {
-        toast.error('Erro de conexão. Verifique sua internet.');
+      if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+        toast.error('Erro de conexão com o servidor de mensagens.');
       } else {
         toast.error('Erro ao carregar mensagens: ' + (error.message || 'Erro de conexão'));
       }
@@ -256,7 +276,8 @@ export default function LeadsChat() {
   };
 
   const handleSelectGroup = async (group: GroupedLead) => {
-    setSelectedEmail(group.email);
+    const groupKey = group.email && group.email !== 'sem-email' ? group.email : (group.whatsapp || group.leads[0]?.id);
+    setSelectedGroupKey(groupKey);
     const leadIds = group.leads.map(l => l.id);
     fetchMessages(leadIds);
     
@@ -269,7 +290,10 @@ export default function LeadsChat() {
         .eq('is_read', false);
       
       // Clear unread count locally
-      setGroupedLeads(prev => prev.map(g => g.email === group.email ? { ...g, unread_count: 0 } : g));
+      setGroupedLeads(prev => prev.map(g => {
+        const key = g.email && g.email !== 'sem-email' ? g.email : (g.whatsapp || g.leads[0]?.id);
+        return key === groupKey ? { ...g, unread_count: 0 } : g;
+      }));
     } catch (error) {
       console.error('Error marking messages as read:', error);
     }
@@ -351,7 +375,7 @@ export default function LeadsChat() {
       fetchLeads();
       
       if (deleteType === 'single' || (selectedGroup && selectedGroup.leads.some(l => leadsToDelete.includes(l.id)))) {
-        setSelectedEmail(null);
+        setSelectedGroupKey(null);
       }
     } catch (error: any) {
       console.error('Error deleting conversations:', error);
@@ -386,7 +410,11 @@ export default function LeadsChat() {
       if (error) throw error;
       
       if (selectedGroup && selectedGroup.leads.some(l => l.id === leadId)) {
-        setGroupedLeads(prev => prev.map(g => g.email === selectedGroup.email ? { ...g, ai_auto_reply: !currentMode } : g));
+        setGroupedLeads(prev => prev.map(g => {
+          const key = g.email && g.email !== 'sem-email' ? g.email : (g.whatsapp || g.leads[0]?.id);
+          const selectedKey = selectedGroup.email && selectedGroup.email !== 'sem-email' ? selectedGroup.email : (selectedGroup.whatsapp || selectedGroup.leads[0]?.id);
+          return key === selectedKey ? { ...g, ai_auto_reply: !currentMode } : g;
+        }));
       }
       
       toast.success(`IA ${!currentMode ? 'Ativada' : 'Desativada'} para este lead`);
@@ -411,7 +439,7 @@ export default function LeadsChat() {
   return (
     <div className="flex h-[calc(100vh-64px)] bg-slate-100 overflow-hidden">
       {/* Sidebar - Leads List */}
-      <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col ${selectedEmail ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col ${selectedGroupKey ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 bg-slate-50 border-b border-slate-200">
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-xl font-bold text-slate-800 italic uppercase">Unificado</h1>
@@ -475,11 +503,13 @@ export default function LeadsChat() {
               <p>Nenhuma conversa encontrada.</p>
             </div>
           ) : (
-            filteredLeads.map(group => (
-              <div
-                key={group.email}
-                className={`w-full flex items-center gap-2 border-b border-slate-50 hover:bg-slate-50 transition-colors ${selectedEmail === group.email ? 'bg-emerald-50' : ''}`}
-              >
+            filteredLeads.map(group => {
+              const groupKey = group.email && group.email !== 'sem-email' ? group.email : (group.whatsapp || group.leads[0]?.id);
+              return (
+                <div
+                  key={groupKey}
+                  className={`w-full flex items-center gap-2 border-b border-slate-50 hover:bg-slate-50 transition-colors ${selectedGroupKey === groupKey ? 'bg-emerald-50' : ''}`}
+                >
                 <div className="pl-4">
                   <input 
                     type="checkbox"
@@ -538,20 +568,21 @@ export default function LeadsChat() {
                   </div>
                 </button>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
 
       {/* Main Chat Window */}
-      <div className={`flex-1 flex flex-col bg-white ${!selectedEmail ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`flex-1 flex flex-col bg-white ${!selectedGroupKey ? 'hidden md:flex' : 'flex'}`}>
         {selectedGroup ? (
           <>
             {/* Chat Header */}
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <button 
-                  onClick={() => setSelectedEmail(null)}
+                  onClick={() => setSelectedGroupKey(null)}
                   className="p-2 text-slate-500 hover:bg-slate-200 rounded-full md:hidden"
                 >
                   <ArrowLeft size={20} />
