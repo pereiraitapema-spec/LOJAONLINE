@@ -97,11 +97,13 @@ export default function LeadsChat() {
     const init = async () => {
       try {
         await getCurrentUser();
-        await fetchLeads();
+        await fetchLeads(true);
       } catch (err) {
+        console.error('❌ Erro na inicialização do LeadsChat:', err);
         if (retryCount < maxRetries) {
           retryCount++;
-          setTimeout(init, 1000 * retryCount);
+          console.log(`🔄 Tentando novamente (${retryCount}/${maxRetries})...`);
+          setTimeout(init, 2000 * retryCount);
         }
       }
     };
@@ -121,17 +123,19 @@ export default function LeadsChat() {
           const isRelevant = leadIds.includes(newMessage.sender_id) || leadIds.includes(newMessage.receiver_id);
           
           if (isRelevant) {
+            console.log('✨ Nova mensagem relevante para o grupo selecionado:', newMessage);
             setMessages(prev => {
               if (prev.some(m => m.id === newMessage.id)) return prev;
-              return [...prev, newMessage].sort((a, b) => 
+              const updated = [...prev, newMessage].sort((a, b) => 
                 new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
               );
+              return updated;
             });
           }
         }
 
-        // Refresh leads to update last message and sorting
-        fetchLeads();
+        // Refresh leads list in background (without spinner)
+        fetchLeads(false);
       })
       .subscribe((status) => {
         console.log('📡 Status da Conexão Realtime:', status);
@@ -167,9 +171,10 @@ export default function LeadsChat() {
     }
   };
 
-  const fetchLeads = async () => {
+  const fetchLeads = async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
+      
       // Fetch all leads
       const { data: leadsData, error: leadsError } = await supabase
         .from('leads')
@@ -184,7 +189,7 @@ export default function LeadsChat() {
         .from('chat_messages')
         .select('sender_id, receiver_id, message, created_at, is_read, is_human')
         .order('created_at', { ascending: false })
-        .limit(2000);
+        .limit(1000);
 
       if (messagesError) {
         console.error('Initial messages fetch error:', messagesError);
@@ -194,7 +199,7 @@ export default function LeadsChat() {
             .from('chat_messages')
             .select('sender_id, receiver_id, message, created_at')
             .order('created_at', { ascending: false })
-            .limit(2000);
+            .limit(1000);
           
           if (fallbackError) throw fallbackError;
           // Use fallback data
@@ -207,9 +212,9 @@ export default function LeadsChat() {
       }
     } catch (error: any) {
       console.error('Error in fetchLeads:', error);
-      toast.error('Erro ao carregar leads: ' + (error.message || 'Erro de conexão'));
+      if (isInitial) toast.error('Erro ao carregar leads: ' + (error.message || 'Erro de conexão'));
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   };
 

@@ -22,16 +22,15 @@ export const leadService = {
         return;
       }
 
-      // 1. Tentar encontrar o lead pelo email ou user_id
-      const { data: existingLead } = await supabase
+      // 1. Verificar se já existe um lead com este ID (userId)
+      const { data: leadById } = await supabase
         .from('leads')
         .select('id, status_lead')
-        .or(`email.eq.${email},id.eq.${userId}`)
+        .eq('id', userId)
         .maybeSingle();
 
-      if (existingLead) {
-        // Só atualiza se o novo status for "mais quente" que o atual
-        // Ordem: inativo < frio < morno < quente < cliente
+      if (leadById) {
+        // Lead já existe com este ID, apenas atualiza o status se necessário
         const statusOrder: Record<LeadStatus, number> = {
           'inativo': 0,
           'frio': 1,
@@ -40,28 +39,35 @@ export const leadService = {
           'cliente': 4
         };
 
-        const currentStatus = (existingLead.status_lead || 'frio') as LeadStatus;
+        const currentStatus = (leadById.status_lead || 'frio') as LeadStatus;
         
         if (statusOrder[status] > statusOrder[currentStatus]) {
-          const { error: updateError } = await supabase
+          await supabase
             .from('leads')
             .update({ 
               status_lead: status,
               score: status === 'morno' ? 30 : (status === 'quente' ? 100 : 10),
               updated_at: new Date().toISOString()
             })
-            .eq('id', existingLead.id);
+            .eq('id', userId);
           
-          if (updateError) throw updateError;
-          console.log(`🔥 Lead atualizado: ${currentStatus} -> ${status}`);
+          console.log(`🔥 Lead (ID: ${userId}) atualizado: ${currentStatus} -> ${status}`);
         }
       } else {
-        // Criar novo lead se não existir
+        // Não existe lead com este ID.
+        // Vamos ver se existe um lead com este EMAIL para copiar os dados (como whatsapp)
+        const { data: leadByEmail } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle();
+
+        // Criar novo lead com o ID do usuário
         const newLead = {
-          id: userId, // Garantir que o ID do lead seja o mesmo do usuário para o chat funcionar
-          nome: name,
+          id: userId,
+          nome: leadByEmail?.nome || name,
           email: email,
-          whatsapp: session.user.user_metadata?.phone || 'Não informado',
+          whatsapp: leadByEmail?.whatsapp || session.user.user_metadata?.phone || 'Não informado',
           status_lead: status,
           score: status === 'frio' ? 10 : (status === 'morno' ? 30 : 100)
         };
@@ -73,11 +79,11 @@ export const leadService = {
           .single();
         
         if (insertError) {
-          console.error('❌ Erro ao criar novo lead:', insertError);
+          console.error('❌ Erro ao criar novo lead com ID de usuário:', insertError);
           throw insertError;
         }
 
-        console.log(`❄️ Novo lead criado como: ${status}`);
+        console.log(`❄️ Novo lead criado com ID de usuário (${userId}) como: ${status}`);
         await this.sendToWebhook('lead:created', createdLead);
       }
     } catch (error) {

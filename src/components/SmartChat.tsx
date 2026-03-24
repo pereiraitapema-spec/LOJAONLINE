@@ -213,10 +213,15 @@ export default function SmartChat() {
       }
   };
 
+  const lastProcessedMessageRef = useRef<string | null>(null);
+
   // Effect to trigger AI response when there are new user messages
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.role === 'user' && !loading && session) {
+    const messageId = lastMessage?.content + messages.length; // Simple ID for tracking
+    
+    if (lastMessage?.role === 'user' && !loading && session && lastProcessedMessageRef.current !== messageId) {
+      lastProcessedMessageRef.current = messageId;
       processAiResponse(messages);
     }
   }, [messages, loading, session]);
