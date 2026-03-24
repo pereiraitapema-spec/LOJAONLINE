@@ -27,6 +27,7 @@ export default function SmartChat() {
   const [aiSettings, setAiSettings] = useState({ rules: '', memory: '' });
   const [agentPhoto, setAgentPhoto] = useState<string | null>(null);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchAgentData = async () => {
