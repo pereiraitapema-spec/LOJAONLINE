@@ -110,19 +110,17 @@ export default function LeadsChat() {
     const channel = supabase
       .channel('chat_updates')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
-        console.log('Evento INSERT recebido via Realtime:', payload);
+        console.log('🔔 EVENTO REALTIME RECEBIDO:', payload);
         const newMessage = payload.new as Message;
         
         // Update messages if it's for the selected lead(s)
         const currentGroup = selectedGroupRef.current;
-        console.log('Grupo atual no Realtime:', currentGroup?.nome, 'IDs:', currentGroup?.leads.map(l => l.id));
         if (currentGroup) {
           const leadIds = currentGroup.leads.map(l => l.id);
           const isRelevant = leadIds.includes(newMessage.sender_id) || leadIds.includes(newMessage.receiver_id);
-          console.log('Mensagem relevante para o grupo?', isRelevant, 'Sender:', newMessage.sender_id, 'Receiver:', newMessage.receiver_id);
+          
           if (isRelevant) {
             setMessages(prev => {
-              // Avoid duplicates
               if (prev.some(m => m.id === newMessage.id)) return prev;
               return [...prev, newMessage].sort((a, b) => 
                 new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -134,7 +132,12 @@ export default function LeadsChat() {
         // Refresh leads to update last message and sorting
         fetchLeads();
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Status da Conexão Realtime:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Erro Crítico no Realtime. Verifique se a tabela chat_messages está na publicação supabase_realtime.');
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -361,22 +364,37 @@ export default function LeadsChat() {
     const mainLead = selectedGroup.leads[0];
     console.log(`Enviando mensagem para Lead ID: ${mainLead.id} (${selectedGroup.nome})`);
 
-    const newMessage = {
+    const newMessage: Message = {
+      id: crypto.randomUUID(), // ID temporário para atualização otimista
       sender_id: currentUser.id,
       receiver_id: mainLead.id,
       message: input,
       is_human: true,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      is_read: true
     };
+
+    // Atualização Otimista: Mostra na tela antes mesmo de salvar no banco
+    setMessages(prev => [...prev, newMessage]);
+    setInput('');
 
     try {
       console.log('Inserindo mensagem no Supabase:', newMessage);
-      const { error, data } = await supabase.from('chat_messages').insert(newMessage).select();
+      const { error } = await supabase.from('chat_messages').insert({
+        sender_id: newMessage.sender_id,
+        receiver_id: newMessage.receiver_id,
+        message: newMessage.message,
+        is_human: newMessage.is_human
+      });
+
       if (error) {
         console.error('Erro no insert do Supabase:', error);
+        // Remove a mensagem se deu erro
+        setMessages(prev => prev.filter(m => m.id !== newMessage.id));
         throw error;
       }
-      console.log('Mensagem inserida com sucesso:', data);
+      
+      console.log('Mensagem salva com sucesso no banco.');
       
       // AI Learning: Save human response to knowledge base if AI auto-reply is off
       if (!selectedGroup?.ai_auto_reply) {
