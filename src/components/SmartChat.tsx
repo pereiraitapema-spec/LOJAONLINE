@@ -6,8 +6,10 @@ import { MessageSquare, Send, X, User, Bot, Sparkles, LogIn } from 'lucide-react
 import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-
+import { chatService } from '../services/chatService';
 import { leadService } from '../services/leadService';
+
+// ... (dentro do componente SmartChat)
 
 interface Message {
   role: 'user' | 'bot';
@@ -15,6 +17,7 @@ interface Message {
 }
 
 export default function SmartChat() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { role: 'bot', content: 'Olá! Sou seu assistente inteligente G-FitLif. Como posso te ajudar hoje?' }
@@ -24,7 +27,7 @@ export default function SmartChat() {
   const [showNotification, setShowNotification] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [loadingSession, setLoadingSession] = useState(true);
-  const [aiSettings, setAiSettings] = useState({ rules: '', memory: '' });
+  const [aiSettings, setAiSettings] = useState({ rules: '', memory: '', triggers: '', autoLearning: false });
   const [agentPhoto, setAgentPhoto] = useState<string | null>(null);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -43,7 +46,14 @@ export default function SmartChat() {
         .eq('agent_type', agentType)
         .maybeSingle();
       
-      if (settings) setAiSettings(settings);
+      if (settings) {
+        setAiSettings({
+          rules: settings.rules || '',
+          memory: settings.memory || '',
+          triggers: 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?',
+          autoLearning: false
+        });
+      }
 
       // Fetch agent photo (from admin profile)
       const { data: adminProfile, error: profileError } = await supabase
@@ -70,6 +80,9 @@ export default function SmartChat() {
     };
     fetchAgentData();
   }, [session]);
+
+// ... (dentro do componente SmartChat)
+
   const loadHistory = async (userId: string) => {
     console.log(`[SmartChat] Iniciando carregamento de histórico para o usuário: ${userId}`);
     // Primeiro tenta carregar do localStorage para rapidez
@@ -92,14 +105,7 @@ export default function SmartChat() {
     // Busca do banco de dados para garantir sincronia
     try {
       console.log(`[SmartChat] Buscando histórico no banco de dados para o usuário: ${userId}`);
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-        .order('created_at', { ascending: true })
-        .limit(50);
-
-      if (error) throw error;
+      const data = await chatService.fetchUserHistory(userId);
 
       if (data && data.length > 0) {
         console.log(`[SmartChat] Histórico carregado do banco de dados: ${data.length} mensagens`, data);
@@ -150,10 +156,11 @@ export default function SmartChat() {
 
     // Fetch AI Settings
     const fetchAiSettings = async () => {
-      const { data } = await supabase.from('store_settings').select('ai_chat_rules, ai_chat_triggers, ai_auto_learning').maybeSingle();
+      const { data } = await supabase.from('store_settings').select('ai_chat_rules, ai_chat_triggers, ai_auto_learning, ai_chat_memory').maybeSingle();
       if (data) {
         setAiSettings({
           rules: data.ai_chat_rules || '',
+          memory: data.ai_chat_memory || '',
           triggers: data.ai_chat_triggers || 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?',
           autoLearning: !!data.ai_auto_learning
         });
@@ -162,28 +169,21 @@ export default function SmartChat() {
     fetchAiSettings();
 
     // Subscription for real-time messages
-    let channel: any = null;
+    let msgSubscription: any = null;
     if (session?.user?.id) {
-      channel = supabase
-        .channel('chat_messages')
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `receiver_id=eq.${session.user.id}`
-        }, (payload) => {
-          const newMessage = payload.new;
-          if (newMessage && newMessage.message) {
-            setMessages(prev => [...prev, { role: 'bot', content: newMessage.message }]);
-            setShowNotification(true);
-          }
-        })
-        .subscribe();
+      msgSubscription = chatService.subscribeToMessages(session.user.id, (payload) => {
+        const newMessage = payload.new;
+        if (newMessage && newMessage.message) {
+          setMessages(prev => [...prev, { role: 'bot', content: newMessage.message }]);
+          setShowNotification(true);
+        }
+      });
     }
 
     return () => {
-      subscription.unsubscribe();
-      if (channel) supabase.removeChannel(channel);
+      if (msgSubscription) {
+        msgSubscription.unsubscribe();
+      }
     };
   }, [session?.user?.id]);
 
@@ -233,21 +233,16 @@ export default function SmartChat() {
       // Save to DB
       try {
         console.log(`📤 Salvando mensagem do usuário (${session.user.email} - ${session.user.id}) no DB...`);
-        const { data, error } = await supabase.from('chat_messages').insert({
+        await chatService.sendMessage({
           sender_id: session.user.id,
           receiver_id: null, // Mensagem do usuário para o sistema (admin/IA)
           message: userMessage,
           is_human: true,
           is_read: false
-        }).select();
-
-        if (error) {
-          console.error('❌ Erro ao salvar mensagem no DB:', error);
-        } else {
-          console.log('✅ Mensagem do usuário salva no DB:', data);
-        }
+        });
+        console.log('✅ Mensagem do usuário salva no DB.');
       } catch (e) {
-        console.error('❌ Erro de exceção ao salvar mensagem no DB:', e);
+        console.error('❌ Erro ao salvar mensagem no DB:', e);
       }
       
       // Marcar como lead morno ao interagir no chat (se não for admin)
@@ -268,6 +263,7 @@ export default function SmartChat() {
     setLoading(true);
 
     let keys: any = null;
+    let keysData: any[] | null = null;
     let context = '';
     let alternatingHistory: any[] = [];
 
@@ -301,11 +297,13 @@ export default function SmartChat() {
       }
 
       // 1. Fetch API Keys
-      const { data: keysData } = await supabase
+      const { data: fetchedKeys } = await supabase
         .from('api_keys')
         .select('key_value')
         .eq('service', 'gemini')
         .eq('active', true);
+
+      keysData = fetchedKeys;
 
       if (!keysData || keysData.length === 0) {
         throw new Error('Assistente indisponível no momento.');
@@ -644,21 +642,16 @@ export default function SmartChat() {
           // Salvar resposta da IA no banco (Retry Mode)
           try {
             console.log(`📤 Salvando resposta da IA (Retry) para o usuário (${session.user.email} - ${session.user.id}) no DB...`);
-            const { data, error: dbError } = await supabase.from('chat_messages').insert({
-              sender_id: null,
+            await chatService.sendMessage({
+              sender_id: 'AI', // Ou null, dependendo da convenção
               receiver_id: session.user.id,
               message: botResponse,
               is_human: false,
               is_read: true
-            }).select();
-
-            if (dbError) {
-              console.error('❌ Erro ao salvar resposta da IA (Retry) no DB:', dbError);
-            } else {
-              console.log('✅ Resposta da IA (Retry) salva no DB:', data);
-            }
+            });
+            console.log('✅ Resposta da IA (Retry) salva no DB.');
           } catch (e) {
-            console.error('❌ Erro de exceção ao salvar resposta da IA (Retry) no DB:', e);
+            console.error('❌ Erro ao salvar resposta da IA (Retry) no DB:', e);
           }
 
           retrySuccess = true;
@@ -674,8 +667,8 @@ export default function SmartChat() {
         
         // Salvar mensagem de erro no banco para que o CRM também veja
         try {
-          await supabase.from('chat_messages').insert({
-            sender_id: null,
+          await chatService.sendMessage({
+            sender_id: 'AI',
             receiver_id: session.user.id,
             message: 'Ops! Tive um problema técnico. Pode tentar novamente?',
             is_human: false,

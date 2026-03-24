@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { Send } from 'lucide-react';
+import { chatService } from '../services/chatService';
 
 export default function AdminChat() {
   const [messages, setMessages] = useState<any[]>([]);
@@ -11,18 +12,19 @@ export default function AdminChat() {
 
   useEffect(() => {
     fetchMessages();
-    const channel = supabase
-      .channel('chat_messages')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
-        setMessages(prev => [...prev, payload.new]);
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+    const subscription = chatService.subscribeToMessages(selectedUser || '', (payload) => {
+      setMessages(prev => [...prev, payload.new]);
+    });
+    return () => { subscription.unsubscribe(); };
+  }, [selectedUser]);
 
   const fetchMessages = async () => {
-    const { data } = await supabase.from('chat_messages').select('*').order('created_at', { ascending: true });
-    setMessages(data || []);
+    try {
+      const data = await chatService.fetchMessages(selectedUser || '');
+      setMessages(data);
+    } catch (error) {
+      toast.error('Erro ao carregar mensagens');
+    }
   };
 
   const sendMessage = async () => {
@@ -31,13 +33,16 @@ export default function AdminChat() {
     const user = session?.user;
     if (!user) return;
 
-    await supabase.from('chat_messages').insert({
-      sender_id: user.id,
-      receiver_id: selectedUser,
-      message: input,
-      is_human: isHumanMode // Assuming this column exists or will be added
-    });
-    setInput('');
+    try {
+      await chatService.sendMessage({
+        chat_id: selectedUser,
+        sender_id: user.id,
+        message: input,
+      });
+      setInput('');
+    } catch (error) {
+      toast.error('Erro ao enviar mensagem');
+    }
   };
 
   return (
