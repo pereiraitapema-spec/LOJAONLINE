@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { Save, Bot, Users } from 'lucide-react';
+import { Save, Bot, Users, ArrowLeft } from 'lucide-react';
 import { Loading } from '../components/Loading';
+import { useNavigate } from 'react-router-dom';
 
 export default function AiAgentSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const navigate = useNavigate();
   const [settings, setSettings] = useState({
     vendas: { rules: '', memory: '' },
     afiliados: { rules: '', memory: '' }
@@ -51,7 +53,15 @@ export default function AiAgentSettings() {
 
   return (
     <div className="p-6 space-y-8">
-      <h1 className="text-2xl font-bold">Configurações dos Agentes IA</h1>
+      <div className="flex items-center gap-4">
+        <button 
+          onClick={() => navigate(-1)}
+          className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <h1 className="text-2xl font-bold">Configurações dos Agentes IA</h1>
+      </div>
       
       {['vendas', 'afiliados'].map((type) => (
         <div key={type} className="bg-white p-6 rounded-xl shadow-sm space-y-4">
