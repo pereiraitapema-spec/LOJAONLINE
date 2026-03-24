@@ -38,14 +38,14 @@ export default function SmartChat() {
       const agentType = affiliateData ? 'afiliados' : 'vendas';
       
       const { data: settings } = await supabase
-        .from('ai_agent_settings')
+        .from('ai_settings')
         .select('rules, memory')
         .eq('agent_type', agentType)
         .maybeSingle();
       
       if (settings) setAiSettings(settings);
 
-      {/* Fetch agent photo (from admin profile) */}
+      // Fetch agent photo (from admin profile)
       const { data: adminProfile } = await supabase
         .from('profiles')
         .select('avatar_url')
@@ -718,12 +718,16 @@ export default function SmartChat() {
             <div className="bg-emerald-600 p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center overflow-hidden border-2 border-emerald-400">
-                  <img 
-                    src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100" 
-                    alt="Agente" 
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
+                  {agentPhoto ? (
+                    <img 
+                      src={agentPhoto} 
+                      alt="Agente" 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <Bot className="text-white" size={20} />
+                  )}
                 </div>
                 <div>
                   <h3 className="font-bold text-sm">G-FitLif AI</h3>
@@ -744,12 +748,18 @@ export default function SmartChat() {
                 <div key={`${idx}-${msg.role}-${msg.content.substring(0, 10)}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} mb-4`}>
                   {msg.role !== 'user' && (
                     <div className="flex-shrink-0 mr-2 mt-auto">
-                      <img 
-                        src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100" 
-                        alt="Agente" 
-                        className="w-8 h-8 rounded-full object-cover shadow-sm border-2 border-emerald-500"
-                        referrerPolicy="no-referrer"
-                      />
+                      {agentPhoto ? (
+                        <img 
+                          src={agentPhoto} 
+                          alt="Agente" 
+                          className="w-8 h-8 rounded-full object-cover shadow-sm border-2 border-emerald-500"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs shadow-sm">
+                          <Bot size={16} />
+                        </div>
+                      )}
                     </div>
                   )}
                   <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm ${

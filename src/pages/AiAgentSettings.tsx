@@ -16,7 +16,7 @@ export default function AiAgentSettings() {
 
   useEffect(() => {
     const fetchSettings = async () => {
-      const { data, error } = await supabase.from('ai_agent_settings').select('*');
+      const { data, error } = await supabase.from('ai_settings').select('*');
       if (data) {
         const newSettings = { ...settings };
         data.forEach(s => {
@@ -34,7 +34,7 @@ export default function AiAgentSettings() {
     setSaving(true);
     try {
       const { error } = await supabase
-        .from('ai_agent_settings')
+        .from('ai_settings')
         .upsert({
           agent_type: type,
           rules: settings[type].rules,
