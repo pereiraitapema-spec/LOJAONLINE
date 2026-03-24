@@ -367,65 +367,58 @@ export default function Store() {
 
         console.log('⏱️ Buscando dados principais (banners, produtos, etc)...');
         const results = await Promise.allSettled([
-          withTimeout(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }), 15000),
+          withTimeout(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }), 5000),
           withTimeout(supabase.from('products')
             .select('*, tiers:product_tiers(*), media:product_media(*)')
             .eq('active', true)
             .order('created_at', { ascending: false })
-            .order('position', { foreignTable: 'product_media', ascending: true }), 15000),
-          withTimeout(supabase.from('categories').select('*').order('name'), 15000),
-          withTimeout(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }), 15000),
-          withTimeout(supabase.from('store_settings').select('*').maybeSingle(), 15000),
-          withTimeout(supabase.from('site_content').select('*'), 15000)
+            .order('position', { foreignTable: 'product_media', ascending: true }), 5000),
+          withTimeout(supabase.from('categories').select('*').order('name'), 5000),
+          withTimeout(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }), 5000),
+          withTimeout(supabase.from('store_settings').select('*').maybeSingle(), 5000),
+          withTimeout(supabase.from('site_content').select('*'), 5000)
         ]);
 
-        const bannerRes = results[0].status === 'fulfilled' ? results[0].value : { data: [], error: results[0].reason };
+        // Só atualizar o estado se a promessa foi cumprida com sucesso
+        if (results[0].status === 'fulfilled' && results[0].value.data) {
+          setBanners(results[0].value.data);
+          localStorage.setItem('cache_banners', JSON.stringify(results[0].value.data));
+        }
+        
+        if (results[1].status === 'fulfilled' && results[1].value.data) {
+          setProducts(results[1].value.data);
+          localStorage.setItem('cache_products', JSON.stringify(results[1].value.data));
+        }
+
+        if (results[2].status === 'fulfilled' && results[2].value.data) {
+          setCategories(results[2].value.data);
+          localStorage.setItem('cache_categories', JSON.stringify(results[2].value.data));
+        }
+
+        if (results[3].status === 'fulfilled' && results[3].value.data) {
+          setCampaigns(results[3].value.data);
+          localStorage.setItem('cache_campaigns', JSON.stringify(results[3].value.data));
+        }
+
+        if (results[4].status === 'fulfilled' && results[4].value.data) {
+          setSettings(results[4].value.data);
+          localStorage.setItem('cache_settings', JSON.stringify(results[4].value.data));
+        }
+
+        if (results[5].status === 'fulfilled' && results[5].value.data) {
+          setSiteContent(results[5].value.data);
+          localStorage.setItem('cache_site_content', JSON.stringify(results[5].value.data));
+        }
+        
+        // Logs para debug
         const prodRes = results[1].status === 'fulfilled' ? results[1].value : { data: [], error: results[1].reason };
-        const catRes = results[2].status === 'fulfilled' ? results[2].value : { data: [], error: results[2].reason };
         const campRes = results[3].status === 'fulfilled' ? results[3].value : { data: [], error: results[3].reason };
-        const settingsRes = results[4].status === 'fulfilled' ? results[4].value : { data: null, error: results[4].reason };
-        const contentRes = results[5].status === 'fulfilled' ? results[5].value : { data: [], error: results[5].reason };
         
         console.log('📦 Products Fetch Result:', { 
           count: prodRes.data?.length, 
           error: prodRes.error,
           status: results[1].status
         });
-
-        if (prodRes.data?.length === 0) {
-          console.log('🔍 Nenhum produto ativo encontrado. Verificando total na tabela...');
-          const { count } = await withTimeout(supabase.from('products').select('*', { count: 'exact', head: true }));
-          console.log('📊 Total de produtos na tabela (incluindo inativos):', count);
-        }
-
-        if (prodRes.error) {
-          console.error('❌ Error fetching products:', prodRes.error);
-          // Se for erro de abort/lock, não mostrar toast para o usuário, apenas logar
-          if (!prodRes.error.message?.includes('AbortError') && !prodRes.error.message?.includes('Lock broken')) {
-            toast.error('Erro ao carregar produtos. Verifique as permissões.');
-          }
-        }
-
-        setBanners(bannerRes.data || []);
-        setProducts(prodRes.data || []);
-        setCategories(catRes.data || []);
-        setCampaigns(campRes.data || []);
-        if (settingsRes.data) {
-          setSettings(settingsRes.data);
-        }
-        setSiteContent(contentRes.data || []);
-
-        // Salvar no cache
-        localStorage.setItem('cache_banners', JSON.stringify(bannerRes.data || []));
-        localStorage.setItem('cache_products', JSON.stringify(prodRes.data || []));
-        localStorage.setItem('cache_categories', JSON.stringify(catRes.data || []));
-        localStorage.setItem('cache_campaigns', JSON.stringify(campRes.data || []));
-        if (settingsRes.data) {
-          localStorage.setItem('cache_settings', JSON.stringify(settingsRes.data));
-        }
-        localStorage.setItem('cache_site_content', JSON.stringify(contentRes.data || []));
-        
-        setLoading(false);
         
         // Check for affiliate link
         const urlParams = new URLSearchParams(window.location.search);

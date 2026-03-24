@@ -132,17 +132,27 @@ function AppContent() {
       }
 
       if (session) {
-        const role = await fetchUserRole(session.user.id, session.user.email);
-        setUserRole(role);
-        localStorage.setItem('user_role', role);
+        // Se já temos o role no cache, podemos liberar o loading mais cedo
+        if (localStorage.getItem('user_role')) {
+          setLoading(false);
+          // Busca o role atualizado em background
+          fetchUserRole(session.user.id, session.user.email).then(role => {
+            setUserRole(role);
+            localStorage.setItem('user_role', role);
+          });
+        } else {
+          const role = await fetchUserRole(session.user.id, session.user.email);
+          setUserRole(role);
+          localStorage.setItem('user_role', role);
+          setLoading(false);
+        }
         
         // Sempre verificar redirecionamento se houver sessão
         await handleRoleRedirect(session);
       } else {
         localStorage.removeItem('user_role');
+        setLoading(false);
       }
-      
-      setLoading(false);
     });
 
     // 2. Ouvir mudanças (Login/Logout)
@@ -175,8 +185,17 @@ function AppContent() {
       if (event === 'SIGNED_IN' && session) {
         console.log('✅ Usuário logado:', session.user.email);
         
-        const role = await fetchUserRole(session.user.id, session.user.email);
-        setUserRole(role);
+        // Não bloquear o carregamento se já temos um role no cache
+        if (localStorage.getItem('user_role')) {
+          fetchUserRole(session.user.id, session.user.email).then(role => {
+            setUserRole(role);
+            localStorage.setItem('user_role', role);
+          });
+        } else {
+          const role = await fetchUserRole(session.user.id, session.user.email);
+          setUserRole(role);
+          localStorage.setItem('user_role', role);
+        }
 
         // Se estivermos em um fluxo de recuperação, NÃO redirecionar para dashboard
         if (window.location.hash.includes('type=recovery') || window.location.pathname === '/reset-password') {
