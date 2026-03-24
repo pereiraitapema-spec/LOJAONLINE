@@ -275,6 +275,17 @@ export default function LeadsChat() {
       const columns = 'id, sender_id, receiver_id, message, created_at, is_read, is_human';
       let allMessages: any[] = [];
 
+      // DEBUG: Check if admin can see ANY messages at all in the table
+      const { count, error: countError } = await supabase
+        .from('chat_messages')
+        .select('*', { count: 'exact', head: true });
+      
+      if (countError) {
+        console.error('RLS/Table Debug - Error counting messages:', countError);
+      } else {
+        console.log(`RLS/Table Debug - Total messages visible to you in table: ${count}`);
+      }
+
       for (let i = 0; i < idChunks.length; i++) {
         const chunk = idChunks[i];
         console.log(`Processing chunk ${i + 1}/${idChunks.length} (${chunk.length} IDs)`);
