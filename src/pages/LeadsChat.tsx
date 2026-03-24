@@ -420,6 +420,12 @@ export default function LeadsChat() {
     }
   };
 
+  useEffect(() => {
+    if (groupedLeads.length > 0 && !selectedGroupKey) {
+      handleSelectGroup(groupedLeads[0]);
+    }
+  }, [groupedLeads]);
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     console.log('handleSendMessage disparado. Input:', input);
