@@ -75,10 +75,30 @@ export default function Leads() {
     );
   };
 
+  const handleUnifyLeads = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.rpc('unify_leads_by_email');
+      if (error) throw error;
+      toast.success('Conversas unificadas com sucesso!');
+      fetchLeads();
+    } catch (error: any) {
+      toast.error('Erro ao unificar conversas: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (selectedLeads.length === 0) return;
     try {
       setLoading(true);
+      // Delete messages first
+      await supabase
+        .from('chat_messages')
+        .delete()
+        .or(`sender_id.in.(${selectedLeads.join(',')}),receiver_id.in.(${selectedLeads.join(',')})`);
+
       const { error } = await supabase
         .from('leads')
         .delete()
@@ -93,7 +113,7 @@ export default function Leads() {
         return updatedLeads;
       });
       
-      toast.success(`${selectedLeads.length} leads excluídos permanentemente!`);
+      toast.success(`${selectedLeads.length} leads e suas mensagens excluídos permanentemente!`);
       setSelectedLeads([]);
       setBulkDeleteModal(false);
     } catch (error: any) {
@@ -193,6 +213,12 @@ export default function Leads() {
   const handleDeleteLead = async (id: string) => {
     try {
       setLoading(true);
+      // Delete messages first
+      await supabase
+        .from('chat_messages')
+        .delete()
+        .or(`sender_id.eq.${id},receiver_id.eq.${id}`);
+
       const { error } = await supabase
         .from('leads')
         .delete()
@@ -208,7 +234,7 @@ export default function Leads() {
       });
       setSelectedLeads(prev => prev.filter(leadId => leadId !== id));
       
-      toast.success('Lead excluído com sucesso!');
+      toast.success('Lead e mensagens excluídos com sucesso!');
       setConfirmModal({ isOpen: false, leadId: null, leadName: '' });
     } catch (error: any) {
       toast.error('Erro ao excluir lead: ' + error.message);
@@ -318,6 +344,13 @@ export default function Leads() {
                 </button>
               </>
             )}
+            <button 
+              onClick={handleUnifyLeads}
+              className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 text-indigo-600 hover:bg-indigo-50 transition-colors"
+              title="Unificar Duplicatas por Email"
+            >
+              <Zap size={20} />
+            </button>
             <button 
               onClick={fetchLeads}
               className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-600 hover:bg-slate-50 transition-colors"

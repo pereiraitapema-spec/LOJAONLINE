@@ -15,7 +15,8 @@ import {
   Phone,
   Mail,
   Filter,
-  Sparkles
+  Sparkles,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
@@ -30,9 +31,24 @@ interface Lead {
   whatsapp: string;
   status_lead: string;
   ai_auto_reply: boolean;
+  score?: number;
+  tags?: string[];
   last_message?: string;
   last_message_time?: string;
   unread_count?: number;
+  created_at: string;
+}
+
+interface GroupedLead {
+  email: string;
+  nome: string;
+  whatsapp: string;
+  leads: Lead[];
+  last_message?: string;
+  last_message_time?: string;
+  unread_count?: number;
+  ai_auto_reply: boolean;
+  status_lead: string;
 }
 
 interface Message {
@@ -45,15 +61,19 @@ interface Message {
 }
 
 export default function LeadsChat() {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [groupedLeads, setGroupedLeads] = useState<GroupedLead[]>([]);
+  const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [globalAiMode, setGlobalAiMode] = useState(true);
+  const [showDetails, setShowDetails] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const selectedGroup = groupedLeads.find(g => g.email === selectedEmail);
 
   useEffect(() => {
     fetchLeads();
@@ -64,37 +84,23 @@ export default function LeadsChat() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
         const newMessage = payload.new as Message;
         
-        // Update messages if it's for the selected lead
-        if (selectedLead && (newMessage.sender_id === selectedLead.id || newMessage.receiver_id === selectedLead.id)) {
-          setMessages(prev => [...prev, newMessage]);
+        // Update messages if it's for the selected lead(s)
+        if (selectedGroup) {
+          const leadIds = selectedGroup.leads.map(l => l.id);
+          if (leadIds.includes(newMessage.sender_id) || leadIds.includes(newMessage.receiver_id)) {
+            setMessages(prev => [...prev, newMessage]);
+          }
         }
 
-        // Update leads list with last message
-        setLeads(prev => {
-          const updated = prev.map(l => {
-            if (l.id === newMessage.sender_id || l.id === newMessage.receiver_id) {
-              return {
-                ...l,
-                last_message: newMessage.message,
-                last_message_time: newMessage.created_at,
-                unread_count: (l.id !== selectedLead?.id && newMessage.sender_id === l.id) ? (l.unread_count || 0) + 1 : l.unread_count
-              };
-            }
-            return l;
-          });
-          return updated.sort((a, b) => {
-            const timeA = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
-            const timeB = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
-            return timeB - timeA;
-          });
-        });
+        // Refresh leads to update last message and sorting
+        fetchLeads();
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedLead]);
+  }, [selectedEmail]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -126,25 +132,45 @@ export default function LeadsChat() {
 
       if (messagesError) throw messagesError;
 
-      const leadsWithMessages = leadsData.map(lead => {
-        const leadMessages = messagesData.filter(m => m.sender_id === lead.id || m.receiver_id === lead.id);
-        const lastMsg = leadMessages[0];
+      // Group by email
+      const groups: Record<string, GroupedLead> = {};
+      leadsData.forEach(lead => {
+        const email = lead.email || 'sem-email';
+        if (!groups[email]) {
+          groups[email] = {
+            email,
+            nome: lead.nome,
+            whatsapp: lead.whatsapp,
+            leads: [],
+            ai_auto_reply: lead.ai_auto_reply,
+            status_lead: lead.status_lead
+          };
+        }
+        groups[email].leads.push(lead);
+      });
+
+      // Map last messages and sort
+      const finalGroups = Object.values(groups).map(group => {
+        const leadIds = group.leads.map(l => l.id);
+        const groupMessages = messagesData.filter(m => leadIds.includes(m.sender_id) || leadIds.includes(m.receiver_id));
+        const lastMsg = groupMessages[0];
+        
         return {
-          ...lead,
+          ...group,
           last_message: lastMsg?.message || 'Nenhuma mensagem',
-          last_message_time: lastMsg?.created_at || lead.created_at,
+          last_message_time: lastMsg?.created_at || group.leads[0].created_at,
           unread_count: 0 // Placeholder
         };
       });
 
       // Sort by last message time
-      const sortedLeads = leadsWithMessages.sort((a, b) => {
+      const sortedGroups = finalGroups.sort((a, b) => {
         const timeA = new Date(a.last_message_time).getTime();
         const timeB = new Date(b.last_message_time).getTime();
         return timeB - timeA;
       });
 
-      setLeads(sortedLeads);
+      setGroupedLeads(sortedGroups);
     } catch (error: any) {
       toast.error('Erro ao carregar leads: ' + error.message);
     } finally {
@@ -152,12 +178,12 @@ export default function LeadsChat() {
     }
   };
 
-  const fetchMessages = async (leadId: string) => {
+  const fetchMessages = async (leadIds: string[]) => {
     try {
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
-        .or(`sender_id.eq.${leadId},receiver_id.eq.${leadId}`)
+        .or(`sender_id.in.(${leadIds.join(',')}),receiver_id.in.(${leadIds.join(',')})`)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -167,20 +193,23 @@ export default function LeadsChat() {
     }
   };
 
-  const handleSelectLead = (lead: Lead) => {
-    setSelectedLead(lead);
-    fetchMessages(lead.id);
+  const handleSelectGroup = (group: GroupedLead) => {
+    setSelectedEmail(group.email);
+    fetchMessages(group.leads.map(l => l.id));
     // Clear unread count
-    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, unread_count: 0 } : l));
+    setGroupedLeads(prev => prev.map(g => g.email === group.email ? { ...g, unread_count: 0 } : g));
   };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!input.trim() || !selectedLead || !currentUser) return;
+    if (!input.trim() || !selectedGroup || !currentUser) return;
+
+    // Use the most recent lead ID for this email
+    const mainLead = selectedGroup.leads[0];
 
     const newMessage = {
       sender_id: currentUser.id,
-      receiver_id: selectedLead.id,
+      receiver_id: mainLead.id,
       message: input,
       is_human: true,
       created_at: new Date().toISOString()
@@ -191,21 +220,61 @@ export default function LeadsChat() {
       if (error) throw error;
       
       // AI Learning: Save human response to knowledge base if AI auto-reply is off
-      if (!selectedLead.ai_auto_reply) {
+      if (!selectedGroup.ai_auto_reply) {
         await supabase.from('ai_knowledge_base').insert({
-          topic: `Atendimento: ${selectedLead.nome}`,
+          topic: `Atendimento: ${selectedGroup.nome}`,
           content: input
         });
       }
 
       // Update lead status to 'morno' if it was 'frio'
-      if (selectedLead.status_lead === 'frio') {
-        await supabase.from('leads').update({ status_lead: 'morno' }).eq('id', selectedLead.id);
+      if (selectedGroup.status_lead === 'frio') {
+        await supabase.from('leads').update({ status_lead: 'morno' }).eq('id', mainLead.id);
       }
 
       setInput('');
     } catch (error: any) {
       toast.error('Erro ao enviar mensagem: ' + error.message);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedLeads.length === 0) return;
+    if (!confirm(`Tem certeza que deseja excluir ${selectedLeads.length} conversas?`)) return;
+
+    try {
+      setLoading(true);
+      // Delete messages first
+      await supabase.from('chat_messages').delete().or(`sender_id.in.(${selectedLeads.join(',')}),receiver_id.in.(${selectedLeads.join(',')})`);
+      
+      // Delete leads
+      const { error } = await supabase.from('leads').delete().in('id', selectedLeads);
+      if (error) throw error;
+
+      toast.success('Conversas excluídas com sucesso!');
+      setSelectedLeads([]);
+      fetchLeads();
+      if (selectedGroup && selectedGroup.leads.some(l => selectedLeads.includes(l.id))) {
+        setSelectedEmail(null);
+      }
+    } catch (error: any) {
+      toast.error('Erro ao excluir conversas: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnifyLeads = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.rpc('unify_leads_by_email');
+      if (error) throw error;
+      toast.success('Conversas unificadas com sucesso!');
+      fetchLeads();
+    } catch (error: any) {
+      toast.error('Erro ao unificar conversas: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -218,11 +287,10 @@ export default function LeadsChat() {
 
       if (error) throw error;
       
-      if (selectedLead?.id === leadId) {
-        setSelectedLead({ ...selectedLead, ai_auto_reply: !currentMode });
+      if (selectedGroup && selectedGroup.leads.some(l => l.id === leadId)) {
+        setGroupedLeads(prev => prev.map(g => g.email === selectedGroup.email ? { ...g, ai_auto_reply: !currentMode } : g));
       }
       
-      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ai_auto_reply: !currentMode } : l));
       toast.success(`IA ${!currentMode ? 'Ativada' : 'Desativada'} para este lead`);
     } catch (error: any) {
       toast.error('Erro ao alterar modo da IA: ' + error.message);
@@ -236,19 +304,36 @@ export default function LeadsChat() {
     return format(date, 'dd/MM/yy');
   };
 
-  const filteredLeads = leads.filter(l => 
-    l.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    l.whatsapp.includes(searchTerm)
+  const filteredLeads = groupedLeads.filter(g => 
+    g.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    g.whatsapp.includes(searchTerm) ||
+    g.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="flex h-[calc(100vh-64px)] bg-slate-100 overflow-hidden">
       {/* Sidebar - Leads List */}
-      <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col ${selectedLead ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col ${selectedEmail ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 bg-slate-50 border-b border-slate-200">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-xl font-bold text-slate-800">Leads Chat</h1>
+            <h1 className="text-xl font-bold text-slate-800 italic uppercase">Unificado</h1>
             <div className="flex gap-2">
+              <button 
+                onClick={handleUnifyLeads}
+                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+                title="Unificar Duplicatas"
+              >
+                <Zap size={20} />
+              </button>
+              {selectedLeads.length > 0 && (
+                <button 
+                  onClick={handleDeleteSelected}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                  title="Excluir selecionados"
+                >
+                  <Trash2 size={20} />
+                </button>
+              )}
               <button className="p-2 text-slate-500 hover:bg-slate-200 rounded-full transition-colors">
                 <Filter size={20} />
               </button>
@@ -273,7 +358,7 @@ export default function LeadsChat() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               type="text" 
-              placeholder="Pesquisar leads..." 
+              placeholder="Pesquisar conversas..." 
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
@@ -289,146 +374,241 @@ export default function LeadsChat() {
             </div>
           ) : filteredLeads.length === 0 ? (
             <div className="p-8 text-center text-slate-400">
-              <p>Nenhum lead encontrado.</p>
+              <p>Nenhuma conversa encontrada.</p>
             </div>
           ) : (
-            filteredLeads.map(lead => (
-              <button
-                key={lead.id}
-                onClick={() => handleSelectLead(lead)}
-                className={`w-full p-4 flex gap-3 border-b border-slate-50 hover:bg-slate-50 transition-colors text-left ${selectedLead?.id === lead.id ? 'bg-emerald-50' : ''}`}
+            filteredLeads.map(group => (
+              <div
+                key={group.email}
+                className={`w-full flex items-center gap-2 border-b border-slate-50 hover:bg-slate-50 transition-colors ${selectedEmail === group.email ? 'bg-emerald-50' : ''}`}
               >
-                <div className="relative">
-                  <div className="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold">
-                    {lead.nome.charAt(0).toUpperCase()}
-                  </div>
-                  {lead.unread_count && lead.unread_count > 0 ? (
-                    <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
-                      {lead.unread_count}
-                    </span>
-                  ) : null}
+                <div className="pl-4">
+                  <input 
+                    type="checkbox"
+                    checked={group.leads.every(l => selectedLeads.includes(l.id))}
+                    onChange={() => {
+                      const leadIds = group.leads.map(l => l.id);
+                      const allSelected = leadIds.every(id => selectedLeads.includes(id));
+                      if (allSelected) {
+                        setSelectedLeads(prev => prev.filter(id => !leadIds.includes(id)));
+                      } else {
+                        setSelectedLeads(prev => [...new Set([...prev, ...leadIds])]);
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start mb-1">
-                    <h3 className="font-bold text-slate-800 truncate text-sm">{lead.nome}</h3>
-                    <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                      {lead.last_message_time ? formatTime(lead.last_message_time) : ''}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 truncate flex items-center gap-1">
-                    {lead.last_message}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${
-                      lead.status_lead === 'quente' ? 'bg-rose-100 text-rose-600' :
-                      lead.status_lead === 'morno' ? 'bg-amber-100 text-amber-600' :
-                      lead.status_lead === 'cliente' ? 'bg-emerald-100 text-emerald-600' :
-                      'bg-slate-100 text-slate-500'
-                    }`}>
-                      {lead.status_lead}
-                    </span>
-                    {!lead.ai_auto_reply && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-bold uppercase flex items-center gap-1">
-                        <User size={8} /> Humano
+                <button
+                  onClick={() => handleSelectGroup(group)}
+                  className="flex-1 p-4 flex gap-3 text-left min-w-0"
+                >
+                  <div className="relative">
+                    <div className="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold">
+                      {group.nome.charAt(0).toUpperCase()}
+                    </div>
+                    {group.unread_count && group.unread_count > 0 ? (
+                      <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
+                        {group.unread_count}
                       </span>
-                    )}
+                    ) : null}
                   </div>
-                </div>
-              </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start mb-1">
+                      <h3 className="font-bold text-slate-800 truncate text-sm">{group.nome}</h3>
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                        {group.last_message_time ? formatTime(group.last_message_time) : ''}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 truncate flex items-center gap-1">
+                      {group.last_message}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${
+                        group.status_lead === 'quente' ? 'bg-rose-100 text-rose-600' :
+                        group.status_lead === 'morno' ? 'bg-amber-100 text-amber-600' :
+                        group.status_lead === 'cliente' ? 'bg-emerald-100 text-emerald-600' :
+                        'bg-slate-100 text-slate-500'
+                      }`}>
+                        {group.status_lead}
+                      </span>
+                      {!group.ai_auto_reply && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-bold uppercase flex items-center gap-1">
+                          <User size={8} /> Humano
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              </div>
             ))
           )}
         </div>
       </div>
 
       {/* Main Chat Window */}
-      <div className={`flex-1 flex flex-col bg-white ${!selectedLead ? 'hidden md:flex' : 'flex'}`}>
-        {selectedLead ? (
+      <div className={`flex-1 flex flex-col bg-white ${!selectedEmail ? 'hidden md:flex' : 'flex'}`}>
+        {selectedGroup ? (
           <>
             {/* Chat Header */}
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <button 
-                  onClick={() => setSelectedLead(null)}
+                  onClick={() => setSelectedEmail(null)}
                   className="p-2 text-slate-500 hover:bg-slate-200 rounded-full md:hidden"
                 >
                   <ArrowLeft size={20} />
                 </button>
                 <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold">
-                  {selectedLead.nome.charAt(0).toUpperCase()}
+                  {selectedGroup.nome.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h2 className="font-bold text-slate-800 text-sm">{selectedLead.nome}</h2>
+                  <h2 className="font-bold text-slate-800 text-sm">{selectedGroup.nome}</h2>
                   <p className="text-[10px] text-slate-500 flex items-center gap-2">
-                    <span className="flex items-center gap-1"><Phone size={10} /> {selectedLead.whatsapp}</span>
-                    <span className="flex items-center gap-1"><Mail size={10} /> {selectedLead.email}</span>
+                    <span className="flex items-center gap-1"><Phone size={10} /> {selectedGroup.whatsapp}</span>
+                    <span className="flex items-center gap-1"><Mail size={10} /> {selectedGroup.email}</span>
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
-                  <Bot size={16} className={selectedLead.ai_auto_reply ? 'text-emerald-500' : 'text-slate-300'} />
+                  <Bot size={16} className={selectedGroup.ai_auto_reply ? 'text-emerald-500' : 'text-slate-300'} />
                   <span className="text-[10px] font-bold text-slate-600 uppercase">IA Ativa</span>
                   <button 
-                    onClick={() => toggleAiMode(selectedLead.id, selectedLead.ai_auto_reply)}
-                    className={`w-8 h-4 rounded-full relative transition-colors ${selectedLead.ai_auto_reply ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    onClick={() => toggleAiMode(selectedGroup.leads[0].id, selectedGroup.ai_auto_reply)}
+                    className={`w-8 h-4 rounded-full relative transition-colors ${selectedGroup.ai_auto_reply ? 'bg-emerald-500' : 'bg-slate-300'}`}
                   >
-                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${selectedLead.ai_auto_reply ? 'right-0.5' : 'left-0.5'}`} />
+                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${selectedGroup.ai_auto_reply ? 'right-0.5' : 'left-0.5'}`} />
                   </button>
                 </div>
-                <button className="p-2 text-slate-500 hover:bg-slate-200 rounded-full">
+                <button 
+                  onClick={() => setShowDetails(!showDetails)}
+                  className={`p-2 rounded-full transition-colors ${showDetails ? 'bg-emerald-100 text-emerald-600' : 'text-slate-500 hover:bg-slate-200'}`}
+                >
                   <MoreVertical size={20} />
                 </button>
               </div>
             </div>
 
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#e5ddd5] bg-opacity-50">
-              {messages.map((msg) => (
-                <div 
-                  key={msg.id} 
-                  className={`flex ${msg.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-[70%] p-3 rounded-2xl shadow-sm relative ${
-                    msg.sender_id === currentUser?.id 
-                      ? 'bg-[#dcf8c6] text-slate-800 rounded-tr-none' 
-                      : 'bg-white text-slate-800 rounded-tl-none'
-                  }`}>
-                    <div className="prose prose-sm max-w-none mb-1">
-                      <ReactMarkdown>{msg.message}</ReactMarkdown>
-                    </div>
-                    <div className="flex items-center justify-end gap-1">
-                      <span className="text-[9px] text-slate-500">
-                        {format(new Date(msg.created_at), 'HH:mm')}
-                      </span>
-                      {msg.sender_id === currentUser?.id && (
-                        <CheckCheck size={12} className="text-blue-500" />
+            <div className="flex-1 flex overflow-hidden">
+              {/* Messages Area */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#e5ddd5] bg-opacity-50">
+                {messages.map((msg) => (
+                  <div 
+                    key={msg.id} 
+                    className={`flex ${msg.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`max-w-[70%] p-3 rounded-2xl shadow-sm relative ${
+                      msg.sender_id === currentUser?.id 
+                        ? 'bg-[#dcf8c6] text-slate-800 rounded-tr-none' 
+                        : 'bg-white text-slate-800 rounded-tl-none'
+                    }`}>
+                      <div className="prose prose-sm max-w-none mb-1">
+                        <ReactMarkdown>{msg.message}</ReactMarkdown>
+                      </div>
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="text-[9px] text-slate-500">
+                          {format(new Date(msg.created_at), 'HH:mm')}
+                        </span>
+                        {msg.sender_id === currentUser?.id && (
+                          <CheckCheck size={12} className="text-blue-500" />
+                        )}
+                        {msg.sender_id === currentUser?.id && (
+                          <button 
+                            onClick={() => {
+                              supabase.from('ai_knowledge_base').insert({
+                                topic: `Manual: ${selectedGroup.nome}`,
+                                content: msg.message
+                              }).then(({ error }) => {
+                                if (!error) toast.success('IA aprendeu com esta resposta!');
+                              });
+                            }}
+                            className="ml-2 text-emerald-600 hover:text-emerald-800"
+                            title="IA Aprender com esta resposta"
+                          >
+                            <Sparkles size={12} />
+                          </button>
+                        )}
+                      </div>
+                      {!msg.is_human && !selectedGroup.leads.some(l => l.id === msg.sender_id) && (
+                        <span className="absolute -top-2 -left-2 bg-emerald-500 text-white p-1 rounded-full shadow-md">
+                          <Bot size={10} />
+                        </span>
                       )}
-                      {msg.sender_id === currentUser?.id && (
-                        <button 
-                          onClick={() => {
-                            supabase.from('ai_knowledge_base').insert({
-                              topic: `Manual: ${selectedLead.nome}`,
-                              content: msg.message
-                            }).then(({ error }) => {
-                              if (!error) toast.success('IA aprendeu com esta resposta!');
-                            });
-                          }}
-                          className="ml-2 text-emerald-600 hover:text-emerald-800"
-                          title="IA Aprender com esta resposta"
-                        >
-                          <Sparkles size={12} />
-                        </button>
-                      )}
                     </div>
-                    {!msg.is_human && msg.sender_id !== selectedLead.id && (
-                      <span className="absolute -top-2 -left-2 bg-emerald-500 text-white p-1 rounded-full shadow-md">
-                        <Bot size={10} />
-                      </span>
-                    )}
                   </div>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Details Sidebar */}
+              <AnimatePresence>
+                {showDetails && (
+                  <motion.div 
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 300, opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    className="bg-white border-l border-slate-200 overflow-y-auto"
+                  >
+                    <div className="p-6 space-y-6">
+                      <div className="text-center">
+                        <div className="w-20 h-20 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold text-2xl mx-auto mb-4">
+                          {selectedGroup.nome.charAt(0).toUpperCase()}
+                        </div>
+                        <h3 className="font-bold text-slate-800">{selectedGroup.nome}</h3>
+                        <p className="text-xs text-slate-500">{selectedGroup.email}</p>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Informações do Lead</h4>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-slate-500">Status:</span>
+                              <span className="font-bold text-slate-800 uppercase">{selectedGroup.status_lead}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-slate-500">WhatsApp:</span>
+                              <span className="font-bold text-slate-800">{selectedGroup.whatsapp}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-slate-500">Total de Leads:</span>
+                              <span className="font-bold text-slate-800">{selectedGroup.leads.length}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tags</h4>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedGroup.leads.flatMap(l => l.tags || []).map((tag, i) => (
+                              <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Ações Rápidas</h4>
+                          <div className="grid grid-cols-1 gap-2">
+                            <button 
+                              onClick={() => {
+                                if (confirm('Excluir toda a conversa?')) {
+                                  setSelectedLeads(selectedGroup.leads.map(l => l.id));
+                                  handleDeleteSelected();
+                                }
+                              }}
+                              className="w-full py-2 px-4 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+                            >
+                              <Trash2 size={14} /> Excluir Conversa
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Input Area */}
