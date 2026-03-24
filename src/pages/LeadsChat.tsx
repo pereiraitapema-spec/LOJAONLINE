@@ -79,10 +79,12 @@ export default function LeadsChat() {
   const selectedGroupRef = useRef<GroupedLead | undefined>(undefined);
   const selectedEmailRef = useRef<string | null>(null);
 
+  const selectedGroup = groupedLeads.find(g => g.email === selectedEmail);
+
   useEffect(() => {
-    selectedGroupRef.current = groupedLeads.find(g => g.email === selectedEmail);
+    selectedGroupRef.current = selectedGroup;
     selectedEmailRef.current = selectedEmail;
-  }, [groupedLeads, selectedEmail]);
+  }, [groupedLeads, selectedEmail, selectedGroup]);
 
   useEffect(() => {
     let retryCount = 0;
@@ -165,12 +167,12 @@ export default function LeadsChat() {
 
       if (leadsError) throw leadsError;
 
-      // Fetch last messages for each lead (optimized: fetch only recent messages)
+      // Fetch last messages and unread counts for each lead
       const { data: messagesData, error: messagesError } = await supabase
         .from('chat_messages')
-        .select('sender_id, receiver_id, message, created_at')
+        .select('sender_id, receiver_id, message, created_at, is_read')
         .order('created_at', { ascending: false })
-        .limit(1000);
+        .limit(2000); // Increased limit to find more unread messages
 
       if (messagesError) throw messagesError;
 
@@ -191,17 +193,20 @@ export default function LeadsChat() {
         groups[email].leads.push(lead);
       });
 
-      // Map last messages and sort
+      // Map last messages and unread counts
       const finalGroups = Object.values(groups).map(group => {
         const leadIds = group.leads.map(l => l.id);
         const groupMessages = messagesData.filter(m => leadIds.includes(m.sender_id) || leadIds.includes(m.receiver_id));
         const lastMsg = groupMessages[0];
         
+        // Count unread messages from the lead (where lead is sender and is_read is false)
+        const unreadCount = groupMessages.filter(m => leadIds.includes(m.sender_id) && !m.is_read).length;
+        
         return {
           ...group,
           last_message: lastMsg?.message || 'Nenhuma mensagem',
           last_message_time: lastMsg?.created_at || group.leads[0].created_at,
-          unread_count: 0 // Placeholder
+          unread_count: unreadCount
         };
       });
 
@@ -250,11 +255,24 @@ export default function LeadsChat() {
     }
   };
 
-  const handleSelectGroup = (group: GroupedLead) => {
+  const handleSelectGroup = async (group: GroupedLead) => {
     setSelectedEmail(group.email);
-    fetchMessages(group.leads.map(l => l.id));
-    // Clear unread count
-    setGroupedLeads(prev => prev.map(g => g.email === group.email ? { ...g, unread_count: 0 } : g));
+    const leadIds = group.leads.map(l => l.id);
+    fetchMessages(leadIds);
+    
+    // Mark messages as read
+    try {
+      await supabase
+        .from('chat_messages')
+        .update({ is_read: true })
+        .in('sender_id', leadIds)
+        .eq('is_read', false);
+      
+      // Clear unread count locally
+      setGroupedLeads(prev => prev.map(g => g.email === group.email ? { ...g, unread_count: 0 } : g));
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
   };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
