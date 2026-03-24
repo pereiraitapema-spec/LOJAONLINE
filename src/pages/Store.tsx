@@ -339,11 +339,6 @@ export default function Store() {
         isFetchingRef.current = true;
         console.log('📦 Iniciando fetchData no Store...');
         
-        // Se já temos dados no cache, não precisamos mostrar o loading full screen
-        if (products.length > 0) {
-          setLoading(false);
-        }
-
         // Buscar cupom aplicado se existir
         const savedCoupon = localStorage.getItem('applied_coupon');
         if (savedCoupon) {
@@ -626,7 +621,7 @@ export default function Store() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
-      {loading && products.length === 0 && <Loading message="Preparando sua loja..." />}
+      {loading && <Loading message="Preparando sua loja..." />}
       {/* Top Bar */}
       <div className="bg-emerald-800 text-white text-[10px] md:text-xs font-medium py-2 px-4 flex justify-between items-center tracking-wide">
         <span className="hidden md:inline">{settings?.top_bar_text || "Envio Brasil | 7 dias devolução | 10x sem juros | WhatsApp (47)99660-9618"}</span>

@@ -292,7 +292,14 @@ export default function Leads() {
             </div>
           </div>
           
-    <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => window.location.href = '/leads/chat'}
+              className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-100"
+            >
+              <MessageCircle size={18} />
+              Chat de Leads
+            </button>
             {selectedLeads.length > 0 && (
               <>
                 <button 

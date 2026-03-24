@@ -23,6 +23,7 @@ export default function SmartChat() {
   const [loading, setLoading] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [session, setSession] = useState<any>(null);
+  const [loadingSession, setLoadingSession] = useState(true);
   const [aiSettings, setAiSettings] = useState({ rules: '', triggers: '', autoLearning: false });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -48,10 +49,18 @@ export default function SmartChat() {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) loadHistory(session.user.id);
-    });
+    const initSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        if (session) loadHistory(session.user.id);
+      } catch (e) {
+        console.error('Error getting session:', e);
+      } finally {
+        setLoadingSession(false);
+      }
+    };
+    initSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
@@ -60,6 +69,7 @@ export default function SmartChat() {
       } else {
         setMessages([{ role: 'bot', content: 'Olá! Sou seu assistente inteligente G-FitLif. Como posso te ajudar hoje?' }]);
       }
+      setLoadingSession(false);
     });
 
     // Fetch AI Settings
@@ -181,6 +191,18 @@ export default function SmartChat() {
     const maxLines = maxLinesMatch ? parseInt(maxLinesMatch[1]) : 4;
 
     try {
+      // 0. Check if AI auto-reply is enabled for this lead
+      const { data: leadData } = await supabase
+        .from('leads')
+        .select('ai_auto_reply')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      
+      if (leadData && leadData.ai_auto_reply === false) {
+        console.log('🤖 AI Auto-reply is disabled for this lead.');
+        return;
+      }
+
       // 1. Fetch API Key
       const { data: keysData } = await supabase
         .from('api_keys')
@@ -467,7 +489,7 @@ export default function SmartChat() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-32 right-6 md:bottom-6 md:right-6 z-50">
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -547,7 +569,12 @@ export default function SmartChat() {
 
             {/* Input */}
             <div className="p-4 bg-white border-t border-slate-100">
-              {!session ? (
+              {loadingSession ? (
+                <div className="flex items-center justify-center gap-2 py-3 bg-slate-50 text-slate-400 rounded-xl text-xs">
+                  <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-600 rounded-full animate-spin" />
+                  Verificando conexão...
+                </div>
+              ) : !session ? (
                 <button 
                   onClick={() => navigate('/login')}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"

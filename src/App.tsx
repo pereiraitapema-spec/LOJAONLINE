@@ -23,6 +23,7 @@ import PaymentGateways from './pages/PaymentGateways';
 import ShippingCarriers from './pages/ShippingCarriers';
 import Integrations from './pages/Integrations';
 import Leads from './pages/Leads';
+import LeadsChat from './pages/LeadsChat';
 import Inventory from './pages/Inventory';
 import Automations from './pages/Automations';
 import AbandonedCarts from './pages/AbandonedCarts';
@@ -473,6 +474,10 @@ function AppContent() {
         <Route 
           path="/leads" 
           element={<AdminRoute><Leads /></AdminRoute>} 
+        />
+        <Route 
+          path="/leads/chat" 
+          element={<AdminRoute><LeadsChat /></AdminRoute>} 
         />
         <Route 
           path="/abandoned-carts" 
