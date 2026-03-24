@@ -262,7 +262,7 @@ export default function LeadsChat() {
     try {
       if (!currentUser || leadIds.length === 0) return;
       
-      console.log(`Buscando mensagens para ${leadIds.length} IDs de leads...`);
+      console.log(`Buscando mensagens para ${leadIds.length} leads:`, leadsData.map(l => `${l.nome} (${l.email}) - ${l.id}`));
 
       // Usamos CHUNKS para evitar o erro de URL muito longa (Bad Request)
       const CHUNK_SIZE = 50;
@@ -277,7 +277,7 @@ export default function LeadsChat() {
         const { data, error } = await supabase
           .from('chat_messages')
           .select('id, sender_id, receiver_id, message, created_at, is_read, is_human')
-          .or(`sender_id.in.(${chunk.map(id => `"${id}"`).join(',')}),receiver_id.in.(${chunk.map(id => `"${id}"`).join(',')})`)
+          .or(`sender_id.in.(${chunk.join(',')}),receiver_id.in.(${chunk.join(',')})`)
           .order('created_at', { ascending: true });
 
         if (error) {

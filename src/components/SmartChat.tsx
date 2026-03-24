@@ -28,24 +28,45 @@ export default function SmartChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  const loadHistory = (userId: string) => {
+  const loadHistory = async (userId: string) => {
+    // Primeiro tenta carregar do localStorage para rapidez
     const saved = localStorage.getItem(`gfitlif_chat_history_${userId}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Validate each message has content
-          const validMessages = parsed.filter(msg => msg && typeof msg.content === 'string');
+          const validMessages = parsed.filter((msg: any) => msg && typeof msg.content === 'string');
           if (validMessages.length > 0) {
             setMessages(validMessages);
-            return;
           }
         }
       } catch (e) {
-        console.error('Error loading chat history:', e);
+        console.error('Error loading chat history from localStorage:', e);
       }
     }
-    setMessages([{ role: 'bot', content: 'Olá! Sou seu assistente inteligente G-FitLif. Como posso te ajudar hoje?' }]);
+
+    // Busca do banco de dados para garantir sincronia
+    try {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .order('created_at', { ascending: true })
+        .limit(50);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const dbMessages: Message[] = data.map(msg => ({
+          role: msg.is_human && msg.sender_id === userId ? 'user' : 'bot',
+          content: msg.message
+        }));
+        setMessages(dbMessages);
+        localStorage.setItem(`gfitlif_chat_history_${userId}`, JSON.stringify(dbMessages));
+      }
+    } catch (e) {
+      console.error('Error loading chat history from DB:', e);
+    }
   };
 
   useEffect(() => {
@@ -104,7 +125,8 @@ export default function SmartChat() {
           filter: `receiver_id=eq.${session.user.id}`
         }, (payload) => {
           const newMessage = payload.new;
-          if (newMessage && newMessage.message) {
+          // Se não for o próprio usuário enviando para si mesmo (como no caso da IA ou Admin)
+          if (newMessage && newMessage.message && newMessage.sender_id !== session.user.id) {
             setMessages(prev => [...prev, { role: 'bot', content: newMessage.message }]);
             setShowNotification(true);
           }
@@ -146,7 +168,7 @@ export default function SmartChat() {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || loading) return;
 
     if (!session) {
       toast.error('Você precisa estar logado para enviar mensagens.');
@@ -163,22 +185,30 @@ export default function SmartChat() {
     
     // Save to DB
     try {
-      supabase.from('chat_messages').insert({
+      console.log(`📤 Salvando mensagem do usuário (${session.user.email} - ${session.user.id}) no DB...`);
+      const { data, error } = await supabase.from('chat_messages').insert({
         sender_id: session.user.id,
-        receiver_id: session.user.id, // Use own ID as receiver for AI chat to avoid FK issues
+        receiver_id: session.user.id, // Mantém o ID do usuário como receiver para o chat da IA
         message: userMessage,
         is_human: true,
         is_read: false
-      }).then(({ error }) => {
-        if (error) console.warn('⚠️ Erro ao salvar mensagem no DB:', error);
-        else console.log('✅ Mensagem do usuário salva no DB');
-      });
+      }).select();
+
+      if (error) {
+        console.error('❌ Erro ao salvar mensagem no DB:', error);
+      } else {
+        console.log('✅ Mensagem do usuário salva no DB:', data);
+      }
     } catch (e) {
-      console.warn('⚠️ Erro ao salvar mensagem no DB:', e);
+      console.error('❌ Erro de exceção ao salvar mensagem no DB:', e);
     }
     
     // Marcar como lead morno ao interagir no chat
-    leadService.updateStatus('morno');
+    try {
+      await leadService.updateStatus('morno');
+    } catch (e) {
+      console.warn('⚠️ Erro ao atualizar status do lead:', e);
+    }
   };
 
   // Effect to trigger AI response when there are new user messages
@@ -436,18 +466,22 @@ export default function SmartChat() {
         
         // Salvar resposta da IA no banco
         try {
-          supabase.from('chat_messages').insert({
+          console.log(`📤 Salvando resposta da IA para o usuário (${session.user.email} - ${session.user.id}) no DB...`);
+          const { data, error } = await supabase.from('chat_messages').insert({
             sender_id: null, // AI sender
             receiver_id: session.user.id,
             message: botPart,
             is_human: false,
             is_read: true
-          }).then(({ error }) => {
-            if (error) console.warn('⚠️ Erro ao salvar resposta da IA no DB:', error);
-            else console.log('✅ Resposta da IA salva no DB');
-          });
+          }).select();
+
+          if (error) {
+            console.error('❌ Erro ao salvar resposta da IA no DB:', error);
+          } else {
+            console.log('✅ Resposta da IA salva no DB:', data);
+          }
         } catch (e) {
-          console.warn('⚠️ Erro ao salvar resposta da IA no DB:', e);
+          console.error('❌ Erro de exceção ao salvar resposta da IA no DB:', e);
         }
         
         // Small delay between messages for more natural feel
@@ -483,15 +517,24 @@ export default function SmartChat() {
           localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(finalMessages));
           
           // Salvar resposta da IA no banco (Retry Mode)
-          supabase.from('chat_messages').insert({
-            sender_id: null,
-            receiver_id: session.user.id,
-            message: botResponse,
-            is_human: false,
-            is_read: true
-          }).then(({ error }) => {
-            if (error) console.warn('⚠️ Erro ao salvar resposta da IA (Retry) no DB:', error);
-          });
+          try {
+            console.log(`📤 Salvando resposta da IA (Retry) para o usuário (${session.user.email} - ${session.user.id}) no DB...`);
+            const { data, error: dbError } = await supabase.from('chat_messages').insert({
+              sender_id: null,
+              receiver_id: session.user.id,
+              message: botResponse,
+              is_human: false,
+              is_read: true
+            }).select();
+
+            if (dbError) {
+              console.error('❌ Erro ao salvar resposta da IA (Retry) no DB:', dbError);
+            } else {
+              console.log('✅ Resposta da IA (Retry) salva no DB:', data);
+            }
+          } catch (e) {
+            console.error('❌ Erro de exceção ao salvar resposta da IA (Retry) no DB:', e);
+          }
 
           return;
         } catch (retryError) {
