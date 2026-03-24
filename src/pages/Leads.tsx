@@ -156,7 +156,19 @@ export default function Leads() {
       is_human: true
     }));
 
-    await supabase.from('chat_messages').insert(messages);
+    const { error } = await supabase.from('chat_messages').insert(messages);
+    
+    if (error && (error.message === 'Bad Request' || error.code === 'PGRST204')) {
+      // Fallback without is_human
+      const fallbackMessages = selectedLeads.map(leadId => ({
+        sender_id: user.id,
+        receiver_id: leadId,
+        message: messageText
+      }));
+      await supabase.from('chat_messages').insert(fallbackMessages);
+    } else if (error) {
+      throw error;
+    }
     toast.success('Mensagens enviadas!');
     setShowSendMessageModal(false);
     setMessageText('');

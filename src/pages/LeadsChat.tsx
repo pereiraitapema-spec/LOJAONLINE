@@ -265,9 +265,9 @@ export default function LeadsChat() {
 
       // Split into two queries to avoid complex .or() filters
       // Using specific columns to be safer and more efficient
-      const columns = 'id, sender_id, receiver_id, message, created_at, is_read, is_human';
+      let columns = 'id, sender_id, receiver_id, message, created_at, is_read, is_human';
       
-      const [sentRes, receivedRes] = await Promise.all([
+      let [sentRes, receivedRes] = await Promise.all([
         supabase
           .from('chat_messages')
           .select(columns)
@@ -277,6 +277,23 @@ export default function LeadsChat() {
           .select(columns)
           .in('receiver_id', validLeadIds)
       ]);
+
+      // Fallback if columns are missing (Bad Request)
+      if ((sentRes.error && (sentRes.error.message === 'Bad Request' || sentRes.error.code === 'PGRST204')) || 
+          (receivedRes.error && (receivedRes.error.message === 'Bad Request' || receivedRes.error.code === 'PGRST204'))) {
+        console.warn('Falling back to basic columns for messages fetch');
+        columns = 'id, sender_id, receiver_id, message, created_at';
+        [sentRes, receivedRes] = await Promise.all([
+          supabase
+            .from('chat_messages')
+            .select(columns)
+            .in('sender_id', validLeadIds),
+          supabase
+            .from('chat_messages')
+            .select(columns)
+            .in('receiver_id', validLeadIds)
+        ]);
+      }
 
       if (sentRes.error) {
         console.error('Sent messages error:', sentRes.error);
@@ -288,18 +305,18 @@ export default function LeadsChat() {
       }
 
       // Combine and remove duplicates
-      const allMessages = [...(sentRes.data || []), ...(receivedRes.data || [])];
-      const uniqueMessages = Array.from(new Map(allMessages.map(m => [m.id, m])).values());
+      const allMessages: any[] = [...(sentRes.data || []), ...(receivedRes.data || [])];
+      const uniqueMessages: any[] = Array.from(new Map(allMessages.map((m: any) => [m.id, m])).values());
 
       // Sort chronologically
-      const sortedMessages = uniqueMessages.sort((a, b) => {
+      const sortedMessages = uniqueMessages.sort((a: any, b: any) => {
         const timeA = new Date(a.created_at).getTime();
         const timeB = new Date(b.created_at).getTime();
         if (timeA !== timeB) return timeA - timeB;
         return (a.id || '').localeCompare(b.id || ''); // Stable sort
       });
       
-      setMessages(sortedMessages);
+      setMessages(sortedMessages as Message[]);
     } catch (error: any) {
       console.error('Detailed error fetching messages:', error);
       const errorMsg = error.message || error.details || 'Erro de conexão';
