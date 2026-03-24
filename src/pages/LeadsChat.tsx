@@ -252,144 +252,58 @@ export default function LeadsChat() {
 
   const fetchMessages = async (leadIds: string[]) => {
     try {
-      // Validate that all IDs are valid UUIDs
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const validLeadIds = leadIds.filter(id => id && uuidRegex.test(id));
+      if (!currentUser) return;
       
-      if (validLeadIds.length === 0) {
-        console.warn('No valid lead IDs to fetch messages for');
-        setMessages([]);
-        return;
-      }
+      console.log(`Nova Estratégia: Buscando mensagens do Admin ${currentUser.id}...`);
 
-      console.log(`Fetching messages for ${validLeadIds.length} leads in chunks...`);
-
-      // PostgREST/Nginx has URL length limits. 
-      // Using a smaller chunk size for maximum safety
-      const CHUNK_SIZE = 30; 
-      const idChunks = [];
-      for (let i = 0; i < validLeadIds.length; i += CHUNK_SIZE) {
-        idChunks.push(validLeadIds.slice(i, i + CHUNK_SIZE));
-      }
-
-      const columns = 'id, sender_id, receiver_id, message, created_at, is_read, is_human';
-      let allMessages: any[] = [];
-
-      // DEBUG: Check if admin can see ANY messages at all in the table
-      const { data: debugMsgs, error: countError } = await supabase
+      // Buscamos TODAS as mensagens onde o Admin é o remetente ou destinatário
+      // Isso evita enviar a lista de 765 IDs na URL, eliminando o erro "Bad Request"
+      const { data: allAdminMessages, error } = await supabase
         .from('chat_messages')
-        .select('id, sender_id, receiver_id, message')
-        .order('created_at', { ascending: false })
-        .limit(20);
-      
-      if (countError) {
-        console.error('RLS/Table Debug - Error fetching messages:', countError);
-      } else {
-        console.log(`RLS/Table Debug - Found ${debugMsgs?.length || 0} messages in table.`);
-        if (debugMsgs && debugMsgs.length > 0) {
-          const allMsgIds = [...new Set(debugMsgs.flatMap(m => [m.sender_id, m.receiver_id]))];
-          const { data: leadCheck } = await supabase
-            .from('leads')
-            .select('id, nome, email')
-            .in('id', allMsgIds);
+        .select('id, sender_id, receiver_id, message, created_at, is_read, is_human')
+        .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        // Fallback se as colunas novas falharem
+        if (error.message === 'Bad Request' || error.code === 'PGRST204' || error.code === '42703') {
+          console.log('Attempting fallback with minimal columns...');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('chat_messages')
+            .select('id, sender_id, receiver_id, message, created_at')
+            .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
+            .order('created_at', { ascending: true });
           
-          const { data: profileCheck } = await supabase
-            .from('profiles')
-            .select('id, email')
-            .in('id', allMsgIds);
-
-          console.log('--- DEBUG: IDs NO BANCO ---');
-          debugMsgs.forEach((m, i) => {
-            const senderLead = leadCheck?.find(l => l.id === m.sender_id);
-            const receiverLead = leadCheck?.find(l => l.id === m.receiver_id);
-            const senderProfile = profileCheck?.find(p => p.id === m.sender_id);
-            const receiverProfile = profileCheck?.find(p => p.id === m.receiver_id);
-
-            const senderLabel = senderLead ? `Lead:${senderLead.nome}` : (senderProfile ? `Admin:${senderProfile.email}` : 'Unknown');
-            const receiverLabel = receiverLead ? `Lead:${receiverLead.nome}` : (receiverProfile ? `Admin:${receiverProfile.email}` : 'Unknown');
-
-            console.log(`Msg ${i+1}: From=${senderLabel} (${m.sender_id}), To=${receiverLabel} (${m.receiver_id}), Text=${m.message?.substring(0, 15)}...`);
-          });
-          console.log('--- DEBUG: IDs QUE ESTAMOS PROCURANDO ---');
-          console.log('Lead IDs in current group:', validLeadIds);
-          console.log('Current Admin ID:', currentUser?.id);
-        } else {
-          console.log('A TABELA chat_messages ESTÁ VAZIA PARA VOCÊ.');
+          if (fallbackError) throw fallbackError;
+          
+          // Filtramos na memória: apenas mensagens que envolvem um dos IDs do grupo selecionado
+          const filtered = (fallbackData || []).filter(m => 
+            leadIds.includes(m.sender_id) || leadIds.includes(m.receiver_id)
+          );
+          setMessages(filtered as Message[]);
+          console.log(`Filtro Memória: ${filtered.length} mensagens encontradas para o grupo.`);
+          return;
         }
+        throw error;
       }
 
-      for (let i = 0; i < idChunks.length; i++) {
-        const chunk = idChunks[i];
-        console.log(`Processing chunk ${i + 1}/${idChunks.length} (${chunk.length} IDs)`);
-        
-        let sentRes: any;
-        let receivedRes: any;
+      // Filtramos na memória: apenas mensagens que envolvem um dos IDs do grupo selecionado
+      const filtered = (allAdminMessages || []).filter(m => 
+        leadIds.includes(m.sender_id) || leadIds.includes(m.receiver_id)
+      );
 
-        const results = await Promise.all([
-          supabase
-            .from('chat_messages')
-            .select(columns)
-            .in('sender_id', chunk),
-          supabase
-            .from('chat_messages')
-            .select(columns)
-            .in('receiver_id', chunk)
-        ]);
-        
-        sentRes = results[0];
-        receivedRes = results[1];
-
-        // Fallback if columns are missing or query is rejected
-        if (sentRes.error || receivedRes.error) {
-          const err = sentRes.error || receivedRes.error;
-          console.warn(`Chunk ${i + 1} failed with:`, err.message);
-          
-          if (err.message === 'Bad Request' || err.code === 'PGRST204' || err.code === '42703') {
-            console.log('Attempting fallback with minimal columns...');
-            const fallbackColumns = 'id, sender_id, receiver_id, message, created_at';
-            const fallbackResults = await Promise.all([
-              supabase
-                .from('chat_messages')
-                .select(fallbackColumns)
-                .in('sender_id', chunk),
-              supabase
-                .from('chat_messages')
-                .select(fallbackColumns)
-                .in('receiver_id', chunk)
-            ]);
-            sentRes = fallbackResults[0];
-            receivedRes = fallbackResults[1];
-          }
-        }
-
-        if (sentRes.error) {
-          console.error(`Final error in sent messages chunk ${i + 1}:`, sentRes.error);
-          continue; // Skip this chunk instead of crashing everything
-        }
-        if (receivedRes.error) {
-          console.error(`Final error in received messages chunk ${i + 1}:`, receivedRes.error);
-          continue;
-        }
-
-        allMessages = [...allMessages, ...(sentRes.data || []), ...(receivedRes.data || [])];
-      }
-
-      // Remove duplicates
-      const uniqueMessages: any[] = Array.from(new Map(allMessages.map((m: any) => [m.id, m])).values());
-
-      // Sort chronologically
-      const sortedMessages = uniqueMessages.sort((a: any, b: any) => {
-        const timeA = new Date(a.created_at).getTime();
-        const timeB = new Date(b.created_at).getTime();
-        if (timeA !== timeB) return timeA - timeB;
-        return (a.id || '').localeCompare(b.id || '');
-      });
+      setMessages(filtered as Message[]);
+      console.log(`Filtro Memória: ${filtered.length} mensagens encontradas para o grupo.`);
       
-      setMessages(sortedMessages as Message[]);
-      console.log(`Successfully loaded ${sortedMessages.length} messages.`);
+      if (filtered.length === 0 && (allAdminMessages?.length || 0) > 0) {
+        console.warn('Atenção: Existem mensagens no banco, mas nenhuma bate com os IDs deste grupo de leads.');
+        // Debug: Show a few message IDs from DB to compare
+        console.log('Sample IDs in DB:', allAdminMessages.slice(0, 3).map(m => ({ s: m.sender_id, r: m.receiver_id })));
+        console.log('Sample IDs we searched:', leadIds.slice(0, 3));
+      }
     } catch (error: any) {
-      console.error('Critical error fetching messages:', error);
-      toast.error('Erro ao carregar mensagens. Verifique o console para detalhes.');
+      console.error('Erro na nova estratégia:', error);
+      toast.error('Erro ao carregar mensagens.');
     }
   };
 
