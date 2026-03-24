@@ -46,12 +46,19 @@ export default function SmartChat() {
       if (settings) setAiSettings(settings);
 
       // Fetch agent photo (from admin profile)
-      const { data: adminProfile } = await supabase
+      const { data: adminProfile, error: profileError } = await supabase
         .from('profiles')
         .select('avatar_url')
         .eq('email', 'pereira.itapema@gmail.com')
         .maybeSingle();
-      if (adminProfile) setAgentPhoto(adminProfile.avatar_url);
+      
+      console.log('[SmartChat] adminProfile:', adminProfile, 'Error:', profileError);
+      
+      if (adminProfile && adminProfile.avatar_url) {
+        setAgentPhoto(adminProfile.avatar_url);
+      } else {
+        console.log('[SmartChat] No avatar_url found for admin');
+      }
 
       // Fetch user photo
       const { data: userProfile } = await supabase

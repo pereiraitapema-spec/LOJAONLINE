@@ -234,13 +234,19 @@ export default function LeadsChat() {
       let leadsData: any[] = [];
       
       if (currentTab === 'leads') {
+        // Fetch affiliate emails to filter them out
+        const { data: affiliates } = await supabase.from('affiliates').select('email');
+        const affiliateEmails = affiliates?.map(a => a.email) || [];
+
         const { data, error } = await supabase
           .from('leads')
           .select('*')
           .is('affiliate_id', null)
           .order('created_at', { ascending: false });
         if (error) throw error;
-        leadsData = data || [];
+        
+        // Filter out leads that are also affiliates
+        leadsData = (data || []).filter(lead => !affiliateEmails.includes(lead.email));
       } else {
         const { data, error } = await supabase
           .from('affiliates')
