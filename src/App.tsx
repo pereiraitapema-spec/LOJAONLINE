@@ -499,7 +499,7 @@ function AppContent() {
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-      {!['/login', '/register', '/reset-password', '/affiliate-register', '/dashboard', '/banners', '/campaigns', '/products', '/orders', '/affiliates', '/settings', '/gateways', '/shipping', '/integrations', '/leads', '/leads/chat', '/abandoned-carts', '/inventory', '/automations', '/affiliate-dashboard'].includes(location.pathname) && (
+      {location.pathname === '/affiliate-dashboard' && (
         <SmartChat />
       )}
     </>
