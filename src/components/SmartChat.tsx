@@ -24,11 +24,44 @@ export default function SmartChat() {
   const [showNotification, setShowNotification] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [loadingSession, setLoadingSession] = useState(true);
-  const [aiSettings, setAiSettings] = useState({ rules: '', triggers: '', autoLearning: false });
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
+  const [aiSettings, setAiSettings] = useState({ rules: '', memory: '' });
+  const [agentPhoto, setAgentPhoto] = useState<string | null>(null);
+  const [userPhoto, setUserPhoto] = useState<string | null>(null);
 
-  const loadHistory = async (userId: string) => {
+  useEffect(() => {
+    const fetchAgentData = async () => {
+      if (!session) return;
+      
+      // Fetch agent settings
+      const { data: affiliateData } = await supabase.from('affiliates').select('id').eq('user_id', session.user.id).maybeSingle();
+      const agentType = affiliateData ? 'afiliados' : 'vendas';
+      
+      const { data: settings } = await supabase
+        .from('ai_agent_settings')
+        .select('rules, memory')
+        .eq('agent_type', agentType)
+        .maybeSingle();
+      
+      if (settings) setAiSettings(settings);
+
+      // Fetch agent photo (from admin profile)
+      const { data: adminProfile } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('role', 'admin')
+        .maybeSingle();
+      if (adminProfile) setAgentPhoto(adminProfile.avatar_url);
+
+      // Fetch user photo
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (userProfile) setUserPhoto(userProfile.avatar_url);
+    };
+    fetchAgentData();
+  }, [session]);
     console.log(`[SmartChat] Iniciando carregamento de histórico para o usuário: ${userId}`);
     // Primeiro tenta carregar do localStorage para rapidez
     const saved = localStorage.getItem(`gfitlif_chat_history_${userId}`);

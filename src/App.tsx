@@ -27,6 +27,7 @@ import LeadsChat from './pages/LeadsChat';
 import Inventory from './pages/Inventory';
 import Automations from './pages/Automations';
 import AbandonedCarts from './pages/AbandonedCarts';
+import AiAgentSettings from './pages/AiAgentSettings';
 import NotFound from './pages/NotFound';
 import { Loading } from './components/Loading';
 import { leadService } from './services/leadService';
@@ -494,6 +495,10 @@ function AppContent() {
         <Route 
           path="/automations" 
           element={<AdminRoute><Automations /></AdminRoute>} 
+        />
+        <Route 
+          path="/ai-settings" 
+          element={<AdminRoute><AiAgentSettings /></AdminRoute>} 
         />
 
         {/* Fallback */}
