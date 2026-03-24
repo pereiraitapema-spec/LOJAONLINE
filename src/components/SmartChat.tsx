@@ -233,31 +233,44 @@ export default function SmartChat() {
     const maxLines = maxLinesMatch ? parseInt(maxLinesMatch[1]) : 4;
 
     try {
-      // 0. Check if AI auto-reply is enabled for this lead
+      // 0. Check if AI auto-reply is enabled for this lead or if it's an affiliate
       const { data: leadData } = await supabase
         .from('leads')
         .select('ai_auto_reply')
         .eq('id', session.user.id)
         .maybeSingle();
       
-      if (leadData && leadData.ai_auto_reply === false) {
+      const { data: affiliateData } = await supabase
+        .from('affiliates')
+        .select('id, code, commission_rate, ai_auto_reply')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      const isAffiliate = !!affiliateData;
+
+      if (isAffiliate && affiliateData.ai_auto_reply === false) {
+        console.log('🤖 AI Auto-reply is disabled for this affiliate.');
+        return;
+      }
+
+      if (!isAffiliate && leadData && leadData.ai_auto_reply === false) {
         console.log('🤖 AI Auto-reply is disabled for this lead.');
         return;
       }
 
-      // 1. Fetch API Key
+      // 1. Fetch API Keys
       const { data: keysData } = await supabase
         .from('api_keys')
         .select('key_value')
         .eq('service', 'gemini')
-        .eq('active', true)
-        .maybeSingle();
+        .eq('active', true);
 
-      keys = keysData;
-
-      if (!keys?.key_value) {
+      if (!keysData || keysData.length === 0) {
         throw new Error('Assistente indisponível no momento.');
       }
+
+      // Use the first active key
+      keys = keysData[0];
 
       // 2. Fetch Context for "Memory"
       const [
@@ -350,6 +363,17 @@ export default function SmartChat() {
         }
       }
 
+      const affiliateRules = isAffiliate ? `
+          REGRAS ESPECÍFICAS PARA AFILIADOS:
+          1. Você está falando com um afiliado parceiro da G-FitLif.
+          2. Responda dúvidas sobre comissões, uso de banners, regras de divulgação e links de afiliado.
+          3. O código de afiliado deste usuário é: ${affiliateData.code}.
+          4. A taxa de comissão atual deste afiliado é: ${affiliateData.commission_rate}%.
+          5. Ensine o afiliado a usar o painel, pegar links e materiais de divulgação.
+          6. NÃO tente vender produtos para o afiliado, foque em ajudá-lo a vender.
+          7. Se o afiliado perguntar sobre chaves de API ou integrações, explique que o sistema já gerencia isso automaticamente para ele no painel, ou forneça instruções técnicas se disponíveis na base de conhecimento.
+      ` : '';
+
       const response = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
         contents: alternatingHistory,
@@ -363,6 +387,7 @@ export default function SmartChat() {
         config: {
           systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
           
+          ${isAffiliate ? affiliateRules : `
           REGRAS OBRIGATÓRIAS DE VENDAS E ATENDIMENTO (EXECUÇÃO RÍGIDA):
           1. RESPONDA SEMPRE EM PORTUGUÊS.
           2. Responda com no máximo ${maxLines} linhas por mensagem.
@@ -399,17 +424,18 @@ export default function SmartChat() {
           LÓGICA DE "COMO TOMAR" E DURAÇÃO:
           - Seja específico para cada produto. Se um pote tem 60 cápsulas e toma 1 por dia, dura 2 meses. Se toma 2, dura 1 mês.
           - Calcule o investimento mensal: "Sai por apenas R$ XX por mês no tratamento de X meses".
+          `}
           
           LÓGICA DE MEMÓRIA E PESQUISA:
           ${aiSettings.autoLearning ? `
           - Use 'googleSearch' para composições não detalhadas no contexto.
           - Use 'save_knowledge' para salvar fatos relevantes.
-          - Se a pergunta for fora de contexto (não relacionado a saúde/loja), diga: "Esta informação não procede do produto/marca." e force a venda de um produto do catálogo.
+          - Se a pergunta for fora de contexto (não relacionado a saúde/loja/afiliados), diga: "Esta informação não procede do produto/marca." e force o assunto principal.
           ` : `
           - Use APENAS o conhecimento fornecido.
           `}
           
-          Contexto dos Produtos (Conhecimento da IA):\n${context}
+          Contexto dos Produtos e Conhecimento da IA:\n${context}
           
           Lembre-se do histórico recente do usuário.`,
         }
@@ -486,8 +512,67 @@ export default function SmartChat() {
     } catch (error: any) {
       console.error('Chat Error:', error);
       
-      // Fallback if tool hybrid mode fails
-      if (error.message?.includes('include_server_side_tool_invocations') || error.message?.includes('INVALID_ARGUMENT') || error.message?.includes('tool_config')) {
+      // Fallback if tool hybrid mode fails or API key fails
+      let retrySuccess = false;
+
+      // Try with other keys if we have them
+      if (keysData && keysData.length > 1) {
+        console.log('🔄 Tentando com outra chave de API...');
+        for (let i = 1; i < keysData.length; i++) {
+          try {
+            const fallbackKey = keysData[i].key_value;
+            const fallbackAi = new GoogleGenAI({ apiKey: fallbackKey });
+            
+            const retryResponse = await fallbackAi.models.generateContent({
+              model: "gemini-3.1-pro-preview",
+              config: {
+                systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
+                (RETRY MODE - SEM FERRAMENTAS)
+                Responda com base APENAS no contexto fornecido abaixo.
+                
+                REGRAS DE LINHAS:
+                Responda com no máximo ${maxLines} linhas por mensagem.
+                
+                Contexto:\n${context}`,
+              },
+              contents: alternatingHistory
+            });
+            
+            const botResponse = retryResponse.text || 'Desculpe, tive um problema ao processar sua pergunta.';
+            const finalMessages = [...currentMessages, { role: 'bot' as const, content: botResponse }].slice(-40);
+            setMessages(finalMessages);
+            localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(finalMessages));
+            
+            // Salvar resposta da IA no banco (Retry Mode)
+            try {
+              console.log(`📤 Salvando resposta da IA (Retry) para o usuário (${session.user.email} - ${session.user.id}) no DB...`);
+              const { data, error: dbError } = await supabase.from('chat_messages').insert({
+                sender_id: null,
+                receiver_id: session.user.id,
+                message: botResponse,
+                is_human: false,
+                is_read: true
+              }).select();
+
+              if (dbError) {
+                console.error('❌ Erro ao salvar resposta da IA (Retry) no DB:', dbError);
+              } else {
+                console.log('✅ Resposta da IA (Retry) salva no DB:', data);
+              }
+            } catch (e) {
+              console.error('❌ Erro de exceção ao salvar resposta da IA (Retry) no DB:', e);
+            }
+
+            retrySuccess = true;
+            break; // Stop trying if successful
+          } catch (fallbackError) {
+            console.error(`Fallback Error with key ${i}:`, fallbackError);
+          }
+        }
+      }
+
+      // If still failed, try without tools using the first key
+      if (!retrySuccess && (error.message?.includes('include_server_side_tool_invocations') || error.message?.includes('INVALID_ARGUMENT') || error.message?.includes('tool_config'))) {
         try {
           const ai = new GoogleGenAI({ apiKey: keys.key_value });
           const retryResponse = await ai.models.generateContent({
@@ -530,27 +615,29 @@ export default function SmartChat() {
             console.error('❌ Erro de exceção ao salvar resposta da IA (Retry) no DB:', e);
           }
 
-          return;
+          retrySuccess = true;
         } catch (retryError) {
           console.error('Retry Error:', retryError);
         }
       }
 
-      const errorMessages = [...currentMessages, { role: 'bot' as const, content: 'Ops! Tive um problema técnico. Pode tentar novamente?' }].slice(-40);
-      setMessages(errorMessages);
-      localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(errorMessages));
-      
-      // Salvar mensagem de erro no banco para que o CRM também veja
-      try {
-        await supabase.from('chat_messages').insert({
-          sender_id: null,
-          receiver_id: session.user.id,
-          message: 'Ops! Tive um problema técnico. Pode tentar novamente?',
-          is_human: false,
-          is_read: true
-        });
-      } catch (e) {
-        console.error('Erro ao salvar mensagem de erro no DB:', e);
+      if (!retrySuccess) {
+        const errorMessages = [...currentMessages, { role: 'bot' as const, content: 'Ops! Tive um problema técnico. Pode tentar novamente?' }].slice(-40);
+        setMessages(errorMessages);
+        localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(errorMessages));
+        
+        // Salvar mensagem de erro no banco para que o CRM também veja
+        try {
+          await supabase.from('chat_messages').insert({
+            sender_id: null,
+            receiver_id: session.user.id,
+            message: 'Ops! Tive um problema técnico. Pode tentar novamente?',
+            is_human: false,
+            is_read: true
+          });
+        } catch (e) {
+          console.error('Erro ao salvar mensagem de erro no DB:', e);
+        }
       }
     } finally {
       setLoading(false);
@@ -591,8 +678,13 @@ export default function SmartChat() {
             {/* Header */}
             <div className="bg-emerald-600 p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <Bot size={24} />
+                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center overflow-hidden border-2 border-emerald-400">
+                  <img 
+                    src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100" 
+                    alt="Agente" 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm">G-FitLif AI</h3>
@@ -610,11 +702,21 @@ export default function SmartChat() {
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
               {messages.slice(-20).map((msg, idx) => (
-                <div key={`${idx}-${msg.role}-${msg.content.substring(0, 10)}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
+                <div key={`${idx}-${msg.role}-${msg.content.substring(0, 10)}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} mb-4`}>
+                  {msg.role !== 'user' && (
+                    <div className="flex-shrink-0 mr-2 mt-auto">
+                      <img 
+                        src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100" 
+                        alt="Agente" 
+                        className="w-8 h-8 rounded-full object-cover shadow-sm border-2 border-emerald-500"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  )}
+                  <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm ${
                     msg.role === 'user' 
-                      ? 'bg-emerald-600 text-white rounded-tr-none' 
-                      : 'bg-white text-slate-700 shadow-sm border border-slate-100 rounded-tl-none'
+                      ? 'bg-emerald-600 text-white rounded-br-none' 
+                      : 'bg-white text-slate-700 border border-slate-100 rounded-bl-none'
                   }`}>
                     <div className="prose prose-sm max-w-none">
                       <ReactMarkdown 
@@ -642,6 +744,22 @@ export default function SmartChat() {
                       </ReactMarkdown>
                     </div>
                   </div>
+                  {msg.role === 'user' && (
+                    <div className="flex-shrink-0 ml-2 mt-auto">
+                      {session?.user?.user_metadata?.avatar_url ? (
+                        <img 
+                          src={session.user.user_metadata.avatar_url} 
+                          alt="Você" 
+                          className="w-8 h-8 rounded-full object-cover shadow-sm"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs shadow-sm">
+                          {(session?.user?.user_metadata?.full_name || session?.user?.email || 'U').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
               {loading && (

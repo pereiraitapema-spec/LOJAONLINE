@@ -238,7 +238,8 @@ function AppContent() {
     };
 
     const handleRejection = (event: PromiseRejectionEvent) => {
-      const message = event.reason?.message || '';
+      const reason = event.reason;
+      const message = typeof reason === 'string' ? reason : (reason?.message || '');
       if (message.includes('MetaMask') || message.includes('ethereum') || message.includes('provider')) {
         event.preventDefault();
         console.warn('🛡️ Suprimido erro de promessa externa (MetaMask/Web3):', message);

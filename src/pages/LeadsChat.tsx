@@ -256,7 +256,7 @@ export default function LeadsChat() {
           email: aff.email,
           whatsapp: aff.whatsapp,
           status_lead: aff.status,
-          ai_auto_reply: false,
+          ai_auto_reply: aff.ai_auto_reply !== undefined ? aff.ai_auto_reply : true, // Use from DB or default to true
           created_at: aff.created_at
         }));
       }
@@ -545,12 +545,21 @@ export default function LeadsChat() {
 
   const toggleAiMode = async (leadId: string, currentMode: boolean) => {
     try {
-      const { error } = await supabase
-        .from('leads')
-        .update({ ai_auto_reply: !currentMode })
-        .eq('id', leadId);
-
-      if (error) throw error;
+      if (activeTab === 'affiliates') {
+        const { error } = await supabase
+          .from('affiliates')
+          .update({ ai_auto_reply: !currentMode })
+          .eq('user_id', leadId);
+        
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('leads')
+          .update({ ai_auto_reply: !currentMode })
+          .eq('id', leadId);
+        
+        if (error) throw error;
+      }
       
       if (selectedGroup && selectedGroup.leads.some(l => l.id === leadId)) {
         updateGroupedLeads(prev => prev.map(g => {
@@ -560,7 +569,7 @@ export default function LeadsChat() {
         }));
       }
       
-      toast.success(`IA ${!currentMode ? 'Ativada' : 'Desativada'} para este lead`);
+      toast.success(`IA ${!currentMode ? 'Ativada' : 'Desativada'} para este ${activeTab === 'affiliates' ? 'afiliado' : 'lead'}`);
     } catch (error: any) {
       toast.error('Erro ao alterar modo da IA: ' + error.message);
     }
@@ -631,7 +640,12 @@ export default function LeadsChat() {
           {/* Global AI Toggle Placeholder */}
           <div className="flex items-center justify-between bg-emerald-50 p-3 rounded-xl mb-4 border border-emerald-100">
             <div className="flex items-center gap-2">
-              <Bot size={18} className="text-emerald-600" />
+              <img 
+                src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100" 
+                alt="Agente" 
+                className="w-6 h-6 rounded-full object-cover border-2 border-emerald-500"
+                referrerPolicy="no-referrer"
+              />
               <span className="text-xs font-bold text-emerald-700 uppercase">IA Atende Automático</span>
             </div>
             <button 
@@ -762,7 +776,12 @@ export default function LeadsChat() {
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
-                  <Bot size={16} className={selectedGroup.ai_auto_reply ? 'text-emerald-500' : 'text-slate-300'} />
+                  <img 
+                    src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100" 
+                    alt="Agente" 
+                    className={`w-6 h-6 rounded-full object-cover border-2 ${selectedGroup.ai_auto_reply ? 'border-emerald-500' : 'border-slate-300 grayscale'}`}
+                    referrerPolicy="no-referrer"
+                  />
                   <span className="text-[10px] font-bold text-slate-600 uppercase">IA Ativa</span>
                   <button 
                     onClick={() => toggleAiMode(selectedGroup.leads[0].id, selectedGroup.ai_auto_reply)}
@@ -800,17 +819,27 @@ export default function LeadsChat() {
                   const isFromAI = msg.sender_id === null;
                   const isFromLead = !isFromAdmin && !isFromAI;
                   
+                  const adminAvatarUrl = currentUser?.user_metadata?.avatar_url;
+                  const aiAvatarUrl = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100";
+                  
                   return (
                   <div 
                     key={msg.id} 
-                    className={`flex ${isFromAdmin || isFromAI ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${isFromAdmin || isFromAI ? 'justify-end' : 'justify-start'} mb-4`}
                   >
+                    {isFromLead && (
+                      <div className="flex-shrink-0 mr-2 mt-auto">
+                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs shadow-sm">
+                          {(selectedGroup.nome || selectedGroup.email || selectedGroup.whatsapp || 'U').charAt(0).toUpperCase()}
+                        </div>
+                      </div>
+                    )}
                     <div className={`max-w-[70%] p-3 rounded-2xl shadow-sm relative ${
                       isFromAdmin 
-                        ? 'bg-[#dcf8c6] text-slate-800 rounded-tr-none' 
+                        ? 'bg-[#dcf8c6] text-slate-800 rounded-br-none' 
                         : isFromAI
-                          ? 'bg-blue-50 text-slate-800 rounded-tr-none border border-blue-100'
-                          : 'bg-white text-slate-800 rounded-tl-none'
+                          ? 'bg-blue-50 text-slate-800 rounded-br-none border border-blue-100'
+                          : 'bg-white text-slate-800 rounded-bl-none'
                     }`}>
                       {/* Label para identificar quem enviou */}
                       <div className="text-[9px] font-bold mb-1 opacity-50 flex justify-between">
@@ -818,7 +847,7 @@ export default function LeadsChat() {
                           {isFromAdmin 
                             ? 'VOCÊ (ADMIN)' 
                             : isFromAI 
-                              ? 'IA / SISTEMA' 
+                              ? 'AGENTE VIRTUAL' 
                               : (activeTab === 'affiliates' ? 'AFILIADO' : 'LEAD')}
                         </span>
                       </div>
@@ -850,12 +879,22 @@ export default function LeadsChat() {
                           </button>
                         )}
                       </div>
-                      {!msg.is_human && !selectedGroup.leads.some(l => l.id === msg.sender_id) && (
-                        <span className="absolute -top-2 -right-2 bg-emerald-500 text-white p-1 rounded-full shadow-md">
-                          <Bot size={10} />
-                        </span>
-                      )}
                     </div>
+                    {(isFromAdmin || isFromAI) && (
+                      <div className="flex-shrink-0 ml-2 mt-auto">
+                        {isFromAdmin ? (
+                          adminAvatarUrl ? (
+                            <img src={adminAvatarUrl} alt="Admin" className="w-8 h-8 rounded-full object-cover shadow-sm" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs shadow-sm">
+                              {(currentUser?.user_metadata?.full_name || currentUser?.email || 'A').charAt(0).toUpperCase()}
+                            </div>
+                          )
+                        ) : (
+                          <img src={aiAvatarUrl} alt="Agente Virtual" className="w-8 h-8 rounded-full object-cover shadow-sm border-2 border-emerald-500" referrerPolicy="no-referrer" />
+                        )}
+                      </div>
+                    )}
                   </div>
                 )})}
                 <div ref={messagesEndRef} />
@@ -916,7 +955,12 @@ export default function LeadsChat() {
                             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Configurações</h4>
                             <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
                               <div className="flex items-center gap-2">
-                                <Bot size={16} className={selectedGroup.ai_auto_reply ? 'text-emerald-500' : 'text-slate-400'} />
+                                <img 
+                                  src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100" 
+                                  alt="Agente" 
+                                  className={`w-5 h-5 rounded-full object-cover border-2 ${selectedGroup.ai_auto_reply ? 'border-emerald-500' : 'border-slate-300 grayscale'}`}
+                                  referrerPolicy="no-referrer"
+                                />
                                 <span className="text-xs font-bold text-slate-700">IA Atende Automático</span>
                               </div>
                               <button 

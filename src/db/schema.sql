@@ -173,6 +173,7 @@ create table if not exists public.affiliates (
   pix_key text,
   status text default 'pending' check (status in ('pending', 'approved', 'rejected')),
   active boolean default true,
+  ai_auto_reply boolean default true,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
