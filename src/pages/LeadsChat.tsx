@@ -259,68 +259,44 @@ export default function LeadsChat() {
 
   const fetchMessages = async (leadIds: string[]) => {
     try {
-      if (!currentUser) return;
+      if (!currentUser || leadIds.length === 0) return;
       
-      console.log(`Nova Estratégia: Buscando mensagens do Admin ${currentUser.id}...`);
+      console.log(`Buscando mensagens para ${leadIds.length} IDs de leads...`);
 
-      // DEBUG: Ver o que tem no banco de verdade para entender o problema
-      const { data: debugAll } = await supabase.from('chat_messages').select('sender_id, receiver_id, message').limit(10);
-      console.log('DEBUG: Amostra de mensagens no banco:', debugAll);
-      if (debugAll && debugAll.length > 0) {
-        debugAll.forEach((m, i) => {
-          const isFromAdmin = m.sender_id === currentUser.id;
-          const isToAdmin = m.receiver_id === currentUser.id;
-          console.log(`Msg ${i}: Admin? ${isFromAdmin ? 'Remetente' : (isToAdmin ? 'Destinatário' : 'NÃO')}. Texto: ${m.message?.substring(0, 20)}...`);
-        });
+      // Usamos CHUNKS para evitar o erro de URL muito longa (Bad Request)
+      const CHUNK_SIZE = 50;
+      const chunks = [];
+      for (let i = 0; i < leadIds.length; i += CHUNK_SIZE) {
+        chunks.push(leadIds.slice(i, i + CHUNK_SIZE));
       }
 
-      // Buscamos TODAS as mensagens onde o Admin é o remetente ou destinatário
-      const { data: allAdminMessages, error } = await supabase
-        .from('chat_messages')
-        .select('id, sender_id, receiver_id, message, created_at, is_read, is_human')
-        .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
-        .order('created_at', { ascending: true });
+      let allMessages: any[] = [];
 
-      if (error) {
-        // Fallback se as colunas novas falharem
-        if (error.message === 'Bad Request' || error.code === 'PGRST204' || error.code === '42703') {
-          console.log('Attempting fallback with minimal columns...');
-          const { data: fallbackData, error: fallbackError } = await supabase
-            .from('chat_messages')
-            .select('id, sender_id, receiver_id, message, created_at')
-            .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
-            .order('created_at', { ascending: true });
-          
-          if (fallbackError) throw fallbackError;
-          
-          // Filtramos na memória: apenas mensagens que envolvem um dos IDs do grupo selecionado
-          const filtered = (fallbackData || []).filter(m => 
-            leadIds.includes(m.sender_id) || leadIds.includes(m.receiver_id)
-          );
-          setMessages(filtered as Message[]);
-          console.log(`Filtro Memória: ${filtered.length} mensagens encontradas para o grupo.`);
-          return;
+      for (const chunk of chunks) {
+        const { data, error } = await supabase
+          .from('chat_messages')
+          .select('id, sender_id, receiver_id, message, created_at, is_read, is_human')
+          .or(`sender_id.in.(${chunk.join(',')}),receiver_id.in.(${chunk.join(',')})`)
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          console.error('Erro ao buscar chunk de mensagens:', error);
+          continue;
         }
-        throw error;
+        if (data) allMessages = [...allMessages, ...data];
       }
 
-      // Filtramos na memória: apenas mensagens que envolvem um dos IDs do grupo selecionado
-      const filtered = (allAdminMessages || []).filter(m => 
-        leadIds.includes(m.sender_id) || leadIds.includes(m.receiver_id)
+      // Remover duplicatas e ordenar
+      const unique = Array.from(new Map(allMessages.map(m => [m.id, m])).values());
+      const sorted = unique.sort((a: any, b: any) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
 
-      setMessages(filtered as Message[]);
-      console.log(`Filtro Memória: ${filtered.length} mensagens encontradas para o grupo.`);
-      
-      if (filtered.length === 0 && (allAdminMessages?.length || 0) > 0) {
-        console.warn('Atenção: Existem mensagens no banco, mas nenhuma bate com os IDs deste grupo de leads.');
-        // Debug: Show a few message IDs from DB to compare
-        console.log('Sample IDs in DB:', allAdminMessages.slice(0, 3).map(m => ({ s: m.sender_id, r: m.receiver_id })));
-        console.log('Sample IDs we searched:', leadIds.slice(0, 3));
-      }
+      setMessages(sorted as Message[]);
+      console.log(`Total de mensagens carregadas: ${sorted.length}`);
     } catch (error: any) {
-      console.error('Erro na nova estratégia:', error);
-      toast.error('Erro ao carregar mensagens.');
+      console.error('Erro ao carregar mensagens:', error);
+      toast.error('Erro ao carregar histórico.');
     }
   };
 
