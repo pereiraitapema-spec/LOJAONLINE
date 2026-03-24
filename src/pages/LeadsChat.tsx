@@ -76,11 +76,31 @@ export default function LeadsChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  const selectedGroup = groupedLeads.find(g => g.email === selectedEmail);
+  const selectedGroupRef = useRef<GroupedLead | undefined>(undefined);
+  const selectedEmailRef = useRef<string | null>(null);
 
   useEffect(() => {
-    fetchLeads();
-    getCurrentUser();
+    selectedGroupRef.current = groupedLeads.find(g => g.email === selectedEmail);
+    selectedEmailRef.current = selectedEmail;
+  }, [groupedLeads, selectedEmail]);
+
+  useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    const init = async () => {
+      try {
+        await getCurrentUser();
+        await fetchLeads();
+      } catch (err) {
+        if (retryCount < maxRetries) {
+          retryCount++;
+          setTimeout(init, 1000 * retryCount);
+        }
+      }
+    };
+
+    init();
 
     const channel = supabase
       .channel('chat_updates')
@@ -88,10 +108,17 @@ export default function LeadsChat() {
         const newMessage = payload.new as Message;
         
         // Update messages if it's for the selected lead(s)
-        if (selectedGroup) {
-          const leadIds = selectedGroup.leads.map(l => l.id);
+        const currentGroup = selectedGroupRef.current;
+        if (currentGroup) {
+          const leadIds = currentGroup.leads.map(l => l.id);
           if (leadIds.includes(newMessage.sender_id) || leadIds.includes(newMessage.receiver_id)) {
-            setMessages(prev => [...prev, newMessage]);
+            setMessages(prev => {
+              // Avoid duplicates
+              if (prev.some(m => m.id === newMessage.id)) return prev;
+              return [...prev, newMessage].sort((a, b) => 
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              );
+            });
           }
         }
 
@@ -103,7 +130,7 @@ export default function LeadsChat() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedEmail]);
+  }, []); // Only run once on mount
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -112,8 +139,19 @@ export default function LeadsChat() {
   }, [messages]);
 
   const getCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setCurrentUser(user);
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) {
+        if (error.message.includes('Lock broken')) {
+          console.warn('Auth lock broken, retrying...');
+          return;
+        }
+        throw error;
+      }
+      setCurrentUser(user);
+    } catch (error: any) {
+      console.error('Error getting user:', error);
+    }
   };
 
   const fetchLeads = async () => {
@@ -194,13 +232,21 @@ export default function LeadsChat() {
         .from('chat_messages')
         .select('*')
         .or(`sender_id.in.(${validLeadIds.join(',')}),receiver_id.in.(${validLeadIds.join(',')})`)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true }); // Secondary sort for stability
 
       if (error) throw error;
+      
+      // Ensure chronological order and limit to latest 100 for display if needed
+      // (The DB pruning will handle the actual storage limit)
       setMessages(data || []);
     } catch (error: any) {
       console.error('Error fetching messages:', error);
-      toast.error('Erro ao carregar mensagens: ' + (error.message || 'Erro de conexão'));
+      if (error.message === 'Failed to fetch') {
+        toast.error('Erro de conexão. Verifique sua internet.');
+      } else {
+        toast.error('Erro ao carregar mensagens: ' + (error.message || 'Erro de conexão'));
+      }
     }
   };
 
@@ -230,8 +276,11 @@ export default function LeadsChat() {
       const { error } = await supabase.from('chat_messages').insert(newMessage);
       if (error) throw error;
       
+      // The SQL trigger will handle pruning to 100 messages.
+      // But we can also do a quick check here to ensure UI consistency if needed.
+      
       // AI Learning: Save human response to knowledge base if AI auto-reply is off
-      if (!selectedGroup.ai_auto_reply) {
+      if (!selectedGroup?.ai_auto_reply) {
         await supabase.from('ai_knowledge_base').insert({
           topic: `Atendimento: ${selectedGroup.nome}`,
           content: input

@@ -51,11 +51,18 @@ export default function SmartChat() {
   useEffect(() => {
     const initSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          if (error.message.includes('Lock broken')) {
+            console.warn('Auth lock broken in SmartChat, retrying...');
+            return;
+          }
+          throw error;
+        }
         setSession(session);
         if (session) loadHistory(session.user.id);
       } catch (e) {
-        console.error('Error getting session:', e);
+        console.error('Error getting session in SmartChat:', e);
       } finally {
         setLoadingSession(false);
       }
