@@ -62,6 +62,7 @@ export default function SmartChat() {
     };
     fetchAgentData();
   }, [session]);
+  const loadHistory = async (userId: string) => {
     console.log(`[SmartChat] Iniciando carregamento de histórico para o usuário: ${userId}`);
     // Primeiro tenta carregar do localStorage para rapidez
     const saved = localStorage.getItem(`gfitlif_chat_history_${userId}`);
