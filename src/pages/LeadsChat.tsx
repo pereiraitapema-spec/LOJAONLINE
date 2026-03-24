@@ -110,13 +110,17 @@ export default function LeadsChat() {
     const channel = supabase
       .channel('chat_updates')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
+        console.log('Evento INSERT recebido via Realtime:', payload);
         const newMessage = payload.new as Message;
         
         // Update messages if it's for the selected lead(s)
         const currentGroup = selectedGroupRef.current;
+        console.log('Grupo atual no Realtime:', currentGroup?.nome, 'IDs:', currentGroup?.leads.map(l => l.id));
         if (currentGroup) {
           const leadIds = currentGroup.leads.map(l => l.id);
-          if (leadIds.includes(newMessage.sender_id) || leadIds.includes(newMessage.receiver_id)) {
+          const isRelevant = leadIds.includes(newMessage.sender_id) || leadIds.includes(newMessage.receiver_id);
+          console.log('Mensagem relevante para o grupo?', isRelevant, 'Sender:', newMessage.sender_id, 'Receiver:', newMessage.receiver_id);
+          if (isRelevant) {
             setMessages(prev => {
               // Avoid duplicates
               if (prev.some(m => m.id === newMessage.id)) return prev;
@@ -256,8 +260,18 @@ export default function LeadsChat() {
       
       console.log(`Nova Estratégia: Buscando mensagens do Admin ${currentUser.id}...`);
 
+      // DEBUG: Ver o que tem no banco de verdade para entender o problema
+      const { data: debugAll } = await supabase.from('chat_messages').select('sender_id, receiver_id, message').limit(10);
+      console.log('DEBUG: Amostra de mensagens no banco:', debugAll);
+      if (debugAll && debugAll.length > 0) {
+        debugAll.forEach((m, i) => {
+          const isFromAdmin = m.sender_id === currentUser.id;
+          const isToAdmin = m.receiver_id === currentUser.id;
+          console.log(`Msg ${i}: Admin? ${isFromAdmin ? 'Remetente' : (isToAdmin ? 'Destinatário' : 'NÃO')}. Texto: ${m.message?.substring(0, 20)}...`);
+        });
+      }
+
       // Buscamos TODAS as mensagens onde o Admin é o remetente ou destinatário
-      // Isso evita enviar a lista de 765 IDs na URL, eliminando o erro "Bad Request"
       const { data: allAdminMessages, error } = await supabase
         .from('chat_messages')
         .select('id, sender_id, receiver_id, message, created_at, is_read, is_human')
@@ -313,13 +327,17 @@ export default function LeadsChat() {
     const leadIds = group.leads.map(l => l.id);
     fetchMessages(leadIds);
     
-    // Mark messages as read
+    // Mark messages as read in chunks to avoid URL length limits
     try {
-      await supabase
-        .from('chat_messages')
-        .update({ is_read: true })
-        .in('sender_id', leadIds)
-        .eq('is_read', false);
+      const CHUNK_SIZE = 30;
+      for (let i = 0; i < leadIds.length; i += CHUNK_SIZE) {
+        const chunk = leadIds.slice(i, i + CHUNK_SIZE);
+        await supabase
+          .from('chat_messages')
+          .update({ is_read: true })
+          .in('sender_id', chunk)
+          .eq('is_read', false);
+      }
       
       // Clear unread count locally
       setGroupedLeads(prev => prev.map(g => {
@@ -333,10 +351,15 @@ export default function LeadsChat() {
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!input.trim() || !selectedGroup || !currentUser) return;
+    console.log('handleSendMessage disparado. Input:', input);
+    if (!input.trim() || !selectedGroup || !currentUser) {
+      console.log('handleSendMessage cancelado: input vazio, sem grupo ou sem usuário.');
+      return;
+    }
 
     // Use the most recent lead ID for this email
     const mainLead = selectedGroup.leads[0];
+    console.log(`Enviando mensagem para Lead ID: ${mainLead.id} (${selectedGroup.nome})`);
 
     const newMessage = {
       sender_id: currentUser.id,
@@ -347,11 +370,13 @@ export default function LeadsChat() {
     };
 
     try {
-      const { error } = await supabase.from('chat_messages').insert(newMessage);
-      if (error) throw error;
-      
-      // The SQL trigger will handle pruning to 100 messages.
-      // But we can also do a quick check here to ensure UI consistency if needed.
+      console.log('Inserindo mensagem no Supabase:', newMessage);
+      const { error, data } = await supabase.from('chat_messages').insert(newMessage).select();
+      if (error) {
+        console.error('Erro no insert do Supabase:', error);
+        throw error;
+      }
+      console.log('Mensagem inserida com sucesso:', data);
       
       // AI Learning: Save human response to knowledge base if AI auto-reply is off
       if (!selectedGroup?.ai_auto_reply) {
@@ -387,20 +412,27 @@ export default function LeadsChat() {
 
     try {
       setLoading(true);
-      // Delete messages first (separate calls for robustness)
-      await supabase
-        .from('chat_messages')
-        .delete()
-        .in('sender_id', leadsToDelete);
       
-      await supabase
-        .from('chat_messages')
-        .delete()
-        .in('receiver_id', leadsToDelete);
-      
-      // Delete leads
-      const { error } = await supabase.from('leads').delete().in('id', leadsToDelete);
-      if (error) throw error;
+      // Process deletion in chunks to avoid URL length limits (Bad Request)
+      const CHUNK_SIZE = 30;
+      for (let i = 0; i < leadsToDelete.length; i += CHUNK_SIZE) {
+        const chunk = leadsToDelete.slice(i, i + CHUNK_SIZE);
+        
+        // Delete messages first (separate calls for robustness)
+        await supabase
+          .from('chat_messages')
+          .delete()
+          .in('sender_id', chunk);
+        
+        await supabase
+          .from('chat_messages')
+          .delete()
+          .in('receiver_id', chunk);
+        
+        // Delete leads
+        const { error } = await supabase.from('leads').delete().in('id', chunk);
+        if (error) throw error;
+      }
 
       toast.success('Conversas excluídas com sucesso!');
       setSelectedLeads([]);
