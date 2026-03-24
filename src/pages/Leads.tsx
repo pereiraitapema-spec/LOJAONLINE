@@ -93,11 +93,16 @@ export default function Leads() {
     if (selectedLeads.length === 0) return;
     try {
       setLoading(true);
-      // Delete messages first
+      // Delete messages first (separate calls for robustness)
       await supabase
         .from('chat_messages')
         .delete()
-        .or(`sender_id.in.(${selectedLeads.join(',')}),receiver_id.in.(${selectedLeads.join(',')})`);
+        .in('sender_id', selectedLeads);
+      
+      await supabase
+        .from('chat_messages')
+        .delete()
+        .in('receiver_id', selectedLeads);
 
       const { error } = await supabase
         .from('leads')
@@ -117,7 +122,8 @@ export default function Leads() {
       setSelectedLeads([]);
       setBulkDeleteModal(false);
     } catch (error: any) {
-      toast.error('Erro ao excluir leads: ' + error.message);
+      console.error('Error in bulk delete:', error);
+      toast.error('Erro ao excluir leads: ' + (error.message || 'Erro desconhecido'));
     } finally {
       setLoading(false);
     }
@@ -213,11 +219,16 @@ export default function Leads() {
   const handleDeleteLead = async (id: string) => {
     try {
       setLoading(true);
-      // Delete messages first
+      // Delete messages first (separate calls for robustness)
       await supabase
         .from('chat_messages')
         .delete()
-        .or(`sender_id.eq.${id},receiver_id.eq.${id}`);
+        .eq('sender_id', id);
+      
+      await supabase
+        .from('chat_messages')
+        .delete()
+        .eq('receiver_id', id);
 
       const { error } = await supabase
         .from('leads')
@@ -237,7 +248,8 @@ export default function Leads() {
       toast.success('Lead e mensagens excluídos com sucesso!');
       setConfirmModal({ isOpen: false, leadId: null, leadName: '' });
     } catch (error: any) {
-      toast.error('Erro ao excluir lead: ' + error.message);
+      console.error('Error deleting lead:', error);
+      toast.error('Erro ao excluir lead: ' + (error.message || 'Erro desconhecido'));
     } finally {
       setLoading(false);
     }

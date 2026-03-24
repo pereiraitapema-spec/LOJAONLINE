@@ -206,7 +206,10 @@ function AppContent() {
         }
 
         // Marcar como Lead Frio (apenas se for login normal, não recuperação)
-        leadService.updateStatus('frio');
+        if (!sessionStorage.getItem('lead_status_updated')) {
+          leadService.updateStatus('frio');
+          sessionStorage.setItem('lead_status_updated', 'true');
+        }
 
         const path = window.location.pathname;
         // Se estivermos em páginas de auth ou na home, decidir para onde ir
@@ -495,7 +498,7 @@ function AppContent() {
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-      {!['/login', '/register', '/reset-password', '/affiliate-register'].includes(location.pathname) && (
+      {!['/login', '/register', '/reset-password', '/affiliate-register', '/dashboard', '/banners', '/campaigns', '/products', '/orders', '/affiliates', '/settings', '/gateways', '/shipping', '/integrations', '/leads', '/leads/chat', '/abandoned-carts', '/inventory', '/automations', '/affiliate-dashboard'].includes(location.pathname) && (
         <SmartChat />
       )}
     </>

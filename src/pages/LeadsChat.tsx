@@ -23,6 +23,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ReactMarkdown from 'react-markdown';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 
 interface Lead {
   id: string;
@@ -70,6 +71,8 @@ export default function LeadsChat() {
   const [searchTerm, setSearchTerm] = useState('');
   const [globalAiMode, setGlobalAiMode] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteType, setDeleteType] = useState<'single' | 'bulk'>('single');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -124,11 +127,12 @@ export default function LeadsChat() {
 
       if (leadsError) throw leadsError;
 
-      // Fetch last messages for each lead
+      // Fetch last messages for each lead (optimized: fetch only recent messages)
       const { data: messagesData, error: messagesError } = await supabase
         .from('chat_messages')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('sender_id, receiver_id, message, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
       if (messagesError) throw messagesError;
 
@@ -180,16 +184,23 @@ export default function LeadsChat() {
 
   const fetchMessages = async (leadIds: string[]) => {
     try {
+      const validLeadIds = leadIds.filter(id => id && id !== 'null' && id !== 'undefined');
+      if (validLeadIds.length === 0) {
+        setMessages([]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('chat_messages')
         .select('*')
-        .or(`sender_id.in.(${leadIds.join(',')}),receiver_id.in.(${leadIds.join(',')})`)
+        .or(`sender_id.in.(${validLeadIds.join(',')}),receiver_id.in.(${validLeadIds.join(',')})`)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
       setMessages(data || []);
     } catch (error: any) {
-      toast.error('Erro ao carregar mensagens: ' + error.message);
+      console.error('Error fetching messages:', error);
+      toast.error('Erro ao carregar mensagens: ' + (error.message || 'Erro de conexão'));
     }
   };
 
@@ -240,27 +251,47 @@ export default function LeadsChat() {
 
   const handleDeleteSelected = async () => {
     if (selectedLeads.length === 0) return;
-    if (!confirm(`Tem certeza que deseja excluir ${selectedLeads.length} conversas?`)) return;
+    setDeleteType('bulk');
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    const leadsToDelete = deleteType === 'bulk' 
+      ? selectedLeads 
+      : (selectedGroup ? selectedGroup.leads.map(l => l.id) : []);
+
+    if (leadsToDelete.length === 0) return;
 
     try {
       setLoading(true);
-      // Delete messages first
-      await supabase.from('chat_messages').delete().or(`sender_id.in.(${selectedLeads.join(',')}),receiver_id.in.(${selectedLeads.join(',')})`);
+      // Delete messages first (separate calls for robustness)
+      await supabase
+        .from('chat_messages')
+        .delete()
+        .in('sender_id', leadsToDelete);
+      
+      await supabase
+        .from('chat_messages')
+        .delete()
+        .in('receiver_id', leadsToDelete);
       
       // Delete leads
-      const { error } = await supabase.from('leads').delete().in('id', selectedLeads);
+      const { error } = await supabase.from('leads').delete().in('id', leadsToDelete);
       if (error) throw error;
 
       toast.success('Conversas excluídas com sucesso!');
       setSelectedLeads([]);
       fetchLeads();
-      if (selectedGroup && selectedGroup.leads.some(l => selectedLeads.includes(l.id))) {
+      
+      if (deleteType === 'single' || (selectedGroup && selectedGroup.leads.some(l => leadsToDelete.includes(l.id)))) {
         setSelectedEmail(null);
       }
     } catch (error: any) {
-      toast.error('Erro ao excluir conversas: ' + error.message);
+      console.error('Error deleting conversations:', error);
+      toast.error('Erro ao excluir conversas: ' + (error.message || 'Erro desconhecido'));
     } finally {
       setLoading(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -481,6 +512,16 @@ export default function LeadsChat() {
                   </button>
                 </div>
                 <button 
+                  onClick={() => {
+                    setDeleteType('single');
+                    setShowDeleteModal(true);
+                  }}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                  title="Excluir Conversa"
+                >
+                  <Trash2 size={20} />
+                </button>
+                <button 
                   onClick={() => setShowDetails(!showDetails)}
                   className={`p-2 rounded-full transition-colors ${showDetails ? 'bg-emerald-100 text-emerald-600' : 'text-slate-500 hover:bg-slate-200'}`}
                 >
@@ -647,6 +688,19 @@ export default function LeadsChat() {
           </div>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        title={deleteType === 'bulk' ? 'Excluir Conversas Selecionadas' : 'Excluir Conversa'}
+        message={deleteType === 'bulk' 
+          ? `Tem certeza que deseja excluir as ${selectedLeads.length} conversas selecionadas? Esta ação não pode ser desfeita.`
+          : `Tem certeza que deseja excluir toda a conversa com "${selectedGroup?.nome}"? Esta ação não pode ser desfeita.`
+        }
+        confirmText="Excluir"
+        variant="danger"
+      />
     </div>
   );
 }

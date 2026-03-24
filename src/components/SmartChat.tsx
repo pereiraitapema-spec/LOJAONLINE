@@ -489,7 +489,7 @@ export default function SmartChat() {
   };
 
   return (
-    <div className="fixed bottom-32 right-6 md:bottom-6 md:right-6 z-50">
+    <div className="fixed bottom-36 right-6 md:bottom-12 md:right-12 z-[9999]">
       <AnimatePresence>
         {isOpen && (
           <motion.div

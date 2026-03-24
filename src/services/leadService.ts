@@ -52,6 +52,7 @@ export const leadService = {
       } else {
         // Criar novo lead se não existir
         const newLead = {
+          id: userId, // Garantir que o ID do lead seja o mesmo do usuário para o chat funcionar
           nome: name,
           email: email,
           whatsapp: session.user.user_metadata?.phone || 'Não informado',
