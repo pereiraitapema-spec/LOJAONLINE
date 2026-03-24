@@ -66,7 +66,10 @@ export const leadService = {
           .select()
           .single();
         
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error('❌ Erro ao criar novo lead:', insertError);
+          throw insertError;
+        }
 
         console.log(`❄️ Novo lead criado como: ${status}`);
         await this.sendToWebhook('lead:created', createdLead);

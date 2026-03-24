@@ -59,6 +59,7 @@ interface Message {
   message: string;
   is_human: boolean;
   created_at: string;
+  is_read?: boolean;
 }
 
 export default function LeadsChat() {
@@ -276,7 +277,7 @@ export default function LeadsChat() {
         const { data, error } = await supabase
           .from('chat_messages')
           .select('id, sender_id, receiver_id, message, created_at, is_read, is_human')
-          .or(`sender_id.in.(${chunk.join(',')}),receiver_id.in.(${chunk.join(',')})`)
+          .or(`sender_id.in.(${chunk.map(id => `"${id}"`).join(',')}),receiver_id.in.(${chunk.map(id => `"${id}"`).join(',')})`)
           .order('created_at', { ascending: true });
 
         if (error) {

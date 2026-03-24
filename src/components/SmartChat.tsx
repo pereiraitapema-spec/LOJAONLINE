@@ -166,9 +166,12 @@ export default function SmartChat() {
       supabase.from('chat_messages').insert({
         sender_id: session.user.id,
         receiver_id: session.user.id, // Use own ID as receiver for AI chat to avoid FK issues
-        message: userMessage
+        message: userMessage,
+        is_human: true,
+        is_read: false
       }).then(({ error }) => {
         if (error) console.warn('⚠️ Erro ao salvar mensagem no DB:', error);
+        else console.log('✅ Mensagem do usuário salva no DB');
       });
     } catch (e) {
       console.warn('⚠️ Erro ao salvar mensagem no DB:', e);
@@ -426,9 +429,26 @@ export default function SmartChat() {
       
       let latestMessages = currentMessages;
       for (const part of parts) {
-        latestMessages = [...latestMessages, { role: 'bot' as const, content: part.trim() }];
+        const botPart = part.trim();
+        latestMessages = [...latestMessages, { role: 'bot' as const, content: botPart }];
         setMessages(latestMessages);
         localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(latestMessages));
+        
+        // Salvar resposta da IA no banco
+        try {
+          supabase.from('chat_messages').insert({
+            sender_id: null, // AI sender
+            receiver_id: session.user.id,
+            message: botPart,
+            is_human: false,
+            is_read: true
+          }).then(({ error }) => {
+            if (error) console.warn('⚠️ Erro ao salvar resposta da IA no DB:', error);
+            else console.log('✅ Resposta da IA salva no DB');
+          });
+        } catch (e) {
+          console.warn('⚠️ Erro ao salvar resposta da IA no DB:', e);
+        }
         
         // Small delay between messages for more natural feel
         if (parts.indexOf(part) < parts.length - 1) {
@@ -461,6 +481,18 @@ export default function SmartChat() {
           const finalMessages = [...currentMessages, { role: 'bot' as const, content: botResponse }].slice(-40);
           setMessages(finalMessages);
           localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(finalMessages));
+          
+          // Salvar resposta da IA no banco (Retry Mode)
+          supabase.from('chat_messages').insert({
+            sender_id: null,
+            receiver_id: session.user.id,
+            message: botResponse,
+            is_human: false,
+            is_read: true
+          }).then(({ error }) => {
+            if (error) console.warn('⚠️ Erro ao salvar resposta da IA (Retry) no DB:', error);
+          });
+
           return;
         } catch (retryError) {
           console.error('Retry Error:', retryError);
