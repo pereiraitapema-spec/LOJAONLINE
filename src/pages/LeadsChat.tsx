@@ -274,6 +274,7 @@ export default function LeadsChat() {
       let allMessages: any[] = [];
 
       for (const chunk of chunks) {
+        // Busca mensagens onde o lead é o remetente OU o destinatário
         const { data, error } = await supabase
           .from('chat_messages')
           .select('id, sender_id, receiver_id, message, created_at, is_read, is_human')
@@ -700,6 +701,15 @@ export default function LeadsChat() {
                         ? 'bg-[#dcf8c6] text-slate-800 rounded-tr-none' 
                         : 'bg-white text-slate-800 rounded-tl-none'
                     }`}>
+                      {/* Label para identificar quem enviou */}
+                      <div className="text-[9px] font-bold mb-1 opacity-50 flex justify-between">
+                        <span>
+                          {msg.sender_id === currentUser?.id 
+                            ? 'VOCÊ (ADMIN)' 
+                            : (selectedGroup.leads.some(l => l.id === msg.sender_id) ? 'LEAD' : 'IA / SISTEMA')}
+                        </span>
+                      </div>
+
                       <div className="prose prose-sm max-w-none mb-1">
                         <ReactMarkdown>{msg.message}</ReactMarkdown>
                       </div>

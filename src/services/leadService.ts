@@ -16,6 +16,12 @@ export const leadService = {
       const email = session.user.email;
       const name = session.user.user_metadata?.full_name || email?.split('@')[0];
 
+      // Não criar lead para o admin
+      if (email === 'pereira.itapema@gmail.com') {
+        console.log('🛡️ Admin detectado no chat, pulando criação de lead.');
+        return;
+      }
+
       // 1. Tentar encontrar o lead pelo email ou user_id
       const { data: existingLead } = await supabase
         .from('leads')

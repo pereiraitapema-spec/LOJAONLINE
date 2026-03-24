@@ -183,32 +183,34 @@ export default function SmartChat() {
     setMessages(updatedMessages);
     localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(updatedMessages));
     
-    // Save to DB
-    try {
-      console.log(`📤 Salvando mensagem do usuário (${session.user.email} - ${session.user.id}) no DB...`);
-      const { data, error } = await supabase.from('chat_messages').insert({
-        sender_id: session.user.id,
-        receiver_id: session.user.id, // Mantém o ID do usuário como receiver para o chat da IA
-        message: userMessage,
-        is_human: true,
-        is_read: false
-      }).select();
+      // Save to DB
+      try {
+        console.log(`📤 Salvando mensagem do usuário (${session.user.email} - ${session.user.id}) no DB...`);
+        const { data, error } = await supabase.from('chat_messages').insert({
+          sender_id: session.user.id,
+          receiver_id: null, // Mensagem do usuário para o sistema (admin/IA)
+          message: userMessage,
+          is_human: true,
+          is_read: false
+        }).select();
 
-      if (error) {
-        console.error('❌ Erro ao salvar mensagem no DB:', error);
-      } else {
-        console.log('✅ Mensagem do usuário salva no DB:', data);
+        if (error) {
+          console.error('❌ Erro ao salvar mensagem no DB:', error);
+        } else {
+          console.log('✅ Mensagem do usuário salva no DB:', data);
+        }
+      } catch (e) {
+        console.error('❌ Erro de exceção ao salvar mensagem no DB:', e);
       }
-    } catch (e) {
-      console.error('❌ Erro de exceção ao salvar mensagem no DB:', e);
-    }
-    
-    // Marcar como lead morno ao interagir no chat
-    try {
-      await leadService.updateStatus('morno');
-    } catch (e) {
-      console.warn('⚠️ Erro ao atualizar status do lead:', e);
-    }
+      
+      // Marcar como lead morno ao interagir no chat (se não for admin)
+      if (session.user.email !== 'pereira.itapema@gmail.com') {
+        try {
+          await leadService.updateStatus('morno');
+        } catch (e) {
+          console.warn('⚠️ Erro ao atualizar status do lead:', e);
+        }
+      }
   };
 
   // Effect to trigger AI response when there are new user messages
