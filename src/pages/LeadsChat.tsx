@@ -262,7 +262,7 @@ export default function LeadsChat() {
     try {
       if (!currentUser || leadIds.length === 0) return;
       
-      console.log(`Buscando mensagens para ${leadIds.length} leads:`, leadsData.map(l => `${l.nome} (${l.email}) - ${l.id}`));
+      console.log(`Buscando mensagens para ${leadIds.length} IDs de leads:`, leadIds);
 
       // Usamos CHUNKS para evitar o erro de URL muito longa (Bad Request)
       const CHUNK_SIZE = 50;
