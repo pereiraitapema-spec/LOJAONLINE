@@ -276,14 +276,26 @@ export default function LeadsChat() {
       let allMessages: any[] = [];
 
       // DEBUG: Check if admin can see ANY messages at all in the table
-      const { count, error: countError } = await supabase
+      const { data: debugMsgs, error: countError } = await supabase
         .from('chat_messages')
-        .select('*', { count: 'exact', head: true });
+        .select('id, sender_id, receiver_id, message')
+        .order('created_at', { ascending: false })
+        .limit(10);
       
       if (countError) {
-        console.error('RLS/Table Debug - Error counting messages:', countError);
+        console.error('RLS/Table Debug - Error fetching messages:', countError);
       } else {
-        console.log(`RLS/Table Debug - Total messages visible to you in table: ${count}`);
+        console.log(`RLS/Table Debug - Found ${debugMsgs?.length || 0} messages in table.`);
+        if (debugMsgs && debugMsgs.length > 0) {
+          console.log('--- DEBUG: IDs NO BANCO ---');
+          debugMsgs.forEach((m, i) => {
+            console.log(`Msg ${i+1}: Sender=${m.sender_id}, Receiver=${m.receiver_id}, Text=${m.message?.substring(0, 15)}...`);
+          });
+          console.log('--- DEBUG: IDs QUE ESTAMOS PROCURANDO ---');
+          console.log(validLeadIds);
+        } else {
+          console.log('A TABELA chat_messages ESTÁ VAZIA PARA VOCÊ.');
+        }
       }
 
       for (let i = 0; i < idChunks.length; i++) {
