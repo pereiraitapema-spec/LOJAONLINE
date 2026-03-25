@@ -184,7 +184,21 @@ export default function Dashboard() {
             Voltar para a Loja
           </button>
           
-          {/* ... (botões anteriores) ... */}
+          <button onClick={() => navigate('/dashboard')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><LayoutDashboard size={20} /> Dashboard</button>
+          <button onClick={() => navigate('/orders')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><ShoppingBag size={20} /> Pedidos</button>
+          <button onClick={() => navigate('/products')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Package size={20} /> Produtos</button>
+          <button onClick={() => navigate('/affiliates')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Users size={20} /> Afiliados</button>
+          <button onClick={() => navigate('/campaigns')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Megaphone size={20} /> Campanhas</button>
+          <button onClick={() => navigate('/banners')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><ImageIcon size={20} /> Banners</button>
+          <button onClick={() => navigate('/inventory')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Package size={20} /> Estoque</button>
+          <button onClick={() => navigate('/abandoned-carts')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><ShoppingCart size={20} /> Carrinhos Abandonados</button>
+          <button onClick={() => navigate('/leads')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Users size={20} /> Leads</button>
+          <button onClick={() => navigate('/gateways')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><CreditCard size={20} /> Gateways</button>
+          <button onClick={() => navigate('/shipping')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Truck size={20} /> Transportadoras</button>
+          <button onClick={() => navigate('/automations')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Zap size={20} /> Automações</button>
+          <button onClick={() => navigate('/ai-settings')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Bot size={20} /> Config. IA</button>
+          <button onClick={() => navigate('/settings')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Settings size={20} /> Configurações</button>
+          
           <button 
             onClick={() => navigate('/checkout')}
             className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
@@ -192,14 +206,6 @@ export default function Dashboard() {
             <ShoppingCart size={20} />
             Checkout (Teste)
           </button>
-          <button 
-            onClick={() => navigate('/shipping')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <Truck size={20} />
-            Gestão de Transportadora
-          </button>
-          {/* ... (restante dos botões) ... */}
         </nav>
 
         <div className="p-4 border-t border-slate-100">
