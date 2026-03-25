@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Loading } from '../components/Loading';
 import SmartChat from '../components/SmartChat';
+import { DebugModeIndicator } from '../components/DebugModeIndicator';
 
 import { leadService } from '../services/leadService';
 
@@ -670,6 +671,7 @@ export default function Store() {
 
       {/* Header da Loja */}
       <header className="bg-white sticky top-0 z-50 shadow-sm">
+        <DebugModeIndicator active={settings?.debug_mode} />
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4 md:gap-8">
           {/* Logo & Tagline */}
           <div className="flex flex-col cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
@@ -2450,6 +2452,7 @@ export default function Store() {
         <div className="border-t border-slate-200 bg-slate-50 py-4">
           <div className="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
             {settings?.company_name || "MAGNIFIQUE 4LIFE"} ® - Todos os direitos reservados {settings?.cnpj && `- CNPJ ${settings.cnpj}`}
+            <DebugModeIndicator active={settings?.debug_mode} />
           </div>
         </div>
       </footer>
