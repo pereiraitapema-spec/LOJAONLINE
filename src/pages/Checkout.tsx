@@ -1059,7 +1059,7 @@ export default function Checkout() {
                 </div>
               )}
 
-              {paymentMethod === 'credit_card' && (
+              {(paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card') && (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -1078,7 +1078,7 @@ export default function Checkout() {
                       }}
                       placeholder="0000.0000.0000.0000"
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                      required={paymentMethod === 'credit_card'}
+                      required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card'}
                     />
                   </div>
                   <div>
@@ -1088,7 +1088,7 @@ export default function Checkout() {
                       value={cardData.name}
                       onChange={e => setCardData({...cardData, name: e.target.value})}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all uppercase"
-                      required={paymentMethod === 'credit_card'}
+                      required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card'}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -1108,7 +1108,7 @@ export default function Checkout() {
                         placeholder="MM/AA"
                         maxLength={5}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                        required={paymentMethod === 'credit_card'}
+                        required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card'}
                       />
                     </div>
                     <div>
@@ -1120,7 +1120,7 @@ export default function Checkout() {
                         placeholder="123"
                         maxLength={4}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                        required={paymentMethod === 'credit_card'}
+                        required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card'}
                       />
                     </div>
                   </div>
