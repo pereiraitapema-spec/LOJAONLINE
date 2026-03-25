@@ -52,7 +52,9 @@ export const CarrierManager = () => {
               <td className="p-3 font-bold">#{order.id}</td>
               <td className="p-3">{order.shipments?.[0]?.tracking_number || 'N/A'}</td>
               <td className="p-3">{order.shipments?.[0]?.carrier_name || 'N/A'}</td>
-              <td className="p-3 text-center">
+              <td className="p-3 text-center flex gap-2 justify-center">
+                <button onClick={() => toast.success(`Faturando pedido #${order.id}`)} className="text-emerald-600 hover:text-emerald-800 font-bold">Faturar</button>
+                <button onClick={() => toast.success(`Carregando pedido #${order.id}`)} className="text-indigo-600 hover:text-indigo-800 font-bold">Carregar</button>
                 <button onClick={() => deleteOrder(order.id)} className="text-red-500 hover:text-red-700">
                   <Trash2 size={18} />
                 </button>
