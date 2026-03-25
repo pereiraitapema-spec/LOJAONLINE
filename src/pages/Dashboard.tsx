@@ -7,54 +7,8 @@ import SmartChat from '../components/SmartChat';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { PurchaseSimulator } from '../components/PurchaseSimulator';
-
-export default function Dashboard() {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState({
-    start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0]
-  });
-  const [stats, setStats] = useState({
-    revenue: 0,
-    cost: 0,
-    cogs: 0,
-    profit: 0,
-    totalCommissions: 0,
-    totalTaxes: 0,
-    totalMarketing: 0,
-    totalOperational: 0,
-    totalShipping: 0,
-    stockValue: 0,
-    stockRetailValue: 0,
-    projectedProfit: 0,
-    affiliatesCount: 0,
-    activeProducts: 0,
-    newCustomers: 0,
-    avgTicket: 0,
-    avgTicketDirect: 0,
-    avgTicketAffiliate: 0
-  });
-  const [openGroups, setOpenGroups] = useState<string[]>(['Faturamento']);
-  const navigate = useNavigate();
-
-  const toggleGroup = (title: string) => {
-    setOpenGroups(prev => 
-      prev.includes(title) ? prev.filter(t => t !== title) : [...prev, title]
-    );
-  };
-
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { motion } from 'motion/react';
-import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText, Share2, MessageSquare, Bot, Play, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
-import SmartChat from '../components/SmartChat';
-import { toast } from 'react-hot-toast';
-import { Loading } from '../components/Loading';
-import { PurchaseSimulator } from '../components/PurchaseSimulator';
 import { checkPermission } from '../lib/rbac';
+
 
 export default function Dashboard() {
   const [user, setUser] = useState<any>(null);

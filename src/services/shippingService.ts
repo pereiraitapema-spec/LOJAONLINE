@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+export type { ShippingPackage, ShippingQuote, ShippingProvider } from './providers/shipping/types';
 import { ShippingPackage, ShippingQuote, ShippingProvider } from './providers/shipping/types';
 import { logApiCall } from '../lib/monitoring';
 
@@ -101,11 +102,29 @@ export const shippingService = {
     }
   },
 
-  async generateLabel(orderId: string, carrierId: string) {
-    // ... (implementação similar)
+  async generateLabel(orderId: string) {
+    const { data: order } = await supabase.from('orders').select('carrier_id').eq('id', orderId).single();
+    if (!order) return { success: false, error: 'Order not found' };
+    
+    const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.carrier_id).single();
+    if (!carrier) return { success: false, error: 'Carrier not found' };
+
+    const provider = providers[carrier.provider];
+    if (!provider) return { success: false, error: 'Provider not found' };
+
+    return provider.generateLabel(orderId, carrier.config);
   },
 
-  async cancelLabel(orderId: string, carrierId: string) {
-    // ... (implementação similar)
+  async cancelLabel(orderId: string) {
+    const { data: order } = await supabase.from('orders').select('carrier_id').eq('id', orderId).single();
+    if (!order) return { success: false, error: 'Order not found' };
+    
+    const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.carrier_id).single();
+    if (!carrier) return { success: false, error: 'Carrier not found' };
+
+    const provider = providers[carrier.provider];
+    if (!provider) return { success: false, error: 'Provider not found' };
+
+    return provider.cancelLabel(orderId, carrier.config);
   }
 };
