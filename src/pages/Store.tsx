@@ -15,6 +15,7 @@ import SmartChat from '../components/SmartChat';
 import { DebugModeIndicator } from '../components/DebugModeIndicator';
 
 import { leadService } from '../services/leadService';
+import { shippingService } from '../services/shippingService';
 
 interface Banner {
   id: string;
@@ -144,6 +145,17 @@ export default function Store() {
   const videoRef = React.useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
+    const fetchData = async () => {
+      const { data: carriersData } = await supabase
+        .from('shipping_carriers')
+        .select('*')
+        .eq('active', true);
+      setCarriers(carriersData || []);
+    };
+    fetchData();
+  }, []);
+
+  useEffect(() => {
     if (videoRef.current && banners[currentBannerIndex]?.type === 'video') {
       videoRef.current.muted = isMuted;
       videoRef.current.play().catch(err => {
@@ -155,12 +167,37 @@ export default function Store() {
       });
     }
   }, [currentBannerIndex, banners, isMuted]);
-  const applyCoupon = (code: string) => {
-    localStorage.setItem('applied_coupon', code.toUpperCase());
-    toast.success(`Cupom ${code.toUpperCase()} aplicado!`, {
-      icon: '🎁',
-      duration: 3000
-    });
+  const handleCalculateShipping = async () => {
+    console.log('Calculando frete para CEP:', cep, 'Carriers:', carriers);
+    const cleanCep = cep.replace(/\D/g, '');
+    if (cleanCep.length !== 8) {
+      toast.error('CEP inválido.');
+      return;
+    }
+    setCalculatingShipping(true);
+    try {
+      const packages = cart.map(item => ({
+        weight: (item.product as any).weight || 0.5,
+        height: (item.product as any).height || 10,
+        width: (item.product as any).width || 10,
+        length: (item.product as any).length || 10
+      }));
+
+      let allQuotes: any[] = [];
+      for (const carrier of carriers) {
+        console.log('Calculando para carrier:', carrier.id);
+        const quotes = await shippingService.calculateShipping(cleanCep, packages, carrier.id);
+        allQuotes = [...allQuotes, ...quotes];
+      }
+      console.log('Cotações:', allQuotes);
+      setShippingQuotes(allQuotes);
+      toast.success('Frete calculado!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao calcular frete.');
+    } finally {
+      setCalculatingShipping(false);
+    }
   };
 
   const copyAffiliateLink = (productId?: string) => {
@@ -174,7 +211,19 @@ export default function Store() {
   };
 
   const [isModalMuted, setIsModalMuted] = useState(false);
+  const [cep, setCep] = useState('');
+  const [shippingQuotes, setShippingQuotes] = useState<any[]>([]);
+  const [calculatingShipping, setCalculatingShipping] = useState(false);
+  const [carriers, setCarriers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const applyCoupon = (code: string) => {
+    localStorage.setItem('applied_coupon', code.toUpperCase());
+    toast.success(`Cupom ${code.toUpperCase()} aplicado!`, {
+      icon: '🎁',
+      duration: 3000
+    });
+  };
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
@@ -1662,10 +1711,16 @@ export default function Store() {
                           <input 
                             type="text" 
                             placeholder="Digite seu CEP" 
+                            value={cep}
+                            onChange={(e) => setCep(e.target.value)}
                             className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                           />
-                          <button className="bg-slate-800 text-white px-4 py-2 rounded-xl font-bold hover:bg-slate-700 transition-colors">
-                            OK
+                          <button 
+                            onClick={handleCalculateShipping}
+                            disabled={calculatingShipping}
+                            className="bg-slate-800 text-white px-4 py-2 rounded-xl font-bold hover:bg-slate-700 transition-colors"
+                          >
+                            {calculatingShipping ? '...' : 'OK'}
                           </button>
                         </div>
                         <a href="https://buscacepinter.correios.com.br/app/endereco/index.php" target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 hover:underline mt-2 inline-block">

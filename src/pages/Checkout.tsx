@@ -84,7 +84,7 @@ export default function Checkout() {
   });
 
   const [abandonedCartId, setAbandonedCartId] = useState<string | null>(null);
-  const [freeShippingThreshold, setFreeShippingThreshold] = useState(299);
+  // const [freeShippingThreshold, setFreeShippingThreshold] = useState(299);
   const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
@@ -155,47 +155,27 @@ export default function Checkout() {
           }
         }
 
-        // Fetch shipping methods and discount rules
-        const { data: settingsData } = await supabase
-          .from('store_settings')
-          .select('*')
-          .maybeSingle();
+        // Fetch shipping methods and discount rules in parallel
+        const [
+          { data: settingsData },
+          { data: rulesData },
+          { data: campaignsData },
+          { data: gatewaysData },
+          { data: carriersData }
+        ] = await Promise.all([
+          supabase.from('store_settings').select('*').maybeSingle(),
+          supabase.from('discount_rules').select('*').eq('active', true),
+          supabase.from('campaigns').select('*').eq('active', true),
+          supabase.from('payment_gateways').select('*').eq('active', true),
+          supabase.from('shipping_carriers').select('*').eq('active', true)
+        ]);
         
         if (settingsData) {
           setSettings(settingsData);
-          if (settingsData.free_shipping_threshold) {
-            setFreeShippingThreshold(settingsData.free_shipping_threshold);
-          }
-        } else {
-          // Fallback
         }
-
-        // Fetch Discount Rules
-        const { data: rulesData } = await supabase
-          .from('discount_rules')
-          .select('*')
-          .eq('active', true);
         setDiscountRules(rulesData || []);
-
-        // Fetch Campaigns with discounts
-        const { data: campaignsData } = await supabase
-          .from('campaigns')
-          .select('*')
-          .eq('active', true);
         setCampaigns(campaignsData || []);
-
-        // Fetch Payment Gateways
-        const { data: gatewaysData } = await supabase
-          .from('payment_gateways')
-          .select('*')
-          .eq('active', true);
         setGateways(gatewaysData || []);
-
-        // Fetch Shipping Carriers
-        const { data: carriersData } = await supabase
-          .from('shipping_carriers')
-          .select('*')
-          .eq('active', true);
         setCarriers(carriersData || []);
 
         // Check for first purchase
@@ -336,17 +316,20 @@ export default function Checkout() {
 
   const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
   const currentShipping = shippingMethods[selectedShipping];
-  console.log('DEBUG: cartTotal=', cartTotal, 'threshold=', freeShippingThreshold, 'selectedShipping=', selectedShipping, 'currentShipping=', currentShipping);
+  console.log('DEBUG: cartTotal=', cartTotal, 'threshold=', settings?.free_shipping_threshold || 0, 'selectedShipping=', selectedShipping, 'currentShipping=', currentShipping);
+  
+  const threshold = settings?.free_shipping_threshold || 0;
+  
   // Se ainda não temos métodos de envio, o frete não é 0, é "não calculado" (null)
   const shippingCost = shippingMethods.length === 0 
     ? null 
     : !currentShipping
       ? null // Ainda não selecionou um método ou o selecionado é inválido
-      : (cartTotal >= freeShippingThreshold && freeShippingThreshold > 0) 
+      : (cartTotal >= threshold && threshold > 0) 
         ? 0 
         : currentShipping.price;
   
-  console.log('DEBUG: shippingCost=', shippingCost, 'cartTotal=', cartTotal, 'freeShippingThreshold=', freeShippingThreshold);
+  console.log('DEBUG: shippingCost=', shippingCost, 'cartTotal=', cartTotal, 'threshold=', threshold, 'currentShippingPrice=', currentShipping?.price);
   const finalTotal = Math.max(0, cartTotal - totalDiscount + (shippingCost || 0));
 
   // Abandoned Cart Logic
@@ -443,7 +426,7 @@ export default function Checkout() {
         if (allQuotes.length > 0) {
           const processedQuotes = allQuotes.map(quote => ({
             ...quote,
-            price: (cartTotal >= freeShippingThreshold && freeShippingThreshold > 0) ? 0 : quote.price
+            price: (cartTotal >= (settings?.free_shipping_threshold || 0) && (settings?.free_shipping_threshold || 0) > 0) ? 0 : quote.price
           }));
           setShippingMethods(processedQuotes);
           setSelectedShipping(0);
@@ -1011,14 +994,14 @@ export default function Checkout() {
                   </button>
                 ))}
                 
-                {cartTotal >= freeShippingThreshold && freeShippingThreshold > 0 && (
+                {cartTotal >= threshold && threshold > 0 && (
                   <div className="mt-4 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-3 text-emerald-700">
                     <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
                       <Truck size={16} />
                     </div>
                     <div>
                       <p className="text-sm font-bold">Frete Grátis Ativado!</p>
-                      <p className="text-xs opacity-80">Você economizou no frete por comprar acima de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(freeShippingThreshold)}</p>
+                      <p className="text-xs opacity-80">Você economizou no frete por comprar acima de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(threshold)}</p>
                     </div>
                   </div>
                 )}
