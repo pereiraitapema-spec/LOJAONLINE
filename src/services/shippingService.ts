@@ -33,7 +33,7 @@ export const shippingService = {
         .maybeSingle();
 
       if (!carrier || !settings?.origin_zip_code) {
-        console.warn('Shipping carrier or origin ZIP code not configured.');
+        console.warn('Shipping carrier or origin ZIP code not configured.', { carrier, settings });
         return [];
       }
 

@@ -652,7 +652,7 @@ export default function Checkout() {
       const activeGateway = gateways.find(g => g.active);
       let paymentResponse: any = { success: true, payment_id: `sim_${activeGateway?.provider || 'internal'}_${Math.random().toString(36).substr(2, 9)}` };
 
-      if (activeGateway && activeGateway.provider === 'pagarme') {
+      if (activeGateway && (activeGateway.provider === 'pagarme' || activeGateway.provider === 'pagarme2')) {
         try {
           paymentResponse = await paymentService.processPagarmePayment({
             items: cart.map(item => ({
