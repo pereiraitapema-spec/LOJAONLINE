@@ -424,7 +424,11 @@ export default function Checkout() {
         
         console.log('Cotações de frete:', allQuotes);
         if (allQuotes.length > 0) {
-          setShippingMethods(allQuotes);
+          const processedQuotes = allQuotes.map(quote => ({
+            ...quote,
+            price: cartTotal >= freeShippingThreshold && freeShippingThreshold > 0 ? 0 : quote.price
+          }));
+          setShippingMethods(processedQuotes);
           setSelectedShipping(0);
         } else {
           console.log('Nenhuma cotação de frete encontrada');
