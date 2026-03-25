@@ -4,7 +4,7 @@ export const orderService = {
   async getOrderById(orderId: number) {
     const { data, error } = await supabase
       .from('orders')
-      .select('*, order_items(*, products(name))')
+      .select('*, order_items(*)')
       .eq('id', orderId)
       .single();
 

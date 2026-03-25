@@ -390,11 +390,16 @@ export default function Checkout() {
 
   const handleCepBlur = async () => {
     const cep = shipping.cep.replace(/\D/g, '');
-    if (cep.length !== 8) return;
+    console.log('CEP digitado:', cep);
+    if (cep.length !== 8) {
+      console.log('CEP inválido ou incompleto');
+      return;
+    }
 
     setLoading(true);
     try {
       const address = await cepService.fetchAddress(cep);
+      console.log('Endereço retornado:', address);
       if (address) {
         setShipping(prev => ({
           ...prev,
@@ -410,10 +415,15 @@ export default function Checkout() {
         }));
 
         const quotes = await shippingService.calculateShipping(cep, packages);
+        console.log('Cotações de frete:', quotes);
         if (quotes.length > 0) {
           setShippingMethods(quotes);
           setSelectedShipping(0);
+        } else {
+          console.log('Nenhuma cotação de frete encontrada');
         }
+      } else {
+        console.log('Endereço não encontrado para o CEP');
       }
     } catch (error) {
       console.error('Error fetching CEP or calculating shipping:', error);
