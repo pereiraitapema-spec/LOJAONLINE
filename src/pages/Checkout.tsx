@@ -14,6 +14,7 @@ import {
   Barcode,
   Landmark
 } from 'lucide-react';
+import { isValidDocument } from '../lib/validation';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { cepService } from '../services/cepService';
@@ -387,6 +388,12 @@ export default function Checkout() {
     const timeoutId = setTimeout(trackAbandonedCart, 2000); // Debounce 2s
     return () => clearTimeout(timeoutId);
   }, [customer.email, customer.name, customer.phone, cart, finalTotal, abandonedCartId]);
+
+  const handleDocumentBlur = () => {
+    if (customer.document && !isValidDocument(customer.document)) {
+      toast.error('CPF ou CNPJ inválido.');
+    }
+  };
 
   const handleCepBlur = async () => {
     const cep = shipping.cep.replace(/\D/g, '');
@@ -802,6 +809,7 @@ export default function Checkout() {
                     type="text" 
                     value={customer.document}
                     onChange={e => setCustomer({...customer, document: e.target.value})}
+                    onBlur={handleDocumentBlur}
                     placeholder="000.000.000-00"
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     required
