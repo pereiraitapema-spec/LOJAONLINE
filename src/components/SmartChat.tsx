@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { chatService } from '../services/chatService';
 import { leadService } from '../services/leadService';
+import { orderService } from '../services/orderService';
 
 // ... (dentro do componente SmartChat)
 
@@ -384,6 +385,18 @@ export default function SmartChat() {
         }
       };
 
+      const getOrderDetails: FunctionDeclaration = {
+        name: "get_order_details",
+        description: "Busca detalhes de um pedido pelo número do pedido.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            orderId: { type: Type.NUMBER, description: "O número do pedido." }
+          },
+          required: ["orderId"]
+        }
+      };
+
       const rawHistory = currentMessages.map(msg => ({
         role: msg.role === 'bot' ? 'model' : 'user',
         parts: [{ text: msg.content }]
@@ -423,11 +436,11 @@ export default function SmartChat() {
         contents: alternatingHistory,
         tools: aiSettings.autoLearning ? [
           { googleSearch: {} },
-          { functionDeclarations: [saveKnowledge] }
-        ] : undefined,
-        toolConfig: aiSettings.autoLearning ? { 
+          { functionDeclarations: [saveKnowledge, getOrderDetails] }
+        ] : [{ functionDeclarations: [getOrderDetails] }],
+        toolConfig: { 
           includeServerSideToolInvocations: true
-        } : undefined,
+        },
         config: {
           systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
           
@@ -492,6 +505,24 @@ export default function SmartChat() {
             const { topic, content } = call.args as any;
             await supabase.from('ai_knowledge_base').upsert({ topic, content }, { onConflict: 'topic' });
             console.log('🧠 IA salvou novo conhecimento:', topic);
+          } else if (call.name === 'get_order_details') {
+            const { orderId } = call.args as any;
+            try {
+              const order = await orderService.getOrderById(orderId);
+              console.log('📦 IA buscou pedido:', order);
+              // O contexto do pedido será injetado na próxima chamada ou processado aqui
+              // Para simplificar, vamos adicionar o resultado ao contexto da próxima chamada
+              alternatingHistory.push({
+                role: 'model',
+                parts: [{ text: `Dados do Pedido ${orderId}: ${JSON.stringify(order)}` }]
+              });
+            } catch (e) {
+              console.error('❌ Erro ao buscar pedido para IA:', e);
+              alternatingHistory.push({
+                role: 'model',
+                parts: [{ text: `Erro ao buscar pedido ${orderId}: ${e instanceof Error ? e.message : 'Desconhecido'}` }]
+              });
+            }
           }
         }
       }
