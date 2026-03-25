@@ -400,6 +400,7 @@ export default function Checkout() {
 
     setLoading(true);
     try {
+      console.log('Buscando endereço...');
       const address = await cepService.fetchAddress(cep);
       console.log('Endereço retornado:', address);
       if (address) {
@@ -409,6 +410,7 @@ export default function Checkout() {
         }));
 
         // Calculate shipping automatically
+        console.log('Calculando frete...');
         const packages: ShippingPackage[] = cart.map(item => ({
           weight: (item.product as any).weight || 0.5,
           height: (item.product as any).height || 10,
@@ -418,6 +420,7 @@ export default function Checkout() {
 
         let allQuotes: ShippingQuote[] = [];
         for (const carrier of carriers) {
+          console.log('Calculando para carrier:', carrier.id);
           const quotes = await shippingService.calculateShipping(cep, packages, carrier.id);
           allQuotes = [...allQuotes, ...quotes];
         }
@@ -432,12 +435,15 @@ export default function Checkout() {
           setSelectedShipping(0);
         } else {
           console.log('Nenhuma cotação de frete encontrada');
+          toast.error('Nenhuma opção de frete encontrada.');
         }
       } else {
         console.log('Endereço não encontrado para o CEP');
+        toast.error('CEP não encontrado.');
       }
     } catch (error) {
       console.error('Error fetching CEP or calculating shipping:', error);
+      toast.error('Erro ao calcular frete.');
     } finally {
       setLoading(false);
     }
