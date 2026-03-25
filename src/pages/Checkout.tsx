@@ -43,7 +43,9 @@ export default function Checkout() {
   const [processing, setProcessing] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [user, setUser] = useState<any>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix' | 'boleto' | 'transfer'>('pix');
+  const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
+  const [selectedGateway, setSelectedGateway] = useState<string | null>(null);
+  const [pagarmeMethod, setPagarmeMethod] = useState<'credit_card' | 'pix' | null>(null);
   const [shippingMethods, setShippingMethods] = useState<ShippingQuote[]>([]);
   const [selectedShipping, setSelectedShipping] = useState<number>(0);
   const [discountRules, setDiscountRules] = useState<any[]>([]);
@@ -662,7 +664,7 @@ export default function Checkout() {
             customer_name: customer.name,
             customer_email: customer.email,
             customer_document: customer.document,
-            payment_method: paymentMethod,
+            payment_method: pagarmeMethod || paymentMethod,
             card_number: cardData.number.replace(/\D/g, ''),
             card_name: cardData.name,
             expiry: cardData.expiry,
@@ -1002,7 +1004,11 @@ export default function Checkout() {
                   <button
                     key={gateway.id}
                     type="button"
-                    onClick={() => setPaymentMethod(gateway.provider as any)}
+                    onClick={() => {
+                      setPaymentMethod(gateway.provider);
+                      setSelectedGateway(gateway.provider);
+                      setPagarmeMethod(null);
+                    }}
                     className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === gateway.provider ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
                   >
                     <CreditCard size={24} />
@@ -1031,6 +1037,27 @@ export default function Checkout() {
                   </>
                 )}
               </div>
+
+              {selectedGateway === 'pagarme' && (
+                <div className="grid grid-cols-2 gap-4 mb-8">
+                  <button
+                    type="button"
+                    onClick={() => setPagarmeMethod('pix')}
+                    className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${pagarmeMethod === 'pix' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                  >
+                    <QrCode size={24} />
+                    <span className="font-bold text-sm">PIX (Pagar.me)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPagarmeMethod('credit_card')}
+                    className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${pagarmeMethod === 'credit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                  >
+                    <CreditCard size={24} />
+                    <span className="font-bold text-sm">Cartão (Pagar.me)</span>
+                  </button>
+                </div>
+              )}
 
               {paymentMethod === 'credit_card' && (
                 <motion.div 
