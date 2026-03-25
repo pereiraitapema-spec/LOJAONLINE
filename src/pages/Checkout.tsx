@@ -337,8 +337,8 @@ export default function Checkout() {
   const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
   const currentShipping = shippingMethods[selectedShipping];
   console.log('DEBUG: cartTotal=', cartTotal, 'threshold=', freeShippingThreshold, 'selectedShipping=', selectedShipping, 'currentShipping=', currentShipping);
-  const shippingCost = cartTotal >= freeShippingThreshold ? 0 : (currentShipping?.price || 0);
-  console.log('DEBUG: shippingCost=', shippingCost);
+  const shippingCost = (cartTotal >= freeShippingThreshold && freeShippingThreshold > 0) ? 0 : (currentShipping?.price || 0);
+  console.log('DEBUG: shippingCost=', shippingCost, 'cartTotal=', cartTotal, 'freeShippingThreshold=', freeShippingThreshold);
   const finalTotal = Math.max(0, cartTotal - totalDiscount + shippingCost);
 
   // Abandoned Cart Logic
@@ -435,7 +435,7 @@ export default function Checkout() {
         if (allQuotes.length > 0) {
           const processedQuotes = allQuotes.map(quote => ({
             ...quote,
-            price: cartTotal >= freeShippingThreshold && freeShippingThreshold > 0 ? 0 : quote.price
+            price: (cartTotal >= freeShippingThreshold && freeShippingThreshold > 0) ? 0 : quote.price
           }));
           setShippingMethods(processedQuotes);
           setSelectedShipping(0);

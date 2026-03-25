@@ -364,16 +364,16 @@ export default function Store() {
 
         console.log('⏱️ Buscando dados principais (banners, produtos, etc)...');
         const results = await Promise.allSettled([
-          withTimeout(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }), 5000),
+          withTimeout(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }), 3000),
           withTimeout(supabase.from('products')
             .select('*, tiers:product_tiers(*), media:product_media(*)')
             .eq('active', true)
             .order('created_at', { ascending: false })
-            .order('position', { foreignTable: 'product_media', ascending: true }), 5000),
-          withTimeout(supabase.from('categories').select('*').order('name'), 5000),
-          withTimeout(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }), 5000),
-          withTimeout(supabase.from('store_settings').select('*').maybeSingle(), 5000),
-          withTimeout(supabase.from('site_content').select('*'), 5000)
+            .order('position', { foreignTable: 'product_media', ascending: true }), 3000),
+          withTimeout(supabase.from('categories').select('*').order('name'), 3000),
+          withTimeout(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }), 3000),
+          withTimeout(supabase.from('store_settings').select('*').maybeSingle(), 3000),
+          withTimeout(supabase.from('site_content').select('*'), 3000)
         ]);
 
         // Só atualizar o estado se a promessa foi cumprida com sucesso
@@ -463,7 +463,6 @@ export default function Store() {
       }
     });
 
-    checkUser();
     // fetchData() será chamado pelo INITIAL_SESSION no onAuthStateChange
     
     return () => {
