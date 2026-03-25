@@ -101,7 +101,6 @@ export default function Dashboard() {
         }
 
         // Simulating taxes (Nota Fiscal) for now, e.g., 6% of revenue
-        // You can add a tax_rate to store_settings later if needed
         const totalTaxes = revenue * 0.06;
 
         const totalExpenses = calculatedCOGS + totalCommissions + totalOperational + totalMarketing + totalShipping + totalTaxes;
@@ -164,49 +163,80 @@ export default function Dashboard() {
 
   if (loading) return <Loading message="Carregando painel..." />;
 
+  const menuGroups = [
+    {
+      title: "Faturamento",
+      items: [
+        { name: "Checkout", path: "/checkout", icon: ShoppingCart },
+        { name: "Relatórios", path: "/reports", icon: FileText },
+        { name: "Gateways", path: "/gateways", icon: CreditCard }
+      ]
+    },
+    {
+      title: "Vendas & Marketing",
+      items: [
+        { name: "Pedidos", path: "/orders", icon: ShoppingBag },
+        { name: "Campanhas", path: "/campaigns", icon: Megaphone },
+        { name: "Carrinhos Abandonados", path: "/abandoned-carts", icon: ShoppingCart },
+        { name: "Afiliados", path: "/affiliates", icon: Users },
+        { name: "Leads", path: "/leads", icon: Users }
+      ]
+    },
+    {
+      title: "Estoque",
+      items: [
+        { name: "Produtos", path: "/products", icon: Package },
+        { name: "Estoque", path: "/inventory", icon: Package }
+      ]
+    },
+    {
+      title: "Sistema",
+      items: [
+        { name: "Banners", path: "/banners", icon: ImageIcon },
+        { name: "Transportadoras", path: "/shipping", icon: Truck },
+        { name: "Automações", path: "/automations", icon: Zap },
+        { name: "Config. IA", path: "/ai-settings", icon: Bot },
+        { name: "Configurações", path: "/settings", icon: Settings }
+      ]
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-slate-50 flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col">
-        <div className="p-6 border-bottom border-slate-100">
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0">
+        <div className="p-6 border-b border-slate-100">
           <div className="flex items-center gap-3 text-indigo-600 font-bold text-xl">
             <Shield size={28} />
             <span>Admin Pro</span>
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 border-2 border-red-500">
+        <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
           <button 
             onClick={() => navigate('/')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-indigo-600 hover:bg-indigo-50 rounded-xl font-bold transition-colors mb-4"
+            className="w-full flex items-center gap-3 px-4 py-3 text-indigo-600 hover:bg-indigo-50 rounded-xl font-bold transition-colors"
           >
             <ArrowLeft size={20} />
             Voltar para a Loja
           </button>
-          
-          <button onClick={() => navigate('/dashboard')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><LayoutDashboard size={20} /> Dashboard</button>
-          <button onClick={() => navigate('/orders')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><ShoppingBag size={20} /> Pedidos</button>
-          <button onClick={() => navigate('/products')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Package size={20} /> Produtos</button>
-          <button onClick={() => navigate('/affiliates')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Users size={20} /> Afiliados</button>
-          <button onClick={() => navigate('/campaigns')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Megaphone size={20} /> Campanhas</button>
-          <button onClick={() => navigate('/banners')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><ImageIcon size={20} /> Banners</button>
-          <button onClick={() => navigate('/inventory')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Package size={20} /> Estoque</button>
-          <button onClick={() => navigate('/reports')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><FileText size={20} /> Relatórios</button>
-          <button onClick={() => navigate('/abandoned-carts')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><ShoppingCart size={20} /> Carrinhos Abandonados</button>
-          <button onClick={() => navigate('/leads')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Users size={20} /> Leads</button>
-          <button onClick={() => navigate('/gateways')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><CreditCard size={20} /> Gateways</button>
-          <button onClick={() => navigate('/shipping')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Truck size={20} /> Transportadoras</button>
-          <button onClick={() => navigate('/automations')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Zap size={20} /> Automações</button>
-          <button onClick={() => navigate('/ai-settings')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Bot size={20} /> Config. IA</button>
-          <button onClick={() => navigate('/settings')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"><Settings size={20} /> Configurações</button>
-          
-          <button 
-            onClick={() => navigate('/checkout')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <ShoppingCart size={20} />
-            Checkout (Teste)
-          </button>
+
+          {menuGroups.map((group) => (
+            <div key={group.title}>
+              <h3 className="px-4 text-xs font-black text-slate-400 uppercase tracking-widest mb-2">{group.title}</h3>
+              <div className="space-y-1">
+                {group.items.map((item) => (
+                  <button 
+                    key={item.name}
+                    onClick={() => navigate(item.path)} 
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
+                  >
+                    <item.icon size={18} /> {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </nav>
 
         <div className="p-4 border-t border-slate-100">
@@ -221,7 +251,7 @@ export default function Dashboard() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-8 overflow-y-auto">
         <header className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Olá, {user?.user_metadata?.full_name || user?.email}</h1>
