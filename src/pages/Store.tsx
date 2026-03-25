@@ -1726,6 +1726,18 @@ export default function Store() {
                         <a href="https://buscacepinter.correios.com.br/app/endereco/index.php" target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 hover:underline mt-2 inline-block">
                           Não sei meu CEP
                         </a>
+                        {shippingQuotes.length > 0 && (
+                          <div className="mt-4 space-y-2">
+                            {shippingQuotes.map((quote, index) => (
+                              <div key={index} className="flex justify-between items-center p-3 bg-white rounded-xl border border-slate-200 text-sm">
+                                <span className="font-bold text-slate-700">{quote.carrier_name}</span>
+                                <span className="font-black text-emerald-600">
+                                  {quote.price === 0 ? 'Frete Grátis' : `R$ ${quote.price.toFixed(2)}`}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex flex-col gap-4 mb-8">
