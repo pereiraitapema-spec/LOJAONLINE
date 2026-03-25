@@ -164,16 +164,8 @@ export default function Checkout() {
           if (settingsData.free_shipping_threshold) {
             setFreeShippingThreshold(settingsData.free_shipping_threshold);
           }
-          if (settingsData.shipping_methods) {
-            const activeMethods = settingsData.shipping_methods.filter((m: any) => m.active);
-            setShippingMethods(activeMethods);
-          }
         } else {
           // Fallback
-          setShippingMethods([
-            { id: 'pac', name: 'Correios (PAC)', price: 25.90, deadline: '7 a 10 dias úteis', provider: 'correios' },
-            { id: 'sedex', name: 'Correios (SEDEX)', price: 45.90, deadline: '2 a 4 dias úteis', provider: 'correios' }
-          ]);
         }
 
         // Fetch Discount Rules
@@ -1006,42 +998,38 @@ export default function Checkout() {
               </div>
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('pix')}
-                  className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'pix' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                >
-                  <QrCode size={24} />
-                  <span className="font-bold text-sm">PIX</span>
-                  {paymentMethod === 'pix' && <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-200 px-2 py-0.5 rounded-md">5% OFF</span>}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('credit_card')}
-                  className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'credit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                >
-                  <CreditCard size={24} />
-                  <span className="font-bold text-sm text-center">Cartão</span>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Até 12x</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('boleto')}
-                  className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'boleto' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                >
-                  <Barcode size={24} />
-                  <span className="font-bold text-sm">Boleto</span>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">À Vista</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('transfer')}
-                  className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'transfer' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                >
-                  <Landmark size={24} />
-                  <span className="font-bold text-sm text-center">Transferência</span>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">TED/DOC</span>
-                </button>
+                {gateways.map((gateway) => (
+                  <button
+                    key={gateway.id}
+                    type="button"
+                    onClick={() => setPaymentMethod(gateway.provider as any)}
+                    className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === gateway.provider ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                  >
+                    <CreditCard size={24} />
+                    <span className="font-bold text-sm text-center">{gateway.name}</span>
+                  </button>
+                ))}
+                {/* Fallback para métodos internos se não houver gateways configurados */}
+                {gateways.length === 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('pix')}
+                      className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'pix' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                    >
+                      <QrCode size={24} />
+                      <span className="font-bold text-sm">PIX</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('credit_card')}
+                      className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'credit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                    >
+                      <CreditCard size={24} />
+                      <span className="font-bold text-sm text-center">Cartão</span>
+                    </button>
+                  </>
+                )}
               </div>
 
               {paymentMethod === 'credit_card' && (
