@@ -37,15 +37,15 @@ export const orderService = {
     if (itemsError) throw itemsError;
 
     // Criar shipment padrão com CepCerto
-    const { error: shipmentError } = await supabase
-      .from('shipments')
-      .insert([{
-        order_id: order.id,
-        carrier_name: 'CepCerto',
-        tracking_number: 'TRACK-' + Math.random().toString(36).substr(2, 9).toUpperCase()
-      }]);
+    // const { error: shipmentError } = await supabase
+    //   .from('shipments')
+    //   .insert([{
+    //     order_id: order.id,
+    //     carrier_name: 'CepCerto',
+    //     tracking_number: 'TRACK-' + Math.random().toString(36).substr(2, 9).toUpperCase()
+    //   }]);
     
-    if (shipmentError) throw shipmentError;
+    // if (shipmentError) throw shipmentError;
 
     return order;
   }

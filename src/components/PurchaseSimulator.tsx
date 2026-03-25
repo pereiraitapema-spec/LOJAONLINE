@@ -24,7 +24,8 @@ export const PurchaseSimulator = ({ userId }: { userId: string }) => {
       setSuccess(true);
       toast.success('Compra fictícia gerada com sucesso!');
     } catch (error) {
-      toast.error('Erro no simulador.');
+      console.error('Erro detalhado no simulador:', error);
+      toast.error('Erro no simulador. Verifique o console.');
     } finally {
       setIsSimulating(false);
     }
