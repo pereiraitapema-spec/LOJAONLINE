@@ -337,9 +337,17 @@ export default function Checkout() {
   const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
   const currentShipping = shippingMethods[selectedShipping];
   console.log('DEBUG: cartTotal=', cartTotal, 'threshold=', freeShippingThreshold, 'selectedShipping=', selectedShipping, 'currentShipping=', currentShipping);
-  const shippingCost = (cartTotal >= freeShippingThreshold && freeShippingThreshold > 0) ? 0 : (currentShipping?.price || 0);
+  // Se ainda não temos métodos de envio, o frete não é 0, é "não calculado" (null)
+  const shippingCost = shippingMethods.length === 0 
+    ? null 
+    : !currentShipping
+      ? null // Ainda não selecionou um método ou o selecionado é inválido
+      : (cartTotal >= freeShippingThreshold && freeShippingThreshold > 0) 
+        ? 0 
+        : currentShipping.price;
+  
   console.log('DEBUG: shippingCost=', shippingCost, 'cartTotal=', cartTotal, 'freeShippingThreshold=', freeShippingThreshold);
-  const finalTotal = Math.max(0, cartTotal - totalDiscount + shippingCost);
+  const finalTotal = Math.max(0, cartTotal - totalDiscount + (shippingCost || 0));
 
   // Abandoned Cart Logic
   useEffect(() => {
@@ -1314,7 +1322,15 @@ export default function Checkout() {
                 </div>
                 <div className="flex justify-between text-slate-500">
                   <span className="flex items-center gap-1"><Truck size={16} /> Frete</span>
-                  <span className="font-medium">{shippingCost === 0 ? <span className="text-emerald-500 font-bold uppercase text-xs">Grátis</span> : `R$ ${shippingCost.toFixed(2)}`}</span>
+                  <span className="font-medium">
+                    {shippingCost === null ? (
+                      <span className="text-slate-400 text-xs">Calculando...</span>
+                    ) : shippingCost === 0 ? (
+                      <span className="text-emerald-500 font-bold uppercase text-xs">Grátis</span>
+                    ) : (
+                      `R$ ${shippingCost.toFixed(2)}`
+                    )}
+                  </span>
                 </div>
                 {appliedDiscounts.map((discount, idx) => (
                   <div key={idx} className="flex justify-between text-emerald-600 font-medium">
