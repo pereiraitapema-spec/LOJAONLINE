@@ -355,7 +355,7 @@ export default function Orders() {
       setLoadingItems(true);
       const { data, error } = await supabase
         .from('order_items')
-        .select('*')
+        .select('id, order_id, product_id, product_name, quantity, price, cost_price')
         .eq('order_id', orderId);
       
       if (error) throw error;
@@ -1269,7 +1269,7 @@ export default function Orders() {
                       <div key={item.id} className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl border border-slate-100">
                         <div className="w-12 h-12 bg-white rounded-xl border border-slate-200 overflow-hidden flex-shrink-0">
                           <img 
-                            src={item.product?.image_url || 'https://picsum.photos/seed/product/200/200'} 
+                            src={'https://picsum.photos/seed/product/200/200'} 
                             alt={item.product_name} 
                             className="w-full h-full object-contain p-1"
                           />
