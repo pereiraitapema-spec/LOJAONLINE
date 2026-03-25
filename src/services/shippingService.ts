@@ -43,7 +43,7 @@ export const shippingService = {
       if (originZip.length !== 8 || destZip.length !== 8) return [];
 
       // 2. Call Provider API
-      if (carrier.provider === 'melhorenvio' && carrier.config?.api_key) {
+      if ((carrier.provider === 'melhorenvio' || carrier.provider === 'melhorenvio2') && carrier.config?.api_key) {
         try {
           const response = await fetch('https://www.melhorenvio.com.br/api/v2/me/shipment/calculate', {
             method: 'POST',
@@ -77,10 +77,10 @@ export const shippingService = {
                 name: quote.name,
                 price: parseFloat(quote.price),
                 deadline: `${quote.delivery_range.min} a ${quote.delivery_range.max} dias úteis`,
-                provider: 'melhorenvio'
+                provider: carrier.provider
               }));
           } else {
-            console.warn('Melhor Envio API returned error, falling back to mock.');
+            console.warn('Melhor Envio API returned error, falling back to mock.', await response.json());
           }
         } catch (err) {
           console.error('Melhor Envio API Error:', err);
