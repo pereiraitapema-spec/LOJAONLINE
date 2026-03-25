@@ -23,8 +23,17 @@ export const PurchaseSimulator = ({ userId }: { userId: string }) => {
       await orderService.createOrder(userId, dummyOrder, dummyItems);
       setSuccess(true);
       toast.success('Compra fictícia gerada com sucesso!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro detalhado no simulador:', error);
+      if (error.message) {
+        console.error('Mensagem de erro:', error.message);
+      }
+      if (error.details) {
+        console.error('Detalhes do erro:', error.details);
+      }
+      if (error.hint) {
+        console.error('Dica do erro:', error.hint);
+      }
       toast.error('Erro no simulador. Verifique o console.');
     } finally {
       setIsSimulating(false);
