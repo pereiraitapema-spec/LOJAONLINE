@@ -249,6 +249,13 @@ export default function Checkout() {
     return () => clearTimeout(timer);
   }, [couponCode]);
 
+  // Recalcular frete quando o carrinho mudar
+  useEffect(() => {
+    if (shipping.cep && shippingMethods.length > 0) {
+      handleCepBlur();
+    }
+  }, [cart]);
+
   const calculatePrice = (product: Product, quantity: number) => {
     const unitPrice = product.discount_price || product.price;
     return {
@@ -329,7 +336,9 @@ export default function Checkout() {
 
   const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
   const currentShipping = shippingMethods[selectedShipping];
+  console.log('DEBUG: cartTotal=', cartTotal, 'threshold=', freeShippingThreshold, 'selectedShipping=', selectedShipping, 'currentShipping=', currentShipping);
   const shippingCost = cartTotal >= freeShippingThreshold ? 0 : (currentShipping?.price || 0);
+  console.log('DEBUG: shippingCost=', shippingCost);
   const finalTotal = Math.max(0, cartTotal - totalDiscount + shippingCost);
 
   // Abandoned Cart Logic
