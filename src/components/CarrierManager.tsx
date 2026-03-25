@@ -15,7 +15,11 @@ export const CarrierManager = () => {
       .select('*, shipments(*)')
       .order('created_at', { ascending: false });
     
-    if (error) toast.error('Erro ao carregar pedidos');
+    console.log('🔍 Pedidos carregados:', data);
+    if (error) {
+      console.error('❌ Erro ao carregar pedidos:', error);
+      toast.error('Erro ao carregar pedidos');
+    }
     else setOrders(data || []);
   };
 

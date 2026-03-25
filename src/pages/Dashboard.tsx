@@ -146,7 +146,8 @@ export default function Dashboard() {
         });
 
       } catch (error) {
-        console.error('❌ Dashboard Error:', error);
+        console.error('❌ Dashboard Error detalhado:', error);
+        toast.error('Erro ao carregar dados do dashboard.');
       } finally {
         setLoading(false);
       }

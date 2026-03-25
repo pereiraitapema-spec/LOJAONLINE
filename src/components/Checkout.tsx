@@ -32,7 +32,19 @@ export const Checkout = ({ cartItems, total, userId }: any) => {
         <select onChange={e => setPayment({...payment, method: e.target.value})} className="w-full p-2 border rounded">
           <option value="pix">PIX</option>
           <option value="credit_card">Cartão de Crédito</option>
+          <option value="boleto">Boleto</option>
         </select>
+        {payment.method === 'pix' && (
+          <div className="mt-4 p-4 bg-emerald-50 text-emerald-800 rounded text-sm">
+            <p className="font-bold">Chave PIX: 123.456.789-00</p>
+            <p>Banco: Banco do Brasil</p>
+          </div>
+        )}
+        {payment.method === 'boleto' && (
+          <div className="mt-4 p-4 bg-amber-50 text-amber-800 rounded text-sm">
+            <p>O boleto será gerado após finalizar o pedido.</p>
+          </div>
+        )}
       </section>
       <button type="submit" className="w-full bg-emerald-600 text-white p-3 rounded font-bold">Finalizar Pedido</button>
     </form>
