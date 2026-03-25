@@ -355,7 +355,7 @@ export default function Orders() {
       setLoadingItems(true);
       const { data, error } = await supabase
         .from('order_items')
-        .select('*, product:products(image_url)')
+        .select('*')
         .eq('order_id', orderId);
       
       if (error) throw error;
