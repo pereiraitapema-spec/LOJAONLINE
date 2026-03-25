@@ -72,6 +72,11 @@ export default function ShippingCarriers() {
 
   const handleSave = async () => {
     try {
+      if (!currentCarrier.name || !currentCarrier.provider) {
+        toast.error('Por favor, preencha o nome e selecione um provedor.');
+        return;
+      }
+      
       if (currentCarrier.id) {
         const { error } = await supabase
           .from('shipping_carriers')
