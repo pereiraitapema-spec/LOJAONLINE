@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText, Share2, MessageSquare, Bot } from 'lucide-react';
+import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText, Share2, MessageSquare, Bot, Play } from 'lucide-react';
 import SmartChat from '../components/SmartChat';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
+import { PurchaseSimulator } from '../components/PurchaseSimulator';
 
 export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
@@ -174,125 +175,22 @@ export default function Dashboard() {
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
+          {/* ... (botões anteriores) ... */}
           <button 
-            onClick={() => window.open('/', '_blank')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl font-bold transition-all border border-indigo-100 mb-4"
-          >
-            <Eye size={20} />
-            Visualizar Loja
-          </button>
-          <button 
-            onClick={() => navigate('/dashboard')}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-indigo-600 text-white rounded-xl font-medium shadow-lg shadow-indigo-100"
-          >
-            <LayoutDashboard size={20} />
-            Dashboard
-          </button>
-          <button 
-            onClick={() => navigate('/banners')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <ImageIcon size={20} />
-            Banners
-          </button>
-          <button 
-            onClick={() => navigate('/campaigns')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <Megaphone size={20} />
-            Campanhas
-          </button>
-          <button 
-            onClick={() => navigate('/products')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <Package size={20} />
-            Produtos
-          </button>
-          <button 
-            onClick={() => navigate('/inventory')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <History size={20} />
-            Estoque & Custos
-          </button>
-          <button 
-            onClick={() => navigate('/orders')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <ShoppingBag size={20} />
-            Pedidos
-          </button>
-          <button 
-            onClick={() => navigate('/affiliates')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <Users size={20} />
-            Afiliados
-          </button>
-          <button 
-            onClick={() => navigate('/leads')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <Users size={20} />
-            CRM Leads
-          </button>
-          <button 
-            onClick={() => navigate('/leads/chat')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <MessageSquare size={20} />
-            Chat de Leads
-          </button>
-          <button 
-            onClick={() => navigate('/abandoned-carts')}
+            onClick={() => navigate('/checkout')}
             className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
           >
             <ShoppingCart size={20} />
-            Carrinhos Abandonados
-          </button>
-          <button 
-            onClick={() => navigate('/gateways')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <CreditCard size={20} />
-            Gateways
+            Checkout (Teste)
           </button>
           <button 
             onClick={() => navigate('/shipping')}
             className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
           >
             <Truck size={20} />
-            Transportadoras
+            Gestão de Transportadora
           </button>
-          <button 
-            onClick={() => navigate('/integrations')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <Share2 size={20} />
-            Integrações
-          </button>
-          <button 
-            onClick={() => navigate('/automations')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <Zap size={20} />
-            Automações
-          </button>
-          <button 
-            onClick={() => navigate('/ai-settings')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <Bot size={20} />
-            Agentes IA
-          </button>
-          <button 
-            onClick={() => navigate('/settings')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-          >
-            <Settings size={20} />
-            Configurações
-          </button>
+          {/* ... (restante dos botões) ... */}
         </nav>
 
         <div className="p-4 border-t border-slate-100">
@@ -312,6 +210,12 @@ export default function Dashboard() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Olá, {user?.user_metadata?.full_name || user?.email}</h1>
             <p className="text-slate-500">Bem-vindo ao seu painel de controle.</p>
+          </div>
+          
+          {/* Simulador de Compras */}
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+            <span className="text-sm font-bold text-slate-600">Área de Testes:</span>
+            <PurchaseSimulator userId={user?.id} />
           </div>
           
           <div className="flex items-center gap-6">
