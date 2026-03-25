@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText, Share2, MessageSquare, Bot, Play, ArrowLeft } from 'lucide-react';
+import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText, Share2, MessageSquare, Bot, Play, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import SmartChat from '../components/SmartChat';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -36,7 +36,14 @@ export default function Dashboard() {
     avgTicketDirect: 0,
     avgTicketAffiliate: 0
   });
+  const [openGroups, setOpenGroups] = useState<string[]>(['Faturamento']);
   const navigate = useNavigate();
+
+  const toggleGroup = (title: string) => {
+    setOpenGroups(prev => 
+      prev.includes(title) ? prev.filter(t => t !== title) : [...prev, title]
+    );
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -223,18 +230,26 @@ export default function Dashboard() {
 
           {menuGroups.map((group) => (
             <div key={group.title}>
-              <h3 className="px-4 text-xs font-black text-slate-400 uppercase tracking-widest mb-2">{group.title}</h3>
-              <div className="space-y-1">
-                {group.items.map((item) => (
-                  <button 
-                    key={item.name}
-                    onClick={() => navigate(item.path)} 
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-                  >
-                    <item.icon size={18} /> {item.name}
-                  </button>
-                ))}
-              </div>
+              <button 
+                onClick={() => toggleGroup(group.title)}
+                className="w-full flex items-center justify-between px-4 text-xs font-black text-slate-400 uppercase tracking-widest mb-2 hover:text-indigo-600 transition-colors"
+              >
+                {group.title}
+                {openGroups.includes(group.title) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+              {openGroups.includes(group.title) && (
+                <div className="space-y-1">
+                  {group.items.map((item) => (
+                    <button 
+                      key={item.name}
+                      onClick={() => navigate(item.path)} 
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
+                    >
+                      <item.icon size={18} /> {item.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </nav>
