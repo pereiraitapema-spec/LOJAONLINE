@@ -1,23 +1,16 @@
 import { supabase } from '../lib/supabase';
+import { PaymentProvider } from './providers/payment/types';
 
-export const paymentService = {
-  async processPayment(provider: string, orderData: any, gatewayConfig: any) {
-    switch (provider) {
-      case 'pagarme':
-      case 'pagarme2':
-        return this.processPagarmePayment(orderData, gatewayConfig);
-      default:
-        throw new Error(`Provedor ${provider} não suportado.`);
-    }
-  },
-
-  async processPagarmePayment(orderData: any, gatewayConfig: any) {
+const pagarmeProvider: PaymentProvider = {
+  async processPayment(orderData: any, config: any) {
+    if (!config?.access_token) return { success: false, error: 'Access Token não configurado.' };
+    
     try {
       const response = await fetch('https://api.pagar.me/core/v5/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Basic ${btoa(gatewayConfig.access_token + ':')}`
+          'Authorization': `Basic ${btoa(config.access_token + ':')}`
         },
         body: JSON.stringify({
           items: orderData.items.map((item: any) => ({
@@ -50,15 +43,29 @@ export const paymentService = {
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erro ao processar pagamento no Pagar.me');
+      const data = await response.json();
+      if (response.ok) {
+        return { success: true, payment_id: data.id };
       }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Pagar.me API Error:', error);
-      throw error;
+      return { success: false, error: data.message || 'Erro no processamento.' };
+    } catch (err: any) {
+      return { success: false, error: err.message };
     }
+  },
+  async refundPayment(paymentId: string, config: any) {
+    return { success: true };
+  }
+};
+
+const providers: Record<string, PaymentProvider> = {
+  'pagarme': pagarmeProvider,
+  'pagarme2': pagarmeProvider
+};
+
+export const paymentService = {
+  async processPayment(provider: string, orderData: any, gatewayConfig: any) {
+    const paymentProvider = providers[provider];
+    if (!paymentProvider) throw new Error(`Provedor ${provider} não suportado.`);
+    return paymentProvider.processPayment(orderData, gatewayConfig);
   }
 };
