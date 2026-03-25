@@ -1,6 +1,16 @@
 import { supabase } from '../lib/supabase';
 
 export const paymentService = {
+  async processPayment(provider: string, orderData: any, gatewayConfig: any) {
+    switch (provider) {
+      case 'pagarme':
+      case 'pagarme2':
+        return this.processPagarmePayment(orderData, gatewayConfig);
+      default:
+        throw new Error(`Provedor ${provider} não suportado.`);
+    }
+  },
+
   async processPagarmePayment(orderData: any, gatewayConfig: any) {
     try {
       const response = await fetch('https://api.pagar.me/core/v5/orders', {

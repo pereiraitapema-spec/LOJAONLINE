@@ -16,15 +16,16 @@ export interface ShippingQuote {
 }
 
 export const shippingService = {
-  async calculateShipping(destZipCode: string, packages: ShippingPackage[]): Promise<ShippingQuote[]> {
+  async calculateShipping(destZipCode: string, packages: ShippingPackage[], carrierId?: string): Promise<ShippingQuote[]> {
     try {
-      // 1. Get active carrier and store settings
-      const { data: carrier } = await supabase
-        .from('shipping_carriers')
-        .select('*')
-        .eq('active', true)
-        .limit(1)
-        .maybeSingle();
+      // 1. Get carrier and store settings
+      let query = supabase.from('shipping_carriers').select('*').eq('active', true);
+      if (carrierId) {
+        query = query.eq('id', carrierId);
+      } else {
+        query = query.limit(1);
+      }
+      const { data: carrier } = await query.maybeSingle();
 
       const { data: settings } = await supabase
         .from('store_settings')

@@ -28,6 +28,7 @@ import Inventory from './pages/Inventory';
 import Automations from './pages/Automations';
 import AbandonedCarts from './pages/AbandonedCarts';
 import AiAgentSettings from './pages/AiAgentSettings';
+import AdminReports from './pages/AdminReports';
 import NotFound from './pages/NotFound';
 import { Loading } from './components/Loading';
 import { leadService } from './services/leadService';
@@ -491,6 +492,10 @@ function AppContent() {
         <Route 
           path="/inventory" 
           element={<AdminRoute><Inventory /></AdminRoute>} 
+        />
+        <Route 
+          path="/reports" 
+          element={<AdminRoute><AdminReports /></AdminRoute>} 
         />
         <Route 
           path="/automations" 

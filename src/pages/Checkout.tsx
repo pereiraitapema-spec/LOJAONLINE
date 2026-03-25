@@ -416,10 +416,15 @@ export default function Checkout() {
           length: (item.product as any).length || 10
         }));
 
-        const quotes = await shippingService.calculateShipping(cep, packages);
-        console.log('Cotações de frete:', quotes);
-        if (quotes.length > 0) {
-          setShippingMethods(quotes);
+        let allQuotes: ShippingQuote[] = [];
+        for (const carrier of carriers) {
+          const quotes = await shippingService.calculateShipping(cep, packages, carrier.id);
+          allQuotes = [...allQuotes, ...quotes];
+        }
+        
+        console.log('Cotações de frete:', allQuotes);
+        if (allQuotes.length > 0) {
+          setShippingMethods(allQuotes);
           setSelectedShipping(0);
         } else {
           console.log('Nenhuma cotação de frete encontrada');
@@ -649,12 +654,12 @@ export default function Checkout() {
       }
 
       // 3. Process Payment Gateway
-      const activeGateway = gateways.find(g => g.active);
+      const activeGateway = gateways.find(g => g.id === selectedGateway);
       let paymentResponse: any = { success: true, payment_id: `sim_${activeGateway?.provider || 'internal'}_${Math.random().toString(36).substr(2, 9)}` };
 
-      if (activeGateway && (activeGateway.provider === 'pagarme' || activeGateway.provider === 'pagarme2')) {
+      if (activeGateway) {
         try {
-          paymentResponse = await paymentService.processPagarmePayment({
+          paymentResponse = await paymentService.processPayment(activeGateway.provider, {
             items: cart.map(item => ({
               price: item.product.discount_price || item.product.price,
               product_name: item.product.name,
