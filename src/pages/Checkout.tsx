@@ -688,7 +688,8 @@ export default function Checkout() {
         .update({ 
           status: initialStatus, 
           payment_id: paymentResponse.id || paymentResponse.payment_id,
-          payment_url: paymentResponse.charges?.[0]?.last_transaction?.pdf || paymentResponse.charges?.[0]?.last_transaction?.url // Exemplo para boleto/pix
+          payment_url: paymentResponse.charges?.[0]?.last_transaction?.pdf || paymentResponse.charges?.[0]?.last_transaction?.url || paymentResponse.charges?.[0]?.last_transaction?.qr_code_url,
+          pix_code: paymentResponse.charges?.[0]?.last_transaction?.qr_code // Adicionando o código copia e cola do PIX
         })
         .eq('id', orderData.id);
 

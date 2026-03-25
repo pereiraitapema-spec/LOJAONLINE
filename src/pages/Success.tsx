@@ -98,7 +98,7 @@ export default function Success() {
                     <h3 className="text-xl font-black text-slate-900 uppercase italic">Pague com PIX</h3>
                     <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 w-48 h-48 flex items-center justify-center">
                       <img 
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(getPaymentDetails() || 'Pagamento PIX')}`} 
+                        src={order.payment_url || `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(order.pix_code || getPaymentDetails() || 'Pagamento PIX')}`} 
                         alt="QR Code PIX" 
                         className="w-full h-full"
                       />
@@ -108,7 +108,7 @@ export default function Success() {
                       <div className="flex gap-2">
                         <input 
                           readOnly 
-                          value={getPaymentDetails() || 'Chave não configurada'} 
+                          value={order.pix_code || getPaymentDetails() || 'Chave não configurada'} 
                           className="flex-1 bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm font-mono"
                         />
                         <button 
