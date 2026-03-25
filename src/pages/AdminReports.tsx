@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
+import { checkPermission } from '../lib/rbac';
 
 export default function AdminReports() {
   const navigate = useNavigate();
@@ -20,6 +21,20 @@ export default function AdminReports() {
     const fetchData = async () => {
       try {
         setLoading(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          navigate('/login');
+          return;
+        }
+
+        // Verifica permissão de gerente para relatórios
+        const hasPermission = await checkPermission(session.user.id, 'manager');
+        if (!hasPermission) {
+          toast.error('Acesso negado aos relatórios.');
+          navigate('/dashboard');
+          return;
+        }
+
         const [ordersRes, gatewaysRes, productsRes] = await Promise.all([
           supabase.from('orders').select('*, order_items(*), profiles(full_name, email)'),
           supabase.from('payment_gateways').select('*'),
@@ -38,7 +53,7 @@ export default function AdminReports() {
       }
     };
     fetchData();
-  }, []);
+  }, [navigate]);
 
   const filteredOrders = data.orders.filter((o: any) => 
     (o.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 

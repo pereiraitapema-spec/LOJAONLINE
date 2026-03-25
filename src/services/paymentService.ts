@@ -1,10 +1,12 @@
 import { supabase } from '../lib/supabase';
 import { PaymentProvider } from './providers/payment/types';
+import { logApiCall } from '../lib/monitoring';
 
 const pagarmeProvider: PaymentProvider = {
   async processPayment(orderData: any, config: any) {
     if (!config?.access_token) return { success: false, error: 'Access Token não configurado.' };
     
+    const startTime = Date.now();
     try {
       const response = await fetch('https://api.pagar.me/core/v5/orders', {
         method: 'POST',
@@ -43,12 +45,18 @@ const pagarmeProvider: PaymentProvider = {
         })
       });
 
+      const duration = Date.now() - startTime;
       const data = await response.json();
+      
       if (response.ok) {
+        await logApiCall('pagarme', '/orders', duration, true);
         return { success: true, payment_id: data.id };
       }
+      
+      await logApiCall('pagarme', '/orders', duration, false, data.message || 'Erro no processamento.');
       return { success: false, error: data.message || 'Erro no processamento.' };
     } catch (err: any) {
+      await logApiCall('pagarme', '/orders', Date.now() - startTime, false, err.message);
       return { success: false, error: err.message };
     }
   },

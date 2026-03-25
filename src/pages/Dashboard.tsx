@@ -45,6 +45,55 @@ export default function Dashboard() {
     );
   };
 
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { motion } from 'motion/react';
+import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText, Share2, MessageSquare, Bot, Play, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import SmartChat from '../components/SmartChat';
+import { toast } from 'react-hot-toast';
+import { Loading } from '../components/Loading';
+import { PurchaseSimulator } from '../components/PurchaseSimulator';
+import { checkPermission } from '../lib/rbac';
+
+export default function Dashboard() {
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState<Record<string, boolean>>({});
+  const [dateRange, setDateRange] = useState({
+    start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
+  });
+  const [stats, setStats] = useState({
+    revenue: 0,
+    cost: 0,
+    cogs: 0,
+    profit: 0,
+    totalCommissions: 0,
+    totalTaxes: 0,
+    totalMarketing: 0,
+    totalOperational: 0,
+    totalShipping: 0,
+    stockValue: 0,
+    stockRetailValue: 0,
+    projectedProfit: 0,
+    affiliatesCount: 0,
+    activeProducts: 0,
+    newCustomers: 0,
+    avgTicket: 0,
+    avgTicketDirect: 0,
+    avgTicketAffiliate: 0
+  });
+  const [openGroups, setOpenGroups] = useState<string[]>(['Faturamento']);
+  const navigate = useNavigate();
+
+  const toggleGroup = (title: string) => {
+    setOpenGroups(prev => 
+      prev.includes(title) ? prev.filter(t => t !== title) : [...prev, title]
+    );
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -57,31 +106,38 @@ export default function Dashboard() {
 
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('role')
+          .select('*')
           .eq('id', session.user.id)
           .maybeSingle();
 
-        if (profileData?.role !== 'admin' && session.user.email !== 'pereira.itapema@gmail.com') {
+        if (!profileData || (profileData.role !== 'admin' && session.user.email !== 'pereira.itapema@gmail.com')) {
           toast.error('Acesso negado.');
           navigate('/');
           return;
         }
 
         setUser(session.user);
+        setProfile(profileData);
+
+        // Define permissions
+        const perms = {
+          faturamento: await checkPermission(session.user.id, 'manager'),
+          vendas: await checkPermission(session.user.id, 'sales'),
+          estoque: await checkPermission(session.user.id, 'stock'),
+          sistema: await checkPermission(session.user.id, 'admin')
+        };
+        setPermissions(perms);
 
         // Fetch all necessary data for stats
-        const [ordersRes, productsRes, affiliatesRes, profilesRes] = await Promise.all([
+        const [ordersRes, productsRes, affiliatesRes] = await Promise.all([
           supabase.from('orders')
             .select('*')
             .eq('status', 'paid')
             .gte('created_at', `${dateRange.start}T00:00:00Z`)
             .lte('created_at', `${dateRange.end}T23:59:59Z`),
           supabase.from('products').select('*'),
-          supabase.from('affiliates').select('*'),
-          supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
+          supabase.from('affiliates').select('*')
         ]);
-
-        if (profilesRes.data) setProfile(profilesRes.data);
 
         const orders = ordersRes.data || [];
         const products = productsRes.data || [];
@@ -173,6 +229,7 @@ export default function Dashboard() {
   const menuGroups = [
     {
       title: "Faturamento",
+      permission: permissions.faturamento,
       items: [
         { name: "Checkout", path: "/checkout", icon: ShoppingCart },
         { name: "Relatórios", path: "/reports", icon: FileText },
@@ -181,6 +238,7 @@ export default function Dashboard() {
     },
     {
       title: "Vendas & Marketing",
+      permission: permissions.vendas,
       items: [
         { name: "Pedidos", path: "/orders", icon: ShoppingBag },
         { name: "Campanhas", path: "/campaigns", icon: Megaphone },
@@ -191,6 +249,7 @@ export default function Dashboard() {
     },
     {
       title: "Estoque",
+      permission: permissions.estoque,
       items: [
         { name: "Produtos", path: "/products", icon: Package },
         { name: "Estoque", path: "/inventory", icon: Package }
@@ -198,6 +257,7 @@ export default function Dashboard() {
     },
     {
       title: "Sistema",
+      permission: permissions.sistema,
       items: [
         { name: "Banners", path: "/banners", icon: ImageIcon },
         { name: "Transportadoras", path: "/shipping", icon: Truck },
@@ -229,28 +289,30 @@ export default function Dashboard() {
           </button>
 
           {menuGroups.map((group) => (
-            <div key={group.title}>
-              <button 
-                onClick={() => toggleGroup(group.title)}
-                className="w-full flex items-center justify-between px-4 text-xs font-black text-slate-400 uppercase tracking-widest mb-2 hover:text-indigo-600 transition-colors"
-              >
-                {group.title}
-                {openGroups.includes(group.title) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-              {openGroups.includes(group.title) && (
-                <div className="space-y-1">
-                  {group.items.map((item) => (
-                    <button 
-                      key={item.name}
-                      onClick={() => navigate(item.path)} 
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-                    >
-                      <item.icon size={18} /> {item.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            group.permission && (
+              <div key={group.title}>
+                <button 
+                  onClick={() => toggleGroup(group.title)}
+                  className="w-full flex items-center justify-between px-4 text-xs font-black text-slate-400 uppercase tracking-widest mb-2 hover:text-indigo-600 transition-colors"
+                >
+                  {group.title}
+                  {openGroups.includes(group.title) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+                {openGroups.includes(group.title) && (
+                  <div className="space-y-1">
+                    {group.items.map((item) => (
+                      <button 
+                        key={item.name}
+                        onClick={() => navigate(item.path)} 
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
+                      >
+                        <item.icon size={18} /> {item.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
           ))}
         </nav>
 

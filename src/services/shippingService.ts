@@ -1,10 +1,12 @@
 import { supabase } from '../lib/supabase';
 import { ShippingPackage, ShippingQuote, ShippingProvider } from './providers/shipping/types';
+import { logApiCall } from '../lib/monitoring';
 
 const melhorenvioProvider: ShippingProvider = {
   async calculateShipping(destZipCode: string, packages: ShippingPackage[], config: any): Promise<ShippingQuote[]> {
     if (!config?.api_key) return [];
     
+    const startTime = Date.now();
     try {
       const response = await fetch('https://www.melhorenvio.com.br/api/v2/me/shipment/calculate', {
         method: 'POST',
@@ -29,8 +31,10 @@ const melhorenvioProvider: ShippingProvider = {
         })
       });
 
+      const duration = Date.now() - startTime;
       if (response.ok) {
         const data = await response.json();
+        await logApiCall('melhorenvio', '/shipment/calculate', duration, true);
         return data
           .filter((quote: any) => !quote.error)
           .map((quote: any) => ({
@@ -41,8 +45,10 @@ const melhorenvioProvider: ShippingProvider = {
             provider: 'melhorenvio'
           }));
       }
+      await logApiCall('melhorenvio', '/shipment/calculate', duration, false, `Status: ${response.status}`);
       return [];
-    } catch (err) {
+    } catch (err: any) {
+      await logApiCall('melhorenvio', '/shipment/calculate', Date.now() - startTime, false, err.message);
       console.error('Melhor Envio API Error:', err);
       return [];
     }
