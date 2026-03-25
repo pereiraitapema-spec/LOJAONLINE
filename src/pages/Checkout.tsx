@@ -18,6 +18,7 @@ import { isValidDocument } from '../lib/validation';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { cepService } from '../services/cepService';
+import { paymentService } from '../services/paymentService';
 import { shippingService, ShippingPackage, ShippingQuote } from '../services/shippingService';
 import { leadService } from '../services/leadService';
 
@@ -653,15 +654,35 @@ export default function Checkout() {
         }
       }
 
-      // 3. Simulate Payment Gateway
-      const activeGateway = gateways.find(g => g.active) || { name: 'Simulado', provider: 'internal' };
-      
-      // In a real scenario, we would call our backend API here
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+      // 3. Process Payment Gateway
+      const activeGateway = gateways.find(g => g.active);
+      let paymentResponse: any = { success: true };
+
+      if (activeGateway && activeGateway.provider === 'pagarme') {
+        paymentResponse = await paymentService.processPagarmePayment({
+          items: cart.map(item => ({
+            price: item.product.discount_price || item.product.price,
+            product_name: item.product.name,
+            quantity: item.quantity,
+            product_id: item.product.id
+          })),
+          customer_name: customer.name,
+          customer_email: customer.email,
+          customer_document: customer.document,
+          payment_method: paymentMethod,
+          card_number: cardData.number.replace(/\D/g, ''),
+          card_name: cardData.name,
+          expiry: cardData.expiry,
+          cvv: cardData.cvv,
+          installments: cardData.installments
+        }, activeGateway.config);
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+      }
 
       // Determine initial status based on payment method
       // For simulation: Credit Card is paid immediately, others are pending
-      const initialStatus = paymentMethod === 'credit_card' ? 'paid' : 'pending';
+      const initialStatus = paymentResponse.success ? (paymentMethod === 'credit_card' ? 'paid' : 'pending') : 'failed';
 
       // Update order status
       await supabase
@@ -1151,13 +1172,21 @@ export default function Checkout() {
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="bg-blue-50 p-6 rounded-2xl border border-blue-100 text-center"
+                  className="bg-blue-50 p-6 rounded-2xl border border-blue-100 text-left"
                 >
                   <Landmark size={48} className="mx-auto text-blue-600 mb-4" />
-                  <h3 className="font-bold text-blue-800 mb-2">Transferência Bancária</h3>
-                  <p className="text-sm text-blue-600 mb-4">Os dados para transferência (TED/DOC) serão exibidos na próxima etapa.</p>
-                  <div className="inline-block bg-blue-200 text-blue-800 px-4 py-2 rounded-full text-sm font-bold">
-                    Aprovação em até 24h
+                  <h3 className="font-bold text-blue-800 mb-2 text-center">Dados para Transferência</h3>
+                  {settings?.payment_methods?.find((m: any) => m.type === 'bank') ? (
+                    <div className="text-sm text-blue-700 bg-white p-4 rounded-xl border border-blue-200 whitespace-pre-line">
+                      {settings.payment_methods.find((m: any) => m.type === 'bank').details || 'Dados bancários não configurados.'}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-blue-600 text-center">Dados bancários não configurados.</p>
+                  )}
+                  <div className="mt-4 text-center">
+                    <div className="inline-block bg-blue-200 text-blue-800 px-4 py-2 rounded-full text-sm font-bold">
+                      Aprovação em até 24h
+                    </div>
                   </div>
                 </motion.div>
               )}

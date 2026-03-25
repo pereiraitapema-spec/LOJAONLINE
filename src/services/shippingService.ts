@@ -87,6 +87,36 @@ export const shippingService = {
         }
       }
 
+      if (carrier.provider === 'cepcerto' && carrier.config?.api_key) {
+        try {
+          const response = await fetch('https://api.cepcerto.com.br/v1/shipping/calculate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${carrier.config.api_key}`
+            },
+            body: JSON.stringify({
+              from: originZip,
+              to: destZip,
+              packages: packages
+            })
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            return data.map((quote: any) => ({
+              id: quote.id.toString(),
+              name: quote.name,
+              price: parseFloat(quote.price),
+              deadline: quote.deadline,
+              provider: 'cepcerto'
+            }));
+          }
+        } catch (err) {
+          console.error('CepCerto API Error:', err);
+        }
+      }
+
       if (carrier.provider === 'test') {
         return [
           { id: 'test_standard', name: 'Entrega Padrão (Teste)', price: 10.00, deadline: '3 a 5 dias', provider: 'test' },
