@@ -33,6 +33,7 @@ interface StoreSettings {
   products_section_title?: string;
   products_section_subtitle?: string;
   tracking_pixels: { platform: string; pixel_id: string; active: boolean }[];
+  debug_mode: boolean;
   n8n_webhook_url?: string;
   origin_zip_code?: string;
   ai_chat_rules?: string;
@@ -253,6 +254,7 @@ export default function Settings() {
           products_section_title: data.products_section_title || 'Novidades da Estação',
           products_section_subtitle: data.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
           tracking_pixels: data.tracking_pixels || [],
+          debug_mode: data.debug_mode || false,
           n8n_webhook_url: data.n8n_webhook_url || '',
           origin_zip_code: data.origin_zip_code || '',
           ai_chat_rules: data.ai_chat_rules || '1. Use gatilhos mentais: Escassez ("Últimas unidades com desconto"), Urgência, Autoridade e Prova Social.\n2. Conhecimento do Site: Use o contexto abaixo para falar com propriedade sobre cada produto.\n3. Se o cliente demonstrar interesse em emagrecimento, sugira o combo mais vendido.\n4. Sempre termine com uma pergunta que incentive a continuação da conversa ou a compra.\n5. Use emojis moderadamente para parecer amigável, mas mantenha o profissionalismo.\n6. Se o cliente perguntar sobre frete, mencione que temos condições especiais para compras acima de R$ 200.',
@@ -301,6 +303,7 @@ export default function Settings() {
         products_section_title: settings.products_section_title,
         products_section_subtitle: settings.products_section_subtitle,
         tracking_pixels: settings.tracking_pixels,
+        debug_mode: settings.debug_mode,
         n8n_webhook_url: settings.n8n_webhook_url,
         origin_zip_code: settings.origin_zip_code,
         ai_chat_rules: settings.ai_chat_rules,
@@ -1563,6 +1566,17 @@ create policy "Enable delete for authenticated users only" on public.automations
                 >
                   <Plus size={20} /> Adicionar Pixel
                 </button>
+              </div>
+              <div className="flex items-center gap-2 mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <input 
+                  type="checkbox" 
+                  id="debug_mode"
+                  checked={settings.debug_mode}
+                  onChange={(e) => handleChange('debug_mode', e.target.checked)}
+                  className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <label htmlFor="debug_mode" className="font-bold text-slate-700 cursor-pointer">Modo de Teste (Debug)</label>
+                <p className="text-sm text-slate-500 ml-2 italic">- Loga eventos no console em vez de enviar para as plataformas.</p>
               </div>
 
               <div className="space-y-4">

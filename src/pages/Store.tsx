@@ -104,6 +104,7 @@ interface StoreSettings {
   products_section_title?: string;
   products_section_subtitle?: string;
   tracking_pixels?: { platform: string; pixel_id: string; active: boolean }[];
+  debug_mode?: boolean;
 }
 
 export default function Store() {
@@ -490,6 +491,10 @@ export default function Store() {
     if (settings?.tracking_pixels) {
       settings.tracking_pixels.forEach(pixel => {
         if (pixel.active && pixel.pixel_id) {
+          if (settings.debug_mode) {
+            console.log(`[DEBUG] Pixel ${pixel.platform} ativado com ID ${pixel.pixel_id}`);
+            return;
+          }
           const pixelKey = `pixel-${pixel.platform}-${pixel.pixel_id}`;
           if (document.getElementById(pixelKey)) return;
 

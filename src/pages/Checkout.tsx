@@ -446,6 +446,10 @@ export default function Checkout() {
     if (settings?.tracking_pixels) {
       settings.tracking_pixels.forEach((pixel: any) => {
         if (pixel.active && pixel.pixel_id) {
+          if (settings.debug_mode) {
+            console.log(`[DEBUG] Pixel ${pixel.platform} ativado com ID ${pixel.pixel_id}`);
+            return;
+          }
           const pixelKey = `pixel-${pixel.platform}-${pixel.pixel_id}`;
           if (document.getElementById(pixelKey)) return;
 
@@ -738,6 +742,10 @@ export default function Checkout() {
       if (settings?.tracking_pixels) {
         settings.tracking_pixels.forEach((pixel: any) => {
           if (pixel.active && pixel.pixel_id) {
+            if (settings.debug_mode) {
+              console.log(`[DEBUG] Evento de pixel ${pixel.platform} disparado para ID ${pixel.pixel_id}`);
+              return;
+            }
             if (pixel.platform === 'facebook' && (window as any).fbq) {
               (window as any).fbq('track', 'Purchase', {
                 value: finalTotal,
