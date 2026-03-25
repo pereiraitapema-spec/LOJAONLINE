@@ -137,7 +137,7 @@ export default function Success() {
                         34191.79001 01043.510047 91020.150008 1 954300000{Math.floor(order.total * 100)}
                       </p>
                       <button 
-                        onClick={() => window.open('https://www.google.com/search?q=gerar+boleto+pdf', '_blank')}
+                        onClick={() => order.payment_url ? window.open(order.payment_url, '_blank') : alert('Boleto não disponível ainda.')}
                         className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
                       >
                         <Download size={18} />

@@ -656,26 +656,30 @@ export default function Checkout() {
 
       // 3. Process Payment Gateway
       const activeGateway = gateways.find(g => g.active);
-      let paymentResponse: any = { success: true };
+      let paymentResponse: any = { success: true, payment_id: `sim_${activeGateway?.provider || 'internal'}_${Math.random().toString(36).substr(2, 9)}` };
 
       if (activeGateway && activeGateway.provider === 'pagarme') {
-        paymentResponse = await paymentService.processPagarmePayment({
-          items: cart.map(item => ({
-            price: item.product.discount_price || item.product.price,
-            product_name: item.product.name,
-            quantity: item.quantity,
-            product_id: item.product.id
-          })),
-          customer_name: customer.name,
-          customer_email: customer.email,
-          customer_document: customer.document,
-          payment_method: paymentMethod,
-          card_number: cardData.number.replace(/\D/g, ''),
-          card_name: cardData.name,
-          expiry: cardData.expiry,
-          cvv: cardData.cvv,
-          installments: cardData.installments
-        }, activeGateway.config);
+        try {
+          paymentResponse = await paymentService.processPagarmePayment({
+            items: cart.map(item => ({
+              price: item.product.discount_price || item.product.price,
+              product_name: item.product.name,
+              quantity: item.quantity,
+              product_id: item.product.id
+            })),
+            customer_name: customer.name,
+            customer_email: customer.email,
+            customer_document: customer.document,
+            payment_method: paymentMethod,
+            card_number: cardData.number.replace(/\D/g, ''),
+            card_name: cardData.name,
+            expiry: cardData.expiry,
+            cvv: cardData.cvv,
+            installments: cardData.installments
+          }, activeGateway.config);
+        } catch (err: any) {
+          paymentResponse = { success: false, error: err.message };
+        }
       } else {
         await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
       }
@@ -689,7 +693,8 @@ export default function Checkout() {
         .from('orders')
         .update({ 
           status: initialStatus, 
-          payment_id: `sim_${activeGateway.provider}_${Math.random().toString(36).substr(2, 9)}` 
+          payment_id: paymentResponse.id || paymentResponse.payment_id,
+          payment_url: paymentResponse.charges?.[0]?.last_transaction?.pdf || paymentResponse.charges?.[0]?.last_transaction?.url // Exemplo para boleto/pix
         })
         .eq('id', orderData.id);
 
