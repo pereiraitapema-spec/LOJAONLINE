@@ -1,8 +1,3 @@
-import React from 'react';
-import { orderService } from '../services/orderService';
-import { toast } from 'react-hot-toast';
-import { Play } from 'lucide-react';
-
 import React, { useState } from 'react';
 import { orderService } from '../services/orderService';
 import { toast } from 'react-hot-toast';
@@ -45,6 +40,7 @@ export const PurchaseSimulator = ({ userId }: { userId: string }) => {
               <CheckCircle size={48} className="text-emerald-500 mx-auto mb-4" />
               <p className="mb-6">Compra fictícia gerada com sucesso!</p>
               <button onClick={() => { setIsOpen(false); setSuccess(false); }} className="w-full bg-slate-600 text-white py-2 rounded-lg">Voltar</button>
+              <button onClick={() => window.location.href = '/'} className="w-full bg-slate-100 text-slate-700 py-2 rounded-lg mt-2">Voltar para a Loja</button>
             </div>
           ) : (
             <div className="space-y-4">

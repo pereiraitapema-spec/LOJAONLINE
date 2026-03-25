@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText, Share2, MessageSquare, Bot, Play } from 'lucide-react';
+import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText, Share2, MessageSquare, Bot, Play, ArrowLeft } from 'lucide-react';
 import SmartChat from '../components/SmartChat';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -176,6 +176,14 @@ export default function Dashboard() {
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
+          <button 
+            onClick={() => navigate('/')}
+            className="w-full flex items-center gap-3 px-4 py-3 text-indigo-600 hover:bg-indigo-50 rounded-xl font-bold transition-colors mb-4"
+          >
+            <ArrowLeft size={20} />
+            Voltar para a Loja
+          </button>
+          
           {/* ... (botões anteriores) ... */}
           <button 
             onClick={() => navigate('/checkout')}
