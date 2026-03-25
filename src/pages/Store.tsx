@@ -2401,7 +2401,7 @@ export default function Store() {
             {/* Formas de Pagamento e Segurança */}
             <div>
               <h4 className="font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm">Formas de Pagamento</h4>
-              <div className="flex flex-wrap gap-2 mb-8">
+              <div className="grid grid-cols-2 gap-2 mb-8">
                 <div className="h-10 px-3 bg-slate-50 rounded border border-slate-200 flex items-center justify-center gap-2 text-xs font-bold text-slate-600 uppercase">
                   <QrCode size={16} /> PIX
                 </div>
@@ -2417,7 +2417,7 @@ export default function Store() {
               </div>
 
               <h4 className="font-bold text-slate-900 mb-6 uppercase tracking-wider text-sm">Formas de Envio</h4>
-              <div className="flex flex-wrap gap-2 mb-8">
+              <div className="grid grid-cols-1 gap-2 mb-8">
                 <div className="h-10 px-3 bg-slate-50 rounded border border-slate-200 flex items-center justify-center gap-2 text-xs font-bold text-slate-600 uppercase">
                   <Truck size={16} /> Correios
                 </div>

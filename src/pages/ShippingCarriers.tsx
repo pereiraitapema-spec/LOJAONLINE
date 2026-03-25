@@ -106,6 +106,20 @@ export default function ShippingCarriers() {
     }
   };
 
+  const deleteCarrier = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('shipping_carriers')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      toast.success('Transportadora excluída!');
+      fetchCarriers();
+    } catch (error: any) {
+      toast.error('Erro ao excluir: ' + error.message);
+    }
+  };
+
   if (loading) return <Loading message="Carregando transportadoras..." />;
 
   return (
@@ -176,12 +190,24 @@ export default function ShippingCarriers() {
                   <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600">
                     <Truck size={24} />
                   </div>
-                  <button 
-                    onClick={() => toggleStatus(carrier)}
-                    className={`transition-colors ${carrier.active ? 'text-emerald-500' : 'text-slate-300'}`}
-                  >
-                    {carrier.active ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        if (window.confirm('Tem certeza que deseja excluir esta transportadora?')) {
+                          deleteCarrier(carrier.id);
+                        }
+                      }}
+                      className="text-slate-400 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                    <button 
+                      onClick={() => toggleStatus(carrier)}
+                      className={`transition-colors ${carrier.active ? 'text-emerald-500' : 'text-slate-300'}`}
+                    >
+                      {carrier.active ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                    </button>
+                  </div>
                 </div>
                 
                 <h3 className="text-xl font-bold text-slate-900 mb-1">{carrier.name}</h3>

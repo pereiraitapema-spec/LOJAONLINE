@@ -980,7 +980,7 @@ export default function Checkout() {
                         {selectedShipping === index && <div className="w-2 h-2 bg-white rounded-full" />}
                       </div>
                       <div className="text-left">
-                        <p className="font-bold text-slate-900">{method.name}</p>
+                        <p className="font-bold text-slate-900">{method.name} <span className="text-xs text-slate-400 font-normal">({method.carrierName})</span></p>
                         <p className="text-xs text-slate-500">{method.deadline}</p>
                       </div>
                     </div>

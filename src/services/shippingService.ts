@@ -43,7 +43,8 @@ const melhorenvioProvider: ShippingProvider = {
             name: quote.name,
             price: parseFloat(quote.price),
             deadline: `${quote.delivery_range.min} a ${quote.delivery_range.max} dias úteis`,
-            provider: 'melhorenvio'
+            provider: 'melhorenvio',
+            carrierName: config.carrier_name || 'Melhor Envio'
           }));
       }
       await logApiCall('melhorenvio', '/shipment/calculate', duration, false, `Status: ${response.status}`);
@@ -94,6 +95,7 @@ export const shippingService = {
 
       return provider.calculateShipping(destZipCode, packages, {
         ...carrier.config,
+        carrier_name: carrier.name,
         origin_zip: settings.origin_zip_code.replace(/\D/g, '')
       });
     } catch (error) {

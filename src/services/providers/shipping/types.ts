@@ -11,6 +11,7 @@ export interface ShippingQuote {
   price: number;
   deadline: string;
   provider: string;
+  carrierName: string;
 }
 
 export interface ShippingProvider {
