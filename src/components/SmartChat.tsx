@@ -32,6 +32,8 @@ export default function SmartChat() {
   const [agentPhoto, setAgentPhoto] = useState<string | null>(null);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevMessagesLengthRef = useRef<number>(0);
+  const prevIsOpenRef = useRef<boolean>(false);
 
   useEffect(() => {
     const fetchAgentData = async () => {
@@ -209,25 +211,30 @@ export default function SmartChat() {
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen && messagesEndRef.current) {
-      // Small delay to ensure DOM is ready
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-      }, 100);
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
     if (messagesEndRef.current) {
       const container = messagesEndRef.current.parentElement;
       if (container) {
+        const isNewOpen = isOpen && !prevIsOpenRef.current;
+        const isNewMessage = messages.length > prevMessagesLengthRef.current;
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-        if (isNearBottom || messages.length <= 1) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        
+        // Scroll to bottom if:
+        // 1. User just opened the chat
+        // 2. It's the first message
+        // 3. A new message arrived AND user is already near bottom
+        // 4. A new message arrived AND it was sent by the user
+        
+        const lastMessage = messages[messages.length - 1];
+        const sentByMe = lastMessage && lastMessage.role === 'user';
+
+        if (isNewOpen || messages.length <= 1 || (isNewMessage && (isNearBottom || sentByMe))) {
+          messagesEndRef.current.scrollIntoView({ behavior: isNewOpen ? 'auto' : 'smooth' });
         }
       }
     }
-  }, [messages]);
+    prevIsOpenRef.current = isOpen;
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages, isOpen]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;

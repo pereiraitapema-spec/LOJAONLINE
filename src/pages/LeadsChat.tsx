@@ -84,6 +84,8 @@ export default function LeadsChat() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteType, setDeleteType] = useState<'single' | 'bulk'>('single');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevSelectedGroupKeyRef = useRef<string | null>(null);
+  const prevMessagesLengthRef = useRef<number>(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   const selectedGroupRef = useRef<GroupedLead | undefined>(undefined);
@@ -199,13 +201,27 @@ export default function LeadsChat() {
     if (messagesEndRef.current) {
       const container = messagesEndRef.current.parentElement;
       if (container) {
+        const isNewLead = selectedGroupKey !== prevSelectedGroupKeyRef.current;
+        const isNewMessage = messages.length > prevMessagesLengthRef.current;
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-        if (isNearBottom || messages.length <= 1) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        
+        // Scroll to bottom if:
+        // 1. User just selected a new lead
+        // 2. It's the first message
+        // 3. A new message arrived AND user is already near bottom
+        // 4. A new message arrived AND it was sent by the current user (is_human is true and sender_id is currentUser.id)
+        
+        const lastMessage = messages[messages.length - 1];
+        const sentByMe = lastMessage && currentUser && lastMessage.sender_id === currentUser.id;
+
+        if (isNewLead || messages.length <= 1 || (isNewMessage && (isNearBottom || sentByMe))) {
+          messagesEndRef.current.scrollIntoView({ behavior: isNewLead ? 'auto' : 'smooth' });
         }
       }
     }
-  }, [messages]);
+    prevSelectedGroupKeyRef.current = selectedGroupKey;
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages, selectedGroupKey, currentUser]);
 
   const getCurrentUser = async () => {
     try {
