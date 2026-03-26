@@ -8,7 +8,8 @@ import {
   Volume2, VolumeX, Image as ImageIcon, X, Search, Menu, 
   Heart, Truck, CreditCard, Phone, Instagram, Facebook, Twitter, Youtube, Linkedin,
   Star, Zap, Leaf, Droplets, Activity, Flame, Megaphone,
-  QrCode, Barcode, Landmark, Package, DollarSign, Tag, BarChart, Users, Copy, Link as LinkIcon
+  QrCode, Barcode, Landmark, Package, DollarSign, Tag, BarChart, Users, Copy, Link as LinkIcon,
+  MapPin
 } from 'lucide-react';
 import { Loading } from '../components/Loading';
 import SmartChat from '../components/SmartChat';
@@ -170,6 +171,22 @@ export default function Store() {
   }, [currentBannerIndex, banners, isMuted]);
   const lastCalculatedCep = React.useRef<string>('');
 
+  useEffect(() => {
+    const savedCep = localStorage.getItem('last_cep');
+    const savedCity = localStorage.getItem('last_city');
+    const savedQuote = localStorage.getItem('last_shipping_quote');
+    
+    if (savedCep) setCep(savedCep);
+    if (savedCity) setCity(savedCity);
+    if (savedQuote) {
+      try {
+        setSelectedShippingQuote(JSON.parse(savedQuote));
+      } catch (e) {
+        console.error('Error parsing saved shipping quote:', e);
+      }
+    }
+  }, []);
+
   const handleCalculateShipping = async () => {
     const cleanCep = cep.replace(/\D/g, '');
     if (cleanCep.length !== 8) {
@@ -199,7 +216,9 @@ export default function Store() {
         }));
 
         let allQuotes: any[] = [];
-        for (const carrier of carriers) {
+        const activeCarriers = carriers.length > 0 ? carriers : (await supabase.from('shipping_carriers').select('*').eq('active', true)).data || [];
+        
+        for (const carrier of activeCarriers) {
           if (!carrier.active) continue;
           console.log(`Calculando frete para ${carrier.name}...`);
           const quotes = await shippingService.calculateShipping(cleanCep, packages, carrier.id);
@@ -209,16 +228,20 @@ export default function Store() {
         console.log('Total de cotações recebidas:', allQuotes.length);
         setShippingQuotes(allQuotes);
         
-        // Salvar CEP para o checkout
+        // Salvar CEP e Cidade para o checkout
         localStorage.setItem('last_cep', cleanCep);
+        localStorage.setItem('last_city', address.city);
+        localStorage.setItem('last_state', address.state);
         
         // Selecionar automaticamente a opção mais barata se houver
         if (allQuotes.length > 0) {
           const cheapest = [...allQuotes].sort((a, b) => a.price - b.price)[0];
           setSelectedShippingQuote(cheapest);
+          localStorage.setItem('last_shipping_quote', JSON.stringify(cheapest));
           toast.success('Frete calculado!');
         } else {
           setSelectedShippingQuote(null);
+          localStorage.removeItem('last_shipping_quote');
           toast.error('Nenhuma opção de frete disponível para este CEP.');
         }
       } else {
@@ -2194,6 +2217,35 @@ export default function Store() {
 
               {cart.length > 0 && (
                 <div className="p-8 bg-slate-50 border-t border-slate-100">
+                  {/* Cálculo de Frete no Carrinho */}
+                  <div className="mb-6 p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Truck size={16} className="text-indigo-600" />
+                      <span className="text-xs font-black uppercase tracking-widest text-slate-900">Calcular Frete</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        placeholder="Seu CEP"
+                        value={cep}
+                        onChange={(e) => setCep(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                        className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      />
+                      <button 
+                        onClick={handleCalculateShipping}
+                        disabled={calculatingShipping}
+                        className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-slate-800 transition-all disabled:opacity-50"
+                      >
+                        {calculatingShipping ? '...' : 'OK'}
+                      </button>
+                    </div>
+                    {city && (
+                      <p className="text-[10px] font-bold text-emerald-600 mt-2 uppercase tracking-widest flex items-center gap-1">
+                        <MapPin size={10} /> {city}
+                      </p>
+                    )}
+                  </div>
+
                   <div className="flex flex-col mb-6">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-slate-500 font-bold">Subtotal</span>

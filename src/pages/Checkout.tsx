@@ -227,9 +227,17 @@ export default function Checkout() {
   // Carregar CEP salvo do Store
   useEffect(() => {
     const savedCep = localStorage.getItem('last_cep');
+    const savedCity = localStorage.getItem('last_city');
+    const savedState = localStorage.getItem('last_state');
+    
     if (savedCep && savedCep.length === 8 && !shipping.cep) {
       console.log('📦 Carregando CEP salvo do Store:', savedCep);
-      setShipping(prev => ({ ...prev, cep: savedCep }));
+      setShipping(prev => ({ 
+        ...prev, 
+        cep: savedCep,
+        city: savedCity || prev.city,
+        state: savedState || prev.state
+      }));
       handleCep(savedCep);
     }
   }, []);
@@ -490,8 +498,8 @@ export default function Checkout() {
         console.log('✅ Endereço encontrado:', address);
         setShipping(prev => ({
           ...prev,
-          street: address.street || prev.street,
-          neighborhood: address.neighborhood || prev.neighborhood,
+          street: address.street || '',
+          neighborhood: address.neighborhood || '',
           city: address.city,
           state: address.state
         }));

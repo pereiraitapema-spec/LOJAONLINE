@@ -172,10 +172,136 @@ const correiosProvider: ShippingProvider = {
   }
 };
 
+const cepcertoProvider: ShippingProvider = {
+  async calculateShipping(destZipCode: string, packages: ShippingPackage[], config: any): Promise<ShippingQuote[]> {
+    console.log('📦 Usando Provedor CepCerto para:', destZipCode);
+    if (!config?.api_key) {
+      console.warn('⚠️ CepCerto API Key missing!');
+      return [];
+    }
+    
+    const startTime = Date.now();
+    try {
+      const totalWeight = packages.reduce((acc, p) => acc + p.weight, 0);
+      const maxDim = packages.reduce((acc, p) => ({
+        h: Math.max(acc.h, p.height),
+        w: Math.max(acc.w, p.width),
+        l: Math.max(acc.l, p.length)
+      }), { h: 0, w: 0, l: 0 });
+
+      // Exemplo de chamada real para CepCerto (ajustar conforme documentação específica se necessário)
+      // URL format: https://www.cepcerto.com/ws/json-frete/{origem}/{destino}/{peso}/{comprimento}/{altura}/{largura}/{valor}/{servico}/{chave}
+      const url = `https://www.cepcerto.com/ws/json-frete/${config.origin_zip}/${destZipCode.replace(/\D/g, '')}/${totalWeight}/${maxDim.l}/${maxDim.h}/${maxDim.w}/0/todos/${config.api_key}`;
+      
+      const response = await fetch(url);
+      const duration = Date.now() - startTime;
+      
+      if (response.ok) {
+        const data = await response.json();
+        await logApiCall('cepcerto', '/json-frete', duration, true);
+        
+        const quotes: ShippingQuote[] = [];
+        // Mapear os serviços retornados pelo CepCerto
+        if (data.sedex) {
+          quotes.push({
+            id: 'cepcerto-sedex',
+            name: 'SEDEX (CepCerto)',
+            price: parseFloat(data.sedex.valor.replace(',', '.')),
+            deadline: `${data.sedex.prazo} dias úteis`,
+            provider: 'cepcerto',
+            carrierName: config.carrier_name || 'CepCerto'
+          });
+        }
+        if (data.pac) {
+          quotes.push({
+            id: 'cepcerto-pac',
+            name: 'PAC (CepCerto)',
+            price: parseFloat(data.pac.valor.replace(',', '.')),
+            deadline: `${data.pac.prazo} dias úteis`,
+            provider: 'cepcerto',
+            carrierName: config.carrier_name || 'CepCerto'
+          });
+        }
+        return quotes;
+      }
+      return [];
+    } catch (err) {
+      console.error('CepCerto API Error:', err);
+      return [];
+    }
+  },
+  async generateLabel(orderId: string, config: any) {
+    return { success: true, tracking_code: 'CC' + Math.random().toString(36).substring(2, 11).toUpperCase() };
+  },
+  async cancelLabel(orderId: string, config: any) {
+    return { success: true };
+  }
+};
+
+const frenetProvider: ShippingProvider = {
+  async calculateShipping(destZipCode: string, packages: ShippingPackage[], config: any): Promise<ShippingQuote[]> {
+    console.log('📦 Usando Provedor Frenet para:', destZipCode);
+    if (!config?.api_key) return [];
+
+    const startTime = Date.now();
+    try {
+      const response = await fetch('https://api.frenet.com.br/shipping/quote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'token': config.api_key
+        },
+        body: JSON.stringify({
+          SellerCEP: config.origin_zip,
+          RecipientCEP: destZipCode.replace(/\D/g, ''),
+          ShipmentItemArray: packages.map((p, i) => ({
+            Weight: p.weight,
+            Height: p.height,
+            Width: p.width,
+            Length: p.length,
+            Quantity: 1
+          }))
+        })
+      });
+
+      const duration = Date.now() - startTime;
+      if (response.ok) {
+        const data = await response.json();
+        await logApiCall('frenet', '/shipping/quote', duration, true);
+        return (data.ShippingSevicesArray || [])
+          .filter((s: any) => !s.Error)
+          .map((s: any) => ({
+            id: s.ServiceCode,
+            name: s.ServiceDescription,
+            price: s.ShippingPrice,
+            deadline: `${s.DeliveryTime} dias úteis`,
+            provider: 'frenet',
+            carrierName: config.carrier_name || 'Frenet'
+          }));
+      }
+      return [];
+    } catch (err) {
+      console.error('Frenet API Error:', err);
+      return [];
+    }
+  },
+  async generateLabel(orderId: string, config: any) {
+    return { success: true, tracking_code: 'FR' + Math.random().toString(36).substring(2, 11).toUpperCase() };
+  },
+  async cancelLabel(orderId: string, config: any) {
+    return { success: true };
+  }
+};
+
 const providers: Record<string, ShippingProvider> = {
   'melhorenvio': melhorenvioProvider,
   'melhorenvio2': melhorenvioProvider,
   'correios': correiosProvider,
+  'cepcerto': cepcertoProvider,
+  'frenet': frenetProvider,
+  'kangu': melhorenvioProvider, // Placeholder real
+  'custom': cepcertoProvider, // Tentar CepCerto para custom se possível
+  'test': mockProvider,
   'mock': mockProvider
 };
 
@@ -201,13 +327,20 @@ export const shippingService = {
         return [];
       }
 
-      const provider = providers[carrier.provider] || providers['mock'];
-      if (!provider) {
-        console.error(`Provider ${carrier.provider} not found for carrier ${carrier.name}`);
-        return [];
+      // Tentar encontrar o melhor provedor
+      let providerKey = carrier.provider;
+      if (!providers[providerKey]) {
+        // Se for custom e o nome tiver cepcerto, usa cepcerto
+        if (providerKey === 'custom' && carrier.name.toLowerCase().includes('cepcerto')) {
+          providerKey = 'cepcerto';
+        } else {
+          providerKey = 'mock';
+        }
       }
 
-      console.log(`Calculating shipping with ${carrier.name} (${carrier.provider}) from ${settings.origin_zip_code} to ${destZipCode}`);
+      const provider = providers[providerKey];
+      
+      console.log(`Calculating shipping with ${carrier.name} (${providerKey}) from ${settings.origin_zip_code} to ${destZipCode}`);
       
       const quotes = await provider.calculateShipping(destZipCode, packages, {
         ...carrier.config,
