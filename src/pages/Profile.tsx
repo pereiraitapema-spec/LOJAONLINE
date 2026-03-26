@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { User, Camera, Save, ArrowLeft, Shield } from 'lucide-react';
+import { User, Camera, Save, ArrowLeft, Shield, LayoutDashboard } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 
@@ -111,11 +111,11 @@ export default function Profile() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
         <button 
-          onClick={() => navigate(-1)}
+          onClick={() => profile.role === 'admin' ? navigate('/dashboard') : navigate('/')}
           className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 mb-8 transition-colors"
         >
           <ArrowLeft size={20} />
-          Voltar
+          Voltar para {profile.role === 'admin' ? 'Painel' : 'Loja'}
         </button>
 
         <motion.div 
@@ -159,10 +159,21 @@ export default function Profile() {
               <h1 className="text-2xl font-bold text-slate-900">{profile.full_name || 'Seu Nome'}</h1>
               <p className="text-slate-500">{user?.email}</p>
               {profile.role === 'admin' && (
-                <div className="mt-2 inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold uppercase tracking-wider">
-                  <Shield size={12} />
-                  Administrador
-                </div>
+                <>
+                  <div className="mt-2 inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold uppercase tracking-wider">
+                    <Shield size={12} />
+                    Administrador
+                  </div>
+                  <div className="mt-6">
+                    <button
+                      onClick={() => navigate('/dashboard')}
+                      className="w-full bg-amber-500 text-white py-4 rounded-2xl font-bold hover:bg-amber-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-100"
+                    >
+                      <LayoutDashboard size={20} />
+                      Acessar Painel Administrativo
+                    </button>
+                  </div>
+                </>
               )}
             </div>
 

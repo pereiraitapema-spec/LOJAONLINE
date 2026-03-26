@@ -214,8 +214,8 @@ function AppContent() {
         }
 
         const path = window.location.pathname;
-        // Se estivermos em páginas de auth ou na home, decidir para onde ir
-        if (path === '/login' || path === '/register' || path === '/' || path === '/callback.html') {
+        // Se estivermos em páginas de auth ou na home/profile, decidir para onde ir
+        if (path === '/login' || path === '/register' || path === '/' || path === '/callback.html' || path === '/profile') {
           await handleRoleRedirect(session);
         }
       }
@@ -287,7 +287,7 @@ function AppContent() {
 
         setUserRole('admin');
 
-        if (path === '/login' || path === '/register') {
+        if (path === '/login' || path === '/register' || path === '/profile') {
           console.log('🚀 Redirecionando Admin Master para /dashboard');
           navigate('/dashboard');
         }
@@ -363,7 +363,7 @@ function AppContent() {
       // 4. Verificar se é Admin secundário
       if (profile?.role === 'admin') {
         console.log('🛠️ Admin secundário detectado');
-        if (path === '/login' || path === '/register') {
+        if (path === '/login' || path === '/register' || path === '/profile') {
           console.log('🚀 Redirecionando Admin secundário para /dashboard');
           navigate('/dashboard');
         }
