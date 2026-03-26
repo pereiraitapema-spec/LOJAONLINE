@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { 
-  ArrowLeft, DollarSign, CreditCard, Package, Printer, Search, Calendar, FileText, Truck
+  ArrowLeft, DollarSign, CreditCard, Package, Printer, Search, Calendar, FileText, Truck, MapPin, CheckCircle, Clock
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';

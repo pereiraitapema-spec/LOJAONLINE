@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { 
   LogOut, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, 
-  ShoppingBag, Megaphone, Users, Plus, Edit2, Trash2, Save, X, Truck, ToggleLeft, ToggleRight, MapPin, Bell, CreditCard, Zap
+  ShoppingBag, Megaphone, Users, Plus, Edit2, Trash2, Save, X, Truck, ToggleLeft, ToggleRight, MapPin, Bell, CreditCard, Zap,
+  Globe, Search, ChevronRight, Check
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
