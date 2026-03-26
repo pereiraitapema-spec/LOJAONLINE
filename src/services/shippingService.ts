@@ -190,7 +190,8 @@ const cepcertoProvider: ShippingProvider = {
       }), { h: 2, w: 11, l: 16 });
 
       // URL format: https://www.cepcerto.com/ws/json-frete/{origem}/{destino}/{peso_gramas}/{altura}/{largura}/{comprimento}/{chave}
-      const baseUrl = `https://www.cepcerto.com/ws/json-frete/${config.origin_zip}/${destZipCode.replace(/\D/g, '')}/${totalWeightInGrams}/${maxDim.h}/${maxDim.w}/${maxDim.l}/${config.api_key}`;
+      // Note: The documentation says "peso_gramas" but some examples use kg. Let's ensure we send grams as integer.
+      const baseUrl = `https://www.cepcerto.com/ws/json-frete/${config.origin_zip.replace(/\D/g, '')}/${destZipCode.replace(/\D/g, '')}/${totalWeightInGrams}/${maxDim.h}/${maxDim.w}/${maxDim.l}/${config.api_key}`;
       
       console.log('🔗 URL CepCerto:', baseUrl);
       const response = await fetch(baseUrl);
