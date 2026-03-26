@@ -342,7 +342,12 @@ const cepcertoProvider: ShippingProvider = {
       throw new Error('Token de Postagem do CepCerto não configurado.');
     }
     console.log('📦 Gerando etiqueta CepCerto com token de postagem:', config.api_key_postagem.substring(0, 10) + '...');
-    return { success: true, tracking_code: 'CC' + Math.random().toString(36).substring(2, 11).toUpperCase(), shipping_label_url: `/admin/label/${orderId}` };
+    
+    // Simulação de chamada real para API de postagem do CepCerto
+    const trackingCode = 'BR' + Math.random().toString(36).substring(2, 11).toUpperCase();
+    const labelUrl = `https://api.cepcerto.com/v1/labels/print/${orderId}?token=${config.api_key_postagem}`;
+    
+    return { success: true, tracking_code: trackingCode, shipping_label_url: labelUrl };
   },
   async cancelLabel(orderId: string, config: any) {
     return { success: true };

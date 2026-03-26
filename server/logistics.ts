@@ -160,9 +160,15 @@ export const logisticsService = {
 
       if (!order) throw new Error('Pedido não encontrado');
 
-      // Configuração do provedor de NFe (Pode vir do banco de dados no futuro)
-      // Opções: 'focusnfe', 'webmania', 'bling', 'manual'
-      const nfeProvider = process.env.NFE_PROVIDER || 'manual';
+      // Busca configurações de NFe do banco de dados
+      const { data: settings } = await supabaseAdmin
+        .from('store_settings')
+        .select('nfe_provider, nfe_token, nfe_company_id')
+        .single();
+
+      const nfeProvider = settings?.nfe_provider || process.env.NFE_PROVIDER || 'manual';
+      const nfeToken = settings?.nfe_token || process.env.FOCUS_NFE_TOKEN;
+      const nfeCompanyId = settings?.nfe_company_id;
 
       let invoiceNumber = '';
       let invoiceUrl = '';
@@ -170,6 +176,12 @@ export const logisticsService = {
       switch (nfeProvider) {
         case 'focusnfe':
           console.log('Emitindo NFe via Focus NFe...');
+          if (!nfeToken) {
+            console.warn('⚠️ Token da Focus NFe não configurado. Usando modo manual como fallback.');
+            invoiceNumber = `NF-MANUAL-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
+            invoiceUrl = `/api/logistics/invoice-data/${orderId}`;
+            break;
+          }
           // Lógica real da Focus NFe aqui
           // const focusResponse = await fetch('https://api.focusnfe.com.br/...');
           invoiceNumber = `FOCUS-${Math.floor(Math.random() * 1000000)}`;
@@ -178,6 +190,12 @@ export const logisticsService = {
 
         case 'webmania':
           console.log('Emitindo NFe via WebManiaBR...');
+          if (!nfeToken) {
+            console.warn('⚠️ Token da WebManiaBR não configurado. Usando modo manual como fallback.');
+            invoiceNumber = `NF-MANUAL-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
+            invoiceUrl = `/api/logistics/invoice-data/${orderId}`;
+            break;
+          }
           // Lógica real da WebManiaBR aqui
           // const webmaniaResponse = await fetch('https://webmaniabr.com/api/...');
           invoiceNumber = `WEBMANIA-${Math.floor(Math.random() * 1000000)}`;
@@ -186,6 +204,12 @@ export const logisticsService = {
 
         case 'bling':
           console.log('Emitindo NFe via Bling ERP...');
+          if (!nfeToken) {
+            console.warn('⚠️ Token do Bling não configurado. Usando modo manual como fallback.');
+            invoiceNumber = `NF-MANUAL-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
+            invoiceUrl = `/api/logistics/invoice-data/${orderId}`;
+            break;
+          }
           // Lógica real do Bling aqui
           // const blingResponse = await fetch('https://bling.com.br/Api/v2/notafiscal/...');
           invoiceNumber = `BLING-${Math.floor(Math.random() * 1000000)}`;

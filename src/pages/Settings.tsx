@@ -39,6 +39,9 @@ interface StoreSettings {
   ai_chat_rules?: string;
   ai_chat_triggers?: string;
   ai_auto_learning?: boolean;
+  nfe_provider?: string;
+  nfe_token?: string;
+  nfe_company_id?: string;
 }
 
 export default function Settings() {
@@ -258,7 +261,10 @@ export default function Settings() {
           n8n_webhook_url: data.n8n_webhook_url || '',
           origin_zip_code: data.origin_zip_code || '',
           ai_chat_rules: data.ai_chat_rules || '1. Use gatilhos mentais: Escassez ("Últimas unidades com desconto"), Urgência, Autoridade e Prova Social.\n2. Conhecimento do Site: Use o contexto abaixo para falar com propriedade sobre cada produto.\n3. Se o cliente demonstrar interesse em emagrecimento, sugira o combo mais vendido.\n4. Sempre termine com uma pergunta que incentive a continuação da conversa ou a compra.\n5. Use emojis moderadamente para parecer amigável, mas mantenha o profissionalismo.\n6. Se o cliente perguntar sobre frete, mencione que temos condições especiais para compras acima de R$ 200.',
-          ai_chat_triggers: data.ai_chat_triggers || 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?'
+          ai_chat_triggers: data.ai_chat_triggers || 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?',
+          nfe_provider: data.nfe_provider || 'manual',
+          nfe_token: data.nfe_token || '',
+          nfe_company_id: data.nfe_company_id || ''
         });
       }
     } catch (error: any) {
@@ -308,7 +314,10 @@ export default function Settings() {
         origin_zip_code: settings.origin_zip_code,
         ai_chat_rules: settings.ai_chat_rules,
         ai_chat_triggers: settings.ai_chat_triggers,
-        ai_auto_learning: settings.ai_auto_learning
+        ai_auto_learning: settings.ai_auto_learning,
+        nfe_provider: settings.nfe_provider,
+        nfe_token: settings.nfe_token,
+        nfe_company_id: settings.nfe_company_id
       };
 
       console.log('Salvando configurações:', payload);
@@ -1095,6 +1104,17 @@ begin
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
         alter table public.store_settings add column ai_chat_triggers text;
     end if;
+
+    -- Configurações de NFe
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_provider') then
+        alter table public.store_settings add column nfe_provider text default 'manual';
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_token') then
+        alter table public.store_settings add column nfe_token text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_company_id') then
+        alter table public.store_settings add column nfe_company_id text;
+    end if;
 end $$;
 
 -- 8. Tabela de Automações (n8n-like)
@@ -1133,6 +1153,7 @@ create policy "Enable delete for authenticated users only" on public.automations
           { id: 'institutional', label: 'Termos & Conteúdo', icon: FileText },
           { id: 'payments', label: 'Pagamentos', icon: CreditCard },
           { id: 'shipping', label: 'Frete', icon: Truck },
+          { id: 'billing', label: 'Faturamento (NFe)', icon: FileText },
           { id: 'hours', label: 'Horários', icon: Clock },
           { id: 'visual', label: 'Conteúdo Visual', icon: ImageIcon },
           { id: 'ai_chat', label: 'Chat Inteligente', icon: Sparkles },
@@ -1558,6 +1579,64 @@ create policy "Enable delete for authenticated users only" on public.automations
           </>
         )}
 
+        {activeTab === 'billing' && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+            <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+              <div className="mb-6">
+                <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
+                  <FileText className="text-indigo-600" />
+                  Faturamento e Nota Fiscal
+                </h2>
+                <p className="text-slate-500">Configure a emissão de Notas Fiscais Eletrônicas (NFe).</p>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Provedor de NFe</label>
+                  <select
+                    value={settings.nfe_provider || 'manual'}
+                    onChange={(e) => handleChange('nfe_provider', e.target.value)}
+                    className="w-full p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-medium"
+                  >
+                    <option value="manual">Emissão Manual (Gera arquivo de dados)</option>
+                    <option value="focusnfe">Focus NFe</option>
+                    <option value="webmania">WebManiaBR</option>
+                    <option value="bling">Bling ERP</option>
+                  </select>
+                  <p className="text-xs text-slate-500 mt-2">
+                    A opção "Manual" gera um arquivo com os dados do pedido para você preencher a NF no site da SEFAZ ou outro sistema.
+                  </p>
+                </div>
+
+                {settings.nfe_provider !== 'manual' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Token de Acesso (API Key)</label>
+                      <input
+                        type="password"
+                        value={settings.nfe_token || ''}
+                        onChange={(e) => handleChange('nfe_token', e.target.value)}
+                        className="w-full p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 bg-slate-50"
+                        placeholder="Insira o token fornecido pelo sistema de NFe"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">ID da Empresa / CNPJ</label>
+                      <input
+                        type="text"
+                        value={settings.nfe_company_id || ''}
+                        onChange={(e) => handleChange('nfe_company_id', e.target.value)}
+                        className="w-full p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 bg-slate-50"
+                        placeholder="ID da empresa no sistema ou CNPJ"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </section>
+          </motion.div>
+        )}
+
         {activeTab === 'marketing' && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
             <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
@@ -1701,9 +1780,11 @@ create policy "Enable delete for authenticated users only" on public.automations
         )}
 
         {activeTab === 'payments' && (
-          <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <h2 className="text-xl font-bold text-slate-900 mb-4">Formas de Pagamento</h2>
-            <div className="space-y-4">
+          <div className="space-y-6">
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h2 className="text-xl font-bold text-slate-900 mb-4">Formas de Pagamento (Exibição)</h2>
+              <p className="text-xs text-slate-500 mb-4">Estas opções são exibidas no rodapé e em outras áreas da loja para informar os clientes sobre os métodos aceitos.</p>
+              <div className="space-y-4">
               {settings.payment_methods.map((method, index) => (
                 <div key={index} className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
                   <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1782,7 +1863,8 @@ create policy "Enable delete for authenticated users only" on public.automations
                 <Plus size={20} /> Adicionar Forma de Pagamento
               </button>
             </div>
-          </section>
+            </section>
+          </div>
         )}
 
         {activeTab === 'shipping' && (

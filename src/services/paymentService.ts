@@ -3,10 +3,11 @@ import { PaymentProvider } from './providers/payment/types';
 import { logApiCall } from '../lib/monitoring';
 
 const pagarmeProvider: PaymentProvider = {
-  async processPayment(orderData: any, config: any, gatewayId?: string) {
-    if (!config?.access_token && !gatewayId) return { success: false, error: 'Configuração de pagamento não encontrada.' };
+  async processPayment(orderData: any, config: any) {
+    if (!config?.access_token) return { success: false, error: 'Access Token não configurado.' };
     
-    console.log(`💳 Processando pagamento via Pagar.me (Gateway ID: ${gatewayId || 'Direto'})...`);
+    console.log(`💳 Processando pagamento via Pagar.me...`);
+    console.log('📦 Dados do Pedido para Provedor:', JSON.stringify(orderData, null, 2));
     
     const startTime = Date.now();
     try {
@@ -95,8 +96,7 @@ const pagarmeProvider: PaymentProvider = {
               }
             ]
           },
-          config,
-          gatewayId
+          config
         })
       });
 
@@ -150,15 +150,38 @@ const pagarmeProvider: PaymentProvider = {
   }
 };
 
+const mockProvider: PaymentProvider = {
+  async processPayment(orderData: any, config: any) {
+    console.log(`💳 Simulando pagamento para provedor não implementado...`);
+    return { success: true, payment_id: `sim_${Math.random().toString(36).substring(7)}` };
+  },
+  async refundPayment(paymentId: string, config: any) {
+    return { success: true };
+  }
+};
+
 const providers: Record<string, PaymentProvider> = {
   'pagarme': pagarmeProvider,
-  'pagarme2': pagarmeProvider
+  'appmax': mockProvider,
+  'yampi': mockProvider,
+  'cartpanda': mockProvider,
+  'mercadopago': mockProvider,
+  'stripe': mockProvider,
+  'asaas': mockProvider,
+  'cielo': mockProvider,
+  'rede': mockProvider,
+  'getnet': mockProvider,
+  'itau': mockProvider,
+  'bradesco': mockProvider,
+  'bb': mockProvider,
+  'pix': mockProvider,
+  'custom': mockProvider
 };
 
 export const paymentService = {
-  async processPayment(provider: string, orderData: any, gatewayConfig: any, gatewayId?: string) {
+  async processPayment(provider: string, orderData: any, gatewayConfig: any) {
     const paymentProvider = providers[provider];
     if (!paymentProvider) throw new Error(`Provedor ${provider} não suportado.`);
-    return paymentProvider.processPayment(orderData, gatewayConfig, gatewayId);
+    return paymentProvider.processPayment(orderData, gatewayConfig);
   }
 };

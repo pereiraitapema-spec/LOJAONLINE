@@ -274,9 +274,12 @@ export default function PaymentGateways() {
                   className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
                 >
                   <option value="">Selecione um provedor</option>
+                  <option value="pagarme">Pagar.me</option>
+                  <option value="appmax">Appmax</option>
+                  <option value="yampi">Yampi</option>
+                  <option value="cartpanda">Cartpanda</option>
                   <option value="mercadopago">Mercado Pago</option>
                   <option value="stripe">Stripe</option>
-                  <option value="pagarme">Pagar.me</option>
                   <option value="asaas">Asaas</option>
                   <option value="cielo">Cielo</option>
                   <option value="rede">Rede</option>
