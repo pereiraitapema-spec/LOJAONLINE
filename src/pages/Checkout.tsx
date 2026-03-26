@@ -434,6 +434,54 @@ export default function Checkout() {
     }
   };
 
+  const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 8);
+    setShipping(prev => ({ ...prev, cep: value }));
+
+    if (value.length === 8) {
+      setCalculatingShipping(true);
+      try {
+        const address = await cepService.fetchAddress(value);
+        if (address && address.city) {
+          setShipping(prev => ({
+            ...prev,
+            street: address.street || prev.street,
+            neighborhood: address.neighborhood || prev.neighborhood,
+            city: address.city,
+            state: address.state
+          }));
+          toast.success(`Endereço encontrado: ${address.city} - ${address.state}`);
+
+          // Calculate shipping automatically
+          const packages: ShippingPackage[] = cart.map(item => ({
+            weight: (item.product as any).weight || 0.5,
+            height: (item.product as any).height || 10,
+            width: (item.product as any).width || 10,
+            length: (item.product as any).length || 10
+          }));
+
+          let allQuotes: ShippingQuote[] = [];
+          for (const carrier of carriers) {
+            if (!carrier.active) continue;
+            const quotes = await shippingService.calculateShipping(value, packages, carrier.id);
+            allQuotes = [...allQuotes, ...quotes];
+          }
+          
+          if (allQuotes.length > 0) {
+            setShippingMethods(allQuotes);
+            setSelectedShipping(0);
+          } else {
+            toast.error('Nenhuma opção de frete disponível para este CEP.');
+          }
+        }
+      } catch (error) {
+        console.error('Error calculating shipping on change:', error);
+      } finally {
+        setCalculatingShipping(false);
+      }
+    }
+  };
+
   const handleCepBlur = async () => {
     const cep = shipping.cep.replace(/\D/g, '');
     console.log('CEP formatado para busca:', cep);
