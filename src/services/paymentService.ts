@@ -3,11 +3,10 @@ import { PaymentProvider } from './providers/payment/types';
 import { logApiCall } from '../lib/monitoring';
 
 const pagarmeProvider: PaymentProvider = {
-  async processPayment(orderData: any, config: any) {
-    if (!config?.access_token) return { success: false, error: 'Access Token não configurado.' };
+  async processPayment(orderData: any, config: any, gatewayId?: string) {
+    if (!config?.access_token && !gatewayId) return { success: false, error: 'Configuração de pagamento não encontrada.' };
     
-    console.log(`💳 Processando pagamento via Pagar.me...`);
-    console.log('📦 Dados do Pedido para Provedor:', JSON.stringify(orderData, null, 2));
+    console.log(`💳 Processando pagamento via Pagar.me (Gateway ID: ${gatewayId || 'Direto'})...`);
     
     const startTime = Date.now();
     try {
@@ -96,7 +95,8 @@ const pagarmeProvider: PaymentProvider = {
               }
             ]
           },
-          config
+          config,
+          gatewayId
         })
       });
 
@@ -156,9 +156,9 @@ const providers: Record<string, PaymentProvider> = {
 };
 
 export const paymentService = {
-  async processPayment(provider: string, orderData: any, gatewayConfig: any) {
+  async processPayment(provider: string, orderData: any, gatewayConfig: any, gatewayId?: string) {
     const paymentProvider = providers[provider];
     if (!paymentProvider) throw new Error(`Provedor ${provider} não suportado.`);
-    return paymentProvider.processPayment(orderData, gatewayConfig);
+    return paymentProvider.processPayment(orderData, gatewayConfig, gatewayId);
   }
 };
