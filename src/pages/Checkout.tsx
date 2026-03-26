@@ -579,16 +579,6 @@ export default function Checkout() {
     }
   };
 
-  const testShippingAPI = async () => {
-    if (!shipping.cep || shipping.cep.length !== 8) {
-      toast.error('Digite um CEP válido com 8 dígitos para testar.');
-      return;
-    }
-    toast.loading('Testando conexão com APIs de frete...', { id: 'test-api' });
-    await handleCep(shipping.cep);
-    toast.dismiss('test-api');
-  };
-
   const handleCepBlur = async () => {
     const cep = shipping.cep.replace(/\D/g, '');
     if (cep.length === 8 && cep !== lastCalculatedCep.current) {
@@ -1102,14 +1092,6 @@ export default function Checkout() {
                       className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       required
                     />
-                    <button 
-                      type="button"
-                      onClick={testShippingAPI}
-                      className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors"
-                      title="Testar Conexão com API de Frete"
-                    >
-                      Testar API
-                    </button>
                   </div>
                 </div>
                 <div className="md:col-span-2">
@@ -1281,7 +1263,7 @@ export default function Checkout() {
                 )}
               </div>
 
-              {selectedGateway === 'pagarme' && (
+              {paymentMethod === 'pagarme' && (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                   <button
                     type="button"
