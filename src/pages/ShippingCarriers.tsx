@@ -298,33 +298,33 @@ export default function ShippingCarriers() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl"
+            className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]"
           >
-            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Configurar Logística</h2>
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0 rounded-t-[2.5rem]">
+              <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Configurar Logística</h2>
               <button onClick={() => setIsEditing(false)} className="p-2 hover:bg-white rounded-full transition-colors">
                 <X size={24} />
               </button>
             </div>
             
-            <div className="p-8 space-y-6">
+            <div className="p-6 space-y-5 overflow-y-auto">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Nome da Transportadora</label>
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Nome da Transportadora</label>
                 <input 
                   type="text"
                   value={currentCarrier.name || ''}
                   onChange={e => setCurrentCarrier({...currentCarrier, name: e.target.value})}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
                   placeholder="Ex: Correios, Jadlog, Melhor Envio"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Provedor / API</label>
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Provedor / API</label>
                 <select 
                   value={currentCarrier.provider || ''}
                   onChange={e => setCurrentCarrier({...currentCarrier, provider: e.target.value})}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
                 >
                   <option value="">Selecione um provedor</option>
                   <option value="test">Modo Teste (Simulação)</option>
@@ -338,7 +338,7 @@ export default function ShippingCarriers() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input 
                       type="checkbox"
@@ -352,7 +352,7 @@ export default function ShippingCarriers() {
                     <span className="text-xs font-bold text-slate-700 uppercase">Gerar Etiquetas</span>
                   </label>
                 </div>
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input 
                       type="checkbox"
@@ -369,7 +369,7 @@ export default function ShippingCarriers() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">
                   {currentCarrier.provider === 'cepcerto' ? 'Token de Consulta (Cálculo de Frete)' : 'Token de Acesso / API Key'}
                 </label>
                 <input 
@@ -379,14 +379,14 @@ export default function ShippingCarriers() {
                     ...currentCarrier, 
                     config: { ...currentCarrier.config, api_key: e.target.value }
                   })}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
                   placeholder={currentCarrier.provider === 'cepcerto' ? 'Insira o token de consulta' : 'Insira o token de integração'}
                 />
               </div>
 
               {currentCarrier.provider === 'cepcerto' && (
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Token de Postagem (Gerar Etiqueta)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Token de Postagem (Gerar Etiqueta)</label>
                   <input 
                     type="password"
                     value={currentCarrier.config?.api_key_postagem || ''}
@@ -394,23 +394,23 @@ export default function ShippingCarriers() {
                       ...currentCarrier, 
                       config: { ...currentCarrier.config, api_key_postagem: e.target.value }
                     })}
-                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
                     placeholder="Insira o token de postagem"
                   />
-                  <p className="text-xs text-slate-500 mt-2">Necessário para gerar etiquetas e rastreamento após o pagamento.</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Necessário para gerar etiquetas e rastreamento após o pagamento.</p>
                 </div>
               )}
 
-              <div className="flex gap-4 pt-4">
+              <div className="flex gap-4 pt-2 pb-2 shrink-0">
                 <button 
                   onClick={() => setIsEditing(false)}
-                  className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all"
+                  className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all text-sm"
                 >
                   Cancelar
                 </button>
                 <button 
                   onClick={handleSave}
-                  className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+                  className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 text-sm"
                 >
                   Salvar Transportadora
                 </button>
