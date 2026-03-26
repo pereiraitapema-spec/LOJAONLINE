@@ -91,13 +91,21 @@ export const shippingService = {
       }
 
       const provider = providers[carrier.provider];
-      if (!provider) return [];
+      if (!provider) {
+        console.error(`Provider ${carrier.provider} not found for carrier ${carrier.name}`);
+        return [];
+      }
 
-      return provider.calculateShipping(destZipCode, packages, {
+      console.log(`Calculating shipping with ${carrier.name} (${carrier.provider}) from ${settings.origin_zip_code} to ${destZipCode}`);
+      
+      const quotes = await provider.calculateShipping(destZipCode, packages, {
         ...carrier.config,
         carrier_name: carrier.name,
         origin_zip: settings.origin_zip_code.replace(/\D/g, '')
       });
+
+      console.log(`Quotes received for ${carrier.name}:`, quotes);
+      return quotes;
     } catch (error) {
       console.error('Error calculating shipping:', error);
       return [];

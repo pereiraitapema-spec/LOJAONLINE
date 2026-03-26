@@ -168,42 +168,57 @@ export default function Store() {
       });
     }
   }, [currentBannerIndex, banners, isMuted]);
+  const lastCalculatedCep = React.useRef<string>('');
+
   const handleCalculateShipping = async () => {
-    console.log('Calculando frete para CEP:', cep, 'Carriers:', carriers);
     const cleanCep = cep.replace(/\D/g, '');
     if (cleanCep.length !== 8) {
-      toast.error('CEP inválido.');
+      toast.error('CEP deve ter 8 dígitos.');
       return;
     }
+
+    if (calculatingShipping || cleanCep === lastCalculatedCep.current) return;
+    
+    lastCalculatedCep.current = cleanCep;
     setCalculatingShipping(true);
     setCity(''); // Limpar cidade anterior
     setShippingQuotes([]); // Limpar cotações anteriores
     
     try {
-      // Buscar endereço primeiro
+      console.log('Buscando endereço para o CEP:', cleanCep);
       const address = await cepService.fetchAddress(cleanCep);
-      if (address) {
+      
+      if (address && address.city) {
         setCity(`${address.city} - ${address.state}`);
-      }
 
-      const packages = cart.map(item => ({
-        weight: (item.product as any).weight || 0.5,
-        height: (item.product as any).height || 10,
-        width: (item.product as any).width || 10,
-        length: (item.product as any).length || 10
-      }));
+        const packages = cart.map(item => ({
+          weight: (item.product as any).weight || 0.5,
+          height: (item.product as any).height || 10,
+          width: (item.product as any).width || 10,
+          length: (item.product as any).length || 10
+        }));
 
-      let allQuotes: any[] = [];
-      for (const carrier of carriers) {
-        console.log('Calculando para carrier:', carrier.id);
-        const quotes = await shippingService.calculateShipping(cleanCep, packages, carrier.id);
-        allQuotes = [...allQuotes, ...quotes];
+        let allQuotes: any[] = [];
+        for (const carrier of carriers) {
+          if (!carrier.active) continue;
+          console.log(`Calculando frete para ${carrier.name}...`);
+          const quotes = await shippingService.calculateShipping(cleanCep, packages, carrier.id);
+          allQuotes = [...allQuotes, ...quotes];
+        }
+        
+        console.log('Total de cotações recebidas:', allQuotes.length);
+        setShippingQuotes(allQuotes);
+        if (allQuotes.length > 0) {
+          toast.success('Frete calculado!');
+        } else {
+          toast.error('Nenhuma opção de frete disponível para este CEP.');
+        }
+      } else {
+        setCity('CEP não encontrado');
+        toast.error('CEP não encontrado. Verifique os números digitados.');
       }
-      console.log('Cotações:', allQuotes);
-      setShippingQuotes(allQuotes);
-      toast.success('Frete calculado!');
     } catch (error) {
-      console.error(error);
+      console.error('Error calculating shipping:', error);
       toast.error('Erro ao calcular frete.');
     } finally {
       setCalculatingShipping(false);

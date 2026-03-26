@@ -438,60 +438,20 @@ export default function Checkout() {
     const value = e.target.value.replace(/\D/g, '').slice(0, 8);
     setShipping(prev => ({ ...prev, cep: value }));
 
-    if (value.length === 8) {
-      setCalculatingShipping(true);
-      try {
-        const address = await cepService.fetchAddress(value);
-        if (address && address.city) {
-          setShipping(prev => ({
-            ...prev,
-            street: address.street || prev.street,
-            neighborhood: address.neighborhood || prev.neighborhood,
-            city: address.city,
-            state: address.state
-          }));
-          toast.success(`Endereço encontrado: ${address.city} - ${address.state}`);
-
-          // Calculate shipping automatically
-          const packages: ShippingPackage[] = cart.map(item => ({
-            weight: (item.product as any).weight || 0.5,
-            height: (item.product as any).height || 10,
-            width: (item.product as any).width || 10,
-            length: (item.product as any).length || 10
-          }));
-
-          let allQuotes: ShippingQuote[] = [];
-          for (const carrier of carriers) {
-            if (!carrier.active) continue;
-            const quotes = await shippingService.calculateShipping(value, packages, carrier.id);
-            allQuotes = [...allQuotes, ...quotes];
-          }
-          
-          if (allQuotes.length > 0) {
-            setShippingMethods(allQuotes);
-            setSelectedShipping(0);
-          } else {
-            toast.error('Nenhuma opção de frete disponível para este CEP.');
-          }
-        }
-      } catch (error) {
-        console.error('Error calculating shipping on change:', error);
-      } finally {
-        setCalculatingShipping(false);
-      }
+    if (value.length === 8 && value !== lastCalculatedCep.current) {
+      await handleCep(value);
     }
   };
 
-  const handleCepBlur = async () => {
-    const cep = shipping.cep.replace(/\D/g, '');
-    console.log('CEP formatado para busca:', cep);
-    
-    if (cep.length !== 8) {
-      if (shipping.cep.length > 0) toast.error('CEP deve ter 8 dígitos.');
-      return;
-    }
+  const lastCalculatedCep = useRef<string>('');
 
+  const handleCep = async (cep: string) => {
+    if (calculatingShipping || cep.length !== 8) return;
+    
+    lastCalculatedCep.current = cep;
     setCalculatingShipping(true);
+    setShippingMethods([]); // Limpar métodos anteriores
+    
     try {
       console.log('Buscando endereço para o CEP:', cep);
       const address = await cepService.fetchAddress(cep);
@@ -517,10 +477,12 @@ export default function Checkout() {
         let allQuotes: ShippingQuote[] = [];
         for (const carrier of carriers) {
           if (!carrier.active) continue;
+          console.log(`Calculando frete para ${carrier.name}...`);
           const quotes = await shippingService.calculateShipping(cep, packages, carrier.id);
           allQuotes = [...allQuotes, ...quotes];
         }
         
+        console.log('Total de cotações recebidas:', allQuotes.length);
         if (allQuotes.length > 0) {
           setShippingMethods(allQuotes);
           setSelectedShipping(0);
@@ -535,6 +497,15 @@ export default function Checkout() {
       toast.error('Erro ao calcular frete. Tente novamente.');
     } finally {
       setCalculatingShipping(false);
+    }
+  };
+
+  const handleCepBlur = async () => {
+    const cep = shipping.cep.replace(/\D/g, '');
+    if (cep.length === 8 && cep !== lastCalculatedCep.current) {
+      await handleCep(cep);
+    } else if (cep.length > 0 && cep.length < 8) {
+      toast.error('CEP deve ter 8 dígitos.');
     }
   };
 
@@ -1069,27 +1040,37 @@ export default function Checkout() {
               </div>
 
               <div className="space-y-3">
-                {shippingMethods.map((method, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    onClick={() => setSelectedShipping(index)}
-                    className={`w-full p-4 rounded-2xl border-2 flex items-center justify-between transition-all ${selectedShipping === index ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 hover:border-slate-200'}`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedShipping === index ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`}>
-                        {selectedShipping === index && <div className="w-2 h-2 bg-white rounded-full" />}
+                {shippingMethods.length > 0 ? (
+                  shippingMethods.map((method, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => setSelectedShipping(index)}
+                      className={`w-full p-4 rounded-2xl border-2 flex items-center justify-between transition-all ${selectedShipping === index ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 hover:border-slate-200'}`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedShipping === index ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`}>
+                          {selectedShipping === index && <div className="w-2 h-2 bg-white rounded-full" />}
+                        </div>
+                        <div className="text-left">
+                          <p className="font-bold text-slate-900">{method.name} <span className="text-xs text-slate-400 font-normal">({method.carrierName})</span></p>
+                          <p className="text-xs text-slate-500">{method.deadline}</p>
+                        </div>
                       </div>
-                      <div className="text-left">
-                        <p className="font-bold text-slate-900">{method.name} <span className="text-xs text-slate-400 font-normal">({method.carrierName})</span></p>
-                        <p className="text-xs text-slate-500">{method.deadline}</p>
-                      </div>
-                    </div>
-                    <p className="font-bold text-slate-900">
-                      {method.price === 0 ? 'Grátis' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(method.price)}
-                    </p>
-                  </button>
-                ))}
+                      <p className="font-bold text-slate-900">
+                        {method.price === 0 ? 'Grátis' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(method.price)}
+                      </p>
+                    </button>
+                  ))
+                ) : shipping.cep.length === 8 && !calculatingShipping ? (
+                  <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl text-amber-700 text-sm font-bold text-center">
+                    Nenhuma opção de frete disponível para este CEP.
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-50 border border-slate-100 border-dashed rounded-2xl text-slate-400 text-sm font-bold text-center italic">
+                    {calculatingShipping ? 'Calculando opções de frete...' : 'Informe seu CEP para ver as opções de entrega.'}
+                  </div>
+                )}
                 
                 {cartTotal >= threshold && threshold > 0 && (
                   <div className="mt-4 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-3 text-emerald-700">

@@ -133,6 +133,12 @@ export default function ShippingCarriers() {
       const { data: dbTest, error: dbError } = await supabase.from('shipping_carriers').select('id').limit(1);
       if (dbError) throw new Error('Falha na conexão com o Banco de Dados: ' + dbError.message);
 
+      // Verificar CEP de origem
+      const { data: settings } = await supabase.from('store_settings').select('origin_zip_code').maybeSingle();
+      if (!settings?.origin_zip_code) {
+        throw new Error('CEP de origem não configurado nas Configurações da Loja.');
+      }
+
       // Teste de API de Frete (Simulação de cálculo)
       const testPackages = [{ weight: 1, height: 10, width: 10, length: 10 }];
       const testCep = '01001000'; // CEP de teste (Praça da Sé)
