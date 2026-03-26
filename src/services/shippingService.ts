@@ -198,10 +198,6 @@ const cepcertoProvider: ShippingProvider = {
       
       if (response.ok) {
         const text = await response.text();
-        if (text.includes('Token inválido') || text.includes('Token incorreto')) {
-          console.error('❌ Token CepCerto inválido ou incorreto:', text);
-          throw new Error('CepCerto: Token inválido ou incorreto. Verifique sua chave da API.');
-        }
         
         let data;
         try {
