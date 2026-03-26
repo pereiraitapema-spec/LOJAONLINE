@@ -13,10 +13,9 @@ export const getSupabase = (): SupabaseClient => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  console.log('🧪 Supabase Config:', {
-    url: supabaseUrl ? `${supabaseUrl.substring(0, 15)}...` : 'MISSING',
-    key: supabaseAnonKey ? 'PRESENT' : 'MISSING'
-  });
+  console.log('🧪 Iniciando Supabase...');
+  console.log('📍 URL:', supabaseUrl);
+  console.log('🔑 Key Presente:', !!supabaseAnonKey);
 
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
