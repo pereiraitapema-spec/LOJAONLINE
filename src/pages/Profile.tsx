@@ -34,10 +34,11 @@ export default function Profile() {
           .maybeSingle();
 
         if (data) {
+          const isMaster = session.user.email === 'pereira.itapema@gmail.com';
           setProfile({
             full_name: data.full_name || '',
             avatar_url: data.avatar_url || '',
-            role: data.role || 'user'
+            role: isMaster ? 'admin' : (data.role || 'customer')
           });
         }
       } catch (error) {
@@ -66,17 +67,26 @@ export default function Profile() {
       const filePath = `avatars/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('banners')
+        .from('avatars')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('banners')
+        .from('avatars')
         .getPublicUrl(filePath);
 
       setProfile(prev => ({ ...prev, avatar_url: publicUrl }));
-      toast.success('Foto carregada! Clique em salvar para confirmar.');
+      
+      // Salvar automaticamente no perfil para não perder a foto
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', user.id);
+      
+      if (updateError) throw updateError;
+
+      toast.success('Foto de perfil atualizada!');
     } catch (error: any) {
       toast.error('Erro ao fazer upload: ' + error.message);
     } finally {

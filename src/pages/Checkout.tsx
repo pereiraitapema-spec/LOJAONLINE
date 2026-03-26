@@ -40,6 +40,7 @@ interface CartItem {
 export default function Checkout() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [calculatingShipping, setCalculatingShipping] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [user, setUser] = useState<any>(null);
@@ -180,12 +181,22 @@ export default function Checkout() {
 
         // Check for first purchase
         if (session?.user) {
-          const { count } = await supabase
+          const { count, error: countError } = await supabase
             .from('orders')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', session.user.id)
-            .eq('status', 'paid');
-          setIsFirstPurchase(count === 0);
+            .neq('status', 'failed')
+            .neq('status', 'cancelled');
+          
+          if (!countError) {
+            setIsFirstPurchase(count === 0);
+          } else {
+            setIsFirstPurchase(false);
+          }
+        } else {
+          // Para visitantes, assumimos primeira compra se não houver e-mail
+          // Mas a lógica real de primeira compra geralmente depende do e-mail
+          setIsFirstPurchase(true);
         }
       } catch (error) {
         console.error('Error loading checkout data:', error);
@@ -196,6 +207,30 @@ export default function Checkout() {
 
     loadData();
   }, [navigate]);
+
+  // Verificar se é primeira compra por e-mail (para visitantes)
+  useEffect(() => {
+    const checkEmailPurchase = async () => {
+      if (!customer.email || !customer.email.includes('@')) return;
+      
+      // Se já estiver logado, a verificação inicial já foi feita
+      if (user) return;
+
+      const { count, error } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('customer_email', customer.email)
+        .neq('status', 'failed')
+        .neq('status', 'cancelled');
+      
+      if (!error) {
+        setIsFirstPurchase(count === 0);
+      }
+    };
+
+    const timer = setTimeout(checkEmailPurchase, 1000);
+    return () => clearTimeout(timer);
+  }, [customer.email, user]);
 
   // Validar cupom quando o código mudar
   useEffect(() => {
@@ -325,9 +360,18 @@ export default function Checkout() {
     ? null 
     : !currentShipping
       ? null // Ainda não selecionou um método ou o selecionado é inválido
-      : (cartTotal >= threshold && threshold > 0) 
+      : (threshold > 0 && cartTotal >= threshold) 
         ? 0 
         : currentShipping.price;
+
+  console.log('DEBUG FRETE:', {
+    cartTotal,
+    threshold,
+    shippingMethodsCount: shippingMethods.length,
+    selectedShipping,
+    currentShippingPrice: currentShipping?.price,
+    finalShippingCost: shippingCost
+  });
   
   console.log('DEBUG: shippingCost=', shippingCost, 'cartTotal=', cartTotal, 'threshold=', threshold, 'currentShippingPrice=', currentShipping?.price);
   const finalTotal = Math.max(0, cartTotal - totalDiscount + (shippingCost || 0));
@@ -398,7 +442,7 @@ export default function Checkout() {
       return;
     }
 
-    setLoading(true);
+    setCalculatingShipping(true);
     try {
       console.log('Buscando endereço...');
       const address = await cepService.fetchAddress(cep);
@@ -427,11 +471,7 @@ export default function Checkout() {
         
         console.log('Cotações de frete:', allQuotes);
         if (allQuotes.length > 0) {
-          const processedQuotes = allQuotes.map(quote => ({
-            ...quote,
-            price: (cartTotal >= (settings?.free_shipping_threshold || 0) && (settings?.free_shipping_threshold || 0) > 0) ? 0 : quote.price
-          }));
-          setShippingMethods(processedQuotes);
+          setShippingMethods(allQuotes);
           setSelectedShipping(0);
         } else {
           console.log('Nenhuma cotação de frete encontrada');
@@ -445,7 +485,7 @@ export default function Checkout() {
       console.error('Error fetching CEP or calculating shipping:', error);
       toast.error('Erro ao calcular frete.');
     } finally {
-      setLoading(false);
+      setCalculatingShipping(false);
     }
   };
 
@@ -1312,8 +1352,10 @@ export default function Checkout() {
                 <div className="flex justify-between text-slate-500">
                   <span className="flex items-center gap-1"><Truck size={16} /> Frete</span>
                   <span className="font-medium">
-                    {shippingCost === null ? (
-                      <span className="text-slate-400 text-xs">Calculando...</span>
+                    {calculatingShipping ? (
+                      <span className="text-slate-400 text-xs animate-pulse">Calculando...</span>
+                    ) : shippingCost === null ? (
+                      <span className="text-slate-400 text-xs">Informe o CEP</span>
                     ) : shippingCost === 0 ? (
                       <span className="text-emerald-500 font-bold uppercase text-xs">Grátis</span>
                     ) : (

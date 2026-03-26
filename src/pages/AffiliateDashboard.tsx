@@ -129,7 +129,7 @@ export default function AffiliateDashboard() {
   });
 
   // Helper para timeout em chamadas Supabase
-  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 30000): Promise<T> => {
+  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 5000): Promise<T> => {
     return Promise.race([
       promise as Promise<T>,
       new Promise<T>((_, reject) => 
@@ -140,6 +140,13 @@ export default function AffiliateDashboard() {
 
   useEffect(() => {
     checkAffiliateStatus();
+    
+    // Safety timeout to release loading state
+    const safetyTimeout = setTimeout(() => {
+      setLoading(false);
+    }, 10000);
+
+    return () => clearTimeout(safetyTimeout);
   }, []);
 
   const checkAffiliateStatus = async () => {

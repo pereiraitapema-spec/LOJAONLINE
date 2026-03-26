@@ -73,24 +73,37 @@ export default function Dashboard() {
         setUser(session.user);
         setProfile(profileData);
 
-        // Define permissions
-        const perms = {
-          faturamento: await checkPermission(session.user.id, 'manager'),
-          vendas: await checkPermission(session.user.id, 'sales'),
-          estoque: await checkPermission(session.user.id, 'stock'),
-          sistema: await checkPermission(session.user.id, 'admin')
-        };
-        setPermissions(perms);
+        // Define permissions in parallel
+        const [permFaturamento, permVendas, permEstoque, permSistema] = await Promise.all([
+          checkPermission(session.user.id, 'manager'),
+          checkPermission(session.user.id, 'sales'),
+          checkPermission(session.user.id, 'stock'),
+          checkPermission(session.user.id, 'admin')
+        ]);
 
-        // Fetch all necessary data for stats
+        setPermissions({
+          faturamento: permFaturamento,
+          vendas: permVendas,
+          estoque: permEstoque,
+          sistema: permSistema
+        });
+
+        // Fetch all necessary data for stats in parallel with a timeout
+        const fetchWithTimeout = async (promise: Promise<any>, timeout = 5000) => {
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout')), timeout)
+          );
+          return Promise.race([promise, timeoutPromise]);
+        };
+
         const [ordersRes, productsRes, affiliatesRes] = await Promise.all([
-          supabase.from('orders')
+          fetchWithTimeout(Promise.resolve(supabase.from('orders')
             .select('*')
             .eq('status', 'paid')
             .gte('created_at', `${dateRange.start}T00:00:00Z`)
-            .lte('created_at', `${dateRange.end}T23:59:59Z`),
-          supabase.from('products').select('*'),
-          supabase.from('affiliates').select('*')
+            .lte('created_at', `${dateRange.end}T23:59:59Z`))),
+          fetchWithTimeout(Promise.resolve(supabase.from('products').select('*'))),
+          fetchWithTimeout(Promise.resolve(supabase.from('affiliates').select('*')))
         ]);
 
         const orders = ordersRes.data || [];
@@ -170,6 +183,13 @@ export default function Dashboard() {
     };
 
     fetchData();
+
+    // Safety timeout to release loading state
+    const safetyTimeout = setTimeout(() => {
+      setLoading(false);
+    }, 10000);
+
+    return () => clearTimeout(safetyTimeout);
   }, [navigate, dateRange]);
 
   const handleLogout = async () => {

@@ -274,7 +274,7 @@ function AppContent() {
     const userEmail = session.user.email;
     const userId = session.user.id;
 
-    console.log('🔍 Verificando permissões para:', userEmail, 'ID:', userId);
+    console.log('🔍 Verificando permissões para:', userEmail, 'ID:', userId, 'Path:', path);
     
     try {
       console.log('⏱️ Iniciando verificação de Admin Master...');
@@ -288,12 +288,14 @@ function AppContent() {
             email: userEmail,
             role: 'admin',
             full_name: 'Admin Master'
-          }, { onConflict: 'id' }).select('full_name').single()
+          }, { onConflict: 'id' }).select('full_name, role').single()
         );
 
+        console.log('📊 Master Profile Sync:', masterProfile);
         setUserRole('admin');
+        localStorage.setItem('user_role', 'admin');
 
-        if (path === '/login' || path === '/register' || (path === '/profile' && masterProfile?.full_name)) {
+        if (path === '/login' || path === '/register' || path === '/profile' || path === '/') {
           console.log('🚀 Redirecionando Admin Master para /dashboard');
           navigate('/dashboard');
         }
@@ -319,16 +321,9 @@ function AppContent() {
       if (affiliate && (affiliate.status === 'approved' || (affiliate.active && !affiliate.status))) {
         console.log('🤝 Afiliado aprovado detectado');
         setUserRole('affiliate');
+        localStorage.setItem('user_role', 'affiliate');
         
-        // Evitar redirecionamento se já estivermos no dashboard de afiliados
-        if (path === '/affiliate-dashboard') {
-          setLoading(false);
-          return;
-        }
-
-        const { data: affProfile } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
-
-        if (path === '/login' || path === '/register' || path === '/' || (path === '/profile' && affProfile?.full_name)) {
+        if (path === '/login' || path === '/register' || path === '/profile' || path === '/') {
           console.log('🚀 Redirecionando Afiliado para /affiliate-dashboard');
           navigate('/affiliate-dashboard');
         }
@@ -345,7 +340,7 @@ function AppContent() {
       const { data: profile, error: profileError } = await withTimeout(
         supabase
           .from('profiles')
-          .select('role')
+          .select('role, full_name')
           .eq('id', userId)
           .maybeSingle()
       );
@@ -382,8 +377,10 @@ function AppContent() {
 
       // 5. Cliente Normal
       console.log('👤 Usuário comum detectado');
-      const hasFullName = (profile as any)?.full_name;
-      if (path === '/login' || path === '/register' || (path === '/profile' && hasFullName)) {
+      setUserRole(profile?.role || 'customer');
+      localStorage.setItem('user_role', profile?.role || 'customer');
+      
+      if (path === '/login' || path === '/register' || (path === '/profile' && profile?.full_name)) {
         console.log('🚀 Redirecionando Cliente para /');
         navigate('/');
       }
