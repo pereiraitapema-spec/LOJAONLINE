@@ -20,23 +20,39 @@ async function startServer() {
   app.post("/api/payments/pagarme", express.json(), async (req, res) => {
     const { orderData, config } = req.body;
     
+    console.log('🚀 Iniciando pagamento Pagar.me...');
+    console.log('📦 Dados do Pedido:', JSON.stringify(orderData, null, 2));
+    
     if (!config?.access_token) {
+      console.error('❌ Erro: Access Token não configurado no gateway.');
       return res.status(400).json({ success: false, error: 'Access Token não configurado.' });
     }
 
     try {
+      const authHeader = `Basic ${Buffer.from(config.access_token + ':').toString('base64')}`;
+      
       const response = await fetch('https://api.pagar.me/core/v5/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Basic ${Buffer.from(config.access_token + ':').toString('base64')}`
+          'Authorization': authHeader
         },
         body: JSON.stringify(orderData)
       });
 
       const data = await response.json();
+      
+      console.log(`📡 Resposta Pagar.me (Status ${response.status}):`, JSON.stringify(data, null, 2));
+
+      if (!response.ok) {
+        console.error('❌ Erro na API do Pagar.me:', data.message || 'Erro desconhecido');
+      } else {
+        console.log('✅ Pagamento processado com sucesso pela API.');
+      }
+
       res.status(response.status).json(data);
     } catch (error: any) {
+      console.error('💥 Erro crítico no proxy Pagar.me:', error.message);
       res.status(500).json({ success: false, error: error.message });
     }
   });
@@ -45,6 +61,7 @@ async function startServer() {
   app.post("/api/webhooks/pagarme", express.json(), async (req, res) => {
     const event = req.body;
     console.log('🔔 Webhook Pagar.me recebido:', event.type);
+    console.log('📄 Dados do Evento:', JSON.stringify(event, null, 2));
 
     const supabaseUrl = process.env.VITE_SUPABASE_URL!;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY!;

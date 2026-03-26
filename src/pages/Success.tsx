@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import { motion } from 'motion/react';
 import { CheckCircle2, ShoppingBag, ArrowRight, Home, Download, Share2, QrCode, Barcode, Landmark, Clock, Truck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -140,7 +141,7 @@ export default function Success() {
                     <h3 className="text-xl font-black text-slate-900 uppercase italic">Pague com PIX</h3>
                     <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 w-48 h-48 flex items-center justify-center">
                       <img 
-                        src={order.payment_url || `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(order.pix_code || getPaymentDetails() || 'Pagamento PIX')}`} 
+                        src={order.payment_url || ''} 
                         alt="QR Code PIX" 
                         className="w-full h-full"
                       />
@@ -150,14 +151,16 @@ export default function Success() {
                       <div className="flex gap-2">
                         <input 
                           readOnly 
-                          value={order.pix_code || getPaymentDetails() || 'Chave não configurada'} 
+                          value={order.pix_code || ''} 
                           className="flex-1 bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm font-mono"
                         />
                         <button 
                           onClick={() => {
-                            const code = order.pix_code || getPaymentDetails() || '';
-                            navigator.clipboard.writeText(code);
-                            alert('Chave PIX copiada!');
+                            const code = order.pix_code || '';
+                            if (code) {
+                              navigator.clipboard.writeText(code);
+                              toast.success('Chave PIX copiada!');
+                            }
                           }}
                           className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold"
                         >
@@ -177,10 +180,10 @@ export default function Success() {
                     <div className="w-full bg-white p-6 rounded-2xl border border-slate-200 text-left">
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Código de Barras</p>
                       <p className="font-mono text-sm break-all bg-slate-50 p-3 rounded-lg border border-slate-100 mb-4">
-                        {order.pix_code || `34191.79001 01043.510047 91020.150008 1 954300000${Math.floor(order.total * 100)}`}
+                        {order.pix_code || ''}
                       </p>
                       <button 
-                        onClick={() => order.payment_url ? window.open(order.payment_url, '_blank') : alert('Boleto não disponível ainda.')}
+                        onClick={() => order.payment_url ? window.open(order.payment_url, '_blank') : toast.error('Boleto não disponível ainda.')}
                         className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
                       >
                         <Download size={18} />

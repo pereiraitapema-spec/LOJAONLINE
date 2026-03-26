@@ -828,10 +828,11 @@ export default function Checkout() {
 
       // 3. Process Payment Gateway
       const activeGateway = gateways.find(g => g.id === selectedGateway);
-      let paymentResponse: any = { success: true, payment_id: `sim_${activeGateway?.provider || 'internal'}_${Math.random().toString(36).substr(2, 9)}` };
+      let paymentResponse: any = null;
 
       if (activeGateway) {
         try {
+          console.log('💳 Iniciando processamento de pagamento real...');
           paymentResponse = await paymentService.processPayment(activeGateway.provider, {
             items: cart.map(item => ({
               price: item.product.discount_price || item.product.price,
@@ -841,7 +842,11 @@ export default function Checkout() {
             })),
             customer_name: customer.name,
             customer_email: customer.email,
-            customer_document: customer.document,
+            customer_phone: customer.phone.replace(/\D/g, ''),
+            customer_document: customer.document.replace(/\D/g, ''),
+            shipping_address: shipping,
+            shipping_cost: shippingCost,
+            shipping_method: currentShipping?.name,
             payment_method: pagarmeMethod || paymentMethod,
             card_number: cardData.number.replace(/\D/g, ''),
             card_name: cardData.name,
@@ -849,35 +854,23 @@ export default function Checkout() {
             cvv: cardData.cvv,
             installments: cardData.installments
           }, activeGateway.config);
+
+          console.log('📡 Resposta do processamento de pagamento:', paymentResponse);
+
+          if (!paymentResponse.success) {
+            throw new Error(paymentResponse.error || 'Erro ao processar pagamento com Pagar.me');
+          }
         } catch (err: any) {
-          paymentResponse = { success: false, error: err.message };
+          console.error('❌ Erro no processamento de pagamento:', err);
+          toast.error(`Erro no pagamento: ${err.message}`);
+          setProcessing(false);
+          return;
         }
       } else {
-        // Simulation mode with fallback data for PIX/Boleto
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const method = pagarmeMethod || paymentMethod;
-        if (method === 'pix') {
-          paymentResponse = {
-            success: true,
-            payment_id: `sim_pix_${Math.random().toString(36).substr(2, 9)}`,
-            pix: {
-              qr_code: '00020126360014BR.GOV.BCB.PIX0114+5511999999999520400005303986540510.005802BR5925NOME DO RECEBEDOR6009SAO PAULO62070503***6304E248',
-              qr_code_url: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=00020126360014BR.GOV.BCB.PIX0114+5511999999999520400005303986540510.005802BR5925NOME DO RECEBEDOR6009SAO PAULO62070503***6304E248',
-              expires_at: new Date(Date.now() + 3600000).toISOString()
-            }
-          };
-        } else if (method === 'boleto') {
-          paymentResponse = {
-            success: true,
-            payment_id: `sim_boleto_${Math.random().toString(36).substr(2, 9)}`,
-            boleto: {
-              barcode: '34191.79001 01043.510047 91020.150008 1 95430000027320',
-              url: 'https://www.pagar.me',
-              pdf: 'https://www.pagar.me',
-              expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-            }
-          };
-        }
+        console.error('❌ Nenhum gateway de pagamento ativo configurado.');
+        toast.error('Nenhum gateway de pagamento ativo configurado.');
+        setProcessing(false);
+        return;
       }
 
       // Determine initial status based on payment method
@@ -889,9 +882,9 @@ export default function Checkout() {
         .from('orders')
         .update({ 
           status: initialStatus, 
-          payment_id: paymentResponse.id || paymentResponse.payment_id,
-          payment_url: paymentResponse.pix?.qr_code_url || paymentResponse.charges?.[0]?.last_transaction?.pdf || paymentResponse.charges?.[0]?.last_transaction?.url || paymentResponse.charges?.[0]?.last_transaction?.qr_code_url,
-          pix_code: paymentResponse.pix?.qr_code || paymentResponse.charges?.[0]?.last_transaction?.qr_code // Adicionando o código copia e cola do PIX
+          payment_id: paymentResponse.payment_id,
+          payment_url: paymentResponse.pix?.qr_code_url || paymentResponse.boleto?.url || paymentResponse.boleto?.pdf,
+          pix_code: paymentResponse.pix?.qr_code || paymentResponse.boleto?.barcode
         })
         .eq('id', orderData.id);
 
