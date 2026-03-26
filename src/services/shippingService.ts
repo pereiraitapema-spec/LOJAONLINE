@@ -182,12 +182,12 @@ const cepcertoProvider: ShippingProvider = {
     
     const startTime = Date.now();
     try {
-      const totalWeight = packages.reduce((acc, p) => acc + p.weight, 0);
+      const totalWeight = Math.max(1, Math.ceil(packages.reduce((acc, p) => acc + p.weight, 0)));
       const maxDim = packages.reduce((acc, p) => ({
-        h: Math.max(acc.h, p.height),
-        w: Math.max(acc.w, p.width),
-        l: Math.max(acc.l, p.length)
-      }), { h: 0, w: 0, l: 0 });
+        h: Math.max(acc.h, p.height, 2),
+        w: Math.max(acc.w, p.width, 11),
+        l: Math.max(acc.l, p.length, 16)
+      }), { h: 2, w: 11, l: 16 });
 
       // Exemplo de chamada real para CepCerto (ajustar conforme documentação específica se necessário)
       // URL format: https://www.cepcerto.com/ws/json-frete/{origem}/{destino}/{peso}/{comprimento}/{altura}/{largura}/{valor}/{servico}/{chave}
@@ -202,7 +202,7 @@ const cepcertoProvider: ShippingProvider = {
         
         const quotes: ShippingQuote[] = [];
         // Mapear os serviços retornados pelo CepCerto
-        if (data.sedex) {
+        if (data.sedex && data.sedex.valor && data.sedex.valor !== '0,00' && !data.sedex.erro) {
           quotes.push({
             id: 'cepcerto-sedex',
             name: 'SEDEX (CepCerto)',
@@ -212,7 +212,7 @@ const cepcertoProvider: ShippingProvider = {
             carrierName: config.carrier_name || 'CepCerto'
           });
         }
-        if (data.pac) {
+        if (data.pac && data.pac.valor && data.pac.valor !== '0,00' && !data.pac.erro) {
           quotes.push({
             id: 'cepcerto-pac',
             name: 'PAC (CepCerto)',
