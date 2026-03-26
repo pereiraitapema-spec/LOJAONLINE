@@ -95,6 +95,7 @@ export default function Checkout() {
   const [showPixModal, setShowPixModal] = useState(false);
   const [boletoData, setBoletoData] = useState<{ url: string; pdf: string; barcode: string; expires_at: string } | null>(null);
   const [showBoletoModal, setShowBoletoModal] = useState(false);
+  const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -763,7 +764,7 @@ export default function Checkout() {
           total: finalTotal,
           subtotal: cartTotal,
           shipping_cost: shippingCost,
-          payment_method: paymentMethod,
+          payment_method: paymentMethod === 'pagarme' ? pagarmeMethod : paymentMethod,
           shipping_method: currentShipping?.name || 'Padrão',
           shipping_address: shipping
         }])
@@ -852,7 +853,31 @@ export default function Checkout() {
           paymentResponse = { success: false, error: err.message };
         }
       } else {
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+        // Simulation mode with fallback data for PIX/Boleto
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const method = pagarmeMethod || paymentMethod;
+        if (method === 'pix') {
+          paymentResponse = {
+            success: true,
+            payment_id: `sim_pix_${Math.random().toString(36).substr(2, 9)}`,
+            pix: {
+              qr_code: '00020126360014BR.GOV.BCB.PIX0114+5511999999999520400005303986540510.005802BR5925NOME DO RECEBEDOR6009SAO PAULO62070503***6304E248',
+              qr_code_url: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=00020126360014BR.GOV.BCB.PIX0114+5511999999999520400005303986540510.005802BR5925NOME DO RECEBEDOR6009SAO PAULO62070503***6304E248',
+              expires_at: new Date(Date.now() + 3600000).toISOString()
+            }
+          };
+        } else if (method === 'boleto') {
+          paymentResponse = {
+            success: true,
+            payment_id: `sim_boleto_${Math.random().toString(36).substr(2, 9)}`,
+            boleto: {
+              barcode: '34191.79001 01043.510047 91020.150008 1 95430000027320',
+              url: 'https://www.pagar.me',
+              pdf: 'https://www.pagar.me',
+              expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+            }
+          };
+        }
       }
 
       // Determine initial status based on payment method
@@ -872,6 +897,7 @@ export default function Checkout() {
 
       if (paymentResponse.pix) {
         setPixData(paymentResponse.pix);
+        setCurrentOrderId(orderData.id);
         setShowPixModal(true);
         setProcessing(false);
         // Clear cart anyway
@@ -882,6 +908,7 @@ export default function Checkout() {
 
       if (paymentResponse.boleto) {
         setBoletoData(paymentResponse.boleto);
+        setCurrentOrderId(orderData.id);
         setShowBoletoModal(true);
         setProcessing(false);
         // Clear cart anyway
@@ -1624,7 +1651,11 @@ export default function Checkout() {
               <button 
                 onClick={() => {
                   setShowPixModal(false);
-                  navigate('/store'); // Ou para uma página de "Meus Pedidos"
+                  if (currentOrderId) {
+                    navigate(`/success?orderId=${currentOrderId}`);
+                  } else {
+                    navigate('/store');
+                  }
                 }}
                 className="w-full py-4 text-slate-600 font-bold text-sm hover:text-slate-900 transition-colors"
               >
@@ -1693,7 +1724,11 @@ export default function Checkout() {
               <button 
                 onClick={() => {
                   setShowBoletoModal(false);
-                  navigate('/store');
+                  if (currentOrderId) {
+                    navigate(`/success?orderId=${currentOrderId}`);
+                  } else {
+                    navigate('/store');
+                  }
                 }}
                 className="w-full py-4 text-slate-600 font-bold text-sm hover:text-slate-900 transition-colors"
               >

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { CheckCircle2, ShoppingBag, ArrowRight, Home, Download, Share2, QrCode, Barcode, Landmark, Clock } from 'lucide-react';
+import { CheckCircle2, ShoppingBag, ArrowRight, Home, Download, Share2, QrCode, Barcode, Landmark, Clock, Truck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Loading } from '../components/Loading';
 
@@ -46,6 +46,24 @@ export default function Success() {
     };
 
     fetchData();
+
+    // Real-time listener for order status updates (Webhook confirmation)
+    const subscription = supabase
+      .channel(`order-${orderId}`)
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'orders',
+        filter: `id=eq.${orderId}`
+      }, (payload) => {
+        console.log('🔔 Pedido atualizado em tempo real:', payload.new);
+        setOrder(payload.new);
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [orderId, navigate]);
 
   const getPaymentDetails = () => {
@@ -69,28 +87,52 @@ export default function Success() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.2 }}
-            className={`w-24 h-24 ${order?.status === 'paid' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'} rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner`}
+            className={`w-24 h-24 ${(order?.status === 'paid' || order?.status === 'processing' || order?.status === 'shipped') ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'} rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner`}
           >
-            {order?.status === 'paid' ? <CheckCircle2 size={48} /> : <Clock size={48} />}
+            {(order?.status === 'paid' || order?.status === 'processing' || order?.status === 'shipped') ? <CheckCircle2 size={48} /> : <Clock size={48} />}
           </motion.div>
 
           <h1 className="text-4xl font-black text-slate-900 uppercase italic tracking-tighter mb-4">
-            {order?.status === 'paid' ? 'Pedido Confirmado!' : 'Pedido Recebido!'}
+            {(order?.status === 'paid' || order?.status === 'processing' || order?.status === 'shipped') ? 'Pedido Confirmado!' : 'Pedido Recebido!'}
           </h1>
           <p className="text-slate-500 text-lg mb-8">
-            {order?.status === 'paid' 
-              ? 'Obrigado por sua compra. Seu pedido foi processado com sucesso e você receberá um e-mail com os detalhes em breve.'
+            {(order?.status === 'paid' || order?.status === 'processing' || order?.status === 'shipped') 
+              ? 'Obrigado por sua compra. Seu pedido foi processado com sucesso e está sendo preparado para envio.'
               : 'Seu pedido foi recebido e está aguardando o pagamento para ser processado.'}
           </p>
 
-          {order && order.status === 'pending' && (
+          {order && order.tracking_code && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 mb-8 text-left"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
+                  <Truck size={24} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Código de Rastreio</p>
+                  <p className="text-lg font-black text-slate-900 tracking-tight">{order.tracking_code}</p>
+                  <button 
+                    onClick={() => navigate(`/tracking/${order.tracking_code}`)}
+                    className="text-xs font-bold text-indigo-600 hover:underline mt-1"
+                  >
+                    Acompanhar Entrega
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {order && (order.status === 'pending' || order.status === 'awaiting_payment') && (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               className="bg-indigo-50 border-2 border-indigo-100 rounded-3xl p-8 mb-8 text-center"
             >
               <div className="flex flex-col items-center gap-4">
-                {order.payment_method === 'pix' && (
+                {(order.payment_method === 'pix' || (order.payment_method === 'pagarme' && order.pix_code)) && (
                   <>
                     <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
                       <QrCode size={32} />
@@ -113,7 +155,8 @@ export default function Success() {
                         />
                         <button 
                           onClick={() => {
-                            navigator.clipboard.writeText(getPaymentDetails() || '');
+                            const code = order.pix_code || getPaymentDetails() || '';
+                            navigator.clipboard.writeText(code);
                             alert('Chave PIX copiada!');
                           }}
                           className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold"
@@ -125,7 +168,7 @@ export default function Success() {
                   </>
                 )}
 
-                {order.payment_method === 'boleto' && (
+                {(order.payment_method === 'boleto' || (order.payment_method === 'pagarme' && order.payment_url?.includes('boleto'))) && (
                   <>
                     <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center">
                       <Barcode size={32} />
@@ -134,7 +177,7 @@ export default function Success() {
                     <div className="w-full bg-white p-6 rounded-2xl border border-slate-200 text-left">
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Código de Barras</p>
                       <p className="font-mono text-sm break-all bg-slate-50 p-3 rounded-lg border border-slate-100 mb-4">
-                        34191.79001 01043.510047 91020.150008 1 954300000{Math.floor(order.total * 100)}
+                        {order.pix_code || `34191.79001 01043.510047 91020.150008 1 954300000${Math.floor(order.total * 100)}`}
                       </p>
                       <button 
                         onClick={() => order.payment_url ? window.open(order.payment_url, '_blank') : alert('Boleto não disponível ainda.')}
