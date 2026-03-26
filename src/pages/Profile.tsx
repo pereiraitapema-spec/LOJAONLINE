@@ -98,6 +98,17 @@ export default function Profile() {
 
       if (error) throw error;
       toast.success('Perfil atualizado com sucesso!');
+      
+      // Redirecionar após salvar baseado no cargo
+      setTimeout(() => {
+        if (profile.role === 'admin') {
+          navigate('/dashboard');
+        } else if (profile.role === 'affiliate') {
+          navigate('/affiliate-dashboard');
+        } else {
+          navigate('/');
+        }
+      }, 1500);
     } catch (error: any) {
       toast.error('Erro ao salvar: ' + error.message);
     } finally {

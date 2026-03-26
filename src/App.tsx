@@ -57,11 +57,10 @@ function AppContent() {
     
     try {
       console.log('🔍 Buscando role para:', userId);
-      // Timeout reduzido para 5s para não travar o carregamento inicial
       const { data: profile, error } = await withTimeout(
         supabase
           .from('profiles')
-          .select('role')
+          .select('role, full_name')
           .eq('id', userId)
           .maybeSingle(),
         5000
@@ -74,6 +73,9 @@ function AppContent() {
       
       if (profile?.role) {
         localStorage.setItem('user_role', profile.role);
+        if (profile.full_name) {
+          localStorage.setItem('user_full_name', profile.full_name);
+        }
       }
       
       return profile?.role || 'customer';
@@ -276,18 +278,18 @@ function AppContent() {
       if (userEmail === 'pereira.itapema@gmail.com') {
         console.log('👑 Admin Master detectado');
         
-        await withTimeout(
+        const { data: masterProfile } = await withTimeout(
           supabase.from('profiles').upsert({
             id: userId,
             email: userEmail,
             role: 'admin',
             full_name: 'Admin Master'
-          }, { onConflict: 'id' })
+          }, { onConflict: 'id' }).select('full_name').single()
         );
 
         setUserRole('admin');
 
-        if (path === '/login' || path === '/register' || path === '/profile') {
+        if (path === '/login' || path === '/register' || (path === '/profile' && masterProfile?.full_name)) {
           console.log('🚀 Redirecionando Admin Master para /dashboard');
           navigate('/dashboard');
         }
@@ -320,7 +322,9 @@ function AppContent() {
           return;
         }
 
-        if (path === '/login' || path === '/register' || path === '/') {
+        const { data: affProfile } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
+
+        if (path === '/login' || path === '/register' || path === '/' || (path === '/profile' && affProfile?.full_name)) {
           console.log('🚀 Redirecionando Afiliado para /affiliate-dashboard');
           navigate('/affiliate-dashboard');
         }
@@ -363,7 +367,8 @@ function AppContent() {
       // 4. Verificar se é Admin secundário
       if (profile?.role === 'admin') {
         console.log('🛠️ Admin secundário detectado');
-        if (path === '/login' || path === '/register' || path === '/profile') {
+        const hasFullName = (profile as any)?.full_name;
+        if (path === '/login' || path === '/register' || (path === '/profile' && hasFullName)) {
           console.log('🚀 Redirecionando Admin secundário para /dashboard');
           navigate('/dashboard');
         }
@@ -373,7 +378,8 @@ function AppContent() {
 
       // 5. Cliente Normal
       console.log('👤 Usuário comum detectado');
-      if (path === '/login' || path === '/register') {
+      const hasFullName = (profile as any)?.full_name;
+      if (path === '/login' || path === '/register' || (path === '/profile' && hasFullName)) {
         console.log('🚀 Redirecionando Cliente para /');
         navigate('/');
       }
