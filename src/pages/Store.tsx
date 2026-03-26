@@ -233,8 +233,12 @@ export default function Store() {
         for (const carrier of activeCarriers) {
           if (!carrier.active) continue;
           console.log(`Calculando frete para ${carrier.name}...`);
-          const quotes = await shippingService.calculateShipping(cleanCep, packages, carrier.id);
-          allQuotes = [...allQuotes, ...quotes];
+          try {
+            const quotes = await shippingService.calculateShipping(cleanCep, packages, carrier.id);
+            allQuotes = [...allQuotes, ...quotes];
+          } catch (err) {
+            console.error(`Erro ao calcular frete para ${carrier.name}:`, err);
+          }
         }
         
         console.log('Total de cotações recebidas:', allQuotes.length);

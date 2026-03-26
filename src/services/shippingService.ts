@@ -198,9 +198,9 @@ const cepcertoProvider: ShippingProvider = {
       
       if (response.ok) {
         const text = await response.text();
-        if (text.includes('Token inválido')) {
-          console.error('❌ Token CepCerto inválido');
-          return [];
+        if (text.includes('Token inválido') || text.includes('Token incorreto')) {
+          console.error('❌ Token CepCerto inválido ou incorreto:', text);
+          throw new Error('CepCerto: Token inválido ou incorreto. Verifique sua chave da API.');
         }
         
         let data;
@@ -208,10 +208,21 @@ const cepcertoProvider: ShippingProvider = {
           data = JSON.parse(text);
         } catch (e) {
           console.error('❌ Erro ao fazer parse da resposta do CepCerto:', text);
-          return [];
+          throw new Error('CepCerto: Resposta inválida da API.');
         }
         
         console.log('📦 Resposta CepCerto:', data);
+        
+        if (data.msg) {
+          console.error('❌ Erro CepCerto:', data.msg);
+          throw new Error(`CepCerto: ${data.msg}`);
+        }
+        
+        if (data.erro && data.erro !== '0') {
+          console.error('❌ Erro CepCerto:', data.erro);
+          throw new Error(`CepCerto Erro: ${data.erro}`);
+        }
+        
         await logApiCall('cepcerto', '/json-frete', duration, true);
         
         const quotes: ShippingQuote[] = [];
@@ -239,11 +250,11 @@ const cepcertoProvider: ShippingProvider = {
         return quotes;
       } else {
         console.error('❌ Erro na resposta do CepCerto:', response.status, response.statusText);
+        throw new Error(`CepCerto falhou com status ${response.status}`);
       }
-      return [];
     } catch (err) {
       console.error('CepCerto API Error:', err);
-      return [];
+      throw err;
     }
   },
   async generateLabel(orderId: string, config: any) {
@@ -368,7 +379,7 @@ export const shippingService = {
       return quotes;
     } catch (error) {
       console.error('Error calculating shipping:', error);
-      return [];
+      throw error;
     }
   },
 

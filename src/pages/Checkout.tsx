@@ -531,6 +531,7 @@ export default function Checkout() {
         console.log('📦 Pacotes para cálculo:', packages);
 
         let allQuotes: ShippingQuote[] = [];
+        let apiErrors: string[] = [];
         const activeCarriers = carriers.length > 0 ? carriers : (await supabase.from('shipping_carriers').select('*').eq('active', true)).data || [];
         
         for (const carrier of activeCarriers) {
@@ -540,8 +541,11 @@ export default function Checkout() {
             const quotes = await shippingService.calculateShipping(cep, packages, carrier.id);
             console.log(`📊 Cotações para ${carrier.name}:`, quotes);
             allQuotes = [...allQuotes, ...quotes];
-          } catch (err) {
+          } catch (err: any) {
             console.error(`❌ Erro ao calcular frete para ${carrier.name}:`, err);
+            if (err.message) {
+              apiErrors.push(err.message);
+            }
           }
         }
         
@@ -551,7 +555,11 @@ export default function Checkout() {
           setSelectedShipping(0);
         } else {
           console.warn('⚠️ Nenhuma cotação retornada pelas APIs');
-          toast.error('Nenhuma opção de frete disponível para este CEP. Verifique se o CEP é válido para entrega.');
+          if (apiErrors.length > 0) {
+            toast.error(`Erro na transportadora: ${apiErrors[0]}`);
+          } else {
+            toast.error('Nenhuma opção de frete disponível para este CEP. Verifique se o CEP é válido para entrega.');
+          }
         }
       } else {
         console.warn('⚠️ ViaCEP não retornou cidade para o CEP:', cep);
