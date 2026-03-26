@@ -180,10 +180,6 @@ const cepcertoProvider: ShippingProvider = {
       throw new Error('Token de Consulta do CepCerto não configurado.');
     }
     
-    if (config.api_key.length > 50) {
-      throw new Error('Parece que você usou o "Token de Postagem" no campo de "Token de Consulta". Por favor, inverta as chaves no painel.');
-    }
-    
     const startTime = Date.now();
     try {
       const totalWeightInGrams = Math.max(300, Math.ceil(packages.reduce((acc, p) => acc + p.weight, 0) * 1000));
