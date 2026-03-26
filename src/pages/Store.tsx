@@ -343,9 +343,19 @@ export default function Store() {
   const isFetchingRef = React.useRef(false);
 
   useEffect(() => {
+    // Se já temos dados em cache, liberamos o loading IMEDIATAMENTE
+    if (products.length > 0 || banners.length > 0 || settings) {
+      setLoading(false);
+    }
+
+    // Timeout de segurança para não travar a tela
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 2000);
+
     const checkUser = async () => {
       try {
-        const { data: { session } } = await withTimeout(supabase.auth.getSession());
+        const { data: { session } } = await withTimeout(supabase.auth.getSession(), 5000);
         setSession(session);
         
         if (session) {
@@ -354,7 +364,8 @@ export default function Store() {
               .from('profiles')
               .select('role')
               .eq('id', session.user.id)
-              .maybeSingle()
+              .maybeSingle(),
+            5000
           );
 
           if (profile?.role === 'admin' || session.user.email === 'pereira.itapema@gmail.com') {
@@ -368,7 +379,8 @@ export default function Store() {
               .select('*')
               .eq('user_id', session.user.id)
               .eq('status', 'approved')
-              .maybeSingle()
+              .maybeSingle(),
+            5000
           );
           
           if (affData) {
@@ -400,7 +412,8 @@ export default function Store() {
                 .select('*')
                 .eq('code', savedCoupon.toUpperCase())
                 .eq('active', true)
-                .maybeSingle()
+                .maybeSingle(),
+              3000
             );
             
             if (couponData) {
@@ -413,16 +426,16 @@ export default function Store() {
 
         console.log('⏱️ Buscando dados principais (banners, produtos, etc)...');
         const results = await Promise.allSettled([
-          withTimeout(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }), 3000),
+          withTimeout(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }), 5000),
           withTimeout(supabase.from('products')
             .select('*, tiers:product_tiers(*), media:product_media(*)')
             .eq('active', true)
             .order('created_at', { ascending: false })
-            .order('position', { foreignTable: 'product_media', ascending: true }), 3000),
-          withTimeout(supabase.from('categories').select('*').order('name'), 3000),
-          withTimeout(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }), 3000),
-          withTimeout(supabase.from('store_settings').select('*').maybeSingle(), 3000),
-          withTimeout(supabase.from('site_content').select('*'), 3000)
+            .order('position', { foreignTable: 'product_media', ascending: true }), 5000),
+          withTimeout(supabase.from('categories').select('*').order('name'), 5000),
+          withTimeout(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }), 5000),
+          withTimeout(supabase.from('store_settings').select('*').maybeSingle(), 5000),
+          withTimeout(supabase.from('site_content').select('*'), 5000)
         ]);
 
         // Só atualizar o estado se a promessa foi cumprida com sucesso
@@ -492,30 +505,28 @@ export default function Store() {
         }
       } catch (err) {
         console.error('❌ Critical Fetch Error:', err);
-        // Não mostrar toast se for erro de timeout/abort silencioso
-        const msg = err instanceof Error ? err.message : String(err);
-        if (!msg.includes('Timeout') && !msg.includes('AbortError')) {
-          toast.error('Falha na conexão com o servidor.');
-        }
       } finally {
         isFetchingRef.current = false;
         setLoading(false);
+        clearTimeout(safetyTimer);
       }
     };
+
+    // Chamar fetchData IMEDIATAMENTE na montagem
+    fetchData();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('🔔 Store Auth Event:', event);
       setSession(session);
-      // Só re-buscar se o evento for relevante
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
+      // Só re-buscar se o evento for relevante e não estivermos buscando
+      if ((event === 'SIGNED_IN' || event === 'SIGNED_OUT') && !isFetchingRef.current) {
         fetchData();
       }
     });
 
-    // fetchData() será chamado pelo INITIAL_SESSION no onAuthStateChange
-    
     return () => {
       subscription.unsubscribe();
+      clearTimeout(safetyTimer);
     };
   }, []);
 

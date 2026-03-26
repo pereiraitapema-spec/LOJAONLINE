@@ -42,8 +42,8 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Helper para timeout em chamadas Supabase
-  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 30000): Promise<T> => {
+  // Helper para timeout em chamadas Supabase - Reduzido para 5s para performance
+  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 5000): Promise<T> => {
     return Promise.race([
       promise as Promise<T>,
       new Promise<T>((_, reject) => 
@@ -85,13 +85,13 @@ function AppContent() {
     }
   };
 
-  // Safety timeout for loading state
+  // Safety timeout for loading state - Reduzido para 2s
   useEffect(() => {
     if (loading) {
       const timer = setTimeout(() => {
         console.warn('⚠️ Loading timeout reached in App.tsx, forcing loading to false');
         setLoading(false);
-      }, 6000);
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [loading]);
@@ -137,13 +137,17 @@ function AppContent() {
       }
 
       if (session) {
-        // Se já temos o role no cache, podemos liberar o loading mais cedo
-        if (localStorage.getItem('user_role')) {
+        // Se já temos o role no cache, liberamos o loading IMEDIATAMENTE
+        const cachedRole = localStorage.getItem('user_role');
+        if (cachedRole) {
+          setUserRole(cachedRole);
           setLoading(false);
-          // Busca o role atualizado em background
+          // Busca o role atualizado em background sem bloquear a UI
           fetchUserRole(session.user.id, session.user.email).then(role => {
-            setUserRole(role);
-            localStorage.setItem('user_role', role);
+            if (role !== cachedRole) {
+              setUserRole(role);
+              localStorage.setItem('user_role', role);
+            }
           });
         } else {
           const role = await fetchUserRole(session.user.id, session.user.email);
@@ -152,8 +156,8 @@ function AppContent() {
           setLoading(false);
         }
         
-        // Sempre verificar redirecionamento se houver sessão
-        await handleRoleRedirect(session);
+        // Redirecionamento em background
+        handleRoleRedirect(session);
       } else {
         localStorage.removeItem('user_role');
         setLoading(false);
