@@ -295,7 +295,7 @@ function AppContent() {
         setUserRole('admin');
         localStorage.setItem('user_role', 'admin');
 
-        if (path === '/login' || path === '/register' || path === '/profile' || path === '/') {
+        if (path === '/login' || path === '/register') {
           console.log('🚀 Redirecionando Admin Master para /dashboard');
           navigate('/dashboard');
         }
@@ -323,8 +323,8 @@ function AppContent() {
         setUserRole('affiliate');
         localStorage.setItem('user_role', 'affiliate');
         
-        if (path === '/login' || path === '/register' || path === '/profile' || path === '/') {
-          console.log('🚀 Redirecionando Afiliado para /affiliate-dashboard');
+        if (path === '/login' || path === '/register') {
+          console.log('🚀 Redirecionando Admin Afiliado para /affiliate-dashboard');
           navigate('/affiliate-dashboard');
         }
         setLoading(false);
@@ -367,7 +367,7 @@ function AppContent() {
       if (profile?.role === 'admin') {
         console.log('🛠️ Admin secundário detectado');
         const hasFullName = (profile as any)?.full_name;
-        if (path === '/login' || path === '/register' || (path === '/profile' && hasFullName)) {
+        if (path === '/login' || path === '/register') {
           console.log('🚀 Redirecionando Admin secundário para /dashboard');
           navigate('/dashboard');
         }
@@ -380,7 +380,7 @@ function AppContent() {
       setUserRole(profile?.role || 'customer');
       localStorage.setItem('user_role', profile?.role || 'customer');
       
-      if (path === '/login' || path === '/register' || (path === '/profile' && profile?.full_name)) {
+      if (path === '/login' || path === '/register') {
         console.log('🚀 Redirecionando Cliente para /');
         navigate('/');
       }
