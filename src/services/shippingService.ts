@@ -189,33 +189,34 @@ const cepcertoProvider: ShippingProvider = {
         l: Math.max(acc.l, p.length, 16)
       }), { h: 2, w: 11, l: 16 });
 
-      // Exemplo de chamada real para CepCerto (ajustar conforme documentação específica se necessário)
       // URL format: https://www.cepcerto.com/ws/json-frete/{origem}/{destino}/{peso}/{comprimento}/{altura}/{largura}/{valor}/{servico}/{chave}
       const url = `https://www.cepcerto.com/ws/json-frete/${config.origin_zip}/${destZipCode.replace(/\D/g, '')}/${totalWeight}/${maxDim.l}/${maxDim.h}/${maxDim.w}/0/todos/${config.api_key}`;
       
+      console.log('🔗 URL CepCerto:', url);
       const response = await fetch(url);
       const duration = Date.now() - startTime;
       
       if (response.ok) {
         const data = await response.json();
+        console.log('📦 Resposta CepCerto:', data);
         await logApiCall('cepcerto', '/json-frete', duration, true);
         
         const quotes: ShippingQuote[] = [];
         // Mapear os serviços retornados pelo CepCerto
-        if (data.sedex && data.sedex.valor && data.sedex.valor !== '0,00' && !data.sedex.erro) {
+        if (data.sedex && data.sedex.valor && data.sedex.valor !== '0,00' && data.sedex.erro === '0') {
           quotes.push({
             id: 'cepcerto-sedex',
-            name: 'SEDEX (CepCerto)',
+            name: 'SEDEX',
             price: parseFloat(data.sedex.valor.replace(',', '.')),
             deadline: `${data.sedex.prazo} dias úteis`,
             provider: 'cepcerto',
             carrierName: config.carrier_name || 'CepCerto'
           });
         }
-        if (data.pac && data.pac.valor && data.pac.valor !== '0,00' && !data.pac.erro) {
+        if (data.pac && data.pac.valor && data.pac.valor !== '0,00' && data.pac.erro === '0') {
           quotes.push({
             id: 'cepcerto-pac',
-            name: 'PAC (CepCerto)',
+            name: 'PAC',
             price: parseFloat(data.pac.valor.replace(',', '.')),
             deadline: `${data.pac.prazo} dias úteis`,
             provider: 'cepcerto',
@@ -223,6 +224,8 @@ const cepcertoProvider: ShippingProvider = {
           });
         }
         return quotes;
+      } else {
+        console.error('❌ Erro na resposta do CepCerto:', response.status, response.statusText);
       }
       return [];
     } catch (err) {
