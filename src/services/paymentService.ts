@@ -29,7 +29,7 @@ const pagarmeProvider: PaymentProvider = {
             },
             payments: [
               {
-                payment_method: orderData.payment_method === 'credit_card' ? 'credit_card' : 'pix',
+                payment_method: orderData.payment_method,
                 credit_card: orderData.payment_method === 'credit_card' ? {
                   card: {
                     number: orderData.card_number,
@@ -39,6 +39,20 @@ const pagarmeProvider: PaymentProvider = {
                     cvv: orderData.cvv
                   },
                   installments: parseInt(orderData.installments)
+                } : undefined,
+                debit_card: orderData.payment_method === 'debit_card' ? {
+                  card: {
+                    number: orderData.card_number,
+                    holder_name: orderData.card_name,
+                    exp_month: orderData.expiry.split('/')[0],
+                    exp_year: '20' + orderData.expiry.split('/')[1],
+                    cvv: orderData.cvv
+                  }
+                } : undefined,
+                boleto: orderData.payment_method === 'boleto' ? {
+                  bank: 'itau', // Ou dinâmico se necessário
+                  instructions: 'Pagar até o vencimento',
+                  due_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
                 } : undefined,
                 pix: orderData.payment_method === 'pix' ? {
                   expires_in: 3600,
@@ -61,7 +75,34 @@ const pagarmeProvider: PaymentProvider = {
       
       if (response.ok) {
         await logApiCall('pagarme', '/orders', duration, true);
-        return { success: true, payment_id: data.id };
+        
+        // Extrair dados do PIX ou Boleto se for o caso
+        let pixData = null;
+        let boletoData = null;
+        if (data.charges?.[0]?.last_transaction) {
+          const transaction = data.charges[0].last_transaction;
+          if (orderData.payment_method === 'pix') {
+            pixData = {
+              qr_code: transaction.qr_code,
+              qr_code_url: transaction.qr_code_url,
+              expires_at: transaction.expires_at
+            };
+          } else if (orderData.payment_method === 'boleto') {
+            boletoData = {
+              url: transaction.url,
+              pdf: transaction.pdf,
+              barcode: transaction.barcode,
+              expires_at: transaction.due_at
+            };
+          }
+        }
+
+        return { 
+          success: true, 
+          payment_id: data.id,
+          pix: pixData,
+          boleto: boletoData
+        };
       }
       
       await logApiCall('pagarme', '/orders', duration, false, data.message || 'Erro no processamento.');

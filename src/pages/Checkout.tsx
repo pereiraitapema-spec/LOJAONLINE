@@ -14,7 +14,9 @@ import {
   Barcode,
   Landmark,
   Settings,
-  LayoutDashboard
+  LayoutDashboard,
+  Copy,
+  X
 } from 'lucide-react';
 import { isValidDocument } from '../lib/validation';
 import { toast } from 'react-hot-toast';
@@ -48,7 +50,7 @@ export default function Checkout() {
   const [user, setUser] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [selectedGateway, setSelectedGateway] = useState<string | null>(null);
-  const [pagarmeMethod, setPagarmeMethod] = useState<'credit_card' | 'pix' | null>(null);
+  const [pagarmeMethod, setPagarmeMethod] = useState<'credit_card' | 'pix' | 'debit_card' | 'boleto' | null>(null);
   const [shippingMethods, setShippingMethods] = useState<ShippingQuote[]>([]);
   const [selectedShipping, setSelectedShipping] = useState<number>(0);
   const [discountRules, setDiscountRules] = useState<any[]>([]);
@@ -88,8 +90,11 @@ export default function Checkout() {
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [abandonedCartId, setAbandonedCartId] = useState<string | null>(null);
-  // const [freeShippingThreshold, setFreeShippingThreshold] = useState(299);
   const [settings, setSettings] = useState<any>(null);
+  const [pixData, setPixData] = useState<{ qr_code: string; qr_code_url: string; expires_at: string } | null>(null);
+  const [showPixModal, setShowPixModal] = useState(false);
+  const [boletoData, setBoletoData] = useState<{ url: string; pdf: string; barcode: string; expires_at: string } | null>(null);
+  const [showBoletoModal, setShowBoletoModal] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -860,10 +865,30 @@ export default function Checkout() {
         .update({ 
           status: initialStatus, 
           payment_id: paymentResponse.id || paymentResponse.payment_id,
-          payment_url: paymentResponse.charges?.[0]?.last_transaction?.pdf || paymentResponse.charges?.[0]?.last_transaction?.url || paymentResponse.charges?.[0]?.last_transaction?.qr_code_url,
-          pix_code: paymentResponse.charges?.[0]?.last_transaction?.qr_code // Adicionando o código copia e cola do PIX
+          payment_url: paymentResponse.pix?.qr_code_url || paymentResponse.charges?.[0]?.last_transaction?.pdf || paymentResponse.charges?.[0]?.last_transaction?.url || paymentResponse.charges?.[0]?.last_transaction?.qr_code_url,
+          pix_code: paymentResponse.pix?.qr_code || paymentResponse.charges?.[0]?.last_transaction?.qr_code // Adicionando o código copia e cola do PIX
         })
         .eq('id', orderData.id);
+
+      if (paymentResponse.pix) {
+        setPixData(paymentResponse.pix);
+        setShowPixModal(true);
+        setProcessing(false);
+        // Clear cart anyway
+        localStorage.removeItem('cart_items');
+        setCart([]);
+        return;
+      }
+
+      if (paymentResponse.boleto) {
+        setBoletoData(paymentResponse.boleto);
+        setShowBoletoModal(true);
+        setProcessing(false);
+        // Clear cart anyway
+        localStorage.removeItem('cart_items');
+        setCart([]);
+        return;
+      }
 
       // 3.1 Se houver comissão e for pago, atualizar saldo do afiliado
       // (Em um sistema real, isso seria feito após a confirmação do pagamento)
@@ -1237,14 +1262,14 @@ export default function Checkout() {
               </div>
 
               {selectedGateway === 'pagarme' && (
-                <div className="grid grid-cols-2 gap-4 mb-8">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                   <button
                     type="button"
                     onClick={() => setPagarmeMethod('pix')}
                     className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${pagarmeMethod === 'pix' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
                   >
                     <QrCode size={24} />
-                    <span className="font-bold text-sm">PIX (Pagar.me)</span>
+                    <span className="font-bold text-sm">PIX</span>
                   </button>
                   <button
                     type="button"
@@ -1252,12 +1277,28 @@ export default function Checkout() {
                     className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${pagarmeMethod === 'credit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
                   >
                     <CreditCard size={24} />
-                    <span className="font-bold text-sm">Cartão (Pagar.me)</span>
+                    <span className="font-bold text-sm">Cartão Crédito</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPagarmeMethod('debit_card')}
+                    className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${pagarmeMethod === 'debit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                  >
+                    <CreditCard size={24} />
+                    <span className="font-bold text-sm">Cartão Débito</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPagarmeMethod('boleto')}
+                    className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${pagarmeMethod === 'boleto' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                  >
+                    <Barcode size={24} />
+                    <span className="font-bold text-sm">Boleto</span>
                   </button>
                 </div>
               )}
 
-              {(paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card') && (
+              {(paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card' || pagarmeMethod === 'debit_card') && (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -1276,7 +1317,7 @@ export default function Checkout() {
                       }}
                       placeholder="0000.0000.0000.0000"
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                      required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card'}
+                      required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card' || pagarmeMethod === 'debit_card'}
                     />
                   </div>
                   <div>
@@ -1286,7 +1327,7 @@ export default function Checkout() {
                       value={cardData.name}
                       onChange={e => setCardData({...cardData, name: e.target.value})}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all uppercase"
-                      required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card'}
+                      required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card' || pagarmeMethod === 'debit_card'}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -1306,7 +1347,7 @@ export default function Checkout() {
                         placeholder="MM/AA"
                         maxLength={5}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                        required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card'}
+                        required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card' || pagarmeMethod === 'debit_card'}
                       />
                     </div>
                     <div>
@@ -1318,7 +1359,7 @@ export default function Checkout() {
                         placeholder="123"
                         maxLength={4}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                        required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card'}
+                        required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card' || pagarmeMethod === 'debit_card'}
                       />
                     </div>
                   </div>
@@ -1413,28 +1454,6 @@ export default function Checkout() {
 
           {/* Coluna Direita: Resumo */}
           <div className="lg:col-span-1 space-y-6">
-            {/* Box de Teste */}
-            <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6">
-              <div className="flex items-center gap-2 text-amber-800 font-bold mb-2">
-                <AlertCircle size={18} />
-                Modo de Teste Ativo
-              </div>
-              <p className="text-xs text-amber-700 mb-4">
-                Use os dados abaixo para simular uma compra aprovada:
-              </p>
-              <div className="space-y-2 font-mono text-[10px] text-amber-900 bg-white/50 p-3 rounded-xl border border-amber-100">
-                <p><strong>Cartão:</strong> 4444 4444 4444 4444</p>
-                <p><strong>Validade:</strong> 12/29</p>
-                <p><strong>CVV:</strong> 123</p>
-                <p><strong>Nome:</strong> TESTE APROVADO</p>
-                {gateways.find(g => g.active)?.config?.public_key && (
-                  <div className="mt-2 pt-2 border-t border-amber-200">
-                    <p className="break-all"><strong>Public Key:</strong> {gateways.find(g => g.active)?.config?.public_key}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 sticky top-28">
               <h2 className="text-lg font-bold text-slate-900 mb-6">Resumo do Pedido</h2>
               
@@ -1538,6 +1557,152 @@ export default function Checkout() {
 
         </form>
       </div>
+
+      {/* Modal do PIX */}
+      {showPixModal && pixData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl relative overflow-hidden"
+          >
+            <button 
+              onClick={() => setShowPixModal(false)}
+              className="absolute top-6 right-6 p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <QrCode size={32} />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Pagamento via PIX</h3>
+              <p className="text-slate-500 text-sm">Escaneie o QR Code ou copie o código abaixo para pagar</p>
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-8 flex flex-col items-center">
+              {pixData.qr_code_url && (
+                <img 
+                  src={pixData.qr_code_url} 
+                  alt="QR Code PIX" 
+                  className="w-48 h-48 mb-4 rounded-xl shadow-sm"
+                  referrerPolicy="no-referrer"
+                />
+              )}
+              
+              <div className="w-full">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 text-center">Código Copia e Cola</p>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    readOnly 
+                    value={pixData.qr_code}
+                    className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 focus:outline-none"
+                  />
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(pixData.qr_code);
+                      toast.success('Código copiado!');
+                    }}
+                    className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+                  >
+                    <Copy size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex gap-3">
+                <AlertCircle className="text-amber-500 shrink-0" size={20} />
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  O pagamento é processado instantaneamente. Assim que o banco confirmar, seu pedido será atualizado automaticamente.
+                </p>
+              </div>
+
+              <button 
+                onClick={() => {
+                  setShowPixModal(false);
+                  navigate('/store'); // Ou para uma página de "Meus Pedidos"
+                }}
+                className="w-full py-4 text-slate-600 font-bold text-sm hover:text-slate-900 transition-colors"
+              >
+                Já realizei o pagamento
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal do Boleto */}
+      {showBoletoModal && boletoData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl relative overflow-hidden"
+          >
+            <button 
+              onClick={() => setShowBoletoModal(false)}
+              className="absolute top-6 right-6 p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Barcode size={32} />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Boleto Gerado</h3>
+              <p className="text-slate-500 text-sm">Seu boleto foi gerado com sucesso. Pague em qualquer banco ou lotérica.</p>
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-8 flex flex-col items-center">
+              <div className="w-full">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 text-center">Código de Barras</p>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    readOnly 
+                    value={boletoData.barcode}
+                    className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 focus:outline-none"
+                  />
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(boletoData.barcode);
+                      toast.success('Código copiado!');
+                    }}
+                    className="p-3 bg-amber-600 text-white rounded-xl hover:bg-amber-700 transition-colors shadow-lg shadow-amber-200"
+                  >
+                    <Copy size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <a 
+                href={boletoData.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+              >
+                Visualizar Boleto (PDF)
+              </a>
+              <button 
+                onClick={() => {
+                  setShowBoletoModal(false);
+                  navigate('/store');
+                }}
+                className="w-full py-4 text-slate-600 font-bold text-sm hover:text-slate-900 transition-colors"
+              >
+                Já realizei o pagamento
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

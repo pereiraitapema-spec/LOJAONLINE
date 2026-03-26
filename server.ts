@@ -53,15 +53,57 @@ async function startServer() {
     try {
       // Lógica para atualizar o status do pedido com base no evento
       // Eventos comuns: order.paid, order.payment_failed, order.canceled
+      const orderId = event.data.id;
+
       if (event.type === 'order.paid') {
-        const orderId = event.data.id;
-        const { error } = await supabaseAdmin
+        const { data: order, error: fetchError } = await supabaseAdmin
           .from('orders')
-          .update({ status: 'paid', updated_at: new Date().toISOString() })
+          .select('*')
+          .eq('payment_id', orderId)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        // 1. Atualizar status do pedido para PAGO
+        const { error: updateError } = await supabaseAdmin
+          .from('orders')
+          .update({ 
+            status: 'paid', 
+            updated_at: new Date().toISOString() 
+          })
           .eq('payment_id', orderId);
         
-        if (error) throw error;
+        if (updateError) throw updateError;
         console.log(`✅ Pedido ${orderId} marcado como PAGO.`);
+
+        // 2. Simular aviso ao CepCerto e geração de rastreio
+        // Em um cenário real, aqui chamaríamos a API do CepCerto/Melhor Envio
+        const trackingCode = `BR${Math.random().toString(36).substr(2, 9).toUpperCase()}X`;
+        
+        await supabaseAdmin
+          .from('orders')
+          .update({ 
+            tracking_code: trackingCode,
+            status: 'processing' // Preparando produto
+          })
+          .eq('payment_id', orderId);
+
+        console.log(`📦 Rastreio gerado para pedido ${orderId}: ${trackingCode}`);
+
+        // 3. (Opcional) Enviar mensagem via chat/email
+        // Aqui você integraria com seu serviço de chat ou dispararia um email
+      } else if (event.type === 'order.payment_failed') {
+        await supabaseAdmin
+          .from('orders')
+          .update({ status: 'failed', updated_at: new Date().toISOString() })
+          .eq('payment_id', orderId);
+        console.log(`❌ Pagamento falhou para pedido ${orderId}.`);
+      } else if (event.type === 'order.canceled') {
+        await supabaseAdmin
+          .from('orders')
+          .update({ status: 'canceled', updated_at: new Date().toISOString() })
+          .eq('payment_id', orderId);
+        console.log(`🚫 Pedido ${orderId} cancelado.`);
       }
 
       res.status(200).send('OK');
