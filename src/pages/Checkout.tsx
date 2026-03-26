@@ -843,7 +843,7 @@ export default function Checkout() {
             expiry: cardData.expiry,
             cvv: cardData.cvv,
             installments: cardData.installments
-          }, activeGateway.config, activeGateway.id);
+          }, activeGateway.config);
 
           console.log('📡 Resposta do processamento de pagamento:', paymentResponse);
 

@@ -311,19 +311,12 @@ export default function PaymentGateways() {
                   <input 
                     type={showAccessToken ? "text" : "password"}
                     value={currentGateway.config?.access_token || ''}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setCurrentGateway({
-                        ...currentGateway, 
-                        config: { ...currentGateway.config, access_token: val }
-                      });
-                    }}
-                    className={`w-full px-5 py-4 bg-slate-50 border rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all pr-14 ${
-                      currentGateway.provider === 'pagarme' && currentGateway.config?.access_token?.startsWith('pk_') 
-                        ? 'border-rose-300 ring-rose-100' 
-                        : 'border-slate-200'
-                    }`}
-                    placeholder={currentGateway.provider === 'pagarme' ? "Ex: sk_test_..." : "Ex: APP_USR-..."}
+                    onChange={e => setCurrentGateway({
+                      ...currentGateway, 
+                      config: { ...currentGateway.config, access_token: e.target.value }
+                    })}
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all pr-14"
+                    placeholder="Ex: APP_USR-..."
                   />
                   <button 
                     type="button"
@@ -333,16 +326,6 @@ export default function PaymentGateways() {
                     {showAccessToken ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
                 </div>
-                {currentGateway.provider === 'pagarme' && currentGateway.config?.access_token?.startsWith('pk_') && (
-                  <p className="mt-2 text-xs text-rose-500 font-bold">
-                    ⚠️ Atenção: Você inseriu uma Chave Pública (pk_...). Para o Access Token do Pagar.me, você deve usar a Chave Secreta (Secret Key) que começa com "sk_".
-                  </p>
-                )}
-                {currentGateway.provider === 'pagarme' && (
-                  <p className="mt-2 text-[10px] text-slate-400 leading-tight">
-                    No Pagar.me v5, use a <strong>Secret Key</strong> (sk_...) encontrada em Configurações &gt; Chaves de API.
-                  </p>
-                )}
               </div>
 
               <div className="flex gap-4 pt-4">
