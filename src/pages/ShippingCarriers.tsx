@@ -369,6 +369,60 @@ export default function ShippingCarriers() {
                 </div>
               </div>
 
+              {currentCarrier.provider === 'cepcerto' && (
+                <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-3">
+                  <p className="text-[10px] font-black text-indigo-900 uppercase tracking-widest mb-2">Serviços Ativos (CepCerto)</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer p-2 bg-white rounded-lg border border-indigo-100">
+                      <input 
+                        type="checkbox"
+                        checked={currentCarrier.config?.services?.sedex !== false}
+                        onChange={e => setCurrentCarrier({
+                          ...currentCarrier,
+                          config: { 
+                            ...currentCarrier.config, 
+                            services: { ...(currentCarrier.config?.services || {}), sedex: e.target.checked }
+                          }
+                        })}
+                        className="w-4 h-4 text-indigo-600 rounded"
+                      />
+                      <span className="text-[10px] font-bold text-slate-700 uppercase">SEDEX</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer p-2 bg-white rounded-lg border border-indigo-100">
+                      <input 
+                        type="checkbox"
+                        checked={currentCarrier.config?.services?.pac !== false}
+                        onChange={e => setCurrentCarrier({
+                          ...currentCarrier,
+                          config: { 
+                            ...currentCarrier.config, 
+                            services: { ...(currentCarrier.config?.services || {}), pac: e.target.checked }
+                          }
+                        })}
+                        className="w-4 h-4 text-indigo-600 rounded"
+                      />
+                      <span className="text-[10px] font-bold text-slate-700 uppercase">PAC</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer p-2 bg-white rounded-lg border border-indigo-100">
+                      <input 
+                        type="checkbox"
+                        checked={currentCarrier.config?.services?.jadlog === true}
+                        onChange={e => setCurrentCarrier({
+                          ...currentCarrier,
+                          config: { 
+                            ...currentCarrier.config, 
+                            services: { ...(currentCarrier.config?.services || {}), jadlog: e.target.checked }
+                          }
+                        })}
+                        className="w-4 h-4 text-indigo-600 rounded"
+                      />
+                      <span className="text-[10px] font-bold text-slate-700 uppercase">JADLOG</span>
+                    </label>
+                  </div>
+                  <p className="text-[9px] text-slate-500 italic">Selecione quais serviços você deseja que apareçam no checkout.</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">
                   {currentCarrier.provider === 'cepcerto' ? 'Token de Consulta (Cálculo de Frete)' : 'Token de Acesso / API Key'}

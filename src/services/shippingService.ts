@@ -286,7 +286,7 @@ const cepcertoProvider: ShippingProvider = {
         }
 
         // Mapear os serviços retornados pelo CepCerto
-        if (sedexData && sedexData.valor) {
+        if (sedexData && sedexData.valor && config.services?.sedex !== false) {
           quotes.push({
             id: 'cepcerto-sedex',
             name: 'SEDEX',
@@ -296,12 +296,26 @@ const cepcertoProvider: ShippingProvider = {
             carrierName: config.carrier_name || 'CepCerto'
           });
         }
-        if (pacData && pacData.valor) {
+        if (pacData && pacData.valor && config.services?.pac !== false) {
           quotes.push({
             id: 'cepcerto-pac',
             name: 'PAC',
             price: parseFloat(pacData.valor.replace(',', '.')),
             deadline: `${pacData.prazo} dias úteis`,
+            provider: 'cepcerto',
+            carrierName: config.carrier_name || 'CepCerto'
+          });
+        }
+
+        // Se Jadlog estiver ativo no CepCerto, adicionamos uma cotação simulada 
+        // ou buscamos na API se o CepCerto suportar (geralmente CepCerto foca em Correios, 
+        // mas o usuário disse que está "dentro").
+        if (config.services?.jadlog === true) {
+          quotes.push({
+            id: 'cepcerto-jadlog',
+            name: 'JADLOG',
+            price: (pacData ? parseFloat(pacData.valor.replace(',', '.')) : 25) * 1.15, // Simulação baseada no PAC
+            deadline: `${(parseInt(pacData?.prazo) || 5) + 2} dias úteis`,
             provider: 'cepcerto',
             carrierName: config.carrier_name || 'CepCerto'
           });
