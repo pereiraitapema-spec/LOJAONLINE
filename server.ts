@@ -16,6 +16,61 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // Proxy para Pagar.me (Segurança: chaves no servidor)
+  app.post("/api/payments/pagarme", express.json(), async (req, res) => {
+    const { orderData, config } = req.body;
+    
+    if (!config?.access_token) {
+      return res.status(400).json({ success: false, error: 'Access Token não configurado.' });
+    }
+
+    try {
+      const response = await fetch('https://api.pagar.me/core/v5/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${Buffer.from(config.access_token + ':').toString('base64')}`
+        },
+        body: JSON.stringify(orderData)
+      });
+
+      const data = await response.json();
+      res.status(response.status).json(data);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Webhook Pagar.me
+  app.post("/api/webhooks/pagarme", express.json(), async (req, res) => {
+    const event = req.body;
+    console.log('🔔 Webhook Pagar.me recebido:', event.type);
+
+    const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY!;
+    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+
+    try {
+      // Lógica para atualizar o status do pedido com base no evento
+      // Eventos comuns: order.paid, order.payment_failed, order.canceled
+      if (event.type === 'order.paid') {
+        const orderId = event.data.id;
+        const { error } = await supabaseAdmin
+          .from('orders')
+          .update({ status: 'paid', updated_at: new Date().toISOString() })
+          .eq('payment_id', orderId);
+        
+        if (error) throw error;
+        console.log(`✅ Pedido ${orderId} marcado como PAGO.`);
+      }
+
+      res.status(200).send('OK');
+    } catch (error: any) {
+      console.error('❌ Erro no Webhook Pagar.me:', error.message);
+      res.status(500).send('Erro');
+    }
+  });
+
   // Rota de callback para OAuth (Popup)
   // Esta rota apenas repassa o código para a janela pai, que fará a troca (PKCE)
   app.get("/auth/callback", async (req, res) => {

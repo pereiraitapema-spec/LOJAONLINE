@@ -1837,8 +1837,8 @@ export default function Store() {
                                     {shippingQuotes.map((quote, index) => (
                                       <div key={index} className="flex justify-between items-center p-3 bg-white rounded-xl border border-slate-200 text-sm shadow-sm hover:border-emerald-200 transition-all">
                                         <div className="flex flex-col">
-                                          <span className="font-bold text-slate-700">{quote.carrier_name}</span>
-                                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Prazo: {quote.deadline} dias</span>
+                                          <span className="font-bold text-slate-700">{quote.name}</span>
+                                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Prazo: {quote.deadline}</span>
                                         </div>
                                         <span className="font-black text-emerald-600 text-base">
                                           {quote.price === 0 ? 'Frete Grátis' : `R$ ${quote.price.toFixed(2)}`}
