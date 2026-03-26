@@ -209,7 +209,7 @@ export default function Store() {
         setCity(`${address.city} - ${address.state}`);
 
         let packages: any[] = [];
-        if (isCartOpen) {
+        if (showCart) {
           packages = cart.map(item => ({
             weight: (item.product as any).weight || 0.5,
             height: (item.product as any).height || 10,
