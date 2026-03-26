@@ -2138,8 +2138,8 @@ export default function Store() {
                       />
                     </div>
                     {cartTotal < Number(settings?.free_shipping_threshold) && (
-                      <p className="text-[10px] text-emerald-600 font-bold mt-2 text-center uppercase tracking-widest">
-                        Adicione mais R$ {(Number(settings?.free_shipping_threshold) - cartTotal).toFixed(2)} para ganhar frete grátis
+                      <p className="text-xs text-emerald-600 font-black mt-2 text-center uppercase tracking-tighter animate-pulse">
+                        🚀 Adicione mais R$ {(Number(settings?.free_shipping_threshold) - cartTotal).toFixed(2)} para ganhar frete grátis!
                       </p>
                     )}
                   </div>
@@ -2162,7 +2162,7 @@ export default function Store() {
                       const { unitPrice, total } = calculatePrice(item.product, item.quantity);
                       return (
                         <div key={item.product.id} className="flex gap-4 bg-white p-4 rounded-[24px] border border-slate-100 shadow-sm group">
-                          <div className="w-20 h-20 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100">
+                          <div className="w-24 h-24 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100">
                             {item.product.image_url ? (
                               <img src={item.product.image_url} className="w-full h-full object-contain p-1" referrerPolicy="no-referrer" />
                             ) : (
@@ -2171,17 +2171,34 @@ export default function Store() {
                           </div>
                           <div className="flex-1 min-w-0 flex flex-col justify-between">
                             <div>
-                              <h4 className="font-bold text-slate-900 truncate text-sm">{item.product.name}</h4>
-                              <p className="text-xs text-slate-500">{item.quantity}x R$ {unitPrice.toFixed(2)}</p>
+                              <h4 className="font-bold text-slate-900 truncate text-base">{item.product.name}</h4>
+                              <p className="text-xs text-slate-500">R$ {unitPrice.toFixed(2)} cada</p>
                             </div>
                             <div className="flex items-center justify-between mt-2">
-                              <span className="font-black text-emerald-600">R$ {total.toFixed(2)}</span>
-                              <button 
-                                onClick={() => removeFromCart(item.product.id)}
-                                className="text-slate-400 hover:text-rose-500 text-xs font-bold transition-colors"
-                              >
-                                Remover
-                              </button>
+                              <div className="flex items-center bg-slate-100 rounded-full px-2 py-1">
+                                <button 
+                                  onClick={() => addToCart(item.product, -1)}
+                                  className="w-6 h-6 flex items-center justify-center text-slate-600 hover:text-emerald-600 transition-colors"
+                                >
+                                  -
+                                </button>
+                                <span className="w-8 text-center text-xs font-black text-slate-900">{item.quantity}</span>
+                                <button 
+                                  onClick={() => addToCart(item.product, 1)}
+                                  className="w-6 h-6 flex items-center justify-center text-slate-600 hover:text-emerald-600 transition-colors"
+                                >
+                                  +
+                                </button>
+                              </div>
+                              <div className="flex flex-col items-end">
+                                <span className="font-black text-emerald-600 text-lg">R$ {total.toFixed(2)}</span>
+                                <button 
+                                  onClick={() => removeFromCart(item.product.id)}
+                                  className="text-slate-400 hover:text-rose-500 text-[10px] font-bold transition-colors"
+                                >
+                                  Remover
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -2252,8 +2269,8 @@ export default function Store() {
 
                   <div className="flex flex-col mb-6">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-slate-500 font-bold">Subtotal</span>
-                      <span className={`font-black text-slate-900 tracking-tighter ${discountValue > 0 ? 'text-xl line-through opacity-50' : 'text-3xl'}`}>
+                      <span className="text-slate-500 font-bold text-sm">Subtotal</span>
+                      <span className={`font-black text-slate-900 tracking-tighter ${discountValue > 0 ? 'text-lg line-through opacity-50' : 'text-xl'}`}>
                         R$ {cartTotal.toFixed(2)}
                       </span>
                     </div>
@@ -2264,7 +2281,7 @@ export default function Store() {
                           <Truck size={14} className="text-emerald-600" />
                           <span className="text-xs font-bold uppercase tracking-wider">Frete ({selectedShippingQuote.name})</span>
                         </div>
-                        <span className="text-lg font-black tracking-tighter">
+                        <span className="text-base font-black tracking-tighter">
                           {isFreeShipping ? 'GRÁTIS' : `R$ ${selectedShippingQuote.price.toFixed(2)}`}
                         </span>
                       </div>
@@ -2274,44 +2291,62 @@ export default function Store() {
                       <div className="flex items-center justify-between mb-2 text-emerald-600">
                         <div className="flex items-center gap-1">
                           <Tag size={14} />
-                          <span className="text-sm font-bold uppercase">Cupom {affiliateCoupon.code}</span>
+                          <span className="text-xs font-bold uppercase">Cupom {affiliateCoupon.code}</span>
                         </div>
-                        <span className="text-2xl font-black tracking-tighter">- R$ {discountValue.toFixed(2)}</span>
+                        <span className="text-xl font-black tracking-tighter">- R$ {discountValue.toFixed(2)}</span>
                       </div>
                     )}
 
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-slate-900 font-black uppercase text-sm">Total</span>
-                      <span className="text-4xl font-black text-slate-900 tracking-tighter">R$ {finalTotal.toFixed(2)}</span>
+                      <span className="text-slate-900 font-black uppercase text-xs">Total</span>
+                      <span className="text-2xl font-black text-slate-900 tracking-tighter">R$ {finalTotal.toFixed(2)}</span>
                     </div>
 
-                    <p className="text-right text-xs font-bold text-slate-400 uppercase tracking-widest">
-                      ou em até {(() => {
+                    <div className="flex flex-col items-end">
+                      <p className="text-right text-xs font-bold text-slate-400 uppercase tracking-widest">
+                        ou em até {(() => {
+                          const minInstallmentValue = cart.reduce((min, item) => {
+                            const productMin = item.product.min_installment_value || 50;
+                            return productMin < min ? productMin : min;
+                          }, 50);
+                          const maxInstallments = 10;
+                          let possibleInstallments = Math.floor(finalTotal / minInstallmentValue);
+                          if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
+                          if (possibleInstallments < 1) possibleInstallments = 1;
+                          return possibleInstallments;
+                        })()}x de R$ {(finalTotal / (() => {
+                          const minInstallmentValue = cart.reduce((min, item) => {
+                            const productMin = item.product.min_installment_value || 50;
+                            return productMin < min ? productMin : min;
+                          }, 50);
+                          const maxInstallments = 10;
+                          let possibleInstallments = Math.floor(finalTotal / minInstallmentValue);
+                          if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
+                          if (possibleInstallments < 1) possibleInstallments = 1;
+                          return possibleInstallments;
+                        })()).toFixed(2)} sem juros
+                      </p>
+                      
+                      {/* Mensagem de Parcelamento */}
+                      {(() => {
                         const minInstallmentValue = cart.reduce((min, item) => {
                           const productMin = item.product.min_installment_value || 50;
                           return productMin < min ? productMin : min;
                         }, 50);
-                        const maxInstallments = 10;
-                        let possibleInstallments = Math.floor(finalTotal / minInstallmentValue);
-                        if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
-                        if (possibleInstallments < 1) possibleInstallments = 1;
-                        return possibleInstallments;
-                      })()}x de R$ {(finalTotal / (() => {
-                        const minInstallmentValue = cart.reduce((min, item) => {
-                          const productMin = item.product.min_installment_value || 50;
-                          return productMin < min ? productMin : min;
-                        }, 50);
-                        const maxInstallments = 10;
-                        let possibleInstallments = Math.floor(finalTotal / minInstallmentValue);
-                        if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
-                        if (possibleInstallments < 1) possibleInstallments = 1;
-                        return possibleInstallments;
-                      })()).toFixed(2)} sem juros
-                    </p>
+                        if (finalTotal < minInstallmentValue) {
+                          return (
+                            <p className="text-[10px] text-indigo-600 font-bold mt-1 uppercase tracking-tighter">
+                              Adicione mais R$ {(minInstallmentValue - finalTotal).toFixed(2)} para parcelar
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                   </div>
                   <button 
                     onClick={() => navigate('/checkout')}
-                    className="w-full bg-emerald-600 text-white py-6 rounded-[32px] font-black text-xl uppercase italic tracking-tighter hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200 flex items-center justify-center gap-3"
+                    className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-base uppercase italic tracking-tighter hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-3"
                   >
                     Finalizar Compra
                   </button>

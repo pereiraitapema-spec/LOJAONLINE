@@ -1249,7 +1249,7 @@ export default function Checkout() {
                     type="button"
                     onClick={() => {
                       setPaymentMethod(gateway.provider);
-                      setSelectedGateway(gateway.provider);
+                      setSelectedGateway(gateway.id);
                       setPagarmeMethod(null);
                     }}
                     className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === gateway.provider ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
