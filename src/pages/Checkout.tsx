@@ -443,7 +443,7 @@ export default function Checkout() {
     }
   };
 
-  const lastCalculatedCep = useRef<string>('');
+  const lastCalculatedCep = React.useRef<string>('');
 
   const handleCep = async (cep: string) => {
     if (calculatingShipping || cep.length !== 8) return;
@@ -958,7 +958,6 @@ export default function Checkout() {
                     value={shipping.cep}
                     onChange={handleCepChange}
                     maxLength={8}
-                    placeholder="00000000"
                     onBlur={handleCepBlur}
                     placeholder="00000-000"
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
