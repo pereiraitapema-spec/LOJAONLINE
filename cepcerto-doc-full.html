@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+
+    <!-- Google Tag Manager -->
+    <script>
+    (function(w,d,s,l,i){
+        w[l]=w[l]||[];
+        w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});
+        var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),
+            dl=l!='dataLayer'?'&l='+l:'';
+        j.async=true;
+        j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
+        f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-P77BD9G2');
+    </script>
+    <!-- End Google Tag Manager -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="https://cepcerto.com/">
+    <title>API de Cálculo de Frete | Integração Fácil</title>
+
+    <meta name="description" content="Calcule fretes dos Correios (PAC e SEDEX) de forma rápida com nossa API. Integração simples e resposta em JSON e XML.">
+    <meta name="keywords" content="api calculo de frete, api correios, api frete PAC, api frete SEDEX">
+    <meta http-equiv="Content-Language" content="pt-BR">
+    <meta name="robots" content="index, follow">
+
+    <link rel="icon" href="https://cepcerto.com/imagens/favicon.ico" type="image/x-icon">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="https://cepcerto.com/css/estilo_critical.min.css?v=1763652659">
+    <link rel="stylesheet" href="https://cepcerto.com/css/estrutura.css?v=1774183157">
+    <link rel="stylesheet" href="https://cepcerto.com/css/footer.css?v=1774183163">
+    <link rel="stylesheet" href="https://cepcerto.com/css/gravar_senha.css?v=1754051734">
+    <link rel="stylesheet" href="https://cepcerto.com/css/planos_premium.css?v=1754051734">
+    <link rel="stylesheet" href="https://cepcerto.com/css/apis.css?v=1754051734">
+    <link rel="stylesheet" href="https://cepcerto.com/css/mobile.css?v=1770196837">
+    <link rel="stylesheet" href="https://cepcerto.com/css/blocos.css?v=1774191666">
+    <link rel="stylesheet" href="https://cepcerto.com/css/cadastro.css?v=1754051734">
+    <link rel="stylesheet" href="https://cepcerto.com/css/pagamento.css?v=1754051734">
+    <link rel="stylesheet" href="https://cepcerto.com/css/calculadora_frete.css?v=1770038841">
+
+
+    <!-- Open Graph -->
+    <meta property="og:region" content="Brasil">
+    <meta property="og:title" content="API de Cálculo de Frete | Integração Fácil">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://www.cepcerto.com//imagens/logo_cepcerto-quadrado.jpeg">
+    <meta property="og:url" content="https://www.cepcerto.com/">
+    <meta property="og:type" content="website">
+    <meta property="og:description" content="Calcule fretes dos Correios (PAC e SEDEX) de forma rápida com nossa API. Integração simples e resposta em JSON e XML.">
+    <meta property="og:site_name" content="CepCerto">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <!-- Fonts / Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+</head>
+<body>
+
+<!-- Google Tag Manager (noscript) -->
+<noscript>
+<iframe src="https://www.googletagmanager.com/ns.html?id=GTM-P77BD9G2"
+height="0" width="0" style="display:none;visibility:hidden"></iframe>
+</noscript>
+<!-- End Google Tag Manager -->
+
+<header>
+    <div class="header-container">
+        <div class="logo">
+            <a href="https://cepcerto.com/">
+                <img class="logo-header" src="https://cepcerto.com//imagens/logo-cepcerto.svg" alt="Cep Certo">
+            </a>
+        </div>
+        <nav class="navbar">
+            <!-- Ícone do Menu Hamburguer -->
+            <div class="menu-icon">
+                <div class="bar1"></div>
+                <div class="bar2"></div>
+                <div class="bar3"></div>
+            </div>
+            <!-- Menu de Navegação -->
+            <ul id="menu">
+                <li><a href="https://cepcerto.com/">INÍCIO</a></li><li><a href="https://cepcerto.com/rastreio">RASTREIO</a></li><li><a href="https://cepcerto.com/apis">APIs</a></li><li><a href="https://cepcerto.com/como-funciona">COMO FUNCIONA</a></li><li><a href="https://cepcerto.com/plano-premium">PREMIUM</a></li><li><a href="https://blog.cepcerto.com/">BLOG</a></li>
+                <li><a href="https://cepcerto.com/cadastre-se" class="btn-cta">CADASTRE-SE</a></li>
+
+    <li><a href="https://cepcerto.com/entrar" class="btn-entrar">ENTRAR</a></li>
+
+
+            </ul>
+        </nav>
+    </div>
+</header><div class="bloco interna-info">
+                        <main>
+                            <h1>API de Cálculo de Frete</h1>
+                            <section id="frete-resumido-caixa">
+                                <h2>Cálculo de Frete Simplificado - PAC/SEDEX</h2>
+                                <p>Utilize nossa API para calcular fretes dos Correios de forma rápida e eficiente. Ela fornece valores e prazos para serviços PAC e SEDEX em uma única solicitação.</p>
+                                <button onclick="scrollToApi('1')">Ver API em ação</button>
+                            </section>
+                            <section id="frete-valor-declarado-caixa">
+                                <h2>Integração com Valor Declarado</h2>
+                                <p>Adicione mais segurança ao calcular o frete com opções como valor declarado, aviso de recebimento e entrega a destinatários exclusivos.</p>
+                                <button onclick="scrollToApi('4')">Como usar</button>
+                            </section>
+                            <section id="frete-codigo-servico-caixa">
+                                <h2>Escolha Específica de Serviços</h2>
+                                <p>Com nossa API, você pode escolher o serviço Correios que deseja utilizar, como PAC, SEDEX ou SEDEX 10, diretamente por meio do código do serviço.</p>
+                                <ul>
+                                    <li>PAC: <code>04510</code></li>
+                                    <li>SEDEX: <code>04014</code></li>
+                                    <li>SEDEX 10: <code>04790</code></li>
+                                </ul>
+                                <button onclick="scrollToApi('6')">Explore mais</button>
+                            </section>
+                        </main>
+                    </div><div class="bloco" style="gap:10px;">
+
+  <!-- Card Frete -->
+  <div style="flex: 1; min-width: 320px; max-width: 400px; background-color: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center;">
+    <h2 style="color: #0073e6;">📦 <strong>Calcule o Frete dos Correios direto no Excel!</strong></h2>
+    <p>Calcule fretes direto no Excel — <strong>rápido, simples e sem complicação</strong>! ✨</p>
+    <a href="https://cepcerto.com/planilhas/Planilha_Calculo_Frete_CepCerto.xlsm" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; transition: all 0.3s;">
+      🔗 Baixar Planilha de Cálculo de Frete
+    </a>
+    <ul style="list-style: none; padding: 0; margin-top: 10px;">
+      <li>✔️ <strong>Cálculo de fretes em tempo real</strong></li>
+      <li>✔️ Perfeito para <strong>lojas, e-commerces e empreendedores</strong></li>
+    </ul>
+  </div>
+
+  <!-- Card Rastreamento Excel -->
+  <div style="flex: 1; min-width: 320px; max-width: 400px; background-color: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center;">
+    <h2 style="color: #0073e6;">📬 <strong>Rastreie Encomendas dos Correios no Excel!</strong></h2>
+    <p>Rastreie seus pedidos no Excel — <strong>sem abrir navegador, rápido e prático</strong>! ⚡</p>
+    <a href="https://cepcerto.com/planilhas/Planilha_Rastreamento_CepCerto.xlsm" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #17a2b8; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; transition: all 0.3s;">
+      🔗 Baixar Planilha de Rastreamento
+    </a>
+    <ul style="list-style: none; padding: 0; margin-top: 10px;">
+      <li>✔️ <strong>Rastreamento atualizado em tempo real</strong></li>
+      <li>✔️ Ideal para quem <strong>vende online e gerencia entregas</strong></li>
+    </ul>
+  </div>
+
+  <!-- Card Lista Rastreamento -->
+  <div style="flex: 1; min-width: 320px; max-width: 400px; background-color: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center;">
+    <h2 style="color: #0073e6;">📑 <strong>Envio de Lista de Rastreamento via Planilha!</strong></h2>
+    <p>Suba sua planilha com <strong>vários códigos</strong> e acompanhe tudo — <strong>fácil, rápido e organizado</strong>! 🚚✨</p>
+    <a href="https://www.cepcerto.com/rastreio-por-planilha" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #ffc107; color: black; text-decoration: none; border-radius: 6px; font-weight: bold; transition: all 0.3s;">
+      🔗 Veja como funciona
+    </a>
+    <ul style="list-style: none; padding: 0; margin-top: 10px;">
+      <li>✔️ <strong>Status de múltiplas encomendas em tempo real</strong></li>
+      <li>✔️ <strong>Organize e acompanhe todos os envios com facilidade</strong></li>
+    </ul>
+  </div>
+
+</div>
+
+
+<div class="bloco">
+    
+
+
+
+
+    <div class="coluna" id="1" data-id-api="1">
+        <div class="home_api_container">
+            <h3>Frete Correios - Objeto Caixa - Pac/Sedex - Resumida</h3>
+            <div class="tab-container">
+                <button class="tab-button active" data-content="json">JSON</button>
+                <button class="tab-button" data-content="xml">XML</button>
+                <button class="tab-button" data-content="como-funciona">Como Funciona?</button>
+                <button class="tab-button" data-content="como-integrar" data-tipo-api="frete">Como Integrar?</button>
+                <button class="tab-button" data-content="error-messagetab" data-tipo-api="frete">Alertas de Erro</button>
+            </div>
+                        <div class="container-content" 
+                data-url-json="https://cepcerto.com/ws/json-frete/cep-origem/cep-destino/peso/altura/largura/comprimento/sua-chave" 
+                data-url-xml="https://cepcerto.com/ws/xml-frete/cep-origem/cep-destino/peso/altura/largura/comprimento/sua-chave" 
+                data-img-json="/imagens/frete-resumido-json.png" 
+                data-img-xml="/imagens/frete-resumido-xml.png">
+                
+                <!-- Área inicial para JSON/XML -->
+                <div id="inicialapihome">
+                    <span class="color-red">Estrutura da URL: (endpoint)</span>
+                    <span id="url-text" class="bg-dark padding-1 font-size-1-2">https://cepcerto.com/ws/<b class="highlight">json</b>-frete/cep-origem/cep-destino/peso/altura/largura/comprimento/sua-chave</span>
+                    
+                 <div class="margin-top-1" style="display: flex; justify-content: space-between; gap: 10px;">
+
+                    <!-- Botão Postman -->
+                    <a href="https://www.postman.com/blue-eclipse-616354/cepcerto-clculo-de-frete/request/j9s2m06/cepcerto-frete-correios?action=share&amp;creator=44371012&amp;ctx=documentation&amp;active-environment=44371012-322cef1c-fcb4-49a3-81c1-9171da13c6fb"
+                    target="_blank"
+                    style="
+                        background: linear-gradient(145deg, #f66c3d, #fa7e53);
+                        color: white;
+                        padding: 6px 5px;
+                        font-size: 12px;
+                            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+                        text-decoration: none;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        transition: all 0.2s ease-in-out;
+                    "
+                    onmouseover="this.style.opacity='0.9'"
+                    onmouseout="this.style.opacity='1'">
+                        🧪 <span>Teste Postman</span>
+                    </a>
+
+                    <!-- Botão URL de Teste -->
+                    <a href="https://www.cepcerto.com/ws/json-frete/01001000/20010010/1000/20/20/20/teste"
+                    target="_blank"
+                    style="
+                        background: linear-gradient(145deg, #007bff, #3399ff);
+                        color: white;
+                        padding: 6px 5px;
+                        font-size: 12px;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+                        text-decoration: none;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        transition: all 0.2s ease-in-out;
+                    "
+                    onmouseover="this.style.opacity='0.9'"
+                    onmouseout="this.style.opacity='1'">
+                        🔗 <span>URL Teste</span>
+                    </a>
+
+        </div>
+
+
+                    
+
+                                    
+                    <span class="margin-top-0-5">- Sua Chave CepCerto:&nbsp;<a href="https://www.cepcerto.com/minha-chave">Como conseguir?</a></span>
+                    <span class="margin-top-1 color-red">Retorno&nbsp;<b id="return-type">JSON</b></span>
+                    <span class="margin-top-1"><img id="response-img" src="/imagens/frete-resumido-json.png"></span>
+                </div>  
+
+                <!-- Conteúdo dinâmico para "Como Funciona", "Como Integrar" e "Alertas de Erro" -->
+                <div class="como-funciona-content" style="display: none;"></div>
+                <div class="como-integrar-content" style="display: none;"></div>
+                <div class="error-messagetab-content" style="display: none;"></div>
+            </div>
+            
+            <!-- Spinner de carregamento -->
+            <div class="loading-spinner" style="display: none;">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+    
+
+
+
+
+    <div class="coluna" id="3" data-id-api="3">
+        <div class="home_api_container">
+            <h3>Frete Correios Objeto Caixa Pac/Sedex Valor Declarado</h3>
+            <div class="tab-container">
+                <button class="tab-button active" data-content="json">JSON</button>
+                <button class="tab-button" data-content="xml">XML</button>
+                <button class="tab-button" data-content="como-funciona">Como Funciona?</button>
+                <button class="tab-button" data-content="como-integrar" data-tipo-api="frete">Como Integrar?</button>
+                <button class="tab-button" data-content="error-messagetab" data-tipo-api="frete">Alertas de Erro</button>
+            </div>
+                        <div class="container-content" 
+                data-url-json="https://cepcerto.com/ws/json-frete-opcional/cep-origem/cep-destino/peso/altura/largura/comprimento/declaracao-valor/mao-propria/aviso-recebimento/sua-chave" 
+                data-url-xml="https://cepcerto.com/ws/xml-frete-opcional/cep-origem/cep-destino/peso/altura/largura/comprimento/declaracao-valor/mao-propria/aviso-recebimento/sua-chave" 
+                data-img-json="/imagens/json-frete-opcional.png" 
+                data-img-xml="/imagens/xml-frete-opcional.png">
+                
+                <!-- Área inicial para JSON/XML -->
+                <div id="inicialapihome">
+                    <span class="color-red">Estrutura da URL: (endpoint)</span>
+                    <span id="url-text" class="bg-dark padding-1 font-size-1-2">https://cepcerto.com/ws/<b class="highlight">json</b>-frete-opcional/cep-origem/cep-destino/peso/altura/largura/comprimento/declaracao-valor/mao-propria/aviso-recebimento/sua-chave</span>
+                    
+                     
+
+                                    
+                    <span class="margin-top-0-5">- Sua Chave CepCerto:&nbsp;<a href="https://www.cepcerto.com/minha-chave">Como conseguir?</a></span>
+                    <span class="margin-top-1 color-red">Retorno&nbsp;<b id="return-type">JSON</b></span>
+                    <span class="margin-top-1"><img id="response-img" src="/imagens/json-frete-opcional.png"></span>
+                </div>  
+
+                <!-- Conteúdo dinâmico para "Como Funciona", "Como Integrar" e "Alertas de Erro" -->
+                <div class="como-funciona-content" style="display: none;"></div>
+                <div class="como-integrar-content" style="display: none;"></div>
+                <div class="error-messagetab-content" style="display: none;"></div>
+            </div>
+            
+            <!-- Spinner de carregamento -->
+            <div class="loading-spinner" style="display: none;">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+    </div><div class="bloco">
+
+
+
+
+    <div class="coluna" id="4" data-id-api="4">
+        <div class="home_api_container">
+            <h3>Frete Correios Objeto Rolo/Cilindro Valor Declarado</h3>
+            <div class="tab-container">
+                <button class="tab-button active" data-content="json">JSON</button>
+                <button class="tab-button" data-content="xml">XML</button>
+                <button class="tab-button" data-content="como-funciona">Como Funciona?</button>
+                <button class="tab-button" data-content="como-integrar" data-tipo-api="frete">Como Integrar?</button>
+                <button class="tab-button" data-content="error-messagetab" data-tipo-api="frete">Alertas de Erro</button>
+            </div>
+                        <div class="container-content" 
+                data-url-json="https://cepcerto.com/ws/json-frete-opcional-cilindro/cep-origem/cep-destino/peso/comprimento/diametro/declaracao-valor/mao-propria/aviso-recebimento/sua-chave" 
+                data-url-xml="https://cepcerto.com/ws/xml-frete-opcional-cilindro/cep-origem/cep-destino/peso/comprimento/diametro/declaracao-valor/mao-propria/aviso-recebimento/sua-chave" 
+                data-img-json="/imagens/json-frete-opcional-cilindro.png" 
+                data-img-xml="/imagens/xml-frete-opcional-cilindro.png">
+                
+                <!-- Área inicial para JSON/XML -->
+                <div id="inicialapihome">
+                    <span class="color-red">Estrutura da URL: (endpoint)</span>
+                    <span id="url-text" class="bg-dark padding-1 font-size-1-2">https://cepcerto.com/ws/<b class="highlight">json</b>-frete-opcional-cilindro/cep-origem/cep-destino/peso/comprimento/diametro/declaracao-valor/mao-propria/aviso-recebimento/sua-chave</span>
+                    
+                     
+
+                                    
+                    <span class="margin-top-0-5">- Sua Chave CepCerto:&nbsp;<a href="https://www.cepcerto.com/minha-chave">Como conseguir?</a></span>
+                    <span class="margin-top-1 color-red">Retorno&nbsp;<b id="return-type">JSON</b></span>
+                    <span class="margin-top-1"><img id="response-img" src="/imagens/json-frete-opcional-cilindro.png"></span>
+                </div>  
+
+                <!-- Conteúdo dinâmico para "Como Funciona", "Como Integrar" e "Alertas de Erro" -->
+                <div class="como-funciona-content" style="display: none;"></div>
+                <div class="como-integrar-content" style="display: none;"></div>
+                <div class="error-messagetab-content" style="display: none;"></div>
+            </div>
+            
+            <!-- Spinner de carregamento -->
+            <div class="loading-spinner" style="display: none;">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+    
+
+
+
+
+    <div class="coluna" id="5" data-id-api="5">
+        <div class="home_api_container">
+            <h3>Frete Correios - Código do Serviço - Objeto Caixa</h3>
+            <div class="tab-container">
+                <button class="tab-button active" data-content="json">JSON</button>
+                <button class="tab-button" data-content="xml">XML</button>
+                <button class="tab-button" data-content="como-funciona">Como Funciona?</button>
+                <button class="tab-button" data-content="como-integrar" data-tipo-api="frete">Como Integrar?</button>
+                <button class="tab-button" data-content="error-messagetab" data-tipo-api="frete">Alertas de Erro</button>
+            </div>
+                        <div class="container-content" 
+                data-url-json="https://cepcerto.com/ws/json-frete-servico/cep-origem/cep-destino/peso/altura/largura/comprimento/código-do-serviço/sua-chave/" 
+                data-url-xml="https://cepcerto.com/ws/xml-frete-servico/cep-origem/cep-destino/peso/altura/largura/comprimento/código-do-serviço/sua-chave/" 
+                data-img-json="/imagens/frete-codigo-servico-json.png" 
+                data-img-xml="/imagens/frete-codigo-servico-xml.png">
+                
+                <!-- Área inicial para JSON/XML -->
+                <div id="inicialapihome">
+                    <span class="color-red">Estrutura da URL: (endpoint)</span>
+                    <span id="url-text" class="bg-dark padding-1 font-size-1-2">https://cepcerto.com/ws/<b class="highlight">json</b>-frete-servico/cep-origem/cep-destino/peso/altura/largura/comprimento/código-do-serviço/sua-chave/</span>
+                    
+                     
+
+                                    
+                    <span class="margin-top-0-5">- Sua Chave CepCerto:&nbsp;<a href="https://www.cepcerto.com/minha-chave">Como conseguir?</a></span>
+                    <span class="margin-top-1 color-red">Retorno&nbsp;<b id="return-type">JSON</b></span>
+                    <span class="margin-top-1"><img id="response-img" src="/imagens/frete-codigo-servico-json.png"></span>
+                </div>  
+
+                <!-- Conteúdo dinâmico para "Como Funciona", "Como Integrar" e "Alertas de Erro" -->
+                <div class="como-funciona-content" style="display: none;"></div>
+                <div class="como-integrar-content" style="display: none;"></div>
+                <div class="error-messagetab-content" style="display: none;"></div>
+            </div>
+            
+            <!-- Spinner de carregamento -->
+            <div class="loading-spinner" style="display: none;">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+    </div><div class="bloco">
+
+
+
+
+    <div class="coluna" id="6" data-id-api="6">
+        <div class="home_api_container">
+            <h3>Frete Correios - Código do Serviço - Objeto Rolo/Cilindro</h3>
+            <div class="tab-container">
+                <button class="tab-button active" data-content="json">JSON</button>
+                <button class="tab-button" data-content="xml">XML</button>
+                <button class="tab-button" data-content="como-funciona">Como Funciona?</button>
+                <button class="tab-button" data-content="como-integrar" data-tipo-api="frete">Como Integrar?</button>
+                <button class="tab-button" data-content="error-messagetab" data-tipo-api="frete">Alertas de Erro</button>
+            </div>
+                        <div class="container-content" 
+                data-url-json="https://cepcerto.com/ws/json-frete-servico-cilindro/cep-origem/cep-destino/peso/comprimento/diâmetro/código-do-serviço/sua-chave" 
+                data-url-xml="https://cepcerto.com/ws/xml-frete-servico-cilindro/cep-origem/cep-destino/peso/comprimento/diâmetro/código-do-serviço/sua-chave
+" 
+                data-img-json="/imagens/frete-codigo-servico-json.png" 
+                data-img-xml="/imagens/frete-codigo-servico-xml.png">
+                
+                <!-- Área inicial para JSON/XML -->
+                <div id="inicialapihome">
+                    <span class="color-red">Estrutura da URL: (endpoint)</span>
+                    <span id="url-text" class="bg-dark padding-1 font-size-1-2">https://cepcerto.com/ws/<b class="highlight">json</b>-frete-servico-cilindro/cep-origem/cep-destino/peso/comprimento/diâmetro/código-do-serviço/sua-chave</span>
+                    
+                     
+
+                                    
+                    <span class="margin-top-0-5">- Sua Chave CepCerto:&nbsp;<a href="https://www.cepcerto.com/minha-chave">Como conseguir?</a></span>
+                    <span class="margin-top-1 color-red">Retorno&nbsp;<b id="return-type">JSON</b></span>
+                    <span class="margin-top-1"><img id="response-img" src="/imagens/frete-codigo-servico-json.png"></span>
+                </div>  
+
+                <!-- Conteúdo dinâmico para "Como Funciona", "Como Integrar" e "Alertas de Erro" -->
+                <div class="como-funciona-content" style="display: none;"></div>
+                <div class="como-integrar-content" style="display: none;"></div>
+                <div class="error-messagetab-content" style="display: none;"></div>
+            </div>
+            
+            <!-- Spinner de carregamento -->
+            <div class="loading-spinner" style="display: none;">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+    
+
+
+
+
+    <div class="coluna" id="2" data-id-api="2">
+        <div class="home_api_container">
+            <h3>Frete Correios - Objeto Rolo/Cilindro - Pac/Sedex - Resumida</h3>
+            <div class="tab-container">
+                <button class="tab-button active" data-content="json">JSON</button>
+                <button class="tab-button" data-content="xml">XML</button>
+                <button class="tab-button" data-content="como-funciona">Como Funciona?</button>
+                <button class="tab-button" data-content="como-integrar" data-tipo-api="frete">Como Integrar?</button>
+                <button class="tab-button" data-content="error-messagetab" data-tipo-api="frete">Alertas de Erro</button>
+            </div>
+                        <div class="container-content" 
+                data-url-json="https://cepcerto.com/ws/json-frete-cilindro/cep-origem/cep-destino/peso/comprimento/diametro/sua-chave" 
+                data-url-xml="https://cepcerto.com/ws/xml-frete-cilindro/cep-origem/cep-destino/peso/comprimento/diametro/sua-chave" 
+                data-img-json="/imagens/frete-resumido-json.png" 
+                data-img-xml="/imagens/frete-resumido-xml.png">
+                
+                <!-- Área inicial para JSON/XML -->
+                <div id="inicialapihome">
+                    <span class="color-red">Estrutura da URL: (endpoint)</span>
+                    <span id="url-text" class="bg-dark padding-1 font-size-1-2">https://cepcerto.com/ws/<b class="highlight">json</b>-frete-cilindro/cep-origem/cep-destino/peso/comprimento/diametro/sua-chave</span>
+                    
+                     
+
+                                    
+                    <span class="margin-top-0-5">- Sua Chave CepCerto:&nbsp;<a href="https://www.cepcerto.com/minha-chave">Como conseguir?</a></span>
+                    <span class="margin-top-1 color-red">Retorno&nbsp;<b id="return-type">JSON</b></span>
+                    <span class="margin-top-1"><img id="response-img" src="/imagens/frete-resumido-json.png"></span>
+                </div>  
+
+                <!-- Conteúdo dinâmico para "Como Funciona", "Como Integrar" e "Alertas de Erro" -->
+                <div class="como-funciona-content" style="display: none;"></div>
+                <div class="como-integrar-content" style="display: none;"></div>
+                <div class="error-messagetab-content" style="display: none;"></div>
+            </div>
+            
+            <!-- Spinner de carregamento -->
+            <div class="loading-spinner" style="display: none;">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+    </div> <!-- Fecha a última div.bloco aberta -->
+<script type="text/javascript" src="https://cepcerto.com/js/apis.js"></script><script src="https://cepcerto.com/js/global.js"></script>
+<script src="https://cepcerto.com/js/cnpj_cpf.js"></script>
+
+<script src="https://cepcerto.com/js/menu.js"></script>
+<script src="https://cepcerto.com/js/apis.js"></script>
+
+
+
+<div class="whatsapp-icon">
+        <a href="https://wa.me/5517920004471" target="_blank">
+        <img src="https://cepcerto.com/imagens/cep-certo-icon-whatsapp-footer.webp" width="33" height="33" title="CepCerto contato pelo WhatsApp" alt="CepCerto contato pelo WhatsApp"> 
+        </a>
+    </div>
+<footer class="footer">
+  <div class="footer-container">
+    <div class="footer-logo">
+      <img src="https://cepcerto.com/imagens/logo-cepcerto_branco.png" alt="CepCerto" style="height:30px; margin-bottom:10px;">
+      <p>Simplificando o cálculo de frete, rastreamento e emissão de etiquetas.</p>
+    </div>    
+
+    <div class="footer-links">
+      <h4 class="h4-links-footer">Links úteis</h4>
+      <ul>
+        <li><a href="https://cepcerto.com/como-funciona">Como Funciona</a></li>
+        <li><a href="https://cepcerto.com/cadastre-se">Cadastre-se</a></li>
+        <li><a href="https://cepcerto.com/entrar">Entrar</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-contato">
+      <h4 class="h4-links-footer">Contato</h4>
+      <p><strong>E-mail:</strong> fale@cepcerto.com</p>
+      <p><strong>WhatsApp:</strong> (17) 92000-4471</p>
+      <a href="https://wa.me/5517920004471" target="_blank" class="footer-btn">
+        Falar no WhatsApp
+      </a>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <p>© <span id="year">2022</span> CepCerto. Todos os direitos reservados.</p>
+  </div>
+</footer>
+</body>
+</html>

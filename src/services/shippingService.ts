@@ -192,11 +192,8 @@ const cepcertoProvider: ShippingProvider = {
       // URL format: https://www.cepcerto.com/ws/json-frete/{origem}/{destino}/{peso_gramas}/{altura}/{largura}/{comprimento}/{chave}
       const baseUrl = `https://www.cepcerto.com/ws/json-frete/${config.origin_zip}/${destZipCode.replace(/\D/g, '')}/${totalWeightInGrams}/${maxDim.h}/${maxDim.w}/${maxDim.l}/${config.api_key}`;
       
-      // Usando um proxy CORS para evitar bloqueios no navegador
-      const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(baseUrl)}`;
-      
       console.log('🔗 URL CepCerto:', baseUrl);
-      const response = await fetch(url);
+      const response = await fetch(baseUrl);
       const duration = Date.now() - startTime;
       
       if (response.ok) {
