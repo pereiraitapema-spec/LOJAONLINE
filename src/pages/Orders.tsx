@@ -257,6 +257,7 @@ export default function Orders() {
   };
 
   const [processingShipping, setProcessingShipping] = useState(false);
+  const [processingLogistics, setProcessingLogistics] = useState(false);
 
   const handleGenerateLabel = async (orderId: string) => {
     setProcessingShipping(true);
@@ -270,6 +271,34 @@ export default function Orders() {
       toast.error('Erro ao gerar etiqueta: ' + error.message);
     } finally {
       setProcessingShipping(false);
+    }
+  };
+
+  const handlePrintInvoice = async (orderId: string) => {
+    setProcessingLogistics(true);
+    try {
+      // Baixa o arquivo de texto com os dados do pedido para preenchimento manual da NF
+      const invoiceUrl = `/api/logistics/invoice-data/${orderId}`;
+      window.open(invoiceUrl, '_blank');
+      toast.success('Arquivo de dados da Nota Fiscal gerado com sucesso!');
+    } catch (error: any) {
+      toast.error('Erro ao gerar Nota Fiscal: ' + error.message);
+    } finally {
+      setProcessingLogistics(false);
+    }
+  };
+
+  const handlePrintPickingList = async (orderId: string) => {
+    setProcessingLogistics(true);
+    try {
+      // Baixa o arquivo de texto com os dados do pedido para separação
+      const pickingUrl = `/api/logistics/picking-data/${orderId}`;
+      window.open(pickingUrl, '_blank');
+      toast.success('Lista de separação gerada!');
+    } catch (error: any) {
+      toast.error('Erro ao gerar lista de separação: ' + error.message);
+    } finally {
+      setProcessingLogistics(false);
     }
   };
 
@@ -1088,6 +1117,22 @@ export default function Orders() {
                     >
                       <Printer size={16} />
                       Gerar Etiqueta
+                    </button>
+                    <button 
+                      onClick={() => handlePrintInvoice(selectedOrder.id)}
+                      disabled={processingLogistics}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                    >
+                      <Printer size={16} />
+                      Emitir Nota Fiscal
+                    </button>
+                    <button 
+                      onClick={() => handlePrintPickingList(selectedOrder.id)}
+                      disabled={processingLogistics}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
+                    >
+                      <Printer size={16} />
+                      Separar Produto
                     </button>
                     <button 
                       onClick={() => handleCancelLabel(selectedOrder.id)}

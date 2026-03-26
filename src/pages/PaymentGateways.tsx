@@ -278,6 +278,13 @@ export default function PaymentGateways() {
                   <option value="stripe">Stripe</option>
                   <option value="pagarme">Pagar.me</option>
                   <option value="asaas">Asaas</option>
+                  <option value="cielo">Cielo</option>
+                  <option value="rede">Rede</option>
+                  <option value="getnet">Getnet</option>
+                  <option value="itau">Itaú Shopline</option>
+                  <option value="bradesco">Bradesco Comércio Eletrônico</option>
+                  <option value="bb">Banco do Brasil</option>
+                  <option value="pix">Pix (Direto)</option>
                   <option value="custom">Outro (API Customizada)</option>
                 </select>
               </div>

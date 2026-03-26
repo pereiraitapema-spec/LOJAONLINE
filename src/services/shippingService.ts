@@ -573,9 +573,22 @@ export const shippingService = {
   },
 
   async getTrackingStatus(trackingCode: string) {
-    const { data: order } = await supabase.from('orders').select('carrier_id').eq('tracking_code', trackingCode).single();
+    const { data: order } = await supabase
+      .from('orders')
+      .select('carrier_id, logistics_history, current_logistics_status, status')
+      .eq('tracking_code', trackingCode)
+      .maybeSingle();
+
     if (!order) return { status: 'Não encontrado', history: [] };
     
+    // Se tiver histórico de logística no banco, priorizar ele
+    if (order.logistics_history && order.logistics_history.length > 0) {
+      return {
+        status: order.current_logistics_status || order.status,
+        history: order.logistics_history
+      };
+    }
+
     const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.carrier_id).single();
     if (!carrier) return { status: 'Transportadora não encontrada', history: [] };
 

@@ -160,6 +160,11 @@ export default function Store() {
     const saved = localStorage.getItem('cache_campaigns');
     return saved ? JSON.parse(saved) : [];
   });
+  const scrollToProducts = () => {
+    const el = document.getElementById('products-grid');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  };
+
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('cache_products');
     return saved ? JSON.parse(saved) : [];
@@ -188,6 +193,10 @@ export default function Store() {
     const saved = localStorage.getItem('cart_items');
     return saved ? JSON.parse(saved) : [];
   });
+
+  useEffect(() => {
+    localStorage.setItem('cart_items', JSON.stringify(cart));
+  }, [cart]);
 
   useEffect(() => {
     if (videoRef.current && banners[currentBannerIndex]?.type === 'video') {

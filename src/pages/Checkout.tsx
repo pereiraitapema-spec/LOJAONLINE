@@ -67,7 +67,8 @@ export default function Checkout() {
     name: '',
     email: '',
     phone: '',
-    document: ''
+    document: '',
+    password: ''
   });
 
   const [shipping, setShipping] = useState({
@@ -95,7 +96,65 @@ export default function Checkout() {
   const [showPixModal, setShowPixModal] = useState(false);
   const [boletoData, setBoletoData] = useState<{ url: string; pdf: string; barcode: string; expires_at: string } | null>(null);
   const [showBoletoModal, setShowBoletoModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createAccount, setCreateAccount] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
+
+  const SuccessModal = () => (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="bg-white rounded-[2.5rem] p-8 md:p-12 max-w-lg w-full text-center shadow-2xl relative overflow-hidden"
+      >
+        {/* Background Decoration */}
+        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+        
+        <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mx-auto mb-8 shadow-inner">
+          <CheckCircle2 size={48} className="animate-bounce" />
+        </div>
+        
+        <h2 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">
+          PAGAMENTO APROVADO! 🚀
+        </h2>
+        
+        <p className="text-slate-600 text-lg leading-relaxed mb-8">
+          Parabéns! Seu pagamento foi confirmado com sucesso. <br/>
+          <span className="font-bold text-indigo-600">O produto já está sendo preparado</span> e em breve será enviado para você.
+        </p>
+
+        <div className="space-y-4 mb-8">
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Número do Pedido:</span>
+            <span className="text-slate-900 font-bold font-mono">#{currentOrderId?.split('-')[0].toUpperCase()}</span>
+          </div>
+          <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex items-center gap-3 text-left">
+            <Truck className="text-indigo-600 shrink-0" size={24} />
+            <div>
+              <p className="text-indigo-900 font-bold text-sm">Próximo Passo:</p>
+              <p className="text-indigo-700 text-xs">Você receberá o código de rastreio por e-mail assim que o produto for postado.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3">
+          <button 
+            onClick={() => navigate(`/tracking/${currentOrderId}`)}
+            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+          >
+            Acompanhar Pedido
+            <LayoutDashboard size={20} />
+          </button>
+          <button 
+            onClick={() => navigate('/')}
+            className="w-full py-4 bg-white text-slate-600 border border-slate-200 rounded-2xl font-bold hover:bg-slate-50 transition-all"
+          >
+            Voltar para a Loja
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
 
   useEffect(() => {
     const loadData = async () => {
@@ -687,9 +746,43 @@ export default function Checkout() {
       return;
     }
 
+    if (createAccount && !user && !customer.password) {
+      toast.error('Por favor, crie uma senha para sua nova conta.');
+      return;
+    }
+
     setProcessing(true);
 
     try {
+      // 0. Create Account if requested
+      let currentUserId = user?.id;
+      if (createAccount && !user) {
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: customer.email,
+          password: customer.password!,
+          options: {
+            data: {
+              full_name: customer.name,
+              phone: customer.phone,
+              document: customer.document
+            }
+          }
+        });
+
+        if (authError) {
+          if (authError.message.includes('User already registered')) {
+            toast.error('Este e-mail já possui uma conta. Por favor, faça login.');
+            setProcessing(false);
+            return;
+          }
+          throw authError;
+        }
+        currentUserId = authData.user?.id;
+        if (authData.user) {
+          setUser(authData.user);
+        }
+        toast.success('Conta criada com sucesso! Você receberá um e-mail de confirmação.');
+      }
       // 0. Check for Affiliate Code or Coupon
       let affiliateId = null;
       let commissionValue = 0;
@@ -742,7 +835,7 @@ export default function Checkout() {
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert([{
-          user_id: user?.id || null, // Allow guest checkout if RLS permits, or require login
+          user_id: currentUserId || null, // Use the newly created or existing user ID
           affiliate_id: affiliateId,
           commission_value: commissionValue,
           customer_name: customer.name,
@@ -921,6 +1014,14 @@ export default function Checkout() {
       localStorage.removeItem('cart_items');
       setCart([]);
 
+      // 3.2 Se for cartão (pago na hora), mostrar modal de sucesso
+      if (initialStatus === 'paid') {
+        setCurrentOrderId(orderData.id);
+        setShowSuccessModal(true);
+        setProcessing(false);
+        return;
+      }
+
       toast.success('Pedido realizado com sucesso!');
       
       // Trigger n8n webhook for purchase
@@ -1066,6 +1167,34 @@ export default function Checkout() {
                     required
                   />
                 </div>
+                {!user && (
+                  <div className="md:col-span-2 flex items-center gap-3 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                    <input 
+                      type="checkbox" 
+                      id="create-account"
+                      checked={createAccount}
+                      onChange={(e) => setCreateAccount(e.target.checked)}
+                      className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <label htmlFor="create-account" className="text-sm font-bold text-indigo-900">
+                      Desejo criar uma conta para acompanhar meu pedido
+                    </label>
+                  </div>
+                )}
+
+                {createAccount && !user && (
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Senha para sua nova conta</label>
+                    <input 
+                      type="password" 
+                      value={customer.password || ''}
+                      onChange={e => setCustomer({ ...customer, password: e.target.value })}
+                      placeholder="Crie uma senha segura"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      required
+                    />
+                  </div>
+                )}
               </div>
             </section>
 
@@ -1713,6 +1842,8 @@ export default function Checkout() {
           </motion.div>
         </div>
       )}
+
+      {showSuccessModal && <SuccessModal />}
     </div>
   );
 }

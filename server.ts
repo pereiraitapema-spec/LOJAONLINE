@@ -3,6 +3,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createClient } from '@supabase/supabase-js';
+import { logisticsService } from './server/logistics';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -80,42 +81,32 @@ async function startServer() {
       const orderId = event.data.id;
 
       if (event.type === 'order.paid') {
-        const { data: order, error: fetchError } = await supabaseAdmin
-          .from('orders')
-          .select('*')
-          .eq('payment_id', orderId)
-          .single();
-
-        if (fetchError) throw fetchError;
-
-        // 1. Atualizar status do pedido para PAGO
-        const { error: updateError } = await supabaseAdmin
-          .from('orders')
-          .update({ 
-            status: 'paid', 
-            updated_at: new Date().toISOString() 
-          })
-          .eq('payment_id', orderId);
+        console.log(`💰 Pedido ${orderId} PAGO! Iniciando logística...`);
         
-        if (updateError) throw updateError;
-        console.log(`✅ Pedido ${orderId} marcado como PAGO.`);
-
-        // 2. Simular aviso ao CepCerto e geração de rastreio
-        // Em um cenário real, aqui chamaríamos a API do CepCerto/Melhor Envio
-        const trackingCode = `BR${Math.random().toString(36).substr(2, 9).toUpperCase()}X`;
+        // 1. Notificar CepCerto
+        await logisticsService.notifyCarrier(orderId);
         
-        await supabaseAdmin
-          .from('orders')
-          .update({ 
-            tracking_code: trackingCode,
-            status: 'processing' // Preparando produto
-          })
-          .eq('payment_id', orderId);
+        // 2. Gerar Rastreio
+        const trackingCode = await logisticsService.generateTrackingCode(orderId);
+        
+        // 3. Gerar Etiqueta
+        await logisticsService.generateShippingLabel(orderId);
+        
+        // 4. Gerar Nota Fiscal
+        await logisticsService.generateInvoice(orderId);
+        
+        // 5. Gerar Lista de Separação
+        await logisticsService.generatePickingList(orderId);
+        
+        // 6. Adicionar primeiro passo na logística
+        await logisticsService.addLogisticsStep(orderId, {
+          status: 'preparing',
+          description: 'Pagamento confirmado. O produto está sendo preparado para envio.',
+          date: new Date().toISOString(),
+          location: 'Centro de Distribuição'
+        });
 
-        console.log(`📦 Rastreio gerado para pedido ${orderId}: ${trackingCode}`);
-
-        // 3. (Opcional) Enviar mensagem via chat/email
-        // Aqui você integraria com seu serviço de chat ou dispararia um email
+        console.log(`✅ Logística completa para pedido ${orderId}.`);
       } else if (event.type === 'order.payment_failed') {
         await supabaseAdmin
           .from('orders')
@@ -134,6 +125,109 @@ async function startServer() {
     } catch (error: any) {
       console.error('❌ Erro no Webhook Pagar.me:', error.message);
       res.status(500).send('Erro');
+    }
+  });
+
+  // Endpoint para gerar arquivo de texto da Nota Fiscal
+  app.get("/api/logistics/invoice-data/:orderId", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY!;
+      const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+
+      const { data: order, error } = await supabaseAdmin
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('payment_id', orderId)
+        .single();
+
+      if (error || !order) {
+        return res.status(404).send('Pedido não encontrado');
+      }
+
+      let textContent = `DADOS PARA EMISSÃO DE NOTA FISCAL\n`;
+      textContent += `=================================\n\n`;
+      textContent += `PEDIDO: ${order.id}\n`;
+      textContent += `DATA: ${new Date(order.created_at).toLocaleString('pt-BR')}\n\n`;
+      
+      textContent += `[ DADOS DO CLIENTE ]\n`;
+      textContent += `Nome: ${order.customer_name}\n`;
+      textContent += `CPF/CNPJ: ${order.customer_cpf}\n`;
+      textContent += `Email: ${order.customer_email}\n`;
+      textContent += `Telefone: ${order.customer_phone}\n\n`;
+
+      textContent += `[ ENDEREÇO DE ENTREGA ]\n`;
+      textContent += `CEP: ${order.shipping_zip}\n`;
+      textContent += `Logradouro: ${order.shipping_street}, ${order.shipping_number}\n`;
+      if (order.shipping_complement) textContent += `Complemento: ${order.shipping_complement}\n`;
+      textContent += `Bairro: ${order.shipping_neighborhood}\n`;
+      textContent += `Cidade/UF: ${order.shipping_city} - ${order.shipping_state}\n\n`;
+
+      textContent += `[ ITENS DO PEDIDO ]\n`;
+      order.order_items.forEach((item: any, index: number) => {
+        textContent += `${index + 1}. ${item.product_name}\n`;
+        textContent += `   Qtd: ${item.quantity} | Vlr Unit: R$ ${item.price.toFixed(2)} | Total: R$ ${(item.quantity * item.price).toFixed(2)}\n`;
+      });
+      textContent += `\n`;
+      textContent += `Subtotal: R$ ${order.subtotal.toFixed(2)}\n`;
+      textContent += `Frete: R$ ${order.shipping_cost.toFixed(2)}\n`;
+      textContent += `TOTAL DA NOTA: R$ ${order.total.toFixed(2)}\n`;
+
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="dados_nf_${orderId}.txt"`);
+      res.send(textContent);
+    } catch (error: any) {
+      res.status(500).send('Erro ao gerar arquivo: ' + error.message);
+    }
+  });
+
+  // Endpoint para gerar arquivo de texto da Lista de Separação (Picking List)
+  app.get("/api/logistics/picking-data/:orderId", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY!;
+      const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+
+      const { data: order, error } = await supabaseAdmin
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('payment_id', orderId)
+        .single();
+
+      if (error || !order) {
+        return res.status(404).send('Pedido não encontrado');
+      }
+
+      let textContent = `LISTA DE SEPARAÇÃO (PICKING LIST)\n`;
+      textContent += `=================================\n\n`;
+      textContent += `PEDIDO: ${order.id}\n`;
+      textContent += `DATA DO PEDIDO: ${new Date(order.created_at).toLocaleString('pt-BR')}\n`;
+      textContent += `CLIENTE: ${order.customer_name}\n\n`;
+
+      textContent += `[ ITENS PARA SEPARAR ]\n`;
+      textContent += `---------------------------------\n`;
+      order.order_items.forEach((item: any, index: number) => {
+        textContent += `[ ] ${item.quantity}x - ${item.product_name}\n`;
+        if (item.attributes) {
+          textContent += `    Detalhes: ${JSON.stringify(item.attributes)}\n`;
+        }
+      });
+      textContent += `---------------------------------\n\n`;
+      
+      textContent += `[ INSTRUÇÕES DE ENVIO ]\n`;
+      textContent += `Método de Envio: ${order.shipping_method}\n`;
+      textContent += `CEP Destino: ${order.shipping_zip}\n\n`;
+      
+      textContent += `Separado por: _________________________\n`;
+      textContent += `Data da Separação: ___/___/______\n`;
+
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="picking_list_${orderId}.txt"`);
+      res.send(textContent);
+    } catch (error: any) {
+      res.status(500).send('Erro ao gerar arquivo: ' + error.message);
     }
   });
 

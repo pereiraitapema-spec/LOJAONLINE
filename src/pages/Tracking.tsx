@@ -33,16 +33,21 @@ const Tracking: React.FC = () => {
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'entregue':
-        return <CheckCircle className="w-8 h-8 text-green-500" />;
-      case 'em trânsito':
-        return <Truck className="w-8 h-8 text-blue-500" />;
-      case 'aguardando postagem':
-        return <Clock className="w-8 h-8 text-yellow-500" />;
-      default:
-        return <Package className="w-8 h-8 text-gray-500" />;
-    }
+    const s = status.toLowerCase();
+    if (s.includes('entregue')) return <CheckCircle className="w-8 h-8 text-green-500" />;
+    if (s.includes('trânsito') || s.includes('enviado') || s.includes('shipped')) return <Truck className="w-8 h-8 text-blue-500" />;
+    if (s.includes('preparando') || s.includes('preparing') || s.includes('separação')) return <Package className="w-8 h-8 text-indigo-500" />;
+    if (s.includes('aguardando') || s.includes('pendente')) return <Clock className="w-8 h-8 text-yellow-500" />;
+    return <Package className="w-8 h-8 text-gray-500" />;
+  };
+
+  const getStatusLabel = (status: string) => {
+    const s = status.toLowerCase();
+    if (s === 'paid') return 'Pagamento Confirmado';
+    if (s === 'preparing') return 'Em Preparação';
+    if (s === 'shipped') return 'Enviado';
+    if (s === 'delivered') return 'Entregue';
+    return status;
   };
 
   return (
@@ -112,7 +117,7 @@ const Tracking: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Status Atual</p>
-                    <h2 className="text-xl font-bold text-gray-900">{trackingData.status}</h2>
+                    <h2 className="text-xl font-bold text-gray-900">{getStatusLabel(trackingData.status)}</h2>
                   </div>
                 </div>
                 <div className="text-right">
