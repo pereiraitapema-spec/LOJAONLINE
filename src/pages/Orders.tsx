@@ -1119,14 +1119,6 @@ export default function Orders() {
                       Gerar Etiqueta
                     </button>
                     <button 
-                      onClick={() => handlePrintInvoice(selectedOrder.id)}
-                      disabled={processingLogistics}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
-                    >
-                      <Printer size={16} />
-                      Emitir Nota Fiscal
-                    </button>
-                    <button 
                       onClick={() => handlePrintPickingList(selectedOrder.id)}
                       disabled={processingLogistics}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
@@ -1189,7 +1181,7 @@ export default function Orders() {
 
               {/* Dados para Faturamento e Logística */}
               <div className="space-y-4">
-                <h3 className="font-bold text-slate-900 border-b border-slate-100 pb-2">Dados para Faturamento e Logística</h3>
+                <h3 className="font-bold text-slate-900 border-b border-slate-100 pb-2">Faturamento</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Nome/Razão Social</p>
@@ -1218,16 +1210,26 @@ export default function Orders() {
                     <p className="text-sm font-bold text-slate-900">{orderItems.reduce((acc, item) => acc + (item.quantity * 0.5), 0).toFixed(2)} kg</p>
                   </div>
                 </div>
-                <button 
-                  onClick={() => {
-                    const text = `Nome: ${selectedOrder.customer_name}\nDoc: ${selectedOrder.customer_document}\nEndereço: ${selectedOrder.shipping_address?.street}, ${selectedOrder.shipping_address?.number}, ${selectedOrder.shipping_address?.neighborhood}, ${selectedOrder.shipping_address?.city}-${selectedOrder.shipping_address?.state}, CEP: ${selectedOrder.shipping_address?.zipCode}\nTotal: R$ ${selectedOrder.total.toFixed(2)}`;
-                    navigator.clipboard.writeText(text);
-                    toast.success('Dados copiados para a área de transferência!');
-                  }}
-                  className="w-full py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-300 transition-colors"
-                >
-                  Copiar todos os dados
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      const text = `Nome: ${selectedOrder.customer_name}\nDoc: ${selectedOrder.customer_document}\nEndereço: ${selectedOrder.shipping_address?.street}, ${selectedOrder.shipping_address?.number}, ${selectedOrder.shipping_address?.neighborhood}, ${selectedOrder.shipping_address?.city}-${selectedOrder.shipping_address?.state}, CEP: ${selectedOrder.shipping_address?.zipCode}\nTotal: R$ ${selectedOrder.total.toFixed(2)}`;
+                      navigator.clipboard.writeText(text);
+                      toast.success('Dados copiados para a área de transferência!');
+                    }}
+                    className="flex-1 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-300 transition-colors"
+                  >
+                    Copiar todos os dados
+                  </button>
+                  <button 
+                    onClick={() => handlePrintInvoice(selectedOrder.id)}
+                    disabled={processingLogistics}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                  >
+                    <Printer size={16} />
+                    Emitir Nota Fiscal (Manual)
+                  </button>
+                </div>
               </div>
 
               {/* Código de Rastreio */}

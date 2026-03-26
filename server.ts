@@ -204,7 +204,8 @@ async function startServer() {
       textContent += `=================================\n\n`;
       textContent += `PEDIDO: ${order.id}\n`;
       textContent += `DATA DO PEDIDO: ${new Date(order.created_at).toLocaleString('pt-BR')}\n`;
-      textContent += `CLIENTE: ${order.customer_name}\n\n`;
+      textContent += `CLIENTE: ${order.customer_name}\n`;
+      textContent += `CIDADE/UF: ${order.shipping_city} - ${order.shipping_state}\n\n`;
 
       textContent += `[ ITENS PARA SEPARAR ]\n`;
       textContent += `---------------------------------\n`;
@@ -215,10 +216,6 @@ async function startServer() {
         }
       });
       textContent += `---------------------------------\n\n`;
-      
-      textContent += `[ INSTRUÇÕES DE ENVIO ]\n`;
-      textContent += `Método de Envio: ${order.shipping_method}\n`;
-      textContent += `CEP Destino: ${order.shipping_zip}\n\n`;
       
       textContent += `Separado por: _________________________\n`;
       textContent += `Data da Separação: ___/___/______\n`;
