@@ -53,10 +53,17 @@ function AppContent() {
   };
 
   const fetchUserRole = async (userId: string, email?: string) => {
-    if (email === 'pereira.itapema@gmail.com') return 'admin';
+    console.log('🔍 fetchUserRole iniciada para:', { userId, email });
+    
+    // Admin Master - Prioridade absoluta
+    if (email === 'pereira.itapema@gmail.com') {
+      console.log('👑 Admin Master detectado em fetchUserRole');
+      localStorage.setItem('user_role', 'admin');
+      return 'admin';
+    }
     
     try {
-      console.log('🔍 Buscando role para:', userId);
+      console.log('⏱️ Buscando role no banco para:', userId);
       const { data: profile, error } = await withTimeout(
         supabase
           .from('profiles')
@@ -67,20 +74,26 @@ function AppContent() {
       );
       
       if (error) {
-        console.warn('⚠️ Erro ao buscar role:', error);
+        console.warn('⚠️ Erro ao buscar role no banco:', error);
+        // Se falhar o banco mas for o email master, ainda é admin
+        if (email === 'pereira.itapema@gmail.com') return 'admin';
         return 'customer';
       }
       
       if (profile?.role) {
+        console.log('✅ Role encontrado no banco:', profile.role);
         localStorage.setItem('user_role', profile.role);
         if (profile.full_name) {
           localStorage.setItem('user_full_name', profile.full_name);
         }
+        return profile.role;
       }
       
-      return profile?.role || 'customer';
+      console.log('ℹ️ Nenhum perfil encontrado, assumindo customer');
+      return 'customer';
     } catch (error) {
       console.error('❌ Erro crítico ao buscar user role:', error);
+      if (email === 'pereira.itapema@gmail.com') return 'admin';
       return 'customer';
     }
   };
@@ -137,19 +150,37 @@ function AppContent() {
       }
 
       if (session) {
+        console.log('👤 Sessão inicial detectada:', session.user.email);
+        
+        // Se for o Admin Master, forçamos o role admin IMEDIATAMENTE antes de qualquer coisa
+        if (session.user.email === 'pereira.itapema@gmail.com') {
+          console.log('👑 Admin Master na sessão inicial - Forçando estado');
+          setUserRole('admin');
+          localStorage.setItem('user_role', 'admin');
+          setLoading(false);
+          
+          // Sincroniza em background
+          fetchUserRole(session.user.id, session.user.email);
+          handleRoleRedirect(session);
+          return;
+        }
+
         // Se já temos o role no cache, liberamos o loading IMEDIATAMENTE
         const cachedRole = localStorage.getItem('user_role');
         if (cachedRole) {
+          console.log('📦 Usando role em cache:', cachedRole);
           setUserRole(cachedRole);
           setLoading(false);
           // Busca o role atualizado em background sem bloquear a UI
           fetchUserRole(session.user.id, session.user.email).then(role => {
             if (role !== cachedRole) {
+              console.log('🔄 Atualizando role em cache:', cachedRole, '->', role);
               setUserRole(role);
               localStorage.setItem('user_role', role);
             }
           });
         } else {
+          console.log('⏱️ Buscando role inicial...');
           const role = await fetchUserRole(session.user.id, session.user.email);
           setUserRole(role);
           localStorage.setItem('user_role', role);
@@ -194,17 +225,12 @@ function AppContent() {
       if (event === 'SIGNED_IN' && session) {
         console.log('✅ Usuário logado:', session.user.email);
         
-        // Não bloquear o carregamento se já temos um role no cache
-        if (localStorage.getItem('user_role')) {
-          fetchUserRole(session.user.id, session.user.email).then(role => {
-            setUserRole(role);
-            localStorage.setItem('user_role', role);
-          });
-        } else {
-          const role = await fetchUserRole(session.user.id, session.user.email);
-          setUserRole(role);
-          localStorage.setItem('user_role', role);
-        }
+        // Sempre aguardar a busca do role para garantir consistência
+        console.log('⏱️ Buscando role do usuário...');
+        const role = await fetchUserRole(session.user.id, session.user.email);
+        console.log('✅ Role obtido:', role);
+        setUserRole(role);
+        localStorage.setItem('user_role', role);
 
         // Se estivermos em um fluxo de recuperação, NÃO redirecionar para dashboard
         if (window.location.hash.includes('type=recovery') || window.location.pathname === '/reset-password') {
@@ -280,20 +306,25 @@ function AppContent() {
       console.log('⏱️ Iniciando verificação de Admin Master...');
       // 1. Admin Master (Prioridade Máxima)
       if (userEmail === 'pereira.itapema@gmail.com') {
-        console.log('👑 Admin Master detectado');
-        
-        const { data: masterProfile } = await withTimeout(
-          supabase.from('profiles').upsert({
-            id: userId,
-            email: userEmail,
-            role: 'admin',
-            full_name: 'Admin Master'
-          }, { onConflict: 'id' }).select('full_name, role').single()
-        );
-
-        console.log('📊 Master Profile Sync:', masterProfile);
+        console.log('👑 Admin Master detectado - Forçando role admin');
         setUserRole('admin');
         localStorage.setItem('user_role', 'admin');
+
+        try {
+          console.log('⏱️ Sincronizando perfil Master no banco...');
+          await withTimeout(
+            supabase.from('profiles').upsert({
+              id: userId,
+              email: userEmail,
+              role: 'admin',
+              full_name: 'Admin Master'
+            }, { onConflict: 'id' }),
+            3000
+          );
+          console.log('✅ Perfil Master sincronizado');
+        } catch (e) {
+          console.warn('⚠️ Falha ao sincronizar perfil Master (não crítico):', e);
+        }
 
         if (path === '/login' || path === '/register') {
           console.log('🚀 Redirecionando Admin Master para /dashboard');
@@ -393,13 +424,28 @@ function AppContent() {
   };
 
   const AdminRoute = ({ children }: { children: React.ReactNode }) => {
-    if (!session) return <Navigate to="/login" replace />;
+    const location = useLocation();
+    console.log('🛡️ AdminRoute Check:', { 
+      session: !!session, 
+      email: session?.user?.email, 
+      userRole, 
+      path: location.pathname 
+    });
+
+    if (!session) {
+      console.log('🚫 AdminRoute: No session, redirecting to /login');
+      return <Navigate to="/login" state={{ from: location }} replace />;
+    }
     
-    const isMasterAdmin = session.user.email === 'pereira.itapema@gmail.com';
+    const isMasterAdmin = session?.user?.email === 'pereira.itapema@gmail.com';
+    
     if (userRole !== 'admin' && !isMasterAdmin) {
+      console.log('🚫 AdminRoute: Access denied for', session.user.email, 'Role:', userRole, 'isMaster:', isMasterAdmin);
       toast.error('Acesso restrito a administradores.');
       return <Navigate to="/" replace />;
     }
+    
+    console.log('✅ AdminRoute: Access granted');
     return <>{children}</>;
   };
 

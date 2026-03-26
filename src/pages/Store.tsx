@@ -381,10 +381,12 @@ export default function Store() {
 
     const checkUser = async () => {
       try {
+        console.log('⏱️ Store: Verificando sessão...');
         const { data: { session } } = await withTimeout(supabase.auth.getSession(), 5000);
         setSession(session);
         
         if (session) {
+          console.log('✅ Store: Usuário logado:', session.user.email);
           const { data: profile } = await withTimeout(
             supabase
               .from('profiles')
@@ -394,7 +396,9 @@ export default function Store() {
             5000
           );
 
+          console.log('📊 Store: Perfil carregado:', profile);
           if (profile?.role === 'admin' || session.user.email === 'pereira.itapema@gmail.com') {
+            console.log('👑 Store: Admin detectado!');
             setIsAdmin(true);
           }
 

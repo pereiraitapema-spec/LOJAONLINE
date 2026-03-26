@@ -63,9 +63,40 @@ const melhorenvioProvider: ShippingProvider = {
   }
 };
 
+const mockProvider: ShippingProvider = {
+  async calculateShipping(destZipCode: string, packages: ShippingPackage[], config: any): Promise<ShippingQuote[]> {
+    console.log('🛠️ Usando Mock Shipping Provider para:', destZipCode);
+    return [
+      {
+        id: 'mock-sedex',
+        name: 'SEDEX (Simulado)',
+        price: 25.90,
+        deadline: '2 a 4 dias úteis',
+        provider: 'mock',
+        carrierName: 'Correios'
+      },
+      {
+        id: 'mock-pac',
+        name: 'PAC (Simulado)',
+        price: 15.50,
+        deadline: '5 a 10 dias úteis',
+        provider: 'mock',
+        carrierName: 'Correios'
+      }
+    ];
+  },
+  async generateLabel(orderId: string, config: any) {
+    return { success: true, tracking_code: 'BR' + Math.random().toString(36).substring(2, 11).toUpperCase() };
+  },
+  async cancelLabel(orderId: string, config: any) {
+    return { success: true };
+  }
+};
+
 const providers: Record<string, ShippingProvider> = {
   'melhorenvio': melhorenvioProvider,
-  'melhorenvio2': melhorenvioProvider
+  'melhorenvio2': melhorenvioProvider,
+  'mock': mockProvider
 };
 
 export const shippingService = {
@@ -90,7 +121,7 @@ export const shippingService = {
         return [];
       }
 
-      const provider = providers[carrier.provider];
+      const provider = providers[carrier.provider] || providers['mock'];
       if (!provider) {
         console.error(`Provider ${carrier.provider} not found for carrier ${carrier.name}`);
         return [];

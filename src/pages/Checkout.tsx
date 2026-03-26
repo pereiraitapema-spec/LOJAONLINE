@@ -12,7 +12,9 @@ import {
   AlertCircle,
   QrCode,
   Barcode,
-  Landmark
+  Landmark,
+  Settings,
+  LayoutDashboard
 } from 'lucide-react';
 import { isValidDocument } from '../lib/validation';
 import { toast } from 'react-hot-toast';
@@ -84,6 +86,7 @@ export default function Checkout() {
     installments: '1'
   });
 
+  const [isAdmin, setIsAdmin] = useState(false);
   const [abandonedCartId, setAbandonedCartId] = useState<string | null>(null);
   // const [freeShippingThreshold, setFreeShippingThreshold] = useState(299);
   const [settings, setSettings] = useState<any>(null);
@@ -93,6 +96,19 @@ export default function Checkout() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user || null);
+
+        if (session?.user) {
+          if (session.user.email === 'pereira.itapema@gmail.com') {
+            setIsAdmin(true);
+          } else {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', session.user.id)
+              .maybeSingle();
+            if (profile?.role === 'admin') setIsAdmin(true);
+          }
+        }
 
         // Carregar cupom do link se existir
         const searchParams = new URLSearchParams(window.location.search);
@@ -448,15 +464,17 @@ export default function Checkout() {
   const handleCep = async (cep: string) => {
     if (calculatingShipping || cep.length !== 8) return;
     
+    console.log('🚀 Iniciando handleCep para:', cep);
     lastCalculatedCep.current = cep;
     setCalculatingShipping(true);
     setShippingMethods([]); // Limpar métodos anteriores
     
     try {
-      console.log('Buscando endereço para o CEP:', cep);
+      console.log('⏱️ Buscando endereço no ViaCEP...');
       const address = await cepService.fetchAddress(cep);
       
       if (address && address.city) {
+        console.log('✅ Endereço encontrado:', address);
         setShipping(prev => ({
           ...prev,
           street: address.street || prev.street,
@@ -466,6 +484,21 @@ export default function Checkout() {
         }));
         toast.success(`Endereço encontrado: ${address.city} - ${address.state}`);
 
+        // Verificar se temos transportadoras ativas
+        if (carriers.length === 0) {
+          console.warn('⚠️ Nenhuma transportadora ativa encontrada no estado local');
+          // Tentar buscar novamente se estiver vazio
+          const { data: freshCarriers } = await supabase.from('shipping_carriers').select('*').eq('active', true);
+          if (freshCarriers && freshCarriers.length > 0) {
+            setCarriers(freshCarriers);
+            console.log('✅ Transportadoras recarregadas:', freshCarriers.length);
+          } else {
+            toast.error('Nenhuma transportadora configurada ou ativa.');
+            setCalculatingShipping(false);
+            return;
+          }
+        }
+
         // Calculate shipping automatically
         const packages: ShippingPackage[] = cart.map(item => ({
           weight: (item.product as any).weight || 0.5,
@@ -474,30 +507,51 @@ export default function Checkout() {
           length: (item.product as any).length || 10
         }));
 
+        console.log('📦 Pacotes para cálculo:', packages);
+
         let allQuotes: ShippingQuote[] = [];
-        for (const carrier of carriers) {
+        const activeCarriers = carriers.length > 0 ? carriers : (await supabase.from('shipping_carriers').select('*').eq('active', true)).data || [];
+        
+        for (const carrier of activeCarriers) {
           if (!carrier.active) continue;
-          console.log(`Calculando frete para ${carrier.name}...`);
-          const quotes = await shippingService.calculateShipping(cep, packages, carrier.id);
-          allQuotes = [...allQuotes, ...quotes];
+          console.log(`🚚 Calculando frete para ${carrier.name} (${carrier.provider})...`);
+          try {
+            const quotes = await shippingService.calculateShipping(cep, packages, carrier.id);
+            console.log(`📊 Cotações para ${carrier.name}:`, quotes);
+            allQuotes = [...allQuotes, ...quotes];
+          } catch (err) {
+            console.error(`❌ Erro ao calcular frete para ${carrier.name}:`, err);
+          }
         }
         
-        console.log('Total de cotações recebidas:', allQuotes.length);
+        console.log('🏁 Total de cotações recebidas:', allQuotes.length);
         if (allQuotes.length > 0) {
           setShippingMethods(allQuotes);
           setSelectedShipping(0);
         } else {
-          toast.error('Nenhuma opção de frete disponível para este CEP.');
+          console.warn('⚠️ Nenhuma cotação retornada pelas APIs');
+          toast.error('Nenhuma opção de frete disponível para este CEP. Verifique se o CEP é válido para entrega.');
         }
       } else {
-        toast.error('CEP não encontrado. Verifique os números digitados.');
+        console.warn('⚠️ ViaCEP não retornou cidade para o CEP:', cep);
+        toast.error('CEP não encontrado ou inválido.');
       }
     } catch (error) {
-      console.error('Error fetching CEP or calculating shipping:', error);
-      toast.error('Erro ao calcular frete. Tente novamente.');
+      console.error('❌ Erro crítico em handleCep:', error);
+      toast.error('Erro ao processar CEP. Tente novamente.');
     } finally {
       setCalculatingShipping(false);
     }
+  };
+
+  const testShippingAPI = async () => {
+    if (!shipping.cep || shipping.cep.length !== 8) {
+      toast.error('Digite um CEP válido com 8 dígitos para testar.');
+      return;
+    }
+    toast.loading('Testando conexão com APIs de frete...', { id: 'test-api' });
+    await handleCep(shipping.cep);
+    toast.dismiss('test-api');
   };
 
   const handleCepBlur = async () => {
@@ -875,6 +929,28 @@ export default function Checkout() {
           {/* Coluna Esquerda: Dados e Pagamento */}
           <div className="lg:col-span-2 space-y-8">
             
+            {/* Debug Info for Admins */}
+            {isAdmin && (
+              <div className="bg-slate-900 text-slate-300 p-6 rounded-3xl mb-8 font-mono text-xs overflow-x-auto">
+                <h3 className="text-indigo-400 font-bold mb-4 flex items-center gap-2">
+                  <Settings size={14} /> DEBUG ADMIN (Frete & Transportadoras)
+                </h3>
+                <div className="space-y-2">
+                  <p><span className="text-slate-500">Transportadoras Ativas:</span> {carriers.length}</p>
+                  <div className="pl-4 border-l border-slate-700 my-2">
+                    {carriers.map(c => (
+                      <p key={c.id}>- {c.name} ({c.provider}) - {c.active ? '✅ Ativa' : '❌ Inativa'}</p>
+                    ))}
+                  </div>
+                  <p><span className="text-slate-500">CEP Origem:</span> {settings?.origin_zip_code || 'Não configurado'}</p>
+                  <p><span className="text-slate-500">CEP Destino:</span> {shipping.cep || 'Não informado'}</p>
+                  <p><span className="text-slate-500">Calculando:</span> {calculatingShipping ? 'Sim' : 'Não'}</p>
+                  <p><span className="text-slate-500">Métodos Encontrados:</span> {shippingMethods.length}</p>
+                  <p><span className="text-slate-500">Gateway Ativo:</span> {gateways.find(g => g.active)?.name || 'Nenhum'}</p>
+                </div>
+              </div>
+            )}
+
             {/* Dados Pessoais */}
             <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
               <div className="flex items-center gap-3 mb-6">
@@ -953,16 +1029,26 @@ export default function Checkout() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-slate-700 mb-1">CEP *</label>
-                  <input 
-                    type="text" 
-                    value={shipping.cep}
-                    onChange={handleCepChange}
-                    maxLength={8}
-                    onBlur={handleCepBlur}
-                    placeholder="00000-000"
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={shipping.cep}
+                      onChange={handleCepChange}
+                      maxLength={8}
+                      onBlur={handleCepBlur}
+                      placeholder="00000-000"
+                      className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      required
+                    />
+                    <button 
+                      type="button"
+                      onClick={testShippingAPI}
+                      className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors"
+                      title="Testar Conexão com API de Frete"
+                    >
+                      Testar API
+                    </button>
+                  </div>
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-slate-700 mb-1">Rua / Avenida *</label>

@@ -183,9 +183,9 @@ export default function Login() {
             // Forçar o App.tsx a ver a nova sessão
             window.dispatchEvent(new Event('storage')); 
             
-            setTimeout(() => {
-              navigate('/', { replace: true });
-            }, 800);
+            // O App.tsx cuidará do redirecionamento via onAuthStateChange
+            // Não redirecionamos aqui para evitar conflitos com a lógica de roles
+            setLoading(false);
           } else {
             throw new Error('Nenhuma sessão retornada após a troca do código.');
           }
