@@ -146,10 +146,10 @@ export default function ShippingCarriers() {
       const { shippingService } = await import('../services/shippingService');
       const quotes = await shippingService.calculateShipping(testCep, testPackages, carrier.id);
       
-      if (quotes) {
+      if (quotes && quotes.length > 0) {
         toast.success(`Conexão OK! ${quotes.length} opções de frete retornadas.`, { id: 'test-carrier' });
       } else {
-        throw new Error('A API não retornou cotações para o CEP de teste.');
+        throw new Error('A API não retornou cotações. Verifique suas credenciais (Token, API Key, etc).');
       }
     } catch (error: any) {
       console.error('Erro no teste:', error);

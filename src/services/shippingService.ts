@@ -182,15 +182,15 @@ const cepcertoProvider: ShippingProvider = {
     
     const startTime = Date.now();
     try {
-      const totalWeight = Math.max(1, Math.ceil(packages.reduce((acc, p) => acc + p.weight, 0)));
+      const totalWeightInGrams = Math.max(300, Math.ceil(packages.reduce((acc, p) => acc + p.weight, 0) * 1000));
       const maxDim = packages.reduce((acc, p) => ({
         h: Math.max(acc.h, p.height, 2),
         w: Math.max(acc.w, p.width, 11),
         l: Math.max(acc.l, p.length, 16)
       }), { h: 2, w: 11, l: 16 });
 
-      // URL format: https://www.cepcerto.com/ws/json-frete/{origem}/{destino}/{peso}/{comprimento}/{altura}/{largura}/{valor}/{servico}/{chave}
-      const baseUrl = `https://www.cepcerto.com/ws/json-frete/${config.origin_zip}/${destZipCode.replace(/\D/g, '')}/${totalWeight}/${maxDim.l}/${maxDim.h}/${maxDim.w}/0/todos/${config.api_key}`;
+      // URL format: https://www.cepcerto.com/ws/json-frete/{origem}/{destino}/{peso_gramas}/{altura}/{largura}/{comprimento}/{chave}
+      const baseUrl = `https://www.cepcerto.com/ws/json-frete/${config.origin_zip}/${destZipCode.replace(/\D/g, '')}/${totalWeightInGrams}/${maxDim.h}/${maxDim.w}/${maxDim.l}/${config.api_key}`;
       
       // Usando um proxy CORS para evitar bloqueios no navegador
       const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(baseUrl)}`;
@@ -200,7 +200,20 @@ const cepcertoProvider: ShippingProvider = {
       const duration = Date.now() - startTime;
       
       if (response.ok) {
-        const data = await response.json();
+        const text = await response.text();
+        if (text.includes('Token inválido')) {
+          console.error('❌ Token CepCerto inválido');
+          return [];
+        }
+        
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.error('❌ Erro ao fazer parse da resposta do CepCerto:', text);
+          return [];
+        }
+        
         console.log('📦 Resposta CepCerto:', data);
         await logApiCall('cepcerto', '/json-frete', duration, true);
         
