@@ -29,6 +29,20 @@ WHERE id NOT IN (
     ) t WHERE rn = 1
 );
 
+-- 4.1 Limpeza de duplicatas em store_settings (mantendo o mais recente)
+DELETE FROM public.store_settings 
+WHERE id NOT IN (
+    SELECT id FROM (
+        SELECT id, ROW_NUMBER() OVER (ORDER BY created_at DESC) as rn
+        FROM public.store_settings
+    ) t WHERE rn = 1
+);
+
+-- 4.2 Garantir CEP de origem padrão se estiver nulo (Ex: São Paulo)
+UPDATE public.store_settings 
+SET origin_zip_code = '01001000' 
+WHERE origin_zip_code IS NULL OR origin_zip_code = '';
+
 -- 5. Garantir configuração padrão do Pagar.me se não existir
 INSERT INTO public.payment_gateways (name, provider, active, config)
 SELECT 'Pagar.me', 'pagarme', true, '{"public_key": "", "access_token": ""}'::jsonb

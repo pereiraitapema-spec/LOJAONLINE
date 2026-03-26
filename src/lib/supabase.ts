@@ -10,15 +10,15 @@ let supabaseInstance: SupabaseClient | null = null;
 export const getSupabase = (): SupabaseClient => {
   if (supabaseInstance) return supabaseInstance;
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+  const supabaseUrl = (import.meta.env?.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL)?.trim();
+  const supabaseAnonKey = (import.meta.env?.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY)?.trim();
 
   // Log detalhado para diagnóstico em produção
   console.log('🧪 Supabase Initialization:', {
     url: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'MISSING',
     keyLength: supabaseAnonKey ? supabaseAnonKey.length : 0,
     keyPrefix: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 10)}...` : 'MISSING',
-    environment: import.meta.env.MODE
+    environment: import.meta.env?.MODE || process.env.NODE_ENV
   });
 
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -34,7 +34,7 @@ export const getSupabase = (): SupabaseClient => {
       detectSessionInUrl: true,
       flowType: 'pkce', // PKCE é mais seguro e lida melhor com redirecionamentos modernos
       storageKey: 'sb-auth-token',
-      storage: window.localStorage,
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     }
   });
   return supabaseInstance;

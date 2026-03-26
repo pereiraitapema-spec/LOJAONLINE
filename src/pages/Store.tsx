@@ -112,11 +112,45 @@ interface StoreSettings {
 }
 
 export default function Store() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const lastCalculatedCep = React.useRef<string>('');
+  const productsRef = useRef<HTMLDivElement>(null);
+  const isFetchingRef = React.useRef(false);
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [affiliateData, setAffiliateData] = useState<any>(null);
   
+  // State declarations
+  const [carriers, setCarriers] = useState<any[]>([]);
+  const [cep, setCep] = useState('');
+  const [city, setCity] = useState('');
+  const [shippingQuotes, setShippingQuotes] = useState<any[]>(() => {
+    const saved = localStorage.getItem('last_shipping_quotes');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [selectedShippingQuote, setSelectedShippingQuote] = useState<any>(null);
+  const [calculatingShipping, setCalculatingShipping] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isModalMuted, setIsModalMuted] = useState(false);
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [selectedInstitutionalLink, setSelectedInstitutionalLink] = useState<{ label: string; content: string } | null>(null);
+  const [affiliateCoupon, setAffiliateCoupon] = useState<any>(null);
+  const [showCart, setShowCart] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+
   // Cache initialization
   const [banners, setBanners] = useState<Banner[]>(() => {
     const saved = localStorage.getItem('cache_banners');
@@ -142,20 +176,18 @@ export default function Store() {
     const saved = localStorage.getItem('cache_site_content');
     return saved ? JSON.parse(saved) : [];
   });
-  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
-  const videoRef = React.useRef<HTMLVideoElement>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const { data: carriersData } = await supabase
-        .from('shipping_carriers')
-        .select('*')
-        .eq('active', true);
-      setCarriers(carriersData || []);
-    };
-    fetchData();
-  }, []);
+  // Favoritos
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    const saved = localStorage.getItem('favorite_products');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Carrinho
+  const [cart, setCart] = useState<{ product: Product, quantity: number }[]>(() => {
+    const saved = localStorage.getItem('cart_items');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   useEffect(() => {
     if (videoRef.current && banners[currentBannerIndex]?.type === 'video') {
@@ -169,7 +201,6 @@ export default function Store() {
       });
     }
   }, [currentBannerIndex, banners, isMuted]);
-  const lastCalculatedCep = React.useRef<string>('');
 
   useEffect(() => {
     const savedCep = localStorage.getItem('last_cep');
@@ -242,7 +273,9 @@ export default function Store() {
         }
         
         console.log('Total de cotações recebidas:', allQuotes.length);
+        console.log('Cotações:', allQuotes);
         setShippingQuotes(allQuotes);
+        localStorage.setItem('last_shipping_quotes', JSON.stringify(allQuotes));
         
         // Salvar CEP e Cidade para o checkout
         localStorage.setItem('last_cep', cleanCep);
@@ -282,15 +315,6 @@ export default function Store() {
     toast.success('Link de afiliado copiado!', { icon: '🔗' });
   };
 
-  const [isModalMuted, setIsModalMuted] = useState(false);
-  const [cep, setCep] = useState('');
-  const [city, setCity] = useState('');
-  const [shippingQuotes, setShippingQuotes] = useState<any[]>([]);
-  const [selectedShippingQuote, setSelectedShippingQuote] = useState<any>(null);
-  const [calculatingShipping, setCalculatingShipping] = useState(false);
-  const [carriers, setCarriers] = useState<any[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-
   const applyCoupon = (code: string) => {
     localStorage.setItem('applied_coupon', code.toUpperCase());
     toast.success(`Cupom ${code.toUpperCase()} aplicado!`, {
@@ -298,46 +322,6 @@ export default function Store() {
       duration: 3000
     });
   };
-  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
-  const [selectedInstitutionalLink, setSelectedInstitutionalLink] = useState<{ label: string; content: string } | null>(null);
-  const [affiliateCoupon, setAffiliateCoupon] = useState<any>(null);
-  
-  // Favoritos
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    const saved = localStorage.getItem('favorite_products');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  // Carrinho
-  const [cart, setCart] = useState<{ product: Product, quantity: number }[]>(() => {
-    const saved = localStorage.getItem('cart_items');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [showCart, setShowCart] = useState(false);
-  const [showFavorites, setShowFavorites] = useState(false);
-  
-  const productsRef = useRef<HTMLDivElement>(null);
-
-  const scrollToProducts = () => {
-    if (productsRef.current) {
-      productsRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-  
-  useEffect(() => {
-    localStorage.setItem('cart_items', JSON.stringify(cart));
-  }, [cart]);
-
-  useEffect(() => {
-    localStorage.setItem('favorite_products', JSON.stringify(favorites));
-  }, [favorites]);
-  
-  // Detalhes do Produto
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [quantity, setQuantity] = useState(1);
-  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
 
   const closeProductModal = () => {
     setSelectedProduct(null);
@@ -365,11 +349,6 @@ export default function Store() {
       value: price / installments
     };
   };
-
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
   useEffect(() => {
     const coupon = searchParams.get('coupon');
@@ -413,8 +392,6 @@ export default function Store() {
       )
     ]);
   };
-
-  const isFetchingRef = React.useRef(false);
 
   useEffect(() => {
     // Se já temos dados em cache, liberamos o loading IMEDIATAMENTE
@@ -2256,9 +2233,42 @@ export default function Store() {
                       </button>
                     </div>
                     {city && (
-                      <p className="text-[7px] font-bold text-emerald-600 mt-0.5 uppercase tracking-widest flex items-center gap-0.5">
-                        <MapPin size={7} /> {city}
-                      </p>
+                      <div className="mt-1 space-y-1">
+                        <p className="text-[7px] font-bold text-emerald-600 uppercase tracking-widest flex items-center gap-0.5">
+                          <MapPin size={7} /> {city}
+                        </p>
+                        
+                        {shippingQuotes.length > 0 ? (
+                          <div className="space-y-1 mt-1">
+                            {shippingQuotes.map((quote, index) => (
+                              <button 
+                                key={index}
+                                onClick={() => {
+                                  setSelectedShippingQuote(quote);
+                                  localStorage.setItem('last_shipping_quote', JSON.stringify(quote));
+                                }}
+                                className={`w-full flex justify-between items-center p-1.5 rounded-lg border text-[9px] transition-all ${
+                                  selectedShippingQuote?.id === quote.id 
+                                    ? 'border-emerald-500 bg-emerald-50 shadow-sm' 
+                                    : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                                }`}
+                              >
+                                <div className="flex flex-col items-start">
+                                  <span className="font-bold text-slate-700">{quote.name}</span>
+                                  <span className="text-[7px] text-slate-400 font-bold uppercase tracking-widest">Prazo: {quote.deadline}</span>
+                                </div>
+                                <span className="font-black text-emerald-600">
+                                  {quote.price === 0 ? 'Grátis' : `R$ ${quote.price.toFixed(2)}`}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : !calculatingShipping && (
+                          <p className="text-[7px] text-amber-600 font-bold uppercase tracking-widest mt-1">
+                            Nenhuma opção disponível
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
 

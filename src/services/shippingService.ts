@@ -508,8 +508,12 @@ export const shippingService = {
         .limit(1)
         .maybeSingle();
 
-      if (!carrier || !settings?.origin_zip_code) {
-        console.warn('Shipping carrier or origin ZIP code not configured.');
+      // Fallback para CEP de origem se não estiver configurado
+      const originZip = settings?.origin_zip_code || '88240000';
+      console.log('📍 Origin ZIP used for calculation:', originZip);
+
+      if (!carrier) {
+        console.warn('Shipping carrier not configured.');
         return [];
       }
 
@@ -526,12 +530,12 @@ export const shippingService = {
 
       const provider = providers[providerKey];
       
-      console.log(`Calculating shipping with ${carrier.name} (${providerKey}) from ${settings.origin_zip_code} to ${destZipCode}`);
+      console.log(`Calculating shipping with ${carrier.name} (${providerKey}) from ${originZip} to ${destZipCode}`);
       
       const quotes = await provider.calculateShipping(destZipCode, packages, {
         ...carrier.config,
         carrier_name: carrier.name,
-        origin_zip: settings.origin_zip_code.replace(/\D/g, '')
+        origin_zip: originZip.replace(/\D/g, '')
       });
 
       console.log(`Quotes received for ${carrier.name}:`, quotes);
