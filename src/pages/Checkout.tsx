@@ -1224,8 +1224,8 @@ export default function Checkout() {
                 <h2 className="text-xl font-bold text-slate-900">Pagamento</h2>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                {gateways.map((gateway) => (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                {gateways.filter((g, index, self) => self.findIndex(t => t.provider === g.provider) === index).map((gateway) => (
                   <button
                     key={gateway.id}
                     type="button"
@@ -1234,10 +1234,10 @@ export default function Checkout() {
                       setSelectedGateway(gateway.id);
                       setPagarmeMethod(null);
                     }}
-                    className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === gateway.provider ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                    className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === gateway.provider ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
                   >
-                    <CreditCard size={24} />
-                    <span className="font-bold text-sm text-center">{gateway.name}</span>
+                    <CreditCard size={20} />
+                    <span className="font-bold text-xs text-center">{gateway.name}</span>
                   </button>
                 ))}
                 {/* Fallback para métodos internos se não houver gateways configurados */}
@@ -1246,56 +1246,56 @@ export default function Checkout() {
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('pix')}
-                      className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'pix' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                      className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === 'pix' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
                     >
-                      <QrCode size={24} />
-                      <span className="font-bold text-sm">PIX</span>
+                      <QrCode size={20} />
+                      <span className="font-bold text-xs">PIX</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('credit_card')}
-                      className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'credit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                      className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === 'credit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
                     >
-                      <CreditCard size={24} />
-                      <span className="font-bold text-sm text-center">Cartão</span>
+                      <CreditCard size={20} />
+                      <span className="font-bold text-xs text-center">Cartão</span>
                     </button>
                   </>
                 )}
               </div>
 
               {paymentMethod === 'pagarme' && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                   <button
                     type="button"
                     onClick={() => setPagarmeMethod('pix')}
-                    className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${pagarmeMethod === 'pix' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                    className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${pagarmeMethod === 'pix' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
                   >
-                    <QrCode size={24} />
-                    <span className="font-bold text-sm">PIX</span>
+                    <QrCode size={20} />
+                    <span className="font-bold text-xs">PIX</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setPagarmeMethod('credit_card')}
-                    className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${pagarmeMethod === 'credit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                    className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${pagarmeMethod === 'credit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
                   >
-                    <CreditCard size={24} />
-                    <span className="font-bold text-sm">Cartão Crédito</span>
+                    <CreditCard size={20} />
+                    <span className="font-bold text-xs">Cartão Crédito</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setPagarmeMethod('debit_card')}
-                    className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${pagarmeMethod === 'debit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                    className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${pagarmeMethod === 'debit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
                   >
-                    <CreditCard size={24} />
-                    <span className="font-bold text-sm">Cartão Débito</span>
+                    <CreditCard size={20} />
+                    <span className="font-bold text-xs">Cartão Débito</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setPagarmeMethod('boleto')}
-                    className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${pagarmeMethod === 'boleto' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                    className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${pagarmeMethod === 'boleto' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
                   >
-                    <Barcode size={24} />
-                    <span className="font-bold text-sm">Boleto</span>
+                    <Barcode size={20} />
+                    <span className="font-bold text-xs">Boleto</span>
                   </button>
                 </div>
               )}

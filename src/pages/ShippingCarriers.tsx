@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { 
   LogOut, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, 
   ShoppingBag, Megaphone, Users, Plus, Edit2, Trash2, Save, X, Truck, ToggleLeft, ToggleRight, MapPin, Bell, CreditCard, Zap,
-  Globe, Search, ChevronRight, Check
+  Globe, Search, ChevronRight, Check, Eye, EyeOff
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -24,6 +24,8 @@ export default function ShippingCarriers() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [currentCarrier, setCurrentCarrier] = useState<Partial<Carrier>>({});
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showApiKeyPostagem, setShowApiKeyPostagem] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -222,7 +224,7 @@ export default function ShippingCarriers() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {carriers.map(carrier => (
+            {carriers.filter((c, index, self) => self.findIndex(t => t.provider === c.provider) === index).map(carrier => (
               <div key={carrier.id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group">
                 <div className="flex justify-between items-start mb-4">
                   <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600">
@@ -428,31 +430,49 @@ export default function ShippingCarriers() {
                 <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">
                   {currentCarrier.provider === 'cepcerto' ? 'Token de Consulta (Cálculo de Frete)' : 'Token de Acesso / API Key'}
                 </label>
-                <input 
-                  type="password"
-                  value={currentCarrier.config?.api_key || ''}
-                  onChange={e => setCurrentCarrier({
-                    ...currentCarrier, 
-                    config: { ...currentCarrier.config, api_key: e.target.value }
-                  })}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
-                  placeholder={currentCarrier.provider === 'cepcerto' ? 'Insira o token de consulta' : 'Insira o token de integração'}
-                />
+                <div className="relative">
+                  <input 
+                    type={showApiKey ? "text" : "password"}
+                    value={currentCarrier.config?.api_key || ''}
+                    onChange={e => setCurrentCarrier({
+                      ...currentCarrier, 
+                      config: { ...currentCarrier.config, api_key: e.target.value }
+                    })}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all text-sm pr-12"
+                    placeholder={currentCarrier.provider === 'cepcerto' ? 'Insira o token de consulta' : 'Insira o token de integração'}
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
+                  >
+                    {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               {currentCarrier.provider === 'cepcerto' && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Token de Postagem (Gerar Etiqueta)</label>
-                  <input 
-                    type="password"
-                    value={currentCarrier.config?.api_key_postagem || ''}
-                    onChange={e => setCurrentCarrier({
-                      ...currentCarrier, 
-                      config: { ...currentCarrier.config, api_key_postagem: e.target.value }
-                    })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all text-sm"
-                    placeholder="Insira o token de postagem"
-                  />
+                  <div className="relative">
+                    <input 
+                      type={showApiKeyPostagem ? "text" : "password"}
+                      value={currentCarrier.config?.api_key_postagem || ''}
+                      onChange={e => setCurrentCarrier({
+                        ...currentCarrier, 
+                        config: { ...currentCarrier.config, api_key_postagem: e.target.value }
+                      })}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all text-sm pr-12"
+                      placeholder="Insira o token de postagem"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowApiKeyPostagem(!showApiKeyPostagem)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
+                    >
+                      {showApiKeyPostagem ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                   <p className="text-[10px] text-slate-500 mt-1">Necessário para gerar etiquetas e rastreamento após o pagamento.</p>
                 </div>
               )}

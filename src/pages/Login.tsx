@@ -172,9 +172,21 @@ export default function Login() {
           setLoading(true);
           console.log('💾 Exchanging code for session (PKCE)...');
           
+          // Debug: Verificar se o code_verifier está no localStorage
+          const storageKeys = Object.keys(localStorage).filter(k => k.includes('supabase') || k.includes('sb-'));
+          console.log('📦 Current Storage Keys:', storageKeys);
+          
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
           
-          if (error) throw error;
+          if (error) {
+            console.error('❌ Supabase Auth Exchange Error:', {
+              message: error.message,
+              status: error.status,
+              code: error.code,
+              name: error.name
+            });
+            throw error;
+          }
 
           if (data.session) {
             console.log('✅ Session established successfully!');

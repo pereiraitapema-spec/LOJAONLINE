@@ -197,7 +197,13 @@ export default function LeadsChat() {
 
   useEffect(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      const container = messagesEndRef.current.parentElement;
+      if (container) {
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+        if (isNearBottom || messages.length <= 1) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
     }
   }, [messages]);
 
@@ -424,7 +430,7 @@ export default function LeadsChat() {
     if (groupedLeads.length > 0 && !selectedGroupKey) {
       handleSelectGroup(groupedLeads[0]);
     }
-  }, [groupedLeads]);
+  }, [groupedLeads.length, selectedGroupKey]);
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();

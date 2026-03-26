@@ -191,7 +191,7 @@ export default function PaymentGateways() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {gateways.map(gateway => (
+            {gateways.filter((g, index, self) => self.findIndex(t => t.provider === g.provider) === index).map(gateway => (
               <div key={gateway.id} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group">
                 <div className="flex justify-between items-start mb-4">
                   <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600">

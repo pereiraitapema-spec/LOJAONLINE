@@ -10,12 +10,15 @@ let supabaseInstance: SupabaseClient | null = null;
 export const getSupabase = (): SupabaseClient => {
   if (supabaseInstance) return supabaseInstance;
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
-  console.log('🧪 Supabase Config:', {
-    url: supabaseUrl ? `${supabaseUrl.substring(0, 15)}...` : 'MISSING',
-    key: supabaseAnonKey ? 'PRESENT' : 'MISSING'
+  // Log detalhado para diagnóstico em produção
+  console.log('🧪 Supabase Initialization:', {
+    url: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'MISSING',
+    keyLength: supabaseAnonKey ? supabaseAnonKey.length : 0,
+    keyPrefix: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 10)}...` : 'MISSING',
+    environment: import.meta.env.MODE
   });
 
   if (!supabaseUrl || !supabaseAnonKey) {

@@ -29,13 +29,20 @@ async function startServer() {
     }
 
     try {
-      const authHeader = `Basic ${Buffer.from(config.access_token + ':').toString('base64')}`;
+      // Pagar.me V5 usa Basic Auth com a API Key como username e senha vazia
+      // O formato deve ser: Basic base64(api_key:)
+      const token = config.access_token.trim();
+      const authHeader = `Basic ${Buffer.from(token + ':').toString('base64')}`;
+      
+      console.log('📡 Enviando requisição para Pagar.me V5...');
+      console.log('🔑 Token (primeiros 6 caracteres):', token.substring(0, 6) + '...');
       
       const response = await fetch('https://api.pagar.me/core/v5/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': authHeader
+          'Authorization': authHeader,
+          'Accept': 'application/json'
         },
         body: JSON.stringify(orderData)
       });
@@ -45,7 +52,7 @@ async function startServer() {
       console.log(`📡 Resposta Pagar.me (Status ${response.status}):`, JSON.stringify(data, null, 2));
 
       if (!response.ok) {
-        console.error('❌ Erro na API do Pagar.me:', data.message || 'Erro desconhecido');
+        console.error('❌ Erro na API do Pagar.me:', data.message || data.errors || 'Erro desconhecido');
       } else {
         console.log('✅ Pagamento processado com sucesso pela API.');
       }

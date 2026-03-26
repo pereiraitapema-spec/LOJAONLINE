@@ -136,7 +136,6 @@ export default function SmartChat() {
           throw error;
         }
         setSession(session);
-        if (session) loadHistory(session.user.id);
       } catch (e) {
         console.error('Error getting session in SmartChat:', e);
       } finally {
@@ -147,53 +146,62 @@ export default function SmartChat() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) {
-        loadHistory(session.user.id);
-      } else {
+      if (!session) {
         setMessages([{ role: 'bot', content: 'Olá! Sou seu assistente inteligente G-FitLif. Como posso te ajudar hoje?' }]);
       }
       setLoadingSession(false);
     });
 
-    // Fetch AI Settings
-    const fetchAiSettings = async () => {
-      const { data } = await supabase.from('store_settings').select('ai_chat_rules, ai_chat_triggers, ai_auto_learning, ai_chat_memory').maybeSingle();
-      if (data) {
-        setAiSettings({
-          rules: data.ai_chat_rules || '',
-          memory: data.ai_chat_memory || '',
-          triggers: data.ai_chat_triggers || 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?',
-          autoLearning: !!data.ai_auto_learning
-        });
-      }
+    return () => {
+      subscription.unsubscribe();
     };
-    fetchAiSettings();
+  }, []);
 
-    // Subscription for real-time messages
-    let msgSubscription: any = null;
+  useEffect(() => {
     if (session?.user?.id) {
-      msgSubscription = chatService.subscribeToMessages(session.user.id, (payload) => {
+      loadHistory(session.user.id);
+      
+      // Fetch AI Settings
+      const fetchAiSettings = async () => {
+        const { data } = await supabase.from('store_settings').select('ai_chat_rules, ai_chat_triggers, ai_auto_learning, ai_chat_memory').maybeSingle();
+        if (data) {
+          setAiSettings({
+            rules: data.ai_chat_rules || '',
+            memory: data.ai_chat_memory || '',
+            triggers: data.ai_chat_triggers || 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?',
+            autoLearning: !!data.ai_auto_learning
+          });
+        }
+      };
+      fetchAiSettings();
+
+      // Subscription for real-time messages
+      const msgSubscription = chatService.subscribeToMessages(session.user.id, (payload) => {
         const newMessage = payload.new;
         if (newMessage && newMessage.message) {
-          setMessages(prev => [...prev, { role: 'bot', content: newMessage.message }]);
+          setMessages(prev => {
+            // Evitar duplicatas se a mensagem já foi adicionada localmente
+            if (prev.some(m => m.content === newMessage.message && m.role === 'bot')) return prev;
+            return [...prev, { role: 'bot', content: newMessage.message }];
+          });
           setShowNotification(true);
         }
       });
-    }
 
-    return () => {
-      if (msgSubscription) {
-        msgSubscription.unsubscribe();
-      }
-    };
+      return () => {
+        if (msgSubscription) msgSubscription.unsubscribe();
+      };
+    }
   }, [session?.user?.id]);
 
   useEffect(() => {
-    // Simular notificação após 5 segundos
-    const timer = setTimeout(() => {
-      if (!isOpen) setShowNotification(true);
-    }, 5000);
-    return () => clearTimeout(timer);
+    // Mostrar notificação apenas uma vez após 10 segundos se o chat estiver fechado
+    if (!isOpen) {
+      const timer = setTimeout(() => {
+        setShowNotification(true);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
   }, [isOpen]);
 
   useEffect(() => {
@@ -211,7 +219,13 @@ export default function SmartChat() {
 
   useEffect(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      const container = messagesEndRef.current.parentElement;
+      if (container) {
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+        if (isNearBottom || messages.length <= 1) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
     }
   }, [messages]);
 

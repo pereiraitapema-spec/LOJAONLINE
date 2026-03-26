@@ -2109,28 +2109,28 @@ export default function Store() {
               className="bg-white w-full md:w-[450px] h-[90vh] md:h-full md:max-h-[800px] md:rounded-[40px] shadow-2xl flex flex-col overflow-hidden"
             >
               <div className="p-2 border-b border-slate-100 flex items-center justify-between bg-pink-600 text-white">
-                <div className="flex items-center gap-2">
-                  <ShoppingBag size={16} />
-                  <h2 className="text-sm font-black uppercase italic tracking-tighter">Meu Carrinho</h2>
+                <div className="flex items-center gap-1.5">
+                  <ShoppingBag size={14} />
+                  <h2 className="text-[11px] font-black uppercase italic tracking-tighter">Meu Carrinho</h2>
                 </div>
                 <button onClick={() => setShowCart(false)} className="p-1 hover:bg-white/20 rounded-full transition-colors">
-                  <X size={16} />
+                  <X size={14} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              <div className="flex-1 overflow-y-auto p-2 space-y-2">
                 {/* Barra de Progresso Frete Grátis */}
                 {cartTotal > 0 && Number(settings?.free_shipping_threshold) > 0 && (
-                  <div className="bg-emerald-50 p-2 rounded-xl border border-emerald-100 mb-2 shadow-sm">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[9px] font-bold text-emerald-800 uppercase tracking-wider">
+                  <div className="bg-emerald-50 p-1.5 rounded-lg border border-emerald-100 mb-1 shadow-sm">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <p className="text-[8px] font-bold text-emerald-800 uppercase tracking-wider">
                         {cartTotal >= Number(settings?.free_shipping_threshold) 
                           ? "🎉 Frete Grátis!" 
                           : `Faltam R$ ${(Number(settings?.free_shipping_threshold) - cartTotal).toFixed(2)}`}
                       </p>
-                      <Truck size={12} className={cartTotal >= Number(settings?.free_shipping_threshold) ? 'text-emerald-600' : 'text-slate-400'} />
+                      <Truck size={10} className={cartTotal >= Number(settings?.free_shipping_threshold) ? 'text-emerald-600' : 'text-slate-400'} />
                     </div>
-                    <div className="w-full bg-emerald-200 rounded-full h-1.5 overflow-hidden shadow-inner">
+                    <div className="w-full bg-emerald-200 rounded-full h-1 overflow-hidden shadow-inner">
                       <motion.div 
                         initial={{ width: 0 }}
                         animate={{ width: `${Math.min((cartTotal / Number(settings?.free_shipping_threshold)) * 100, 100)}%` }}
@@ -2152,44 +2152,44 @@ export default function Store() {
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {cart.map((item) => {
                       const { unitPrice, total } = calculatePrice(item.product, item.quantity);
                       return (
-                        <div key={item.product.id} className="flex gap-3 bg-white p-2 rounded-xl border border-slate-100 shadow-sm group">
-                          <div className="w-16 h-16 bg-slate-50 rounded-lg overflow-hidden flex-shrink-0 border border-slate-100">
+                        <div key={item.product.id} className="flex gap-2 bg-white p-1.5 rounded-lg border border-slate-100 shadow-sm group">
+                          <div className="w-12 h-12 bg-slate-50 rounded-md overflow-hidden flex-shrink-0 border border-slate-100">
                             {item.product.image_url ? (
-                              <img src={item.product.image_url} className="w-full h-full object-contain p-1" referrerPolicy="no-referrer" />
+                              <img src={item.product.image_url} className="w-full h-full object-contain p-0.5" referrerPolicy="no-referrer" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={20} /></div>
+                              <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={16} /></div>
                             )}
                           </div>
                           <div className="flex-1 min-w-0 flex flex-col justify-between">
                             <div>
-                              <h4 className="font-bold text-slate-900 truncate text-xs uppercase italic">{item.product.name}</h4>
-                              <p className="text-[10px] text-slate-500">R$ {unitPrice.toFixed(2)} cada</p>
+                              <h4 className="font-bold text-slate-900 truncate text-[10px] uppercase italic">{item.product.name}</h4>
+                              <p className="text-[8px] text-slate-500">R$ {unitPrice.toFixed(2)} cada</p>
                             </div>
-                            <div className="flex items-center justify-between mt-1">
-                              <div className="flex items-center bg-slate-100 rounded-full px-1.5 py-0.5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center bg-slate-100 rounded-full px-1 py-0.5">
                                 <button 
                                   onClick={() => addToCart(item.product, -1)}
-                                  className="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-emerald-600 transition-colors text-xs"
+                                  className="w-4 h-4 flex items-center justify-center text-slate-600 hover:text-emerald-600 transition-colors text-[10px]"
                                 >
                                   -
                                 </button>
-                                <span className="w-6 text-center text-[10px] font-black text-slate-900">{item.quantity}</span>
+                                <span className="w-4 text-center text-[9px] font-black text-slate-900">{item.quantity}</span>
                                 <button 
                                   onClick={() => addToCart(item.product, 1)}
-                                  className="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-emerald-600 transition-colors text-xs"
+                                  className="w-4 h-4 flex items-center justify-center text-slate-600 hover:text-emerald-600 transition-colors text-[10px]"
                                 >
                                   +
                                 </button>
                               </div>
                               <div className="flex flex-col items-end">
-                                <span className="font-black text-emerald-600 text-sm tracking-tighter">R$ {total.toFixed(2)}</span>
+                                <span className="font-black text-emerald-600 text-xs tracking-tighter">R$ {total.toFixed(2)}</span>
                                 <button 
                                   onClick={() => removeFromCart(item.product.id)}
-                                  className="text-slate-400 hover:text-rose-500 text-[9px] font-bold transition-colors uppercase"
+                                  className="text-slate-400 hover:text-rose-500 text-[8px] font-bold transition-colors uppercase"
                                 >
                                   Remover
                                 </button>
@@ -2232,40 +2232,40 @@ export default function Store() {
               </div>
 
               {cart.length > 0 && (
-                <div className="p-3 bg-slate-50 border-t border-slate-100">
+                <div className="p-2 bg-slate-50 border-t border-slate-100">
                   {/* Cálculo de Frete no Carrinho */}
-                  <div className="mb-2 p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Truck size={12} className="text-indigo-600" />
-                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-900">Calcular Frete</span>
+                  <div className="mb-1.5 p-1.5 bg-white rounded-lg border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Truck size={10} className="text-indigo-600" />
+                      <span className="text-[8px] font-black uppercase tracking-widest text-slate-900">Calcular Frete</span>
                     </div>
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1">
                       <input 
                         type="text"
                         placeholder="Seu CEP"
                         value={cep}
                         onChange={(e) => setCep(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                        className="flex-1 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[10px] focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                        className="flex-1 px-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
                       />
                       <button 
                         onClick={handleCalculateShipping}
                         disabled={calculatingShipping}
-                        className="px-2 py-1 bg-slate-900 text-white rounded text-[9px] font-bold uppercase tracking-wider hover:bg-slate-800 transition-all disabled:opacity-50"
+                        className="px-1.5 py-0.5 bg-slate-900 text-white rounded text-[8px] font-bold uppercase tracking-wider hover:bg-slate-800 transition-all disabled:opacity-50"
                       >
                         {calculatingShipping ? '...' : 'OK'}
                       </button>
                     </div>
                     {city && (
-                      <p className="text-[8px] font-bold text-emerald-600 mt-1 uppercase tracking-widest flex items-center gap-1">
-                        <MapPin size={8} /> {city}
+                      <p className="text-[7px] font-bold text-emerald-600 mt-0.5 uppercase tracking-widest flex items-center gap-0.5">
+                        <MapPin size={7} /> {city}
                       </p>
                     )}
                   </div>
 
-                  <div className="flex flex-col mb-2">
+                  <div className="flex flex-col mb-1.5">
                     <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-slate-500 font-bold text-[9px] uppercase tracking-wider">Subtotal</span>
-                      <span className={`font-black text-slate-900 tracking-tighter ${discountValue > 0 ? 'text-xs line-through opacity-50' : 'text-sm'}`}>
+                      <span className="text-slate-500 font-bold text-[8px] uppercase tracking-wider">Subtotal</span>
+                      <span className={`font-black text-slate-900 tracking-tighter ${discountValue > 0 ? 'text-[10px] line-through opacity-50' : 'text-xs'}`}>
                         R$ {cartTotal.toFixed(2)}
                       </span>
                     </div>
@@ -2273,10 +2273,10 @@ export default function Store() {
                     {selectedShippingQuote && (
                       <div className="flex items-center justify-between mb-0.5 text-slate-600">
                         <div className="flex items-center gap-1">
-                          <Truck size={10} className="text-emerald-600" />
-                          <span className="text-[9px] font-bold uppercase tracking-wider">Frete ({selectedShippingQuote.name})</span>
+                          <Truck size={8} className="text-emerald-600" />
+                          <span className="text-[8px] font-bold uppercase tracking-wider">Frete ({selectedShippingQuote.name})</span>
                         </div>
-                        <span className="text-xs font-black tracking-tighter">
+                        <span className="text-[10px] font-black tracking-tighter">
                           {isFreeShipping ? 'GRÁTIS' : `R$ ${selectedShippingQuote.price.toFixed(2)}`}
                         </span>
                       </div>
@@ -2285,20 +2285,20 @@ export default function Store() {
                     {discountValue > 0 && (
                       <div className="flex items-center justify-between mb-0.5 text-emerald-600">
                         <div className="flex items-center gap-1">
-                          <Tag size={10} />
-                          <span className="text-[9px] font-bold uppercase tracking-wider">Cupom {affiliateCoupon.code}</span>
+                          <Tag size={8} />
+                          <span className="text-[8px] font-bold uppercase tracking-wider">Cupom {affiliateCoupon.code}</span>
                         </div>
-                        <span className="text-xs font-black tracking-tighter">- R$ {discountValue.toFixed(2)}</span>
+                        <span className="text-[10px] font-black tracking-tighter">- R$ {discountValue.toFixed(2)}</span>
                       </div>
                     )}
 
                     <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-slate-900 font-black uppercase text-[9px] tracking-wider">Total</span>
-                      <span className="text-lg font-black text-slate-900 tracking-tighter">R$ {finalTotal.toFixed(2)}</span>
+                      <span className="text-slate-900 font-black uppercase text-[8px] tracking-wider">Total</span>
+                      <span className="text-sm font-black text-slate-900 tracking-tighter">R$ {finalTotal.toFixed(2)}</span>
                     </div>
 
                     <div className="flex flex-col items-end">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
                         ou em até {(() => {
                           const minInstallmentValue = cart.reduce((min, item) => {
                             const productMin = item.product.min_installment_value || 50;
@@ -2321,32 +2321,16 @@ export default function Store() {
                           return possibleInstallments;
                         })()).toFixed(2)} sem juros
                       </p>
-                      
-                      {/* Mensagem de Parcelamento */}
-                      {(() => {
-                        const minInstallmentValue = cart.reduce((min, item) => {
-                          const productMin = item.product.min_installment_value || 50;
-                          return productMin < min ? productMin : min;
-                        }, 50);
-                        if (finalTotal < minInstallmentValue) {
-                          return (
-                            <p className="text-[8px] text-indigo-600 font-bold mt-0.5 uppercase tracking-tighter">
-                              Adicione mais R$ {(minInstallmentValue - finalTotal).toFixed(2)} para parcelar
-                            </p>
-                          );
-                        }
-                        return null;
-                      })()}
                     </div>
                   </div>
                   <button 
                     onClick={() => navigate('/checkout')}
-                    className="w-full bg-emerald-600 text-white py-2 rounded-lg font-black text-xs uppercase italic tracking-tighter hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+                    className="w-full bg-emerald-600 text-white py-1.5 rounded-lg font-black text-[10px] uppercase italic tracking-tighter hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-1.5"
                   >
                     Finalizar Compra
                   </button>
-                  <p className="text-center text-[10px] text-slate-400 mt-4 uppercase font-bold tracking-widest">
-                    Pagamento 100% Seguro via Mercado Pago
+                  <p className="text-center text-[8px] text-slate-400 mt-2 uppercase font-bold tracking-widest">
+                    Pagamento Seguro via Pagar.me
                   </p>
                 </div>
               )}
