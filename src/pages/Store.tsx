@@ -16,6 +16,7 @@ import { DebugModeIndicator } from '../components/DebugModeIndicator';
 
 import { leadService } from '../services/leadService';
 import { shippingService } from '../services/shippingService';
+import { cepService } from '../services/cepService';
 
 interface Banner {
   id: string;
@@ -175,7 +176,16 @@ export default function Store() {
       return;
     }
     setCalculatingShipping(true);
+    setCity(''); // Limpar cidade anterior
+    setShippingQuotes([]); // Limpar cotações anteriores
+    
     try {
+      // Buscar endereço primeiro
+      const address = await cepService.fetchAddress(cleanCep);
+      if (address) {
+        setCity(`${address.city} - ${address.state}`);
+      }
+
       const packages = cart.map(item => ({
         weight: (item.product as any).weight || 0.5,
         height: (item.product as any).height || 10,
@@ -212,6 +222,7 @@ export default function Store() {
 
   const [isModalMuted, setIsModalMuted] = useState(false);
   const [cep, setCep] = useState('');
+  const [city, setCity] = useState('');
   const [shippingQuotes, setShippingQuotes] = useState<any[]>([]);
   const [calculatingShipping, setCalculatingShipping] = useState(false);
   const [carriers, setCarriers] = useState<any[]>([]);
@@ -1737,12 +1748,23 @@ export default function Store() {
                         <a href="https://buscacepinter.correios.com.br/app/endereco/index.php" target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 hover:underline mt-2 inline-block">
                           Não sei meu CEP
                         </a>
+                        
+                        {city && (
+                          <div className="mt-4 p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2">
+                            <Package size={16} className="text-emerald-600" />
+                            <span className="text-sm font-bold text-emerald-700">Entrega para: {city}</span>
+                          </div>
+                        )}
+
                         {shippingQuotes.length > 0 && (
-                          <div className="mt-4 space-y-2">
+                          <div className="mt-2 space-y-2">
                             {shippingQuotes.map((quote, index) => (
-                              <div key={index} className="flex justify-between items-center p-3 bg-white rounded-xl border border-slate-200 text-sm">
-                                <span className="font-bold text-slate-700">{quote.carrier_name}</span>
-                                <span className="font-black text-emerald-600">
+                              <div key={index} className="flex justify-between items-center p-3 bg-white rounded-xl border border-slate-200 text-sm shadow-sm hover:border-emerald-200 transition-all">
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-slate-700">{quote.carrier_name}</span>
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Prazo: {quote.deadline} dias</span>
+                                </div>
+                                <span className="font-black text-emerald-600 text-base">
                                   {quote.price === 0 ? 'Frete Grátis' : `R$ ${quote.price.toFixed(2)}`}
                                 </span>
                               </div>
