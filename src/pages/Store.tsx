@@ -208,9 +208,17 @@ export default function Store() {
         
         console.log('Total de cotações recebidas:', allQuotes.length);
         setShippingQuotes(allQuotes);
+        
+        // Salvar CEP para o checkout
+        localStorage.setItem('last_cep', cleanCep);
+        
+        // Selecionar automaticamente a opção mais barata se houver
         if (allQuotes.length > 0) {
+          const cheapest = [...allQuotes].sort((a, b) => a.price - b.price)[0];
+          setSelectedShippingQuote(cheapest);
           toast.success('Frete calculado!');
         } else {
+          setSelectedShippingQuote(null);
           toast.error('Nenhuma opção de frete disponível para este CEP.');
         }
       } else {
@@ -239,6 +247,7 @@ export default function Store() {
   const [cep, setCep] = useState('');
   const [city, setCity] = useState('');
   const [shippingQuotes, setShippingQuotes] = useState<any[]>([]);
+  const [selectedShippingQuote, setSelectedShippingQuote] = useState<any>(null);
   const [calculatingShipping, setCalculatingShipping] = useState(false);
   const [carriers, setCarriers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -465,7 +474,8 @@ export default function Store() {
           withTimeout(supabase.from('categories').select('*').order('name'), 5000),
           withTimeout(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }), 5000),
           withTimeout(supabase.from('store_settings').select('*').maybeSingle(), 5000),
-          withTimeout(supabase.from('site_content').select('*'), 5000)
+          withTimeout(supabase.from('site_content').select('*'), 5000),
+          withTimeout(supabase.from('shipping_carriers').select('*').eq('active', true), 5000)
         ]);
 
         // Só atualizar o estado se a promessa foi cumprida com sucesso
@@ -497,6 +507,11 @@ export default function Store() {
         if (results[5].status === 'fulfilled' && results[5].value.data) {
           setSiteContent(results[5].value.data);
           localStorage.setItem('cache_site_content', JSON.stringify(results[5].value.data));
+        }
+
+        if (results[6].status === 'fulfilled' && results[6].value.data) {
+          setCarriers(results[6].value.data);
+          console.log('🚚 Carriers Loaded in Store:', results[6].value.data.length);
         }
         
         // Logs para debug
@@ -712,7 +727,12 @@ export default function Store() {
   }, 0);
 
   const discountValue = affiliateCoupon ? (cartTotal * affiliateCoupon.discount_percentage / 100) : 0;
-  const finalTotal = cartTotal - discountValue;
+  
+  const threshold = Number(settings?.free_shipping_threshold) || 0;
+  const isFreeShipping = threshold > 0 && cartTotal >= threshold;
+  const shippingCost = isFreeShipping ? 0 : (selectedShippingQuote?.price || 0);
+  
+  const finalTotal = cartTotal - discountValue + shippingCost;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
@@ -2181,6 +2201,18 @@ export default function Store() {
                         R$ {cartTotal.toFixed(2)}
                       </span>
                     </div>
+
+                    {selectedShippingQuote && (
+                      <div className="flex items-center justify-between mb-1 text-slate-600">
+                        <div className="flex items-center gap-1">
+                          <Truck size={14} className="text-emerald-600" />
+                          <span className="text-xs font-bold uppercase tracking-wider">Frete ({selectedShippingQuote.name})</span>
+                        </div>
+                        <span className="text-lg font-black tracking-tighter">
+                          {isFreeShipping ? 'GRÁTIS' : `R$ ${selectedShippingQuote.price.toFixed(2)}`}
+                        </span>
+                      </div>
+                    )}
                     
                     {discountValue > 0 && (
                       <div className="flex items-center justify-between mb-2 text-emerald-600">

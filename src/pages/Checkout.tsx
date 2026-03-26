@@ -224,6 +224,16 @@ export default function Checkout() {
     loadData();
   }, [navigate]);
 
+  // Carregar CEP salvo do Store
+  useEffect(() => {
+    const savedCep = localStorage.getItem('last_cep');
+    if (savedCep && savedCep.length === 8 && !shipping.cep) {
+      console.log('📦 Carregando CEP salvo do Store:', savedCep);
+      setShipping(prev => ({ ...prev, cep: savedCep }));
+      handleCep(savedCep);
+    }
+  }, []);
+
   // Verificar se é primeira compra por e-mail (para visitantes)
   useEffect(() => {
     const checkEmailPurchase = async () => {
@@ -451,10 +461,13 @@ export default function Checkout() {
   };
 
   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 8);
+    const rawValue = e.target.value;
+    const value = rawValue.replace(/\D/g, '').slice(0, 8);
+    console.log('⌨️ CEP Input Change:', { raw: rawValue, clean: value, length: value.length });
     setShipping(prev => ({ ...prev, cep: value }));
 
     if (value.length === 8 && value !== lastCalculatedCep.current) {
+      console.log('🎯 CEP atingiu 8 dígitos, disparando handleCep...');
       await handleCep(value);
     }
   };

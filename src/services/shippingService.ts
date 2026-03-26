@@ -5,7 +5,10 @@ import { logApiCall } from '../lib/monitoring';
 
 const melhorenvioProvider: ShippingProvider = {
   async calculateShipping(destZipCode: string, packages: ShippingPackage[], config: any): Promise<ShippingQuote[]> {
-    if (!config?.api_key) return [];
+    if (!config?.api_key) {
+      console.warn('⚠️ Melhor Envio API Key missing in carrier config!');
+      return [];
+    }
     
     const startTime = Date.now();
     try {
@@ -66,22 +69,98 @@ const melhorenvioProvider: ShippingProvider = {
 const mockProvider: ShippingProvider = {
   async calculateShipping(destZipCode: string, packages: ShippingPackage[], config: any): Promise<ShippingQuote[]> {
     console.log('🛠️ Usando Mock Shipping Provider para:', destZipCode);
+    
+    // Simulação realista baseada em regiões do Brasil (Primeiro dígito do CEP)
+    const firstDigit = destZipCode.charAt(0);
+    let basePrice = 22.50;
+    let deadlineMin = 3;
+    let deadlineMax = 6;
+
+    switch(firstDigit) {
+      case '0': case '1': case '2': case '3': // Sudeste
+        basePrice = 19.90; deadlineMin = 2; deadlineMax = 4; break;
+      case '4': case '5': // Nordeste (Leste)
+        basePrice = 29.50; deadlineMin = 5; deadlineMax = 8; break;
+      case '6': // Norte/Nordeste (Oeste)
+        basePrice = 38.20; deadlineMin = 7; deadlineMax = 12; break;
+      case '7': // Centro-Oeste
+        basePrice = 26.90; deadlineMin = 4; deadlineMax = 7; break;
+      case '8': case '9': // Sul
+        basePrice = 24.40; deadlineMin = 3; deadlineMax = 6; break;
+    }
+
     return [
       {
-        id: 'mock-sedex',
-        name: 'SEDEX (Simulado)',
-        price: 25.90,
-        deadline: '2 a 4 dias úteis',
+        id: 'mock-express',
+        name: 'Entrega Expressa',
+        price: basePrice + 12,
+        deadline: `${deadlineMin} a ${deadlineMax} dias úteis`,
         provider: 'mock',
-        carrierName: 'Correios'
+        carrierName: config.carrier_name || 'Transportadora'
       },
       {
-        id: 'mock-pac',
-        name: 'PAC (Simulado)',
-        price: 15.50,
-        deadline: '5 a 10 dias úteis',
+        id: 'mock-standard',
+        name: 'Entrega Padrão',
+        price: basePrice,
+        deadline: `${deadlineMin + 3} a ${deadlineMax + 5} dias úteis`,
         provider: 'mock',
-        carrierName: 'Correios'
+        carrierName: config.carrier_name || 'Transportadora'
+      }
+    ];
+  },
+  async generateLabel(orderId: string, config: any) {
+    return { success: true, tracking_code: 'BR' + Math.random().toString(36).substring(2, 11).toUpperCase() };
+  },
+  async cancelLabel(orderId: string, config: any) {
+    return { success: true };
+  }
+};
+
+const correiosProvider: ShippingProvider = {
+  async calculateShipping(destZipCode: string, packages: ShippingPackage[], config: any): Promise<ShippingQuote[]> {
+    console.log('📦 Usando Provedor Correios para:', destZipCode);
+    
+    // Se o usuário tiver configuração de Melhor Envio no Correios, podemos usar o provedor do Melhor Envio
+    if (config?.api_key && config.api_key.length > 20) {
+       console.log('🔄 Redirecionando Correios para Melhor Envio (API Key detectada)');
+       return melhorenvioProvider.calculateShipping(destZipCode, packages, config);
+    }
+
+    // Simulação realista baseada em regiões do Brasil
+    const firstDigit = destZipCode.charAt(0);
+    let basePrice = 20;
+    let deadlineMin = 3;
+    let deadlineMax = 5;
+
+    switch(firstDigit) {
+      case '0': case '1': case '2': case '3': // Sudeste
+        basePrice = 18.90; deadlineMin = 2; deadlineMax = 4; break;
+      case '4': case '5': // Nordeste (Leste)
+        basePrice = 28.50; deadlineMin = 5; deadlineMax = 8; break;
+      case '6': // Norte/Nordeste (Oeste)
+        basePrice = 35.20; deadlineMin = 7; deadlineMax = 12; break;
+      case '7': // Centro-Oeste
+        basePrice = 24.90; deadlineMin = 4; deadlineMax = 7; break;
+      case '8': case '9': // Sul
+        basePrice = 22.40; deadlineMin = 3; deadlineMax = 6; break;
+    }
+
+    return [
+      {
+        id: 'correios-sedex',
+        name: 'SEDEX',
+        price: basePrice + 15.40,
+        deadline: `${deadlineMin} a ${deadlineMax} dias úteis`,
+        provider: 'correios',
+        carrierName: config.carrier_name || 'Correios'
+      },
+      {
+        id: 'correios-pac',
+        name: 'PAC',
+        price: basePrice,
+        deadline: `${deadlineMin + 4} a ${deadlineMax + 7} dias úteis`,
+        provider: 'correios',
+        carrierName: config.carrier_name || 'Correios'
       }
     ];
   },
@@ -96,6 +175,7 @@ const mockProvider: ShippingProvider = {
 const providers: Record<string, ShippingProvider> = {
   'melhorenvio': melhorenvioProvider,
   'melhorenvio2': melhorenvioProvider,
+  'correios': correiosProvider,
   'mock': mockProvider
 };
 
