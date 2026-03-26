@@ -223,27 +223,70 @@ const cepcertoProvider: ShippingProvider = {
         await logApiCall('cepcerto', '/json-frete', duration, true);
         
         const quotes: ShippingQuote[] = [];
+        
+        let pacData: any = null;
+        let sedexData: any = null;
+
+        if (Array.isArray(data)) {
+           // Formato de array (ex: com valor declarado)
+           const sedexObj = data.find(item => item.valorFreteSedex || item.valorTotalSedex);
+           const pacObj = data.find(item => item.valorFretePac || item.valorTotalPac);
+           
+           if (sedexObj) {
+              sedexData = {
+                 valor: sedexObj.valorTotalSedex || sedexObj.valorFreteSedex,
+                 prazo: sedexObj.prazoSedex
+              };
+           }
+           if (pacObj) {
+              pacData = {
+                 valor: pacObj.valorTotalPac || pacObj.valorFretePac,
+                 prazo: pacObj.prazoPac
+              };
+           }
+        } else {
+           // Formato de objeto (ex: resumida)
+           if (data.valorsedex && data.valorsedex !== '0,00') {
+              sedexData = {
+                 valor: data.valorsedex,
+                 prazo: data.prazosedex
+              };
+           }
+           if (data.valorpac && data.valorpac !== '0,00') {
+              pacData = {
+                 valor: data.valorpac,
+                 prazo: data.prazopac
+              };
+           }
+        }
+
         // Mapear os serviços retornados pelo CepCerto
-        if (data.sedex && data.sedex.valor && data.sedex.valor !== '0,00' && data.sedex.erro === '0') {
+        if (sedexData && sedexData.valor) {
           quotes.push({
             id: 'cepcerto-sedex',
             name: 'SEDEX',
-            price: parseFloat(data.sedex.valor.replace(',', '.')),
-            deadline: `${data.sedex.prazo} dias úteis`,
+            price: parseFloat(sedexData.valor.replace(',', '.')),
+            deadline: `${sedexData.prazo} dias úteis`,
             provider: 'cepcerto',
             carrierName: config.carrier_name || 'CepCerto'
           });
         }
-        if (data.pac && data.pac.valor && data.pac.valor !== '0,00' && data.pac.erro === '0') {
+        if (pacData && pacData.valor) {
           quotes.push({
             id: 'cepcerto-pac',
             name: 'PAC',
-            price: parseFloat(data.pac.valor.replace(',', '.')),
-            deadline: `${data.pac.prazo} dias úteis`,
+            price: parseFloat(pacData.valor.replace(',', '.')),
+            deadline: `${pacData.prazo} dias úteis`,
             provider: 'cepcerto',
             carrierName: config.carrier_name || 'CepCerto'
           });
         }
+        
+        // Se a API não retornou cotações válidas, mas não deu erro
+        if (quotes.length === 0) {
+           console.warn('⚠️ CepCerto não retornou cotações válidas:', data);
+        }
+        
         return quotes;
       } else {
         console.error('❌ Erro na resposta do CepCerto:', response.status, response.statusText);
