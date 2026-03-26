@@ -177,7 +177,11 @@ const cepcertoProvider: ShippingProvider = {
     console.log('📦 Usando Provedor CepCerto para:', destZipCode);
     if (!config?.api_key) {
       console.warn('⚠️ CepCerto API Key missing!');
-      return [];
+      throw new Error('Token de Consulta do CepCerto não configurado.');
+    }
+    
+    if (config.api_key.length > 50) {
+      throw new Error('Parece que você usou o "Token de Postagem" no campo de "Token de Consulta". Por favor, inverta as chaves no painel.');
     }
     
     const startTime = Date.now();
@@ -258,6 +262,11 @@ const cepcertoProvider: ShippingProvider = {
     }
   },
   async generateLabel(orderId: string, config: any) {
+    if (!config?.api_key_postagem) {
+      console.warn('⚠️ CepCerto Token de Postagem missing!');
+      throw new Error('Token de Postagem do CepCerto não configurado.');
+    }
+    console.log('📦 Gerando etiqueta CepCerto com token de postagem:', config.api_key_postagem.substring(0, 10) + '...');
     return { success: true, tracking_code: 'CC' + Math.random().toString(36).substring(2, 11).toUpperCase() };
   },
   async cancelLabel(orderId: string, config: any) {

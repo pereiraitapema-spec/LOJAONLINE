@@ -369,7 +369,9 @@ export default function ShippingCarriers() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Token de Acesso / API Key</label>
+                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                  {currentCarrier.provider === 'cepcerto' ? 'Token de Consulta (Cálculo de Frete)' : 'Token de Acesso / API Key'}
+                </label>
                 <input 
                   type="password"
                   value={currentCarrier.config?.api_key || ''}
@@ -378,9 +380,26 @@ export default function ShippingCarriers() {
                     config: { ...currentCarrier.config, api_key: e.target.value }
                   })}
                   className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
-                  placeholder="Insira o token de integração"
+                  placeholder={currentCarrier.provider === 'cepcerto' ? 'Insira o token de consulta' : 'Insira o token de integração'}
                 />
               </div>
+
+              {currentCarrier.provider === 'cepcerto' && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Token de Postagem (Gerar Etiqueta)</label>
+                  <input 
+                    type="password"
+                    value={currentCarrier.config?.api_key_postagem || ''}
+                    onChange={e => setCurrentCarrier({
+                      ...currentCarrier, 
+                      config: { ...currentCarrier.config, api_key_postagem: e.target.value }
+                    })}
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
+                    placeholder="Insira o token de postagem"
+                  />
+                  <p className="text-xs text-slate-500 mt-2">Necessário para gerar etiquetas e rastreamento após o pagamento.</p>
+                </div>
+              )}
 
               <div className="flex gap-4 pt-4">
                 <button 
