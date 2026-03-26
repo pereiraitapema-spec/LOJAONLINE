@@ -1749,26 +1749,44 @@ export default function Store() {
                           Não sei meu CEP
                         </a>
                         
-                        {city && (
-                          <div className="mt-4 p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2">
-                            <Package size={16} className="text-emerald-600" />
-                            <span className="text-sm font-bold text-emerald-700">Entrega para: {city}</span>
-                          </div>
-                        )}
-
-                        {shippingQuotes.length > 0 && (
-                          <div className="mt-2 space-y-2">
-                            {shippingQuotes.map((quote, index) => (
-                              <div key={index} className="flex justify-between items-center p-3 bg-white rounded-xl border border-slate-200 text-sm shadow-sm hover:border-emerald-200 transition-all">
-                                <div className="flex flex-col">
-                                  <span className="font-bold text-slate-700">{quote.carrier_name}</span>
-                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Prazo: {quote.deadline} dias</span>
-                                </div>
-                                <span className="font-black text-emerald-600 text-base">
-                                  {quote.price === 0 ? 'Frete Grátis' : `R$ ${quote.price.toFixed(2)}`}
-                                </span>
+                        {/* Resultados do Frete */}
+                        {(calculatingShipping || city || shippingQuotes.length > 0) && (
+                          <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                            {calculatingShipping ? (
+                              <div className="p-4 bg-slate-100 rounded-xl flex items-center justify-center gap-3">
+                                <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                                <span className="text-sm font-bold text-slate-600">Calculando frete...</span>
                               </div>
-                            ))}
+                            ) : (
+                              <>
+                                {city && (
+                                  <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2">
+                                    <Package size={16} className="text-emerald-600" />
+                                    <span className="text-sm font-bold text-emerald-700">Entrega para: {city}</span>
+                                  </div>
+                                )}
+
+                                {shippingQuotes.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {shippingQuotes.map((quote, index) => (
+                                      <div key={index} className="flex justify-between items-center p-3 bg-white rounded-xl border border-slate-200 text-sm shadow-sm hover:border-emerald-200 transition-all">
+                                        <div className="flex flex-col">
+                                          <span className="font-bold text-slate-700">{quote.carrier_name}</span>
+                                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Prazo: {quote.deadline} dias</span>
+                                        </div>
+                                        <span className="font-black text-emerald-600 text-base">
+                                          {quote.price === 0 ? 'Frete Grátis' : `R$ ${quote.price.toFixed(2)}`}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : city && (
+                                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-xs text-amber-700 font-bold">
+                                    Nenhuma transportadora disponível para este CEP.
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2036,26 +2054,26 @@ export default function Store() {
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {/* Barra de Progresso Frete Grátis */}
-                {cartTotal > 0 && (settings?.free_shipping_threshold || 0) > 0 && (
+                {cartTotal > 0 && Number(settings?.free_shipping_threshold) > 0 && (
                   <div className="bg-emerald-50 p-5 rounded-3xl border border-emerald-100 mb-6 shadow-sm">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                        {cartTotal >= (settings?.free_shipping_threshold || 0) 
+                        {cartTotal >= Number(settings?.free_shipping_threshold) 
                           ? "🎉 Frete Grátis Liberado!" 
-                          : `Faltam R$ ${((settings?.free_shipping_threshold || 0) - cartTotal).toFixed(2)}`}
+                          : `Faltam R$ ${(Number(settings?.free_shipping_threshold) - cartTotal).toFixed(2)}`}
                       </p>
-                      <Truck size={16} className={cartTotal >= (settings?.free_shipping_threshold || 0) ? 'text-emerald-600' : 'text-slate-400'} />
+                      <Truck size={16} className={cartTotal >= Number(settings?.free_shipping_threshold) ? 'text-emerald-600' : 'text-slate-400'} />
                     </div>
                     <div className="w-full bg-emerald-200 rounded-full h-3 overflow-hidden shadow-inner">
                       <motion.div 
                         initial={{ width: 0 }}
-                        animate={{ width: `${Math.min((cartTotal / (settings?.free_shipping_threshold || 1)) * 100, 100)}%` }}
-                        className={`h-full rounded-full transition-all duration-700 ${cartTotal >= (settings?.free_shipping_threshold || 0) ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-indigo-500'}`}
+                        animate={{ width: `${Math.min((cartTotal / Number(settings?.free_shipping_threshold)) * 100, 100)}%` }}
+                        className={`h-full rounded-full transition-all duration-700 ${cartTotal >= Number(settings?.free_shipping_threshold) ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-indigo-500'}`}
                       />
                     </div>
-                    {cartTotal < (settings?.free_shipping_threshold || 0) && (
+                    {cartTotal < Number(settings?.free_shipping_threshold) && (
                       <p className="text-[10px] text-emerald-600 font-bold mt-2 text-center uppercase tracking-widest">
-                        Adicione mais R$ {((settings?.free_shipping_threshold || 0) - cartTotal).toFixed(2)} para ganhar frete grátis
+                        Adicione mais R$ {(Number(settings?.free_shipping_threshold) - cartTotal).toFixed(2)} para ganhar frete grátis
                       </p>
                     )}
                   </div>

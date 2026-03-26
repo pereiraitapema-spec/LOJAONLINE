@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { 
   LogOut, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, 
-  ShoppingBag, Megaphone, Users, Plus, Edit2, Trash2, Save, X, Truck, ToggleLeft, ToggleRight, MapPin, Bell, CreditCard
+  ShoppingBag, Megaphone, Users, Plus, Edit2, Trash2, Save, X, Truck, ToggleLeft, ToggleRight, MapPin, Bell, CreditCard, Zap
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -125,6 +125,32 @@ export default function ShippingCarriers() {
     }
   };
 
+  const testCarrier = async (carrier: Carrier) => {
+    try {
+      toast.loading('Testando conexão...', { id: 'test-carrier' });
+      
+      // Teste de Banco de Dados (Supabase)
+      const { data: dbTest, error: dbError } = await supabase.from('shipping_carriers').select('id').limit(1);
+      if (dbError) throw new Error('Falha na conexão com o Banco de Dados: ' + dbError.message);
+
+      // Teste de API de Frete (Simulação de cálculo)
+      const testPackages = [{ weight: 1, height: 10, width: 10, length: 10 }];
+      const testCep = '01001000'; // CEP de teste (Praça da Sé)
+      
+      const { shippingService } = await import('../services/shippingService');
+      const quotes = await shippingService.calculateShipping(testCep, testPackages, carrier.id);
+      
+      if (quotes) {
+        toast.success(`Conexão OK! ${quotes.length} opções de frete retornadas.`, { id: 'test-carrier' });
+      } else {
+        throw new Error('A API não retornou cotações para o CEP de teste.');
+      }
+    } catch (error: any) {
+      console.error('Erro no teste:', error);
+      toast.error('Falha no teste: ' + error.message, { id: 'test-carrier' });
+    }
+  };
+
   if (loading) return <Loading message="Carregando transportadoras..." />;
 
   return (
@@ -196,6 +222,13 @@ export default function ShippingCarriers() {
                     <Truck size={24} />
                   </div>
                   <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => testCarrier(carrier)}
+                      className="text-slate-400 hover:text-emerald-500 transition-colors"
+                      title="Testar Conexão"
+                    >
+                      <Zap size={20} />
+                    </button>
                     <button 
                       onClick={() => {
                         if (window.confirm('Tem certeza que deseja excluir esta transportadora?')) {

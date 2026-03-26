@@ -353,7 +353,7 @@ export default function Checkout() {
   const currentShipping = shippingMethods[selectedShipping];
   console.log('DEBUG: cartTotal=', cartTotal, 'threshold=', settings?.free_shipping_threshold || 0, 'selectedShipping=', selectedShipping, 'currentShipping=', currentShipping);
   
-  const threshold = settings?.free_shipping_threshold || 0;
+  const threshold = Number(settings?.free_shipping_threshold) || 0;
   
   // Se ainda não temos métodos de envio, o frete não é 0, é "não calculado" (null)
   const shippingCost = shippingMethods.length === 0 
@@ -436,25 +436,29 @@ export default function Checkout() {
 
   const handleCepBlur = async () => {
     const cep = shipping.cep.replace(/\D/g, '');
-    console.log('CEP digitado:', cep);
+    console.log('CEP formatado para busca:', cep);
+    
     if (cep.length !== 8) {
-      console.log('CEP inválido ou incompleto');
+      if (shipping.cep.length > 0) toast.error('CEP deve ter 8 dígitos.');
       return;
     }
 
     setCalculatingShipping(true);
     try {
-      console.log('Buscando endereço...');
+      console.log('Buscando endereço para o CEP:', cep);
       const address = await cepService.fetchAddress(cep);
-      console.log('Endereço retornado:', address);
-      if (address) {
+      
+      if (address && address.city) {
         setShipping(prev => ({
           ...prev,
-          ...address
+          street: address.street || prev.street,
+          neighborhood: address.neighborhood || prev.neighborhood,
+          city: address.city,
+          state: address.state
         }));
+        toast.success(`Endereço encontrado: ${address.city} - ${address.state}`);
 
         // Calculate shipping automatically
-        console.log('Calculando frete...');
         const packages: ShippingPackage[] = cart.map(item => ({
           weight: (item.product as any).weight || 0.5,
           height: (item.product as any).height || 10,
@@ -464,26 +468,23 @@ export default function Checkout() {
 
         let allQuotes: ShippingQuote[] = [];
         for (const carrier of carriers) {
-          console.log('Calculando para carrier:', carrier.id);
+          if (!carrier.active) continue;
           const quotes = await shippingService.calculateShipping(cep, packages, carrier.id);
           allQuotes = [...allQuotes, ...quotes];
         }
         
-        console.log('Cotações de frete:', allQuotes);
         if (allQuotes.length > 0) {
           setShippingMethods(allQuotes);
           setSelectedShipping(0);
         } else {
-          console.log('Nenhuma cotação de frete encontrada');
-          toast.error('Nenhuma opção de frete encontrada.');
+          toast.error('Nenhuma opção de frete disponível para este CEP.');
         }
       } else {
-        console.log('Endereço não encontrado para o CEP');
-        toast.error('CEP não encontrado.');
+        toast.error('CEP não encontrado. Verifique os números digitados.');
       }
     } catch (error) {
       console.error('Error fetching CEP or calculating shipping:', error);
-      toast.error('Erro ao calcular frete.');
+      toast.error('Erro ao calcular frete. Tente novamente.');
     } finally {
       setCalculatingShipping(false);
     }
@@ -936,7 +937,9 @@ export default function Checkout() {
                   <input 
                     type="text" 
                     value={shipping.cep}
-                    onChange={e => setShipping({...shipping, cep: e.target.value})}
+                    onChange={handleCepChange}
+                    maxLength={8}
+                    placeholder="00000000"
                     onBlur={handleCepBlur}
                     placeholder="00000-000"
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
