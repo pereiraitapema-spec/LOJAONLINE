@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { 
@@ -41,6 +41,7 @@ interface Order {
   customer_phone?: string;
   customer_document?: string;
   tracking_code?: string;
+  shipping_label_url?: string;
   shipping_method?: string;
 }
 
@@ -262,7 +263,7 @@ export default function Orders() {
     try {
       const result = await shippingService.generateLabel(orderId);
       if (result.success) {
-        await updateTrackingCode(orderId, result.tracking_code);
+        await updateTrackingCode(orderId, result.tracking_code || '', result.shipping_label_url);
         toast.success('Etiqueta gerada com sucesso!');
       }
     } catch (error: any) {
@@ -386,20 +387,25 @@ export default function Orders() {
     }
   };
 
-  const updateTrackingCode = async (orderId: string, trackingCode: string) => {
+  const updateTrackingCode = async (orderId: string, trackingCode: string, shippingLabelUrl?: string) => {
     try {
+      const updateData: any = { tracking_code: trackingCode };
+      if (shippingLabelUrl !== undefined) {
+        updateData.shipping_label_url = shippingLabelUrl;
+      }
+
       const { error } = await supabase
         .from('orders')
-        .update({ tracking_code: trackingCode })
+        .update(updateData)
         .eq('id', orderId);
 
       if (error) throw error;
       
-      setOrders(orders.map(o => o.id === orderId ? { ...o, tracking_code: trackingCode } : o));
+      setOrders(orders.map(o => o.id === orderId ? { ...o, ...updateData } : o));
       if (selectedOrder?.id === orderId) {
-        setSelectedOrder({ ...selectedOrder, tracking_code: trackingCode });
+        setSelectedOrder({ ...selectedOrder, ...updateData });
       }
-      toast.success('Código de rastreio atualizado!');
+      toast.success('Rastreio atualizado!');
     } catch (error: any) {
       toast.error('Erro ao atualizar rastreio: ' + error.message);
     }
@@ -1190,14 +1196,25 @@ export default function Orders() {
                         Rastreamento
                       </div>
                       <p className="text-sm text-indigo-600 font-mono">{selectedOrder.tracking_code}</p>
-                      <a 
-                        href={`https://www.melhorenvio.com.br/rastreio/${selectedOrder.tracking_code}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-xs font-bold text-indigo-700 hover:underline mt-2 block"
-                      >
-                        Acompanhar no site da transportadora
-                      </a>
+                      <div className="flex flex-col gap-2 mt-2">
+                        <Link 
+                          to={`/tracking/${selectedOrder.tracking_code}`} 
+                          className="text-xs font-bold text-indigo-700 hover:underline block"
+                        >
+                          Acompanhar no site da transportadora
+                        </Link>
+                        {selectedOrder.shipping_label_url && (
+                          <a 
+                            href={selectedOrder.shipping_label_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs font-bold text-emerald-600 hover:underline block flex items-center gap-1"
+                          >
+                            <Printer size={14} />
+                            Imprimir Etiqueta
+                          </a>
+                        )}
+                      </div>
                     </div>
                   )}
 

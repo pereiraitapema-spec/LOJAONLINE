@@ -59,10 +59,19 @@ const melhorenvioProvider: ShippingProvider = {
     }
   },
   async generateLabel(orderId: string, config: any) {
-    return { success: true, tracking_code: 'BR' + Math.random().toString(36).substring(2, 11).toUpperCase() };
+    return { success: true, tracking_code: 'BR' + Math.random().toString(36).substring(2, 11).toUpperCase(), shipping_label_url: `/admin/label/${orderId}` };
   },
   async cancelLabel(orderId: string, config: any) {
     return { success: true };
+  },
+  async getTrackingStatus(trackingCode: string, config: any) {
+    return {
+      status: 'Em trânsito',
+      history: [
+        { date: new Date().toISOString(), location: 'São Paulo, SP', description: 'Objeto postado' },
+        { date: new Date(Date.now() - 86400000).toISOString(), location: 'São Paulo, SP', description: 'Encaminhado para unidade de tratamento' }
+      ]
+    };
   }
 };
 
@@ -109,10 +118,18 @@ const mockProvider: ShippingProvider = {
     ];
   },
   async generateLabel(orderId: string, config: any) {
-    return { success: true, tracking_code: 'BR' + Math.random().toString(36).substring(2, 11).toUpperCase() };
+    return { success: true, tracking_code: 'BR' + Math.random().toString(36).substring(2, 11).toUpperCase(), shipping_label_url: `/admin/label/${orderId}` };
   },
   async cancelLabel(orderId: string, config: any) {
     return { success: true };
+  },
+  async getTrackingStatus(trackingCode: string, config: any) {
+    return {
+      status: 'Aguardando postagem',
+      history: [
+        { date: new Date().toISOString(), location: 'Loja', description: 'Pedido em separação' }
+      ]
+    };
   }
 };
 
@@ -165,10 +182,18 @@ const correiosProvider: ShippingProvider = {
     ];
   },
   async generateLabel(orderId: string, config: any) {
-    return { success: true, tracking_code: 'BR' + Math.random().toString(36).substring(2, 11).toUpperCase() };
+    return { success: true, tracking_code: 'BR' + Math.random().toString(36).substring(2, 11).toUpperCase(), shipping_label_url: `/admin/label/${orderId}` };
   },
   async cancelLabel(orderId: string, config: any) {
     return { success: true };
+  },
+  async getTrackingStatus(trackingCode: string, config: any) {
+    return {
+      status: 'Em trânsito',
+      history: [
+        { date: new Date().toISOString(), location: 'CTE Cajamar, SP', description: 'Objeto em trânsito' }
+      ]
+    };
   }
 };
 
@@ -303,10 +328,18 @@ const cepcertoProvider: ShippingProvider = {
       throw new Error('Token de Postagem do CepCerto não configurado.');
     }
     console.log('📦 Gerando etiqueta CepCerto com token de postagem:', config.api_key_postagem.substring(0, 10) + '...');
-    return { success: true, tracking_code: 'CC' + Math.random().toString(36).substring(2, 11).toUpperCase() };
+    return { success: true, tracking_code: 'CC' + Math.random().toString(36).substring(2, 11).toUpperCase(), shipping_label_url: `/admin/label/${orderId}` };
   },
   async cancelLabel(orderId: string, config: any) {
     return { success: true };
+  },
+  async getTrackingStatus(trackingCode: string, config: any) {
+    return {
+      status: 'Em trânsito',
+      history: [
+        { date: new Date().toISOString(), location: 'Unidade de Tratamento', description: 'Objeto encaminhado' }
+      ]
+    };
   }
 };
 
@@ -358,10 +391,76 @@ const frenetProvider: ShippingProvider = {
     }
   },
   async generateLabel(orderId: string, config: any) {
-    return { success: true, tracking_code: 'FR' + Math.random().toString(36).substring(2, 11).toUpperCase() };
+    return { success: true, tracking_code: 'FR' + Math.random().toString(36).substring(2, 11).toUpperCase(), shipping_label_url: `/admin/label/${orderId}` };
   },
   async cancelLabel(orderId: string, config: any) {
     return { success: true };
+  },
+  async getTrackingStatus(trackingCode: string, config: any) {
+    return {
+      status: 'Em trânsito',
+      history: [
+        { date: new Date().toISOString(), location: 'Centro de Distribuição', description: 'Objeto em trânsito' }
+      ]
+    };
+  }
+};
+
+const jadlogProvider: ShippingProvider = {
+  async calculateShipping(destZipCode: string, packages: ShippingPackage[], config: any): Promise<ShippingQuote[]> {
+    console.log('📦 Usando Provedor Jadlog (Simulação) para:', destZipCode);
+    
+    // Simulação realista para Jadlog
+    const firstDigit = destZipCode.charAt(0);
+    let basePrice = 25.00;
+    let deadlineMin = 4;
+    let deadlineMax = 7;
+
+    switch(firstDigit) {
+      case '0': case '1': case '2': case '3': // Sudeste
+        basePrice = 22.90; deadlineMin = 3; deadlineMax = 5; break;
+      case '4': case '5': // Nordeste (Leste)
+        basePrice = 32.50; deadlineMin = 6; deadlineMax = 9; break;
+      case '6': // Norte/Nordeste (Oeste)
+        basePrice = 42.20; deadlineMin = 8; deadlineMax = 14; break;
+      case '7': // Centro-Oeste
+        basePrice = 29.90; deadlineMin = 5; deadlineMax = 8; break;
+      case '8': case '9': // Sul
+        basePrice = 27.40; deadlineMin = 4; deadlineMax = 7; break;
+    }
+
+    return [
+      {
+        id: 'jadlog-package',
+        name: 'Jadlog Package',
+        price: basePrice,
+        deadline: `${deadlineMin} a ${deadlineMax} dias úteis`,
+        provider: 'jadlog',
+        carrierName: config.carrier_name || 'Jadlog'
+      },
+      {
+        id: 'jadlog-com',
+        name: 'Jadlog .COM',
+        price: basePrice + 10,
+        deadline: `${deadlineMin - 1} a ${deadlineMax - 1} dias úteis`,
+        provider: 'jadlog',
+        carrierName: config.carrier_name || 'Jadlog'
+      }
+    ];
+  },
+  async generateLabel(orderId: string, config: any) {
+    return { success: true, tracking_code: 'JD' + Math.random().toString(36).substring(2, 11).toUpperCase(), shipping_label_url: `/admin/label/${orderId}` };
+  },
+  async cancelLabel(orderId: string, config: any) {
+    return { success: true };
+  },
+  async getTrackingStatus(trackingCode: string, config: any) {
+    return {
+      status: 'Em trânsito',
+      history: [
+        { date: new Date().toISOString(), location: 'CO São Paulo', description: 'Objeto em trânsito' }
+      ]
+    };
   }
 };
 
@@ -371,6 +470,7 @@ const providers: Record<string, ShippingProvider> = {
   'correios': correiosProvider,
   'cepcerto': cepcertoProvider,
   'frenet': frenetProvider,
+  'jadlog': jadlogProvider,
   'kangu': melhorenvioProvider, // Placeholder real
   'custom': cepcertoProvider, // Tentar CepCerto para custom se possível
   'test': mockProvider,
@@ -452,5 +552,18 @@ export const shippingService = {
     if (!provider) return { success: false, error: 'Provider not found' };
 
     return provider.cancelLabel(orderId, carrier.config);
+  },
+
+  async getTrackingStatus(trackingCode: string) {
+    const { data: order } = await supabase.from('orders').select('carrier_id').eq('tracking_code', trackingCode).single();
+    if (!order) return { status: 'Não encontrado', history: [] };
+    
+    const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.carrier_id).single();
+    if (!carrier) return { status: 'Transportadora não encontrada', history: [] };
+
+    const provider = providers[carrier.provider];
+    if (!provider) return { status: 'Provedor não encontrado', history: [] };
+
+    return provider.getTrackingStatus(trackingCode, carrier.config);
   }
 };

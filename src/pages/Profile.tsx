@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { User, Camera, Save, ArrowLeft, Shield, LayoutDashboard } from 'lucide-react';
+import { User, Camera, Save, ArrowLeft, Shield, LayoutDashboard, Package, Truck, Printer } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 
@@ -10,6 +10,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [orders, setOrders] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>({
     full_name: '',
     avatar_url: '',
@@ -41,6 +42,18 @@ export default function Profile() {
             role: isMaster ? 'admin' : (data.role || 'customer')
           });
         }
+
+        // Fetch user orders
+        const { data: userOrders, error: ordersError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('customer_email', session.user.email)
+          .order('created_at', { ascending: false });
+
+        if (!ordersError && userOrders) {
+          setOrders(userOrders);
+        }
+
       } catch (error) {
         console.error('Error loading profile:', error);
       } finally {
@@ -229,6 +242,86 @@ export default function Profile() {
                 </button>
               </div>
             </form>
+
+            {/* Seção de Pedidos do Cliente */}
+            {profile.role !== 'admin' && (
+              <div className="mt-12 border-t border-slate-100 pt-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
+                    <Package size={20} />
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-900">Meus Pedidos</h2>
+                </div>
+
+                {orders.length === 0 ? (
+                  <div className="text-center py-8 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                    <Package size={48} className="mx-auto text-slate-300 mb-4" />
+                    <p className="text-slate-500 font-medium">Você ainda não fez nenhum pedido.</p>
+                    <button 
+                      onClick={() => navigate('/')}
+                      className="mt-4 text-indigo-600 font-bold hover:text-indigo-700"
+                    >
+                      Ir para a loja
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {orders.map((order) => (
+                      <div key={order.id} className="bg-white border border-slate-200 rounded-2xl p-6 hover:border-indigo-300 transition-colors">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <p className="text-sm font-bold text-slate-900">Pedido #{order.id.substring(0, 8).toUpperCase()}</p>
+                            <p className="text-xs text-slate-500">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                          </div>
+                          <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                            order.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                            order.status === 'processing' ? 'bg-blue-100 text-blue-700' :
+                            order.status === 'cancelled' ? 'bg-rose-100 text-rose-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {order.status === 'completed' ? 'Concluído' :
+                             order.status === 'processing' ? 'Processando' :
+                             order.status === 'cancelled' ? 'Cancelado' :
+                             'Pendente'}
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center py-4 border-y border-slate-100 mb-4">
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Total do Pedido</p>
+                            <p className="font-bold text-slate-900">R$ {order.total.toFixed(2)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-slate-500 mb-1">Frete</p>
+                            <p className="font-medium text-slate-700">{order.shipping_method || 'Padrão'}</p>
+                          </div>
+                        </div>
+
+                        {order.tracking_code && (
+                          <div className="bg-indigo-50 rounded-xl p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
+                                <Truck size={16} />
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-indigo-900 uppercase tracking-wider mb-0.5">Código de Rastreio</p>
+                                <p className="text-sm font-mono text-indigo-700">{order.tracking_code}</p>
+                              </div>
+                            </div>
+                            <Link 
+                              to={`/tracking/${order.tracking_code}`}
+                              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-white px-3 py-1.5 rounded-lg border border-indigo-200 shadow-sm"
+                            >
+                              Rastrear
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </motion.div>
       </div>

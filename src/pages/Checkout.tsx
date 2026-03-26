@@ -681,6 +681,16 @@ export default function Checkout() {
       }
     }
 
+    if (!paymentMethod) {
+      toast.error('Por favor, selecione uma forma de pagamento.');
+      return;
+    }
+
+    if (paymentMethod === 'pagarme' && !pagarmeMethod) {
+      toast.error('Por favor, selecione o método de pagamento do Pagar.me (PIX ou Cartão).');
+      return;
+    }
+
     setProcessing(true);
 
     try {
@@ -958,28 +968,6 @@ export default function Checkout() {
           {/* Coluna Esquerda: Dados e Pagamento */}
           <div className="lg:col-span-2 space-y-8">
             
-            {/* Debug Info for Admins */}
-            {isAdmin && (
-              <div className="bg-slate-900 text-slate-300 p-6 rounded-3xl mb-8 font-mono text-xs overflow-x-auto">
-                <h3 className="text-indigo-400 font-bold mb-4 flex items-center gap-2">
-                  <Settings size={14} /> DEBUG ADMIN (Frete & Transportadoras)
-                </h3>
-                <div className="space-y-2">
-                  <p><span className="text-slate-500">Transportadoras Ativas:</span> {carriers.length}</p>
-                  <div className="pl-4 border-l border-slate-700 my-2">
-                    {carriers.map(c => (
-                      <p key={c.id}>- {c.name} ({c.provider}) - {c.active ? '✅ Ativa' : '❌ Inativa'}</p>
-                    ))}
-                  </div>
-                  <p><span className="text-slate-500">CEP Origem:</span> {settings?.origin_zip_code || 'Não configurado'}</p>
-                  <p><span className="text-slate-500">CEP Destino:</span> {shipping.cep || 'Não informado'}</p>
-                  <p><span className="text-slate-500">Calculando:</span> {calculatingShipping ? 'Sim' : 'Não'}</p>
-                  <p><span className="text-slate-500">Métodos Encontrados:</span> {shippingMethods.length}</p>
-                  <p><span className="text-slate-500">Gateway Ativo:</span> {gateways.find(g => g.active)?.name || 'Nenhum'}</p>
-                </div>
-              </div>
-            )}
-
             {/* Dados Pessoais */}
             <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
               <div className="flex items-center gap-3 mb-6">

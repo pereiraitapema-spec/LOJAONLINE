@@ -19,6 +19,8 @@ import AffiliateDashboard from './pages/AffiliateDashboard';
 import Success from './pages/Success';
 import Checkout from './pages/Checkout';
 import Orders from './pages/Orders';
+import Tracking from './pages/Tracking';
+import ShippingLabel from './pages/ShippingLabel';
 import PaymentGateways from './pages/PaymentGateways';
 import ShippingCarriers from './pages/ShippingCarriers';
 import Integrations from './pages/Integrations';
@@ -477,6 +479,7 @@ function AppContent() {
         <Route path="/affiliate-register" element={<AffiliateRegister />} />
         <Route path="/affiliate-dashboard" element={<AffiliateDashboard />} />
         <Route path="/success" element={<Success />} />
+        <Route path="/tracking/:trackingCode?" element={<Tracking />} />
         
         <Route 
           path="/checkout" 
@@ -509,6 +512,10 @@ function AppContent() {
         <Route 
           path="/orders" 
           element={<AdminRoute><Orders /></AdminRoute>} 
+        />
+        <Route 
+          path="/admin/label/:orderId" 
+          element={<AdminRoute><ShippingLabel /></AdminRoute>} 
         />
         <Route 
           path="/affiliates" 

@@ -39,6 +39,15 @@ const pagarmeProvider: PaymentProvider = {
                   cvv: orderData.cvv
                 },
                 installments: parseInt(orderData.installments)
+              } : undefined,
+              pix: orderData.payment_method === 'pix' ? {
+                expires_in: 3600,
+                additional_information: [
+                  {
+                    name: 'Pedido',
+                    value: orderData.order_id || 'Magnifique4Life'
+                  }
+                ]
               } : undefined
             }
           ]

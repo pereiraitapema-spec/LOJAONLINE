@@ -332,6 +332,7 @@ export default function ShippingCarriers() {
                   <option value="correios">Correios (Direto)</option>
                   <option value="frenet">Frenet</option>
                   <option value="kangu">Kangu</option>
+                  <option value="jadlog">Jadlog</option>
                   <option value="cepcerto">CepCerto</option>
                   <option value="custom">API Customizada</option>
                 </select>

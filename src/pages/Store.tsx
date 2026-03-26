@@ -776,18 +776,6 @@ export default function Store() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       {loading && <Loading message="Preparando sua loja..." />}
-      {/* Top Bar */}
-      <div className="bg-emerald-800 text-white text-[10px] md:text-xs font-medium py-2 px-4 flex justify-between items-center tracking-wide">
-        <span className="hidden md:inline">{settings?.top_bar_text || "Envio Brasil | 7 dias devolução | 10x sem juros | WhatsApp (47)99660-9618"}</span>
-        <span className="md:hidden">Envio para todo Brasil</span>
-        <button 
-          onClick={() => navigate('/affiliate-register')}
-          className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center gap-1"
-        >
-          <User size={12} />
-          Seja um Afiliado
-        </button>
-      </div>
 
       {/* Barra de Frete Grátis */}
       {cart.length > 0 && (

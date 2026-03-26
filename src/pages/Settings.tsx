@@ -549,6 +549,9 @@ begin
     if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'tracking_code') then
         alter table public.orders add column tracking_code text;
     end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'shipping_label_url') then
+        alter table public.orders add column shipping_label_url text;
+    end if;
     if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'shipping_method') then
         alter table public.orders add column shipping_method text;
     end if;
@@ -890,6 +893,9 @@ do $$
 begin
     if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'tracking_code') then
         alter table public.orders add column tracking_code text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'shipping_label_url') then
+        alter table public.orders add column shipping_label_url text;
     end if;
     if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'shipping_method') then
         alter table public.orders add column shipping_method text;

@@ -16,6 +16,7 @@ export interface ShippingQuote {
 
 export interface ShippingProvider {
   calculateShipping(destZipCode: string, packages: ShippingPackage[], config: any): Promise<ShippingQuote[]>;
-  generateLabel(orderId: string, config: any): Promise<{ success: boolean; tracking_code?: string; error?: string }>;
+  generateLabel(orderId: string, config: any): Promise<{ success: boolean; tracking_code?: string; shipping_label_url?: string; error?: string }>;
   cancelLabel(orderId: string, config: any): Promise<{ success: boolean; error?: string }>;
+  getTrackingStatus(trackingCode: string, config: any): Promise<{ status: string; history: { date: string; location: string; description: string }[] }>;
 }
