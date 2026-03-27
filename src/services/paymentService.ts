@@ -57,17 +57,6 @@ const pagarmeProvider: PaymentProvider = {
                 country: 'BR'
               }
             },
-            billing: {
-              name: orderData.customer_name,
-              address: {
-                line_1: `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}`,
-                zip_code: orderData.shipping_address.cep.replace(/\D/g, ''),
-                city: orderData.shipping_address.city,
-                state: orderData.shipping_address.state,
-                country: 'BR',
-                globalType: true
-              }
-            },
             payments: [
               {
                 payment_method: orderData.payment_method,
@@ -78,7 +67,14 @@ const pagarmeProvider: PaymentProvider = {
                     holder_document: orderData.customer_document.replace(/\D/g, ''),
                     exp_month: parseInt(orderData.expiry.split('/')[0].trim(), 10),
                     exp_year: parseInt('20' + orderData.expiry.split('/')[1].trim(), 10),
-                    cvv: orderData.cvv
+                    cvv: orderData.cvv,
+                    billing_address: {
+                      line_1: `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}`,
+                      zip_code: orderData.shipping_address.cep.replace(/\D/g, ''),
+                      city: orderData.shipping_address.city,
+                      state: orderData.shipping_address.state,
+                      country: 'BR'
+                    }
                   },
                   installments: parseInt(orderData.installments)
                 } : undefined,
@@ -89,7 +85,14 @@ const pagarmeProvider: PaymentProvider = {
                     holder_document: orderData.customer_document.replace(/\D/g, ''),
                     exp_month: parseInt(orderData.expiry.split('/')[0].trim()),
                     exp_year: parseInt('20' + orderData.expiry.split('/')[1].trim()),
-                    cvv: orderData.cvv
+                    cvv: orderData.cvv,
+                    billing_address: {
+                      line_1: `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}`,
+                      zip_code: orderData.shipping_address.cep.replace(/\D/g, ''),
+                      city: orderData.shipping_address.city,
+                      state: orderData.shipping_address.state,
+                      country: 'BR'
+                    }
                   }
                 } : undefined,
                 boleto: orderData.payment_method === 'boleto' ? {
