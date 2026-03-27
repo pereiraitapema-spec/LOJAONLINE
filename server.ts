@@ -12,6 +12,9 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Profissional: Confiar no proxy reverso (essencial no Railway)
+  app.set('trust proxy', 1);
+
   // Log global para todas as requisições
   app.use((req, res, next) => {
     console.log(`🌐 Requisição recebida: ${req.method} ${req.url}`);
@@ -58,15 +61,20 @@ async function startServer() {
       
       console.log(`📡 Resposta Pagar.me (Status ${response.status}):`, JSON.stringify(data, null, 2));
 
-      if (!response.ok) {
-        console.error('❌ Erro na API do Pagar.me:', data.message || data.errors || 'Erro desconhecido');
-        // Se for erro 401, pode ser problema de chave V4 vs V5
-        if (response.status === 401) {
-          console.error('⚠️ DICA: O erro 401 indica chave inválida. Verifique se está usando as chaves do Pagar.me V5 (sk_... e pk_...) e não as do V4 (ak_... e ek_...).');
-        }
-      } else {
+      if (response.ok) {
         console.log('✅ Pagamento processado com sucesso pela API.');
-      }
+        
+        // Atualiza o status no Supabase imediatamente
+        const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY!;
+        const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+        
+        await supabaseAdmin
+          .from('orders')
+          .update({ status: 'paid', updated_at: new Date().toISOString() })
+          .eq('payment_id', data.id);
+        console.log(`💰 Pedido ${data.id} atualizado para 'paid' no Supabase.`);
+      } else {
 
       res.status(response.status).json(data);
     } catch (error: any) {
@@ -87,6 +95,23 @@ async function startServer() {
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
     try {
+      // 1. Idempotência: Verifica o status atual no Supabase
+      const { data: order, error: fetchError } = await supabaseAdmin
+        .from('orders')
+        .select('status')
+        .eq('payment_id', event.data.id)
+        .single();
+
+      if (fetchError) {
+        console.error(`❌ Erro ao buscar pedido ${event.data.id}:`, fetchError.message);
+        return res.status(500).send('Erro interno');
+      }
+
+      if (order.status === 'paid') {
+        console.log(`⚠️ Pedido ${event.data.id} já processado. Ignorando webhook.`);
+        return res.status(200).send('OK (Já processado)');
+      }
+
       // Lógica para atualizar o status do pedido com base no evento
       // Eventos comuns: order.paid, order.payment_failed, order.canceled
       if (!event.data || !event.data.id) {
@@ -122,6 +147,12 @@ async function startServer() {
           location: 'Centro de Distribuição'
         });
 
+        // Atualiza status para 'paid'
+        await supabaseAdmin
+          .from('orders')
+          .update({ status: 'paid', updated_at: new Date().toISOString() })
+          .eq('payment_id', orderId);
+
         console.log(`✅ Logística completa para pedido ${orderId}.`);
       } else if (event.type === 'order.payment_failed') {
         await supabaseAdmin
@@ -137,12 +168,60 @@ async function startServer() {
         console.log(`🚫 Pedido ${orderId} cancelado.`);
       }
 
-      res.status(200).send('OK');
-    } catch (error: any) {
-      console.error('❌ Erro no Webhook Pagar.me:', error.message);
-      res.status(500).send('Erro');
-    }
-  });
+  // Worker profissional: Supabase Realtime (escuta eventos em tempo real)
+  const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY!;
+  const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+
+  console.log('👂 Iniciando listener Realtime para webhooks...');
+
+  supabaseAdmin
+    .channel('webhook_logs')
+    .on('postgres_changes', { 
+      event: 'INSERT', 
+      schema: 'public', 
+      table: 'webhook_logs' 
+    }, async (payload) => {
+      const webhook = payload.new;
+      console.log(`🔔 Novo webhook recebido em tempo real: ${webhook.id}`);
+      
+      const orderId = webhook.payload.data.id;
+      try {
+        if (webhook.event_type === 'order.paid') {
+          console.log(`💰 Processando logística para pedido ${orderId}...`);
+          await logisticsService.notifyCarrier(orderId);
+          await logisticsService.generateTrackingCode(orderId);
+          await logisticsService.generateShippingLabel(orderId);
+          await logisticsService.generateInvoice(orderId);
+          await logisticsService.generatePickingList(orderId);
+          await logisticsService.addLogisticsStep(orderId, {
+            status: 'preparing',
+            description: 'Pagamento confirmado. O produto está sendo preparado para envio.',
+            date: new Date().toISOString(),
+            location: 'Centro de Distribuição'
+          });
+          
+          await supabaseAdmin
+            .from('orders')
+            .update({ status: 'paid', updated_at: new Date().toISOString() })
+            .eq('payment_id', orderId);
+        }
+        
+        await supabaseAdmin
+          .from('webhook_logs')
+          .update({ status: 'processed', processed_at: new Date().toISOString() })
+          .eq('id', webhook.id);
+          
+        console.log(`✅ Webhook ${webhook.id} processado instantaneamente.`);
+      } catch (err: any) {
+        console.error(`❌ Erro ao processar webhook ${webhook.id}:`, err.message);
+        await supabaseAdmin
+          .from('webhook_logs')
+          .update({ status: 'failed', error_message: err.message })
+          .eq('id', webhook.id);
+      }
+    })
+    .subscribe();
 
   // Endpoint para gerar arquivo de texto da Nota Fiscal
   app.get("/api/logistics/invoice-data/:orderId", async (req, res) => {
