@@ -578,22 +578,12 @@ export const shippingService = {
   },
 
   async getTrackingStatus(trackingCode: string) {
-    // Tenta buscar pelo código de rastreio da transportadora
+    // Tenta buscar pelo código de rastreio ou ID, solicitando apenas os campos essenciais
     let { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('carrier_id, logistics_history, current_logistics_status, status')
-      .eq('tracking_code', trackingCode)
+      .select('id, carrier_id, logistics_history, current_logistics_status, status, tracking_code')
+      .or(`tracking_code.eq.${trackingCode},id.eq.${trackingCode}`)
       .maybeSingle();
-
-    // Se não encontrar, tenta buscar pelo ID do pedido
-    if (!order) {
-      const { data: orderById, error: idError } = await supabase
-        .from('orders')
-        .select('carrier_id, logistics_history, current_logistics_status, status')
-        .eq('id', trackingCode)
-        .maybeSingle();
-      order = orderById;
-    }
 
     if (!order) return { status: 'Não encontrado', history: [] };
     
@@ -605,12 +595,13 @@ export const shippingService = {
       };
     }
 
+    // Se não tiver histórico, busca a transportadora
     const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.carrier_id).single();
     if (!carrier) return { status: 'Transportadora não encontrada', history: [] };
 
     const provider = providers[carrier.provider];
     if (!provider) return { status: 'Provedor não encontrado', history: [] };
 
-    return provider.getTrackingStatus(trackingCode, carrier.config);
+    return provider.getTrackingStatus(order.tracking_code || trackingCode, carrier.config);
   }
 };
