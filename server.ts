@@ -71,8 +71,9 @@ async function startServer() {
 
   // Webhook Pagar.me
   app.post("/api/webhooks/pagarme", express.json(), async (req, res) => {
+    console.log('🔔 Webhook Pagar.me recebido!');
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
     const event = req.body;
-    console.log('🔔 Webhook Pagar.me recebido:', event.type);
     console.log('📄 Dados do Evento:', JSON.stringify(event, null, 2));
 
     const supabaseUrl = process.env.VITE_SUPABASE_URL!;
@@ -82,6 +83,11 @@ async function startServer() {
     try {
       // Lógica para atualizar o status do pedido com base no evento
       // Eventos comuns: order.paid, order.payment_failed, order.canceled
+      if (!event.data || !event.data.id) {
+        console.error('❌ Erro: Evento sem ID de pedido.');
+        return res.status(400).send('Erro: Evento inválido');
+      }
+
       const orderId = event.data.id;
 
       if (event.type === 'order.paid') {
