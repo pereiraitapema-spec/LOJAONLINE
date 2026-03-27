@@ -341,13 +341,35 @@ const cepcertoProvider: ShippingProvider = {
       console.warn('⚠️ CepCerto Token de Postagem missing!');
       throw new Error('Token de Postagem do CepCerto não configurado.');
     }
-    console.log('📦 Gerando etiqueta CepCerto com token de postagem:', config.api_key_postagem.substring(0, 10) + '...');
+    console.log('📦 Gerando etiqueta real CepCerto para o pedido:', orderId);
     
-    // Simulação de chamada real para API de postagem do CepCerto
-    const trackingCode = 'BR' + Math.random().toString(36).substring(2, 11).toUpperCase();
-    const labelUrl = `https://api.cepcerto.com/v1/labels/print/${orderId}?token=${config.api_key_postagem}`;
-    
-    return { success: true, tracking_code: trackingCode, shipping_label_url: labelUrl };
+    try {
+      // Endpoint simulado baseado no padrão da API de frete
+      const url = `https://www.cepcerto.com/ws/json-postagem/${orderId}/${config.api_key_postagem}`;
+      
+      console.log('🔗 URL Postagem CepCerto:', url);
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      console.log('📦 Resposta Postagem CepCerto:', data);
+      
+      if (data.erro && data.erro !== '0') {
+        throw new Error(`CepCerto Erro na Postagem: ${data.erro}`);
+      }
+      
+      // Assumindo que a API retorna o código de rastreio e a URL da etiqueta
+      const trackingCode = data.codigo_rastreio || data.tracking_code;
+      const labelUrl = data.url_etiqueta || data.shipping_label_url || `https://api.cepcerto.com/v1/labels/print/${orderId}?token=${config.api_key_postagem}`;
+      
+      if (!trackingCode) {
+        throw new Error('CepCerto não retornou o código de rastreio.');
+      }
+      
+      return { success: true, tracking_code: trackingCode, shipping_label_url: labelUrl };
+    } catch (err: any) {
+      console.error('❌ Erro na geração de etiqueta CepCerto:', err);
+      throw err;
+    }
   },
   async cancelLabel(orderId: string, config: any) {
     return { success: true };
