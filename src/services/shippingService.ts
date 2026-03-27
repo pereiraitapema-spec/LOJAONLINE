@@ -344,7 +344,7 @@ const cepcertoProvider: ShippingProvider = {
     console.log('📦 Gerando etiqueta real CepCerto para o pedido:', orderId);
     
     try {
-      // Endpoint simulado baseado no padrão da API de frete
+      // URL baseada no padrão de postagem do CepCerto
       const url = `https://www.cepcerto.com/ws/json-postagem/${orderId}/${config.api_key_postagem}`;
       
       console.log('🔗 URL Postagem CepCerto:', url);
@@ -353,15 +353,18 @@ const cepcertoProvider: ShippingProvider = {
       
       console.log('📦 Resposta Postagem CepCerto:', data);
       
+      // Verificação de erro baseada na documentação
       if (data.erro && data.erro !== '0') {
         throw new Error(`CepCerto Erro na Postagem: ${data.erro}`);
       }
       
-      // Assumindo que a API retorna o código de rastreio e a URL da etiqueta
-      const trackingCode = data.codigo_rastreio || data.tracking_code;
+      // Extração do código de rastreio e URL da etiqueta
+      // Conforme documentação, o campo é "Encomenda"
+      const trackingCode = data.Encomenda || data.codigo_rastreio || data.tracking_code;
       const labelUrl = data.url_etiqueta || data.shipping_label_url || `https://api.cepcerto.com/v1/labels/print/${orderId}?token=${config.api_key_postagem}`;
       
       if (!trackingCode) {
+        console.error('❌ CepCerto não retornou o código de rastreio. Resposta:', data);
         throw new Error('CepCerto não retornou o código de rastreio.');
       }
       
@@ -375,12 +378,44 @@ const cepcertoProvider: ShippingProvider = {
     return { success: true };
   },
   async getTrackingStatus(trackingCode: string, config: any) {
-    return {
-      status: 'Em trânsito',
-      history: [
-        { date: new Date().toISOString(), location: 'Unidade de Tratamento', description: 'Objeto encaminhado' }
-      ]
-    };
+    if (!config?.api_key) {
+      console.warn('⚠️ CepCerto API Key missing!');
+      throw new Error('Token de Consulta do CepCerto não configurado.');
+    }
+
+    console.log('🔍 Buscando rastreio real CepCerto para:', trackingCode);
+    
+    try {
+      // Endpoint de rastreio do CepCerto
+      const url = `https://www.cepcerto.com/ws/json-rastreio/${trackingCode}/${config.api_key}`;
+      
+      console.log('🔗 URL Rastreio CepCerto:', url);
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      console.log('📦 Resposta Rastreio CepCerto:', data);
+      
+      // Se a API retornar erro ou não encontrar
+      if (data.erro && data.erro !== '0') {
+        console.warn('⚠️ CepCerto não encontrou o rastreio:', data.erro);
+        return { status: 'Não encontrado', history: [] };
+      }
+      
+      // Mapear o histórico conforme a estrutura da API (baseado nas fotos que você enviou)
+      const history = Array.isArray(data) ? data.map((event: any) => ({
+        date: event.data,
+        location: `${event.unidade} - ${event.cidade}/${event.uf}`,
+        description: event.descricao
+      })) : [];
+      
+      return {
+        status: history.length > 0 ? history[0].description : 'Em trânsito',
+        history: history
+      };
+    } catch (err) {
+      console.error('❌ Erro na API de Rastreio CepCerto:', err);
+      return { status: 'Erro ao buscar rastreio', history: [] };
+    }
   }
 };
 

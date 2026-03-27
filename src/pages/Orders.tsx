@@ -262,11 +262,15 @@ export default function Orders() {
     setProcessingShipping(true);
     try {
       const result = await shippingService.generateLabel(orderId);
+      console.log('🔍 Resultado da geração de etiqueta:', result);
       if (result.success) {
         await updateTrackingCode(orderId, result.tracking_code || '', result.shipping_label_url);
         toast.success('Etiqueta gerada com sucesso!');
+      } else {
+        toast.error('Falha ao gerar etiqueta: ' + (result.error || 'Erro desconhecido'));
       }
     } catch (error: any) {
+      console.error('❌ Erro em handleGenerateLabel:', error);
       toast.error('Erro ao gerar etiqueta: ' + error.message);
     } finally {
       setProcessingShipping(false);
