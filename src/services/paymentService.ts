@@ -64,7 +64,8 @@ const pagarmeProvider: PaymentProvider = {
                 zip_code: orderData.shipping_address.cep.replace(/\D/g, ''),
                 city: orderData.shipping_address.city,
                 state: orderData.shipping_address.state,
-                country: 'BR'
+                country: 'BR',
+                globalType: true
               }
             },
             payments: [
