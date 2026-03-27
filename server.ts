@@ -12,6 +12,12 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Log global para todas as requisições
+  app.use((req, res, next) => {
+    console.log(`🌐 Requisição recebida: ${req.method} ${req.url}`);
+    next();
+  });
+
   // API routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });

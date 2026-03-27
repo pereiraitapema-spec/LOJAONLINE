@@ -27,7 +27,12 @@ const pagarmeProvider: PaymentProvider = {
             customer: {
               name: orderData.customer_name,
               email: orderData.customer_email,
-              document: orderData.customer_document,
+              documents: [
+                {
+                  type: 'cpf',
+                  number: orderData.customer_document.replace(/\D/g, '')
+                }
+              ],
               type: 'individual',
               phones: {
                 mobile_phone: {
