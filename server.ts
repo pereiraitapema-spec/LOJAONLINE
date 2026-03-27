@@ -47,6 +47,8 @@ async function startServer() {
       console.log('📡 Enviando requisição para Pagar.me V5...');
       console.log('🔑 Token (primeiros 6 caracteres):', token.substring(0, 6) + '...');
       
+      const pagarmeStartTime = Date.now();
+      
       const response = await fetch('https://api.pagar.me/core/v5/orders', {
         method: 'POST',
         headers: {
@@ -56,6 +58,9 @@ async function startServer() {
         },
         body: JSON.stringify(orderData)
       });
+      
+      const pagarmeDuration = Date.now() - pagarmeStartTime;
+      console.log(`⏱️ Tempo de resposta do Pagar.me: ${pagarmeDuration}ms`);
 
       const data = await response.json();
       
