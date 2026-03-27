@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -11,6 +12,9 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Middleware CORS
+  app.use(cors());
 
   // Profissional: Confiar no proxy reverso (essencial no Railway)
   app.set('trust proxy', 1);
