@@ -57,6 +57,16 @@ const pagarmeProvider: PaymentProvider = {
                 country: 'BR'
               }
             },
+            billing: {
+              name: orderData.customer_name,
+              address: {
+                line_1: `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}`,
+                zip_code: orderData.shipping_address.cep.replace(/\D/g, ''),
+                city: orderData.shipping_address.city,
+                state: orderData.shipping_address.state,
+                country: 'BR'
+              }
+            },
             payments: [
               {
                 payment_method: orderData.payment_method,
