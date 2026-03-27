@@ -44,13 +44,17 @@ async function startServer() {
     }
 
     try {
-      // Pagar.me V5 usa Basic Auth com a API Key como username e senha vazia
-      // O formato deve ser: Basic base64(api_key:)
+      console.log('🔍 Verificando token...');
+      if (!config?.access_token) {
+        console.error('❌ Erro: Access Token não configurado no gateway.');
+        return res.status(400).json({ success: false, error: 'Access Token não configurado.' });
+      }
+      
       const token = config.access_token.trim();
+      console.log('🔑 Token lido com sucesso. Preparando Auth Header...');
       const authHeader = `Basic ${Buffer.from(token + ':').toString('base64')}`;
       
       console.log('📡 Enviando requisição para Pagar.me V5...');
-      console.log('🔑 Token (primeiros 6 caracteres):', token.substring(0, 6) + '...');
       
       const pagarmeStartTime = Date.now();
       
