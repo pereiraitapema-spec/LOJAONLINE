@@ -75,8 +75,8 @@ async function startServer() {
           .eq('payment_id', data.id);
         console.log(`💰 Pedido ${data.id} atualizado para 'paid' no Supabase.`);
       } else {
-
-      res.status(response.status).json(data);
+        res.status(response.status).json(data);
+      }
     } catch (error: any) {
       console.error('💥 Erro crítico no proxy Pagar.me:', error.message);
       res.status(500).json({ success: false, error: error.message });
