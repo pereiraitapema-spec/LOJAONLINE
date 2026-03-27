@@ -15,10 +15,11 @@ const pagarmeProvider: PaymentProvider = {
 
     console.log('⏱️ Iniciando fetch com timeout de 60s...');
     try {
-      const response = await fetch('/api/payments/pagarme', {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pagarme-proxy`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
         },
         body: JSON.stringify({
           orderData: {
