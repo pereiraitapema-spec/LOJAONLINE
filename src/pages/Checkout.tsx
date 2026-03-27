@@ -832,29 +832,39 @@ export default function Checkout() {
       }
 
       // 1. Create Order in Supabase
+      const orderPayload = {
+        user_id: currentUserId || null, // Use the newly created or existing user ID
+        affiliate_id: affiliateId,
+        commission_value: commissionValue,
+        customer_name: customer.name,
+        customer_email: customer.email,
+        customer_phone: customer.phone,
+        customer_document: customer.document,
+        status: 'pending',
+        discount_value: totalDiscount,
+        total: finalTotal,
+        subtotal: cartTotal,
+        shipping_cost: shippingCost,
+        payment_method: paymentMethod === 'pagarme' ? pagarmeMethod : paymentMethod,
+        shipping_method: currentShipping?.name || 'Padrão',
+        shipping_address: shipping
+      };
+
+      console.log('🚀 Tentando criar pedido no Supabase com os seguintes dados:', JSON.stringify(orderPayload, null, 2));
+
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
-        .insert([{
-          user_id: currentUserId || null, // Use the newly created or existing user ID
-          affiliate_id: affiliateId,
-          commission_value: commissionValue,
-          customer_name: customer.name,
-          customer_email: customer.email,
-          customer_phone: customer.phone,
-          customer_document: customer.document,
-          status: 'pending',
-          discount_value: totalDiscount,
-          total: finalTotal,
-          subtotal: cartTotal,
-          shipping_cost: shippingCost,
-          payment_method: paymentMethod === 'pagarme' ? pagarmeMethod : paymentMethod,
-          shipping_method: currentShipping?.name || 'Padrão',
-          shipping_address: shipping
-        }])
+        .insert([orderPayload])
         .select()
         .single();
 
-      if (orderError) throw orderError;
+      if (orderError) {
+        console.error('❌ Erro ao criar pedido no Supabase:', orderError);
+        console.error('⚠️ DICA: Verifique se todas as colunas existem na tabela "orders" e se as políticas RLS permitem a inserção.');
+        throw orderError;
+      }
+      
+      console.log('✅ Pedido criado com sucesso no Supabase:', orderData);
       
       // Marcar como lead quente ao realizar pedido
       leadService.updateStatus('quente');
@@ -876,11 +886,18 @@ export default function Checkout() {
         product_name: item.product.name
       }));
 
+      console.log('🚀 Tentando criar itens do pedido no Supabase:', JSON.stringify(orderItems, null, 2));
+
       const { error: itemsError } = await supabase
         .from('order_items')
         .insert(orderItems);
 
-      if (itemsError) throw itemsError;
+      if (itemsError) {
+        console.error('❌ Erro ao criar itens do pedido no Supabase:', itemsError);
+        throw itemsError;
+      }
+      
+      console.log('✅ Itens do pedido criados com sucesso.');
 
       // 2.1 Update Inventory Logs and Product Stock
       const inventoryLogs = cart.map(item => ({
@@ -889,23 +906,33 @@ export default function Checkout() {
         reason: `Venda Pedido #${orderData.id.split('-')[0].toUpperCase()}`
       }));
 
-      await supabase
+      console.log('🚀 Tentando criar logs de inventário no Supabase:', JSON.stringify(inventoryLogs, null, 2));
+
+      const { error: inventoryError } = await supabase
         .from('inventory_logs')
         .insert(inventoryLogs);
 
+      if (inventoryError) {
+        console.error('❌ Erro ao criar logs de inventário no Supabase:', inventoryError);
+      }
+
       // Update stock for each product
       for (const item of cart) {
-        const { data: currentProduct } = await supabase
-          .from('products')
-          .select('stock')
-          .eq('id', item.product.id)
-          .single();
-        
-        if (currentProduct) {
-          await supabase
+        try {
+          const { data: currentProduct } = await supabase
             .from('products')
-            .update({ stock: Math.max(0, currentProduct.stock - item.quantity) })
-            .eq('id', item.product.id);
+            .select('stock')
+            .eq('id', item.product.id)
+            .single();
+          
+          if (currentProduct) {
+            await supabase
+              .from('products')
+              .update({ stock: Math.max(0, currentProduct.stock - item.quantity) })
+              .eq('id', item.product.id);
+          }
+        } catch (stockError) {
+          console.error(`❌ Erro ao atualizar estoque do produto ${item.product.id}:`, stockError);
         }
       }
 

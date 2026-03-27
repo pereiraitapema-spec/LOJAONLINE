@@ -293,7 +293,9 @@ export default function PaymentGateways() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Public Key (ID de Teste)</label>
+                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                  {currentGateway.provider === 'pagarme' ? 'Public Key (pk_...)' : 'Public Key / Client ID'}
+                </label>
                 <div className="relative">
                   <input 
                     type={showPublicKey ? "text" : "password"}
@@ -303,7 +305,7 @@ export default function PaymentGateways() {
                       config: { ...currentGateway.config, public_key: e.target.value }
                     })}
                     className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all pr-14"
-                    placeholder="Ex: APP_USR-..."
+                    placeholder={currentGateway.provider === 'pagarme' ? 'Ex: pk_...' : 'Ex: APP_USR-...'}
                   />
                   <button 
                     type="button"
@@ -316,7 +318,9 @@ export default function PaymentGateways() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">Access Token (Chave Secreta)</label>
+                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                  {currentGateway.provider === 'pagarme' ? 'Secret Key (sk_...)' : 'Access Token (Chave Secreta)'}
+                </label>
                 <div className="relative">
                   <input 
                     type={showAccessToken ? "text" : "password"}
@@ -326,7 +330,7 @@ export default function PaymentGateways() {
                       config: { ...currentGateway.config, access_token: e.target.value }
                     })}
                     className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all pr-14"
-                    placeholder="Ex: APP_USR-..."
+                    placeholder={currentGateway.provider === 'pagarme' ? 'Ex: sk_...' : 'Ex: APP_USR-...'}
                   />
                   <button 
                     type="button"

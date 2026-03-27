@@ -54,6 +54,10 @@ async function startServer() {
 
       if (!response.ok) {
         console.error('❌ Erro na API do Pagar.me:', data.message || data.errors || 'Erro desconhecido');
+        // Se for erro 401, pode ser problema de chave V4 vs V5
+        if (response.status === 401) {
+          console.error('⚠️ DICA: O erro 401 indica chave inválida. Verifique se está usando as chaves do Pagar.me V5 (sk_... e pk_...) e não as do V4 (ak_... e ek_...).');
+        }
       } else {
         console.log('✅ Pagamento processado com sucesso pela API.');
       }

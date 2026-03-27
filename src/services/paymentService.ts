@@ -64,6 +64,7 @@ const pagarmeProvider: PaymentProvider = {
                   card: {
                     number: orderData.card_number,
                     holder_name: orderData.card_name,
+                    holder_document: orderData.customer_document.replace(/\D/g, ''),
                     exp_month: parseInt(orderData.expiry.split('/')[0]),
                     exp_year: parseInt('20' + orderData.expiry.split('/')[1]),
                     cvv: orderData.cvv
@@ -74,6 +75,7 @@ const pagarmeProvider: PaymentProvider = {
                   card: {
                     number: orderData.card_number,
                     holder_name: orderData.card_name,
+                    holder_document: orderData.customer_document.replace(/\D/g, ''),
                     exp_month: parseInt(orderData.expiry.split('/')[0]),
                     exp_year: parseInt('20' + orderData.expiry.split('/')[1]),
                     cvv: orderData.cvv
