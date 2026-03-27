@@ -217,8 +217,7 @@ export default function Orders() {
         product_id: item.id,
         product_name: item.name,
         quantity: item.quantity,
-        price: item.price,
-        cost_price: item.cost_price // Salvando custo histórico
+        price: item.price
       }));
 
       const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
@@ -385,7 +384,7 @@ export default function Orders() {
       setLoadingItems(true);
       const { data, error } = await supabase
         .from('order_items')
-        .select('id, order_id, product_id, product_name, quantity, price, cost_price')
+        .select('id, order_id, product_id, product_name, quantity, price')
         .eq('order_id', orderId);
       
       if (error) throw error;
