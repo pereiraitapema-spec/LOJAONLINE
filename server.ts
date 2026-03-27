@@ -167,6 +167,11 @@ async function startServer() {
           .eq('payment_id', orderId);
         console.log(`🚫 Pedido ${orderId} cancelado.`);
       }
+    } catch (error: any) {
+      console.error('💥 Erro no Webhook:', error.message);
+      res.status(500).send('Erro interno');
+    }
+  });
 
   // Worker profissional: Supabase Realtime (escuta eventos em tempo real)
   const supabaseUrl = process.env.VITE_SUPABASE_URL!;
