@@ -10,6 +10,10 @@ const pagarmeProvider: PaymentProvider = {
     console.log('📦 Dados do Pedido para Provedor:', JSON.stringify(orderData, null, 2));
     
     const startTime = Date.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+    console.log('⏱️ Iniciando fetch com timeout de 30s...');
     try {
       const response = await fetch('/api/payments/pagarme', {
         method: 'POST',
@@ -118,8 +122,11 @@ const pagarmeProvider: PaymentProvider = {
             ]
           },
           config
-        })
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
+      console.log('✅ Fetch concluído.');
 
       const duration = Date.now() - startTime;
       const data = await response.json();
@@ -162,6 +169,11 @@ const pagarmeProvider: PaymentProvider = {
       await logApiCall('pagarme', '/orders', duration, false, data.message || 'Erro no processamento.');
       return { success: false, error: data.message || 'Erro no processamento.' };
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.error('⏱️ Timeout: O processamento do pagamento demorou mais de 30s.');
+        await logApiCall('pagarme', '/orders', Date.now() - startTime, false, 'Timeout: O processamento demorou mais de 30s.');
+        return { success: false, error: 'O processamento do pagamento demorou muito. Por favor, tente novamente.' };
+      }
       await logApiCall('pagarme', '/orders', Date.now() - startTime, false, err.message);
       return { success: false, error: err.message };
     }
