@@ -28,6 +28,7 @@ async function startServer() {
 
   // Proxy para Pagar.me (Segurança: chaves no servidor)
   app.post("/api/payments/pagarme", express.json(), async (req, res) => {
+    console.log('📥 Rota /api/payments/pagarme atingida!');
     const { orderData, config } = req.body;
     
     console.log('🚀 Iniciando pagamento Pagar.me...');
