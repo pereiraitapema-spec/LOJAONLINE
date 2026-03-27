@@ -1000,6 +1000,7 @@ export default function Checkout() {
         .eq('id', orderData.id);
 
       if (paymentResponse.pix) {
+        console.log('🔍 Dados do PIX recebidos:', paymentResponse.pix);
         setPixData(paymentResponse.pix);
         setCurrentOrderId(orderData.id);
         setShowPixModal(true);

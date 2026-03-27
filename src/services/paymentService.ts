@@ -141,6 +141,10 @@ const pagarmeProvider: PaymentProvider = {
         // Extrair dados do PIX ou Boleto se for o caso
         let pixData = null;
         let boletoData = null;
+        
+        // Log para depuração da estrutura de resposta
+        console.log('🔍 Estrutura da resposta do gateway:', JSON.stringify(data, null, 2));
+
         if (data.charges?.[0]?.last_transaction) {
           const transaction = data.charges[0].last_transaction;
           if (orderData.payment_method === 'pix') {
@@ -149,14 +153,10 @@ const pagarmeProvider: PaymentProvider = {
               qr_code_url: transaction.qr_code_url,
               expires_at: transaction.expires_at
             };
-          } else if (orderData.payment_method === 'boleto') {
-            boletoData = {
-              url: transaction.url,
-              pdf: transaction.pdf,
-              barcode: transaction.barcode,
-              expires_at: transaction.due_at
-            };
           }
+        } else if (data.pix) {
+            // Fallback caso a estrutura seja diferente
+            pixData = data.pix;
         }
 
         return { 
