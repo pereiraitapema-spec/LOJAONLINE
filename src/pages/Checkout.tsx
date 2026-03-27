@@ -985,7 +985,8 @@ export default function Checkout() {
 
       // Determine initial status based on payment method
       // For simulation: Credit Card is paid immediately, others are pending
-      const initialStatus = paymentResponse.success ? (paymentMethod === 'credit_card' ? 'paid' : 'pending') : 'failed';
+      const isCreditCard = paymentMethod === 'credit_card' || (paymentMethod === 'pagarme' && pagarmeMethod === 'credit_card');
+      const initialStatus = paymentResponse.success ? (isCreditCard ? 'paid' : 'pending') : 'failed';
 
       // Update order status
       await supabase
