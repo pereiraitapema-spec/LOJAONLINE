@@ -578,11 +578,22 @@ export const shippingService = {
   },
 
   async getTrackingStatus(trackingCode: string) {
-    const { data: order } = await supabase
+    // Tenta buscar pelo código de rastreio da transportadora
+    let { data: order, error: orderError } = await supabase
       .from('orders')
       .select('carrier_id, logistics_history, current_logistics_status, status')
       .eq('tracking_code', trackingCode)
       .maybeSingle();
+
+    // Se não encontrar, tenta buscar pelo ID do pedido
+    if (!order) {
+      const { data: orderById, error: idError } = await supabase
+        .from('orders')
+        .select('carrier_id, logistics_history, current_logistics_status, status')
+        .eq('id', trackingCode)
+        .maybeSingle();
+      order = orderById;
+    }
 
     if (!order) return { status: 'Não encontrado', history: [] };
     

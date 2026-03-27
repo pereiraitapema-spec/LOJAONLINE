@@ -58,6 +58,10 @@ async function startServer() {
       
       const pagarmeStartTime = Date.now();
       
+      // Timeout de 30 segundos
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
       const response = await fetch('https://api.pagar.me/core/v5/orders', {
         method: 'POST',
         headers: {
@@ -65,11 +69,20 @@ async function startServer() {
           'Authorization': authHeader,
           'Accept': 'application/json'
         },
-        body: JSON.stringify(orderData)
+        body: JSON.stringify(orderData),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       const pagarmeDuration = Date.now() - pagarmeStartTime;
       console.log(`⏱️ Tempo de resposta do Pagar.me: ${pagarmeDuration}ms`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Erro na resposta do Pagar.me:', response.status, errorText);
+        return res.status(response.status).json({ success: false, error: 'Erro no Pagar.me', details: errorText });
+      }
 
       const data = await response.json();
       
