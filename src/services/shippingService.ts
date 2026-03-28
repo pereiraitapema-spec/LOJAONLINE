@@ -612,7 +612,7 @@ export const shippingService = {
     // Tenta buscar pelo ID completo (UUID) ou pelo ID curto (primeiros 8 caracteres)
     let { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, carrier_id')
+      .select('id, shipping_method')
       .or(`id.eq.${orderId},id.ilike.${orderId}%`)
       .maybeSingle();
 
@@ -621,7 +621,7 @@ export const shippingService = {
       return { success: false, error: 'Order not found' };
     }
     
-    const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.carrier_id).single();
+    const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.shipping_method).single();
     if (!carrier) return { success: false, error: 'Carrier not found' };
 
     const provider = providers[carrier.provider];
@@ -631,10 +631,10 @@ export const shippingService = {
   },
 
   async cancelLabel(orderId: string) {
-    const { data: order } = await supabase.from('orders').select('carrier_id').eq('id', orderId).single();
+    const { data: order } = await supabase.from('orders').select('shipping_method').eq('id', orderId).single();
     if (!order) return { success: false, error: 'Order not found' };
     
-    const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.carrier_id).single();
+    const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.shipping_method).single();
     if (!carrier) return { success: false, error: 'Carrier not found' };
 
     const provider = providers[carrier.provider];
@@ -647,7 +647,7 @@ export const shippingService = {
     // Tenta buscar pelo código de rastreio ou ID, solicitando apenas os campos essenciais
     let { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, carrier_id, logistics_history, current_logistics_status, status, tracking_code')
+      .select('id, shipping_method, logistics_history, current_logistics_status, status, tracking_code')
       .or(`tracking_code.eq.${trackingCode},id.eq.${trackingCode}`)
       .maybeSingle();
 
@@ -662,7 +662,7 @@ export const shippingService = {
     }
 
     // Se não tiver histórico, busca a transportadora
-    const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.carrier_id).single();
+    const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.shipping_method).single();
     if (!carrier) return { status: 'Transportadora não encontrada', history: [] };
 
     const provider = providers[carrier.provider];
