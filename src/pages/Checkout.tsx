@@ -114,6 +114,8 @@ export default function Checkout() {
         
         toast.success('Dados do seu perfil carregados!');
       } else if (error) {
+        console.error('❌ Erro ao buscar perfil logado:', error);
+      }
     };
     
     fetchLoggedCustomer();
