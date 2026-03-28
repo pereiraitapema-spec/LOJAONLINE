@@ -74,15 +74,25 @@ export default function Checkout() {
   // Efeito para buscar cliente ao preencher email ou CPF
   useEffect(() => {
     const fetchCustomer = async () => {
-      if ((customer.email || customer.document) && customer.email.length > 5) {
+      // Limpa CPF/Email para busca
+      const email = customer.email.trim();
+      const doc = customer.document.replace(/\D/g, '');
+      
+      if ((email.length > 5 || doc.length >= 11)) {
+        console.log('🔍 Buscando cliente:', { email, doc });
+        
         let query = supabase.from('customers').select('*');
-        if (customer.email) query = query.eq('email', customer.email);
-        else if (customer.document) query = query.eq('document', customer.document);
+        if (email) query = query.eq('email', email);
+        else if (doc) query = query.eq('document', doc);
         
         const { data, error } = await query.maybeSingle();
+        
         if (data && !error) {
+          console.log('✅ Cliente encontrado:', data);
           setCustomer(prev => ({ ...prev, ...data }));
           toast.success('Dados do cliente carregados!');
+        } else if (error) {
+          console.error('❌ Erro ao buscar cliente:', error);
         }
       }
     };

@@ -158,11 +158,12 @@ const pagarmeProvider: PaymentProvider = {
         if (data.charges?.[0]?.last_transaction) {
           const transaction = data.charges[0].last_transaction;
           if (orderData.payment_method === 'pix') {
-            // Tenta extrair de várias formas possíveis baseadas na API V5
+            // Pagar.me V5 PIX structure: transaction_details.qr_code
+            const details = transaction.transaction_details || {};
             pixData = {
-              qr_code: transaction.qr_code || transaction.pix?.qr_code,
-              qr_code_url: transaction.qr_code_url || transaction.pix?.qr_code_url,
-              expires_at: transaction.expires_at || transaction.pix?.expires_at
+              qr_code: details.qr_code || transaction.qr_code,
+              qr_code_url: details.qr_code_url || transaction.qr_code_url,
+              expires_at: transaction.expires_at
             };
           }
         } else if (data.pix) {
