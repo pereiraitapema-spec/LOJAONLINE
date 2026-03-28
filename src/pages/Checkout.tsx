@@ -71,55 +71,59 @@ export default function Checkout() {
     password: ''
   });
 
-  // Efeito para buscar cliente logado automaticamente
+  // Efeito para buscar dados do usuário logado de forma robusta
   useEffect(() => {
-    const fetchLoggedCustomer = async () => {
-      // Pega o usuário da sessão do Supabase
+    const loadUserData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
-      console.log('🔍 Buscando dados do perfil logado:', session.user.id);
+      console.log('🔍 Iniciando busca unificada de dados para:', session.user.id);
       
-      // O padrão do Supabase é usar a tabela 'profiles' vinculada ao auth.uid
-      const { data, error } = await supabase
+      // 1. Tenta buscar na tabela 'profiles' (dados de perfil)
+      const { data: profile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
         .maybeSingle();
+
+      // 2. Tenta buscar na tabela 'customers' (dados de compras anteriores)
+      const { data: customerData } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .maybeSingle();
+
+      // Consolida os dados (prioridade para profiles, depois customers)
+      const userData = {
+        name: profile?.full_name || profile?.name || customerData?.customer_name || '',
+        email: session.user.email || customerData?.customer_email || '',
+        phone: profile?.phone || customerData?.customer_phone || '',
+        document: profile?.document || customerData?.customer_document || ''
+      };
+
+      console.log('✅ Dados consolidados:', userData);
       
-      if (data && !error) {
-        console.log('✅ Perfil logado encontrado. Objeto completo:', JSON.stringify(data, null, 2));
-        // Mapeia os campos da tabela profiles para o estado customer e shipping
-        setCustomer(prev => ({ 
-          ...prev, 
-          name: data.full_name || data.name || data.nome || '',
-          email: session.user.email || '',
-          phone: data.phone || data.telefone || '',
-          document: data.document || data.cpf || ''
+      setCustomer(prev => ({ ...prev, ...userData }));
+
+      // Mapeia o endereço (prioridade para profiles.address, depois customers.shipping_address)
+      const address = profile?.address || customerData?.shipping_address;
+      if (address) {
+        setShipping(prev => ({
+          ...prev,
+          cep: address.cep || prev.cep || '',
+          street: address.street || prev.street || '',
+          number: address.number || prev.number || '',
+          complement: address.complement || prev.complement || '',
+          neighborhood: address.neighborhood || prev.neighborhood || '',
+          city: address.city || prev.city || '',
+          state: address.state || prev.state || ''
         }));
-        
-        // Mapeia o endereço se existir no perfil
-        if (data.address) {
-          setShipping(prev => ({
-            ...prev,
-            cep: data.address.cep || prev.cep || '',
-            street: data.address.street || prev.street || '',
-            number: data.address.number || prev.number || '',
-            complement: data.address.complement || prev.complement || '',
-            neighborhood: data.address.neighborhood || prev.neighborhood || '',
-            city: data.address.city || prev.city || '',
-            state: data.address.state || prev.state || ''
-          }));
-        }
-        
-        toast.success('Dados do seu perfil carregados!');
-      } else if (error) {
-        console.error('❌ Erro ao buscar perfil logado:', error);
       }
     };
     
-    fetchLoggedCustomer();
-  }, []); // Executa apenas uma vez ao montar o componente
+    loadUserData();
+  }, []);
 
   const [shipping, setShipping] = useState({
     cep: '',
