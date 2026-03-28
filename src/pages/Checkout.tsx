@@ -326,27 +326,27 @@ export default function Checkout() {
             .eq('id', session.user.id)
             .maybeSingle();
 
-          // 2. Tenta buscar na tabela 'customers'
-          const { data: customerData } = await supabase
-            .from('customers')
-            .select('*')
+          // 2. Tenta buscar o pedido mais recente na tabela 'orders'
+          const { data: lastOrder } = await supabase
+            .from('orders')
+            .select('customer_name, customer_email, customer_phone, customer_document, shipping_address')
             .eq('user_id', session.user.id)
             .order('created_at', { ascending: false })
             .maybeSingle();
 
-          // Consolida os dados
+          // Consolida os dados (prioridade para profiles, depois lastOrder)
           const userData = {
-            name: profile?.full_name || profile?.name || customerData?.customer_name || '',
-            email: session.user.email || customerData?.customer_email || '',
-            phone: profile?.phone || customerData?.customer_phone || '',
-            document: profile?.document || customerData?.customer_document || ''
+            name: profile?.full_name || profile?.name || lastOrder?.customer_name || '',
+            email: session.user.email || lastOrder?.customer_email || '',
+            phone: profile?.phone || lastOrder?.customer_phone || '',
+            document: profile?.document || lastOrder?.customer_document || ''
           };
 
           console.log('✅ Dados consolidados:', userData);
           setCustomer(prev => ({ ...prev, ...userData }));
 
-          // Mapeia o endereço
-          const address = profile?.address || customerData?.shipping_address;
+          // Mapeia o endereço (prioridade para profiles.address, depois lastOrder.shipping_address)
+          const address = profile?.address || lastOrder?.shipping_address;
           if (address) {
             setShipping(prev => ({
               ...prev,
