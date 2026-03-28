@@ -419,6 +419,13 @@ function AppContent() {
     
     const isMasterAdmin = session?.user?.email === 'pereira.itapema@gmail.com';
     
+    console.log('🛡️ AdminRoute Debug:', {
+      userRole,
+      isMasterAdmin,
+      email: session?.user?.email,
+      path: location.pathname
+    });
+
     if (userRole !== 'admin' && !isMasterAdmin) {
       console.log('🚫 AdminRoute: Access denied for', session.user.email, 'Role:', userRole, 'isMaster:', isMasterAdmin);
       toast.error('Acesso restrito a administradores.');

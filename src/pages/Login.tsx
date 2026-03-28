@@ -107,13 +107,19 @@ export default function Login() {
           toast.success('Bem-vindo de volta!');
           await leadService.updateStatus('frio');
           
-          // Garantir que o profile existe (especialmente para Admin Master)
-          if (data.user.email === 'pereira.itapema@gmail.com') {
+          // Garantir que o profile existe
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', data.user.id)
+            .maybeSingle();
+            
+          if (!existingProfile) {
             await supabase.from('profiles').upsert({
               id: data.user.id,
               email: data.user.email,
-              role: 'admin',
-              full_name: 'Admin Master'
+              role: data.user.email === 'pereira.itapema@gmail.com' ? 'admin' : 'customer',
+              full_name: data.user.email.split('@')[0]
             });
           }
 
