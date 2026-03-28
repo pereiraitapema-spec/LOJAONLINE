@@ -152,23 +152,25 @@ const pagarmeProvider: PaymentProvider = {
         let pixData = null;
         let boletoData = null;
         
-        // Log para depuração da estrutura de resposta
+        // Log detalhado para depuração
         console.log('🔍 RAW RESPONSE DO GATEWAY:', JSON.stringify(data, null, 2));
 
         if (data.charges?.[0]?.last_transaction) {
           const transaction = data.charges[0].last_transaction;
           if (orderData.payment_method === 'pix') {
-            // Pagar.me V5 PIX structure: transaction_details.qr_code
+            // Tenta extrair de várias formas possíveis baseadas na API V5
             const details = transaction.transaction_details || {};
             pixData = {
-              qr_code: details.qr_code || transaction.qr_code,
-              qr_code_url: details.qr_code_url || transaction.qr_code_url,
-              expires_at: transaction.expires_at
+              qr_code: details.qr_code || transaction.qr_code || data.pix?.qr_code,
+              qr_code_url: details.qr_code_url || transaction.qr_code_url || data.pix?.qr_code_url,
+              expires_at: transaction.expires_at || data.pix?.expires_at
             };
+            console.log('✅ PIX Extraído:', pixData);
           }
         } else if (data.pix) {
-            // Fallback caso a estrutura seja diferente
+            // Fallback
             pixData = data.pix;
+            console.log('✅ PIX Extraído (Fallback):', pixData);
         }
 
         return { 
