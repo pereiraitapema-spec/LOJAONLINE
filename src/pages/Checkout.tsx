@@ -88,14 +88,14 @@ export default function Checkout() {
         .maybeSingle();
       
       if (data && !error) {
-        console.log('✅ Perfil logado encontrado:', data);
+        console.log('✅ Perfil logado encontrado. Objeto completo:', JSON.stringify(data, null, 2));
         // Mapeia os campos da tabela profiles para o estado customer e shipping
         setCustomer(prev => ({ 
           ...prev, 
-          name: data.full_name || data.name || '',
+          name: data.full_name || data.name || data.nome || '',
           email: session.user.email || '',
-          phone: data.phone || '',
-          document: data.document || ''
+          phone: data.phone || data.telefone || '',
+          document: data.document || data.cpf || ''
         }));
         
         // Mapeia o endereço se existir no perfil
