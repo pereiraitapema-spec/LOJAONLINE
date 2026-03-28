@@ -326,19 +326,19 @@ export default function Checkout() {
             .eq('id', session.user.id)
             .maybeSingle();
 
-          // 2. Tenta buscar o pedido mais recente na tabela 'orders'
+          // 2. Tenta buscar o pedido mais recente na tabela 'orders' pelo e-mail
           const { data: lastOrder, error: orderFetchError } = await supabase
             .from('orders')
             .select('customer_name, customer_email, customer_phone, customer_document, shipping_address')
-            .eq('user_id', session.user.id)
+            .eq('customer_email', session.user.email) // Busca pelo e-mail
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
 
           if (orderFetchError) {
-            console.error('❌ Erro ao buscar último pedido:', orderFetchError);
+            console.error('❌ Erro ao buscar último pedido por e-mail:', orderFetchError);
           }
-          console.log('📦 Dados do último pedido encontrado:', lastOrder);
+          console.log('📦 Dados do último pedido encontrado por e-mail:', lastOrder);
 
           // Consolida os dados (prioridade para profiles, depois lastOrder)
           const userData = {
