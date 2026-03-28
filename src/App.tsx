@@ -290,24 +290,8 @@ function AppContent() {
         setUserRole('admin');
         localStorage.setItem('user_role', 'admin');
 
-        try {
-          console.log('⏱️ Sincronizando perfil Master no banco...');
-          await withTimeout(
-            supabase.from('profiles').upsert({
-              id: userId,
-              email: userEmail,
-              role: 'admin',
-              full_name: userEmail.split('@')[0]
-            }, { onConflict: 'id' }),
-            3000
-          );
-          console.log('✅ Perfil Master sincronizado');
-        } catch (e) {
-          console.warn('⚠️ Falha ao sincronizar perfil Master (não crítico):', e);
-        }
-
         if (path === '/login' || path === '/register') {
-          console.log('🚀 Redirecionando Admin Master para /dashboard');
+          console.log('🚀 Redirecionando Admin para /dashboard');
           navigate('/dashboard');
         }
         setLoading(false);
