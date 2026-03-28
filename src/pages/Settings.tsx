@@ -198,26 +198,68 @@ export default function Settings() {
     }
   };
 
-  const fetchSettings = async () => {
+    const fetchSettings = async () => {
     try {
       const { data, error } = await supabase
         .from('store_settings')
-        .select('*')
-        .maybeSingle();
+        .select('*'); // Removemos o maybeSingle()
 
       if (error) {
         if (error.message.includes('does not exist') || error.code === '42P01') {
           setShowSql(true);
-          toast.error('Tabela de configurações não encontrada. Execute o SQL de instalação.');
+          toast.error('Tabela de configurações não encontrada.');
           return;
         }
         throw error;
       }
 
-      if (!data) {
-        try {
-          const { data: newData, error: insertError } = await supabase
-            .from('store_settings')
+      if (data && data.length > 0) {
+        // Pega a primeira configuração encontrada
+        const settingsData = data[0];
+        
+        // Migração automática de legado para novo formato
+        let socialLinks = settingsData.social_links || [];
+        if (socialLinks.length === 0) {
+          if (settingsData.instagram) socialLinks.push({ platform: 'Instagram', url: settingsData.instagram, active: true });
+          if (settingsData.facebook) socialLinks.push({ platform: 'Facebook', url: settingsData.facebook, active: true });
+        }
+
+        setSettings({
+          ...settingsData,
+          payment_methods: settingsData.payment_methods || [],
+          shipping_methods: settingsData.shipping_methods || [
+            { name: 'Correios (PAC)', price: 25.90, deadline: '7 a 10 dias úteis', active: true },
+            { name: 'Correios (SEDEX)', price: 45.90, deadline: '2 a 4 dias úteis', active: true }
+          ],
+          free_shipping_threshold: settingsData.free_shipping_threshold !== undefined ? settingsData.free_shipping_threshold : 299.00,
+          institutional_links: settingsData.institutional_links || [],
+          social_links: socialLinks,
+          // ... (restante do mapeamento mantido)
+          promotions_section_title: settingsData.promotions_section_title || 'CAMPANHAS E PROMOÇÕES',
+          promotions_section_subtitle: settingsData.promotions_section_subtitle || 'Aproveite nossas ofertas exclusivas',
+          products_section_title: settingsData.products_section_title || 'Novidades da Estação',
+          products_section_subtitle: settingsData.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
+          tracking_pixels: settingsData.tracking_pixels || [],
+          debug_mode: settingsData.debug_mode || false,
+          n8n_webhook_url: settingsData.n8n_webhook_url || '',
+          origin_zip_code: settingsData.origin_zip_code || '',
+          ai_chat_rules: settingsData.ai_chat_rules || '',
+          ai_chat_triggers: settingsData.ai_chat_triggers || '',
+          ai_auto_learning: settingsData.ai_auto_learning || false,
+          nfe_provider: settingsData.nfe_provider || 'manual',
+          nfe_token: settingsData.nfe_token || '',
+          nfe_company_id: settingsData.nfe_company_id || ''
+        });
+      } else {
+        console.warn('Nenhuma configuração encontrada.');
+      }
+    } catch (error: any) {
+      console.error('Error fetching settings:', error);
+      toast.error('Erro ao carregar configurações: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
             .insert([{
               company_name: 'Minha Loja',
               promotions_section_title: 'PROMOÇÕES DA SEMANA',

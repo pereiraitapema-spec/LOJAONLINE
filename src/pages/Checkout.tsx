@@ -1118,6 +1118,17 @@ export default function Checkout() {
             toast.error('Pedido aprovado, mas houve erro ao gerar etiqueta de envio.');
           }
 
+          // Salvar cartão se for cartão de crédito
+          if (paymentMethod === 'credit_card' && paymentResponse.charges?.[0]?.last_transaction?.card?.id) {
+            const card = paymentResponse.charges[0].last_transaction.card;
+            await supabase.from('saved_cards').insert({
+              user_id: currentUserId,
+              card_id: card.id,
+              brand: card.brand,
+              last_four_digits: card.last_four_digits
+            });
+          }
+
         } catch (err: any) {
           console.error('❌ Erro no processamento de pagamento:', err);
           toast.error(`Erro no pagamento: ${err.message}`);
