@@ -327,12 +327,18 @@ export default function Checkout() {
             .maybeSingle();
 
           // 2. Tenta buscar o pedido mais recente na tabela 'orders'
-          const { data: lastOrder } = await supabase
+          const { data: lastOrder, error: orderFetchError } = await supabase
             .from('orders')
             .select('customer_name, customer_email, customer_phone, customer_document, shipping_address')
             .eq('user_id', session.user.id)
             .order('created_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
+
+          if (orderFetchError) {
+            console.error('❌ Erro ao buscar último pedido:', orderFetchError);
+          }
+          console.log('📦 Dados do último pedido encontrado:', lastOrder);
 
           // Consolida os dados (prioridade para profiles, depois lastOrder)
           const userData = {
@@ -347,6 +353,7 @@ export default function Checkout() {
 
           // Mapeia o endereço (prioridade para profiles.address, depois lastOrder.shipping_address)
           const address = profile?.address || lastOrder?.shipping_address;
+          console.log('📍 Endereço encontrado:', address);
           if (address) {
             setShipping(prev => ({
               ...prev,
