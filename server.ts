@@ -266,7 +266,7 @@ async function startServer() {
       const { data: order, error } = await supabaseAdmin
         .from('orders')
         .select('*, order_items(*)')
-        .eq('payment_id', orderId)
+        .eq('id', orderId)
         .single();
 
       if (error || !order) {
@@ -320,7 +320,7 @@ async function startServer() {
       const { data: order, error } = await supabaseAdmin
         .from('orders')
         .select('*, order_items(*)')
-        .eq('payment_id', orderId)
+        .eq('id', orderId)
         .single();
 
       if (error || !order) {

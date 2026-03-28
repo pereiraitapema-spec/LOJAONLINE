@@ -38,7 +38,7 @@ export const logisticsService = {
       const { data: order, error } = await supabaseAdmin
         .from('orders')
         .select('*, order_items(*)')
-        .eq('payment_id', orderId)
+        .eq('id', orderId)
         .single();
 
       if (error || !order) throw new Error(`Pedido não encontrado: ${orderId}`);
@@ -104,7 +104,7 @@ export const logisticsService = {
         status: 'preparing',
         updated_at: new Date().toISOString()
       })
-      .eq('payment_id', orderId);
+      .eq('id', orderId);
       
     return code;
   },
@@ -135,7 +135,7 @@ export const logisticsService = {
       await supabaseAdmin
         .from('orders')
         .update({ shipping_label_url: labelUrl })
-        .eq('payment_id', orderId);
+        .eq('id', orderId);
         
       return labelUrl;
     } catch (error) {
@@ -155,7 +155,7 @@ export const logisticsService = {
       const { data: order } = await supabaseAdmin
         .from('orders')
         .select('*, order_items(*)')
-        .eq('payment_id', orderId)
+        .eq('id', orderId)
         .single();
 
       if (!order) throw new Error('Pedido não encontrado');
@@ -234,7 +234,7 @@ export const logisticsService = {
           invoice_number: invoiceNumber,
           invoice_url: invoiceUrl
         })
-        .eq('payment_id', orderId);
+        .eq('id', orderId);
         
       return { invoiceNumber, invoiceUrl };
     } catch (error: any) {
@@ -260,7 +260,7 @@ export const logisticsService = {
     const { data: order } = await supabaseAdmin
       .from('orders')
       .select('logistics_history')
-      .eq('payment_id', orderId)
+      .eq('id', orderId)
       .single();
       
     const history = order?.logistics_history || [];
@@ -272,7 +272,7 @@ export const logisticsService = {
         logistics_history: newHistory,
         current_logistics_status: step.status
       })
-      .eq('payment_id', orderId);
+      .eq('id', orderId);
       
     return newHistory;
   }

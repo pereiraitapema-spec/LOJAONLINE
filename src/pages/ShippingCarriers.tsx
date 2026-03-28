@@ -83,7 +83,12 @@ export default function ShippingCarriers() {
       if (currentCarrier.id) {
         const { error } = await supabase
           .from('shipping_carriers')
-          .update(currentCarrier)
+          .update({
+            name: currentCarrier.name,
+            provider: currentCarrier.provider,
+            active: currentCarrier.active,
+            config: currentCarrier.config // Garante que o objeto config seja enviado
+          })
           .eq('id', currentCarrier.id);
         if (error) throw error;
         toast.success('Transportadora atualizada!');

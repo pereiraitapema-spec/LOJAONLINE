@@ -153,6 +153,7 @@ export default function Checkout() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createAccount, setCreateAccount] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
+  const [trackingCode, setTrackingCode] = useState<string | null>(null);
 
   const SuccessModal = () => (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -182,6 +183,12 @@ export default function Checkout() {
             <span className="text-slate-500 font-medium">Número do Pedido:</span>
             <span className="text-slate-900 font-bold font-mono">#{currentOrderId?.split('-')[0].toUpperCase()}</span>
           </div>
+          {trackingCode && (
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
+              <span className="text-slate-500 font-medium">Rastreio:</span>
+              <span className="text-indigo-600 font-bold font-mono">{trackingCode}</span>
+            </div>
+          )}
           <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex items-center gap-3 text-left">
             <Truck className="text-indigo-600 shrink-0" size={24} />
             <div>
@@ -193,7 +200,7 @@ export default function Checkout() {
 
         <div className="grid grid-cols-1 gap-3">
           <button 
-            onClick={() => navigate(`/tracking/${currentOrderId}`)}
+            onClick={() => navigate(`/tracking/${trackingCode || currentOrderId}`)}
             className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
           >
             Acompanhar Pedido
@@ -306,13 +313,24 @@ export default function Checkout() {
           supabase.from('shipping_carriers').select('*').eq('active', true)
         ]);
         
+        // Filtrar transportadoras baseado na configuração de serviços
+        const filteredCarriers = carriersData?.filter(carrier => {
+          if (carrier.provider === 'cepcerto') {
+            // Se for CepCerto, verifica os serviços configurados
+            const services = carrier.config?.services || {};
+            // Exemplo: se o método de frete for SEDEX, verifica se sedex está ativo
+            return true; // Simplificado para agora, preciso ajustar conforme o método de frete selecionado
+          }
+          return true;
+        }) || [];
+        
         if (settingsData) {
           setSettings(settingsData);
         }
         setDiscountRules(rulesData || []);
         setCampaigns(campaignsData || []);
         setGateways(gatewaysData || []);
-        setCarriers(carriersData || []);
+        setCarriers(filteredCarriers);
 
         // Check for first purchase
         if (session?.user) {
@@ -1132,6 +1150,7 @@ export default function Checkout() {
               .from('orders')
               .update({ tracking_code: labelResponse.tracking_code })
               .eq('id', orderId);
+            setTrackingCode(labelResponse.tracking_code);
           } else {
             console.error('❌ Erro ao gerar etiqueta:', labelResponse.error);
             toast.error('Pedido aprovado, mas houve erro ao gerar etiqueta de envio.');

@@ -609,8 +609,17 @@ export const shippingService = {
   },
 
   async generateLabel(orderId: string) {
-    const { data: order } = await supabase.from('orders').select('carrier_id').eq('id', orderId).single();
-    if (!order) return { success: false, error: 'Order not found' };
+    // Tenta buscar pelo ID completo (UUID) ou pelo ID curto (primeiros 8 caracteres)
+    let { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('id, carrier_id')
+      .or(`id.eq.${orderId},id.ilike.${orderId}%`)
+      .maybeSingle();
+
+    if (orderError || !order) {
+      console.error('❌ Pedido não encontrado:', orderId, orderError);
+      return { success: false, error: 'Order not found' };
+    }
     
     const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.carrier_id).single();
     if (!carrier) return { success: false, error: 'Carrier not found' };
@@ -618,7 +627,7 @@ export const shippingService = {
     const provider = providers[carrier.provider];
     if (!provider) return { success: false, error: 'Provider not found' };
 
-    return provider.generateLabel(orderId, carrier.config);
+    return provider.generateLabel(order.id, carrier.config);
   },
 
   async cancelLabel(orderId: string) {

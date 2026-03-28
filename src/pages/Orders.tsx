@@ -72,6 +72,9 @@ export default function Orders() {
 
   // Manual Order State
   const [showManualOrderModal, setShowManualOrderModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showPickingModal, setShowPickingModal] = useState(false);
+  const [pickingData, setPickingData] = useState<string>('');
   const [products, setProducts] = useState<any[]>([]);
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
   const [manualOrderData, setManualOrderData] = useState({
@@ -294,10 +297,16 @@ export default function Orders() {
   const handlePrintPickingList = async (orderId: string) => {
     setProcessingLogistics(true);
     try {
-      // Baixa o arquivo de texto com os dados do pedido para separação
-      const pickingUrl = `/api/logistics/picking-data/${orderId}`;
-      window.open(pickingUrl, '_blank');
-      toast.success('Lista de separação gerada!');
+      // Busca os dados de separação
+      const response = await fetch(`/api/logistics/picking-data/${orderId}`);
+      if (!response.ok) throw new Error('Erro ao buscar dados de separação');
+      const data = await response.text();
+      
+      // Abre um modal com os dados (precisamos implementar o estado do modal)
+      setPickingData(data);
+      setShowPickingModal(true);
+      
+      toast.success('Lista de separação carregada!');
     } catch (error: any) {
       toast.error('Erro ao gerar lista de separação: ' + error.message);
     } finally {
@@ -332,7 +341,6 @@ export default function Orders() {
     }
   };
   const [orderItems, setOrderItems] = useState<any[]>([]);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [loadingItems, setLoadingItems] = useState(false);
 
   const fetchData = async () => {
@@ -1079,6 +1087,17 @@ export default function Orders() {
         </div>
       )}
 
+      {/* Modal de Separação */}
+      {showPickingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-8">
+            <h2 className="text-xl font-bold mb-4">Lista de Separação</h2>
+            <pre className="bg-slate-100 p-4 rounded-xl text-xs font-mono overflow-auto max-h-96">{pickingData}</pre>
+            <button onClick={() => setShowPickingModal(false)} className="mt-6 w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700">Fechar</button>
+          </motion.div>
+        </div>
+      )}
+
       {/* Modal de Detalhes do Pedido */}
       {showDetailsModal && selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
@@ -1090,6 +1109,11 @@ export default function Orders() {
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-600 text-white">
               <div>
                 <h2 className="text-xl font-bold">Pedido #{selectedOrder.id.split('-')[0].toUpperCase()}</h2>
+                {selectedOrder.tracking_code && (
+                  <p className="text-xs font-bold text-amber-300 uppercase tracking-widest mt-1">
+                    Rastreio: {selectedOrder.tracking_code}
+                  </p>
+                )}
                 <p className="text-xs opacity-80">{new Date(selectedOrder.created_at).toLocaleString('pt-BR')}</p>
               </div>
               <button onClick={() => setShowDetailsModal(false)} className="hover:rotate-90 transition-transform">
