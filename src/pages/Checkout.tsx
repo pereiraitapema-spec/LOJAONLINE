@@ -85,13 +85,13 @@ export default function Checkout() {
         if (email) query = query.eq('email', email);
         else if (doc) query = query.eq('document', doc);
         
-        const { data, error } = await query.maybeSingle();
+        const { data, error } = await query.single(); // Alterado para single() para garantir busca exata
         
         if (data && !error) {
           console.log('✅ Cliente encontrado:', data);
           setCustomer(prev => ({ ...prev, ...data }));
           toast.success('Dados do cliente carregados!');
-        } else if (error) {
+        } else if (error && error.code !== 'PGRST116') { // PGRST116 é "not found"
           console.error('❌ Erro ao buscar cliente:', error);
         }
       }
@@ -1002,15 +1002,16 @@ export default function Checkout() {
 
           // 4. Comunicar com CepCerto para gerar etiqueta
           console.log('📦 Comunicando com CepCerto para gerar etiqueta...');
-          // Corrigido: passando apenas o ID do pedido
-          const labelResponse = await shippingService.generateLabel(orderData.id, cart);
+          // Garante que orderData.id é uma string
+          const orderId = typeof orderData.id === 'string' ? orderData.id : orderData.id.toString();
+          const labelResponse = await shippingService.generateLabel(orderId, cart);
           
           if (labelResponse.success && labelResponse.tracking_code) {
             console.log('✅ Etiqueta gerada com sucesso. Código de rastreio:', labelResponse.tracking_code);
             await supabase
               .from('orders')
               .update({ tracking_code: labelResponse.tracking_code })
-              .eq('id', orderData.id);
+              .eq('id', orderId);
           } else {
             console.error('❌ Erro ao gerar etiqueta:', labelResponse.error);
             toast.error('Pedido aprovado, mas houve erro ao gerar etiqueta de envio.');
