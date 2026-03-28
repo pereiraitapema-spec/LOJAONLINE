@@ -1002,7 +1002,8 @@ export default function Checkout() {
 
           // 4. Comunicar com CepCerto para gerar etiqueta
           console.log('📦 Comunicando com CepCerto para gerar etiqueta...');
-          const labelResponse = await shippingService.generateLabel(orderData, cart);
+          // Corrigido: passando apenas o ID do pedido
+          const labelResponse = await shippingService.generateLabel(orderData.id, cart);
           
           if (labelResponse.success && labelResponse.tracking_code) {
             console.log('✅ Etiqueta gerada com sucesso. Código de rastreio:', labelResponse.tracking_code);
