@@ -71,35 +71,40 @@ export default function Checkout() {
     password: ''
   });
 
-  // Efeito para buscar cliente ao preencher email ou CPF
+  // Efeito para buscar cliente logado automaticamente
   useEffect(() => {
-    const fetchCustomer = async () => {
-      const email = customer.email.trim();
-      const doc = customer.document.replace(/\D/g, '');
+    const fetchLoggedCustomer = async () => {
+      // Pega o usuário da sessão do Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+
+      console.log('🔍 Buscando dados do perfil logado:', session.user.id);
       
-      // Condição mais permissiva para disparar a busca
-      if (email.length > 5 || doc.length >= 11) {
-        console.log('🔍 Disparando busca de cliente:', { email, doc });
-        
-        const { data, error } = await supabase
-          .from('customers')
-          .select('*')
-          .or(`email.eq.${email},document.eq.${doc}`)
-          .maybeSingle();
-        
-        if (data && !error) {
-          console.log('✅ Cliente encontrado:', data);
-          setCustomer(prev => ({ ...prev, ...data }));
-          toast.success('Dados do cliente carregados!');
-        } else if (error) {
-          console.error('❌ Erro na busca:', error);
-        }
+      // O padrão do Supabase é usar a tabela 'profiles' vinculada ao auth.uid
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      
+      if (data && !error) {
+        console.log('✅ Perfil logado encontrado:', data);
+        // Mapeia os campos da tabela profiles para o estado customer
+        setCustomer(prev => ({ 
+          ...prev, 
+          name: data.full_name || data.name || '',
+          email: session.user.email || '',
+          phone: data.phone || '',
+          document: data.document || ''
+        }));
+        toast.success('Dados do seu perfil carregados!');
+      } else if (error) {
+        console.error('❌ Erro ao buscar perfil logado:', error);
       }
     };
     
-    const debounce = setTimeout(fetchCustomer, 800);
-    return () => clearTimeout(debounce);
-  }, [customer.email, customer.document]);
+    fetchLoggedCustomer();
+  }, []); // Executa apenas uma vez ao montar o componente
 
   const [shipping, setShipping] = useState({
     cep: '',
