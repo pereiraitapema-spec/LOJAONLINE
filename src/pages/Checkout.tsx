@@ -89,7 +89,7 @@ export default function Checkout() {
       
       if (data && !error) {
         console.log('✅ Perfil logado encontrado:', data);
-        // Mapeia os campos da tabela profiles para o estado customer
+        // Mapeia os campos da tabela profiles para o estado customer e shipping
         setCustomer(prev => ({ 
           ...prev, 
           name: data.full_name || data.name || '',
@@ -97,10 +97,23 @@ export default function Checkout() {
           phone: data.phone || '',
           document: data.document || ''
         }));
+        
+        // Mapeia o endereço se existir no perfil
+        if (data.address) {
+          setShipping(prev => ({
+            ...prev,
+            cep: data.address.cep || prev.cep || '',
+            street: data.address.street || prev.street || '',
+            number: data.address.number || prev.number || '',
+            complement: data.address.complement || prev.complement || '',
+            neighborhood: data.address.neighborhood || prev.neighborhood || '',
+            city: data.address.city || prev.city || '',
+            state: data.address.state || prev.state || ''
+          }));
+        }
+        
         toast.success('Dados do seu perfil carregados!');
       } else if (error) {
-        console.error('❌ Erro ao buscar perfil logado:', error);
-      }
     };
     
     fetchLoggedCustomer();
