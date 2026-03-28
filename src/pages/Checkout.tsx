@@ -316,6 +316,51 @@ export default function Checkout() {
 
         // Check for first purchase
         if (session?.user) {
+          // --- NOVA LÓGICA DE BUSCA UNIFICADA ---
+          console.log('🔍 Iniciando busca unificada de dados para:', session.user.id);
+          
+          // 1. Tenta buscar na tabela 'profiles'
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          // 2. Tenta buscar na tabela 'customers'
+          const { data: customerData } = await supabase
+            .from('customers')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .order('created_at', { ascending: false })
+            .maybeSingle();
+
+          // Consolida os dados
+          const userData = {
+            name: profile?.full_name || profile?.name || customerData?.customer_name || '',
+            email: session.user.email || customerData?.customer_email || '',
+            phone: profile?.phone || customerData?.customer_phone || '',
+            document: profile?.document || customerData?.customer_document || ''
+          };
+
+          console.log('✅ Dados consolidados:', userData);
+          setCustomer(prev => ({ ...prev, ...userData }));
+
+          // Mapeia o endereço
+          const address = profile?.address || customerData?.shipping_address;
+          if (address) {
+            setShipping(prev => ({
+              ...prev,
+              cep: address.cep || prev.cep || '',
+              street: address.street || prev.street || '',
+              number: address.number || prev.number || '',
+              complement: address.complement || prev.complement || '',
+              neighborhood: address.neighborhood || prev.neighborhood || '',
+              city: address.city || prev.city || '',
+              state: address.state || prev.state || ''
+            }));
+          }
+          // --- FIM DA NOVA LÓGICA ---
+
           const { count, error: countError } = await supabase
             .from('orders')
             .select('*', { count: 'exact', head: true })
