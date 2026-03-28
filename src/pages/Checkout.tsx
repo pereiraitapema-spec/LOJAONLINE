@@ -71,6 +71,25 @@ export default function Checkout() {
     password: ''
   });
 
+  // Efeito para buscar cliente ao preencher email ou CPF
+  useEffect(() => {
+    const fetchCustomer = async () => {
+      if ((customer.email || customer.document) && customer.email.length > 5) {
+        let query = supabase.from('customers').select('*');
+        if (customer.email) query = query.eq('email', customer.email);
+        else if (customer.document) query = query.eq('document', customer.document);
+        
+        const { data, error } = await query.maybeSingle();
+        if (data && !error) {
+          setCustomer(prev => ({ ...prev, ...data }));
+          toast.success('Dados do cliente carregados!');
+        }
+      }
+    };
+    const debounce = setTimeout(fetchCustomer, 1000);
+    return () => clearTimeout(debounce);
+  }, [customer.email, customer.document]);
+
   const [shipping, setShipping] = useState({
     cep: '',
     street: '',
@@ -970,6 +989,22 @@ export default function Checkout() {
           if (!paymentResponse.success) {
             throw new Error(paymentResponse.error || 'Erro ao processar pagamento com Pagar.me');
           }
+
+          // 4. Comunicar com CepCerto para gerar etiqueta
+          console.log('📦 Comunicando com CepCerto para gerar etiqueta...');
+          const labelResponse = await shippingService.generateLabel(orderData, cart);
+          
+          if (labelResponse.success && labelResponse.tracking_code) {
+            console.log('✅ Etiqueta gerada com sucesso. Código de rastreio:', labelResponse.tracking_code);
+            await supabase
+              .from('orders')
+              .update({ tracking_code: labelResponse.tracking_code })
+              .eq('id', orderData.id);
+          } else {
+            console.error('❌ Erro ao gerar etiqueta:', labelResponse.error);
+            toast.error('Pedido aprovado, mas houve erro ao gerar etiqueta de envio.');
+          }
+
         } catch (err: any) {
           console.error('❌ Erro no processamento de pagamento:', err);
           toast.error(`Erro no pagamento: ${err.message}`);
@@ -1438,22 +1473,6 @@ export default function Checkout() {
                   >
                     <CreditCard size={20} />
                     <span className="font-bold text-xs">Cartão Crédito</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPagarmeMethod('debit_card')}
-                    className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${pagarmeMethod === 'debit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                  >
-                    <CreditCard size={20} />
-                    <span className="font-bold text-xs">Cartão Débito</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPagarmeMethod('boleto')}
-                    className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${pagarmeMethod === 'boleto' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                  >
-                    <Barcode size={20} />
-                    <span className="font-bold text-xs">Boleto</span>
                   </button>
                 </div>
               )}

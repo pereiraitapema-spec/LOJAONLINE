@@ -153,15 +153,16 @@ const pagarmeProvider: PaymentProvider = {
         let boletoData = null;
         
         // Log para depuração da estrutura de resposta
-        console.log('🔍 Estrutura da resposta do gateway:', JSON.stringify(data, null, 2));
+        console.log('🔍 RAW RESPONSE DO GATEWAY:', JSON.stringify(data, null, 2));
 
         if (data.charges?.[0]?.last_transaction) {
           const transaction = data.charges[0].last_transaction;
           if (orderData.payment_method === 'pix') {
+            // Tenta extrair de várias formas possíveis baseadas na API V5
             pixData = {
-              qr_code: transaction.qr_code,
-              qr_code_url: transaction.qr_code_url,
-              expires_at: transaction.expires_at
+              qr_code: transaction.qr_code || transaction.pix?.qr_code,
+              qr_code_url: transaction.qr_code_url || transaction.pix?.qr_code_url,
+              expires_at: transaction.expires_at || transaction.pix?.expires_at
             };
           }
         } else if (data.pix) {
