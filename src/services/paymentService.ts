@@ -106,7 +106,7 @@ const pagarmeProvider: PaymentProvider = {
                   }
                 } : undefined,
                 boleto: orderData.payment_method === 'boleto' ? {
-                  bank: 'itau', // Ou dinâmico se necessário
+                  bank: 'itau',
                   instructions: 'Pagar até o vencimento',
                   due_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
                 } : undefined,
@@ -120,7 +120,17 @@ const pagarmeProvider: PaymentProvider = {
                   ]
                 } : undefined
               }
-            ]
+            ].filter(p => {
+              // Remove o objeto de pagamento se o método não for o selecionado
+              // (Isso limpa os campos undefined que o Pagar.me rejeita)
+              const method = p.payment_method;
+              return (
+                (method === 'credit_card' && p.credit_card) ||
+                (method === 'debit_card' && p.debit_card) ||
+                (method === 'boleto' && p.boleto) ||
+                (method === 'pix' && p.pix)
+              );
+            })
           },
           config
         }),
