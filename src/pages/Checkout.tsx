@@ -340,6 +340,25 @@ export default function Checkout() {
           }
           console.log('📦 Dados do último pedido encontrado por e-mail:', lastOrder);
 
+          // 3. Tenta buscar cartões salvos na tabela 'saved_cards'
+          const { data: savedCards } = await supabase
+            .from('saved_cards')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .order('created_at', { ascending: false });
+
+          if (savedCards && savedCards.length > 0) {
+            console.log('💳 Cartões salvos encontrados:', savedCards);
+            const card = savedCards[0];
+            // Preenche o estado do cartão. Assumindo que o estado se chama 'cardData'
+            setCardData(prev => ({
+              ...prev,
+              number: `****.****.****.${card.last_four_digits}`,
+              brand: card.brand,
+              // Nota: Não é possível recuperar o nome ou CVV por segurança
+            }));
+          }
+
           // Consolida os dados (prioridade para profiles, depois lastOrder)
           const userData = {
             name: profile?.full_name || profile?.name || lastOrder?.customer_name || '',

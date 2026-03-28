@@ -202,7 +202,7 @@ export default function Settings() {
     try {
       const { data, error } = await supabase
         .from('store_settings')
-        .select('*'); // Removemos o maybeSingle()
+        .select('*');
 
       if (error) {
         if (error.message.includes('does not exist') || error.code === '42P01') {
@@ -213,102 +213,58 @@ export default function Settings() {
         throw error;
       }
 
+      let settingsData;
       if (data && data.length > 0) {
-        // Pega a primeira configuração encontrada
-        const settingsData = data[0];
-        
-        // Migração automática de legado para novo formato
-        let socialLinks = settingsData.social_links || [];
-        if (socialLinks.length === 0) {
-          if (settingsData.instagram) socialLinks.push({ platform: 'Instagram', url: settingsData.instagram, active: true });
-          if (settingsData.facebook) socialLinks.push({ platform: 'Facebook', url: settingsData.facebook, active: true });
-        }
-
-        setSettings({
-          ...settingsData,
-          payment_methods: settingsData.payment_methods || [],
-          shipping_methods: settingsData.shipping_methods || [
-            { name: 'Correios (PAC)', price: 25.90, deadline: '7 a 10 dias úteis', active: true },
-            { name: 'Correios (SEDEX)', price: 45.90, deadline: '2 a 4 dias úteis', active: true }
-          ],
-          free_shipping_threshold: settingsData.free_shipping_threshold !== undefined ? settingsData.free_shipping_threshold : 299.00,
-          institutional_links: settingsData.institutional_links || [],
-          social_links: socialLinks,
-          // ... (restante do mapeamento mantido)
-          promotions_section_title: settingsData.promotions_section_title || 'CAMPANHAS E PROMOÇÕES',
-          promotions_section_subtitle: settingsData.promotions_section_subtitle || 'Aproveite nossas ofertas exclusivas',
-          products_section_title: settingsData.products_section_title || 'Novidades da Estação',
-          products_section_subtitle: settingsData.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
-          tracking_pixels: settingsData.tracking_pixels || [],
-          debug_mode: settingsData.debug_mode || false,
-          n8n_webhook_url: settingsData.n8n_webhook_url || '',
-          origin_zip_code: settingsData.origin_zip_code || '',
-          ai_chat_rules: settingsData.ai_chat_rules || '',
-          ai_chat_triggers: settingsData.ai_chat_triggers || '',
-          ai_auto_learning: settingsData.ai_auto_learning || false,
-          nfe_provider: settingsData.nfe_provider || 'manual',
-          nfe_token: settingsData.nfe_token || '',
-          nfe_company_id: settingsData.nfe_company_id || ''
-        });
+        settingsData = data[0];
       } else {
-        console.warn('Nenhuma configuração encontrada.');
-      }
-    } catch (error: any) {
-      console.error('Error fetching settings:', error);
-      toast.error('Erro ao carregar configurações: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-            .insert([{
-              company_name: 'Minha Loja',
-              promotions_section_title: 'PROMOÇÕES DA SEMANA',
-              promotions_section_subtitle: 'Aproveite nossas ofertas exclusivas',
-              payment_methods: [],
-              institutional_links: []
-            }])
-            .select()
-            .single();
-            
-          if (insertError) throw insertError;
-          setSettings(newData);
-        } catch (insertError: any) {
-          console.error('Erro ao criar configurações iniciais:', insertError);
-          setShowSql(true);
-        }
-      } else {
-        // Migração automática de legado para novo formato
-        let socialLinks = data.social_links || [];
-        if (socialLinks.length === 0) {
-          if (data.instagram) socialLinks.push({ platform: 'Instagram', url: data.instagram, active: true });
-          if (data.facebook) socialLinks.push({ platform: 'Facebook', url: data.facebook, active: true });
-        }
+        // Se não houver dados, tenta inserir
+        const { data: newData, error: insertError } = await supabase
+          .from('store_settings')
+          .insert([{
+            company_name: 'Minha Loja',
+            promotions_section_title: 'PROMOÇÕES DA SEMANA',
+            promotions_section_subtitle: 'Aproveite nossas ofertas exclusivas',
+            payment_methods: [],
+            institutional_links: []
+          }])
+          .select();
 
-        setSettings({
-          ...data,
-          payment_methods: data.payment_methods || [],
-          shipping_methods: data.shipping_methods || [
-            { name: 'Correios (PAC)', price: 25.90, deadline: '7 a 10 dias úteis', active: true },
-            { name: 'Correios (SEDEX)', price: 45.90, deadline: '2 a 4 dias úteis', active: true }
-          ],
-          free_shipping_threshold: data.free_shipping_threshold !== undefined ? data.free_shipping_threshold : 299.00,
-          institutional_links: data.institutional_links || [],
-          social_links: socialLinks,
-          promotions_section_title: data.promotions_section_title || 'CAMPANHAS E PROMOÇÕES',
-          promotions_section_subtitle: data.promotions_section_subtitle || 'Aproveite nossas ofertas exclusivas',
-          products_section_title: data.products_section_title || 'Novidades da Estação',
-          products_section_subtitle: data.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
-          tracking_pixels: data.tracking_pixels || [],
-          debug_mode: data.debug_mode || false,
-          n8n_webhook_url: data.n8n_webhook_url || '',
-          origin_zip_code: data.origin_zip_code || '',
-          ai_chat_rules: data.ai_chat_rules || '1. Use gatilhos mentais: Escassez ("Últimas unidades com desconto"), Urgência, Autoridade e Prova Social.\n2. Conhecimento do Site: Use o contexto abaixo para falar com propriedade sobre cada produto.\n3. Se o cliente demonstrar interesse em emagrecimento, sugira o combo mais vendido.\n4. Sempre termine com uma pergunta que incentive a continuação da conversa ou a compra.\n5. Use emojis moderadamente para parecer amigável, mas mantenha o profissionalismo.\n6. Se o cliente perguntar sobre frete, mencione que temos condições especiais para compras acima de R$ 200.',
-          ai_chat_triggers: data.ai_chat_triggers || 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?',
-          nfe_provider: data.nfe_provider || 'manual',
-          nfe_token: data.nfe_token || '',
-          nfe_company_id: data.nfe_company_id || ''
-        });
+        if (insertError) throw insertError;
+        settingsData = newData[0];
       }
+
+      // Migração automática de legado para novo formato
+      let socialLinks = settingsData.social_links || [];
+      if (socialLinks.length === 0) {
+        if (settingsData.instagram) socialLinks.push({ platform: 'Instagram', url: settingsData.instagram, active: true });
+        if (settingsData.facebook) socialLinks.push({ platform: 'Facebook', url: settingsData.facebook, active: true });
+      }
+
+      setSettings({
+        ...settingsData,
+        payment_methods: settingsData.payment_methods || [],
+        shipping_methods: settingsData.shipping_methods || [
+          { name: 'Correios (PAC)', price: 25.90, deadline: '7 a 10 dias úteis', active: true },
+          { name: 'Correios (SEDEX)', price: 45.90, deadline: '2 a 4 dias úteis', active: true }
+        ],
+        free_shipping_threshold: settingsData.free_shipping_threshold !== undefined ? settingsData.free_shipping_threshold : 299.00,
+        institutional_links: settingsData.institutional_links || [],
+        social_links: socialLinks,
+        promotions_section_title: settingsData.promotions_section_title || 'CAMPANHAS E PROMOÇÕES',
+        promotions_section_subtitle: settingsData.promotions_section_subtitle || 'Aproveite nossas ofertas exclusivas',
+        products_section_title: settingsData.products_section_title || 'Novidades da Estação',
+        products_section_subtitle: settingsData.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
+        tracking_pixels: settingsData.tracking_pixels || [],
+        debug_mode: settingsData.debug_mode || false,
+        n8n_webhook_url: settingsData.n8n_webhook_url || '',
+        origin_zip_code: settingsData.origin_zip_code || '',
+        ai_chat_rules: settingsData.ai_chat_rules || '',
+        ai_chat_triggers: settingsData.ai_chat_triggers || '',
+        ai_auto_learning: settingsData.ai_chat_triggers || false,
+        nfe_provider: settingsData.nfe_provider || 'manual',
+        nfe_token: settingsData.nfe_token || '',
+        nfe_company_id: settingsData.nfe_company_id || ''
+      });
     } catch (error: any) {
       console.error('Error fetching settings:', error);
       toast.error('Erro ao carregar configurações: ' + error.message);
