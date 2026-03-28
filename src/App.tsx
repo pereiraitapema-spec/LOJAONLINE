@@ -297,7 +297,7 @@ function AppContent() {
               id: userId,
               email: userEmail,
               role: 'admin',
-              full_name: 'Admin Master'
+              full_name: userEmail.split('@')[0]
             }, { onConflict: 'id' }),
             3000
           );
