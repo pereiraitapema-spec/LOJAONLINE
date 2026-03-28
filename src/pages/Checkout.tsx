@@ -916,6 +916,25 @@ export default function Checkout() {
       
       console.log('✅ Pedido criado com sucesso no Supabase:', orderData);
       
+      // Atualizar perfil do usuário com os dados do checkout
+      if (currentUserId) {
+        console.log('🔄 Atualizando perfil do usuário:', currentUserId);
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            full_name: customer.name,
+            phone: customer.phone.replace(/\D/g, ''),
+            document: customer.document.replace(/\D/g, '')
+          })
+          .eq('id', currentUserId);
+        
+        if (profileError) {
+          console.error('❌ Erro ao atualizar perfil:', profileError);
+        } else {
+          console.log('✅ Perfil atualizado com sucesso!');
+        }
+      }
+      
       // Marcar como lead quente ao realizar pedido
       leadService.updateStatus('quente');
 
@@ -1025,7 +1044,12 @@ export default function Checkout() {
           console.log('📦 Comunicando com CepCerto para gerar etiqueta...');
           // Garante que orderData.id é uma string
           const orderId = typeof orderData.id === 'string' ? orderData.id : orderData.id.toString();
-          const labelResponse = await shippingService.generateLabel(orderId, cart);
+          
+          // Aguardar um pouco para garantir consistência no banco antes de buscar para etiqueta
+          console.log('⏱️ Aguardando consistência do banco...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          const labelResponse = await shippingService.generateLabel(orderId);
           
           if (labelResponse.success && labelResponse.tracking_code) {
             console.log('✅ Etiqueta gerada com sucesso. Código de rastreio:', labelResponse.tracking_code);
