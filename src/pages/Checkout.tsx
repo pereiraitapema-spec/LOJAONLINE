@@ -85,14 +85,16 @@ export default function Checkout() {
         if (email) query = query.eq('email', email);
         else if (doc) query = query.eq('document', doc);
         
-        const { data, error } = await query.single(); // Alterado para single() para garantir busca exata
+        console.log('🔍 Query Supabase:', query);
+        const { data, error } = await query.single();
         
         if (data && !error) {
           console.log('✅ Cliente encontrado:', data);
           setCustomer(prev => ({ ...prev, ...data }));
           toast.success('Dados do cliente carregados!');
-        } else if (error && error.code !== 'PGRST116') { // PGRST116 é "not found"
+        } else if (error && error.code !== 'PGRST116') {
           console.error('❌ Erro ao buscar cliente:', error);
+          console.error('❌ Detalhes do erro:', JSON.stringify(error));
         }
       }
     };
