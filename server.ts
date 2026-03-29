@@ -124,6 +124,8 @@ async function startServer() {
       
       const response = await fetch(url);
       
+      console.log('🔍 Status da resposta CepCerto:', response.status, response.statusText);
+      
       // Verifica se a resposta é JSON
       const contentType = response.headers.get("content-type");
       if (contentType && contentType.indexOf("application/json") !== -1) {
