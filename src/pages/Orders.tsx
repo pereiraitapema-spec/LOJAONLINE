@@ -65,6 +65,8 @@ export default function Orders() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [dateFilter, setDateFilter] = useState(''); // '30', '60', '90', 'all'
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [activeTab, setActiveTab] = useState<'orders' | 'abandoned'>('orders');
@@ -622,16 +624,15 @@ export default function Orders() {
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
 
     let matchesDate = true;
-    if (dateFilter) {
-      const orderDate = new Date(order.created_at);
-      const now = new Date();
-      const diffTime = Math.abs(now.getTime() - orderDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (dateFilter === '30') matchesDate = diffDays <= 30;
-      if (dateFilter === '60') matchesDate = diffDays <= 60;
-      if (dateFilter === '90') matchesDate = diffDays <= 90;
-      if (dateFilter === 'older_90') matchesDate = diffDays > 90; // Leads inativos
+    const orderDate = new Date(order.created_at);
+    if (startDate) {
+      matchesDate = matchesDate && orderDate >= new Date(startDate);
+    }
+    if (endDate) {
+      // Ajusta para o final do dia
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      matchesDate = matchesDate && orderDate <= end;
     }
 
     return matchesSearch && matchesStatus && matchesDate;
@@ -746,18 +747,23 @@ export default function Orders() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data da Compra</label>
-                <select 
-                  value={dateFilter}
-                  onChange={e => setDateFilter(e.target.value)}
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data Inicial</label>
+                <input 
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                >
-                  <option value="">Qualquer data</option>
-                  <option value="30">Últimos 30 dias</option>
-                  <option value="60">Últimos 60 dias</option>
-                  <option value="90">Últimos 90 dias</option>
-                  <option value="older_90">Mais de 90 dias (Leads Inativos)</option>
-                </select>
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data Final</label>
+                <input 
+                  type="date"
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
               </div>
             </motion.div>
           )}
