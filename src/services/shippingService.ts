@@ -344,8 +344,8 @@ const cepcertoProvider: ShippingProvider = {
     console.log('📦 Gerando etiqueta real CepCerto para o pedido:', orderId);
     
     try {
-      // Chamada através do proxy no backend
-      const response = await fetch(`${window.location.origin}/api/cepcerto/generate-label`, {
+      // Chamada através da Edge Function do Supabase (Proxy Profissional)
+      const response = await fetch('https://bnqxinknkjvfbaqaopjc.supabase.co/functions/v1/cepcerto-proxy', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

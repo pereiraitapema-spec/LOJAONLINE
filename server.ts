@@ -17,38 +17,6 @@ async function startServer() {
   app.use(cors());
   app.use(express.json()); // Essencial para ler o body da requisição
 
-  // Rota de API - NO TOPO para evitar interceptação
-  app.post("/api/cepcerto/generate-label", async (req, res) => {
-    console.log('🚀 Rota /api/cepcerto/generate-label atingida!');
-    const { orderId, apiKeyPostagem } = req.body;
-    
-    if (!orderId || !apiKeyPostagem) {
-      return res.status(400).json({ success: false, error: 'Dados incompletos.' });
-    }
-
-    try {
-      const shortOrderId = orderId.substring(0, 8);
-      const url = `https://www.cepcerto.com/ws/json-postagem/${shortOrderId}/${apiKeyPostagem}`;
-      console.log('🔗 URL Postagem CepCerto (Proxy):', url);
-      
-      const response = await fetch(url);
-      const text = await response.text();
-      
-      if (response.ok) {
-        try {
-          const data = JSON.parse(text);
-          return res.json({ success: true, data });
-        } catch (e) {
-          return res.json({ success: true, data: { raw: text } });
-        }
-      } else {
-        return res.status(response.status).json({ success: false, error: `CepCerto falhou: ${response.statusText}`, details: text });
-      }
-    } catch (error: any) {
-      return res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
   // Profissional: Confiar no proxy reverso
   app.set('trust proxy', 1);
 
