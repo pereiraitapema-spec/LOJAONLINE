@@ -21,8 +21,10 @@ import {
   Printer,
   Ban,
   MapPin,
-  Zap
+  Zap,
+  QrCode
 } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { shippingService } from '../services/shippingService';
@@ -78,6 +80,8 @@ export default function Orders() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showPickingModal, setShowPickingModal] = useState(false);
   const [pickingData, setPickingData] = useState<{ summary: Record<string, number>, orders: any[] } | null>(null);
+  const [manualTracking, setManualTracking] = useState<Record<string, string>>({});
+  const [isUpdatingTracking, setIsUpdatingTracking] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
   const [manualOrderData, setManualOrderData] = useState({
@@ -532,6 +536,149 @@ export default function Orders() {
         document.body.removeChild(iframe);
       }
     }, 5000);
+  };
+
+  const getTrackingUrl = (trackingCode: string, shippingMethod?: string) => {
+    const method = (shippingMethod || '').toUpperCase();
+    if (method.includes('CORREIOS') || method.includes('SEDEX') || method.includes('PAC')) {
+      return `https://rastreamento.correios.com.br/app/index.php?codigo=${trackingCode}`;
+    }
+    if (method.includes('JADLOG')) {
+      return `https://www.jadlog.com.br/siteInstitucional/tracking.jad?tracking=${trackingCode}`;
+    }
+    return `https://www.google.com/search?q=rastreio+${trackingCode}`;
+  };
+
+  const updateOrderTracking = async (orderId: string) => {
+    const code = manualTracking[orderId];
+    if (!code) {
+      toast.error('Informe o código de rastreio');
+      return;
+    }
+
+    try {
+      setIsUpdatingTracking(true);
+      await shippingService.updateTrackingCode(orderId, code);
+      
+      // Update local state
+      setPickingData((prev: any) => ({
+        ...prev,
+        orders: prev.orders.map((o: any) => 
+          o.id === orderId ? { ...o, tracking_code: code } : o
+        )
+      }));
+      
+      toast.success('Rastreio atualizado!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao atualizar rastreio');
+    } finally {
+      setIsUpdatingTracking(false);
+    }
+  };
+
+  const printShippingLabels = async () => {
+    if (!pickingData) {
+      toast.error('Sem dados para etiquetas');
+      return;
+    }
+
+    const ordersWithTracking = pickingData.orders.filter((o: any) => o.tracking_code || manualTracking[o.id]);
+    
+    if (ordersWithTracking.length === 0) {
+      toast.error('Nenhum pedido com código de rastreio');
+      return;
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.top = '-10000px';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    const labelsHtml = ordersWithTracking.map((order: any) => {
+      const tracking = order.tracking_code || manualTracking[order.id];
+      const trackingUrl = getTrackingUrl(tracking, order.shipping_method);
+      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(trackingUrl)}`;
+
+      const addr = order.shipping_address || {};
+      const recipient = `
+        <strong>${order.customer_name}</strong><br/>
+        ${addr.street || 'Endereço não informado'}, ${addr.number || 'S/N'}${addr.complement ? ` - ${addr.complement}` : ''}<br/>
+        ${addr.neighborhood || ''} - ${addr.city || ''}/${addr.state || ''}<br/>
+        CEP: ${addr.zip_code || ''}
+      `;
+
+      return `
+        <div style="width: 100mm; height: 140mm; border: 2px solid #000; padding: 15px; margin-bottom: 20px; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; position: relative; page-break-after: always; background: #fff;">
+          <div style="display: flex; justify-content: space-between; border-bottom: 3px solid #000; padding-bottom: 10px; margin-bottom: 15px;">
+            <div style="font-size: 22px; font-weight: 900; letter-spacing: -1px;">DESTINATÁRIO</div>
+            <div style="font-size: 12px; text-align: right; font-weight: bold;">PEDIDO: #${order.id.split('-')[0].toUpperCase()}</div>
+          </div>
+          
+          <div style="font-size: 16px; line-height: 1.5; margin-bottom: 30px; color: #000;">
+            ${recipient}
+          </div>
+
+          <div style="border: 2px solid #000; padding: 15px; border-radius: 8px; background: #f9f9f9;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-size: 11px; font-weight: 800; color: #666; text-transform: uppercase; margin-bottom: 4px;">Código de Rastreio</div>
+                <div style="font-size: 24px; font-weight: 900; font-family: 'Courier New', monospace; letter-spacing: 1px;">${tracking}</div>
+                <div style="font-size: 12px; margin-top: 8px; font-weight: 600;">Transportadora: ${order.shipping_method || 'Padrão'}</div>
+              </div>
+              <div style="text-align: center; background: #fff; padding: 5px; border: 1px solid #eee;">
+                <img src="${qrCodeUrl}" style="width: 110px; height: 110px; display: block;" />
+                <div style="font-size: 8px; font-weight: bold; margin-top: 4px; color: #000;">RASTREIO RÁPIDO</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="position: absolute; bottom: 15px; left: 15px; right: 15px; border-top: 1px solid #ccc; padding-top: 10px; font-size: 10px; color: #444;">
+            <div style="font-weight: bold; text-transform: uppercase; margin-bottom: 2px; font-size: 9px;">Remetente:</div>
+            Magnifique4Life - Itapema/SC - contato@magnifique4life.com.br
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Etiquetas de Envio</title>
+          <style>
+            @page { size: 100mm 150mm; margin: 0; }
+            body { margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; background: #f0f0f0; }
+            @media print {
+              body { background: #fff; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          ${labelsHtml}
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.focus();
+                window.print();
+              }, 800);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    // Limpeza
+    setTimeout(() => {
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    }, 10000);
   };
 
   const toggleSelectAll = () => {
@@ -1341,11 +1488,45 @@ export default function Orders() {
               <div className="space-y-4">
                 {pickingData.orders.map((order: any) => (
                   <div key={order.id} className="border border-slate-300 p-4 rounded-lg">
-                    <div className="font-bold text-slate-900 mb-2 border-b border-slate-200 pb-2">
-                      Pedido: {order.id.split('-')[0].toUpperCase()} | 
-                      Cliente: {order.customer_name} | 
-                      Cidade: {order.shipping_address?.city || 'N/A'} | 
-                      Rastreio: {order.tracking_code || 'Não gerado'}
+                    <div className="font-bold text-slate-900 mb-2 border-b border-slate-200 pb-2 flex justify-between items-center">
+                      <span>
+                        Pedido: {order.id.split('-')[0].toUpperCase()} | 
+                        Cliente: {order.customer_name} | 
+                        Cidade: {order.shipping_address?.city || 'N/A'}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500">Rastreio:</span>
+                        {order.tracking_code ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">{order.tracking_code}</span>
+                            <div className="p-1 bg-white border border-slate-200 rounded shadow-sm">
+                              <QRCodeCanvas 
+                                value={getTrackingUrl(order.tracking_code, order.shipping_method)} 
+                                size={40}
+                                level="L"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <input 
+                              type="text" 
+                              placeholder="Código manual"
+                              className="text-xs border border-slate-300 rounded px-2 py-1 w-32 focus:ring-1 focus:ring-indigo-500 outline-none"
+                              value={manualTracking[order.id] || ''}
+                              onChange={(e) => setManualTracking(prev => ({ ...prev, [order.id]: e.target.value.toUpperCase() }))}
+                            />
+                            <button 
+                              onClick={() => updateOrderTracking(order.id)}
+                              disabled={isUpdatingTracking}
+                              className="p-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                              title="Salvar Rastreio"
+                            >
+                              <Save size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-1">
                       {order.order_items.map((item: any, idx: number) => (
@@ -1367,7 +1548,14 @@ export default function Orders() {
                 <Printer size={20} />
                 Imprimir / Salvar PDF
               </button>
-              <button onClick={() => setShowPickingModal(false)} className="flex-1 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Fechar</button>
+              <button 
+                onClick={printShippingLabels} 
+                className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
+              >
+                <QrCode size={20} />
+                Gerar Etiquetas
+              </button>
+              <button onClick={() => setShowPickingModal(false)} className="px-6 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Fechar</button>
             </div>
           </motion.div>
         </div>
