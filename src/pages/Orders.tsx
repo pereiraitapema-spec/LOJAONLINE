@@ -1740,35 +1740,70 @@ export default function Orders() {
                                 const destZip = getZip(addr);
                                 const script = `
                                   (function() {
-                                    const fields = {
-                                      'cep_origem': '${originZip}',
-                                      'cep_destino': '${destZip}',
+                                    console.log('🚀 Iniciando preenchimento automático...');
+                                    const data = {
+                                      'origem': '${originZip}',
+                                      'destino': '${destZip}',
                                       'peso': '0.500',
                                       'altura': '10',
                                       'largura': '15',
-                                      'comprimento': '20',
-                                      'valor_seguro': '${selectedOrder.total.toFixed(2)}'
+                                      'comp': '20',
+                                      'seguro': '${selectedOrder.total.toFixed(2)}'
                                     };
-                                    for (const [id, val] of Object.entries(fields)) {
-                                      const el = document.getElementById(id) || document.querySelector(\`[name="\${id}"]\`) || document.querySelector(\`[placeholder*="\${id}"]\`);
-                                      if (el) { 
-                                        el.value = val; 
-                                        el.dispatchEvent(new Event('input', { bubbles: true }));
-                                        el.dispatchEvent(new Event('change', { bubbles: true })); 
+
+                                    // Função para encontrar e preencher
+                                    function fill(labelPart, value) {
+                                      const inputs = Array.from(document.querySelectorAll('input, select'));
+                                      const target = inputs.find(i => {
+                                        const name = (i.name || '').toLowerCase();
+                                        const id = (i.id || '').toLowerCase();
+                                        const placeholder = (i.placeholder || '').toLowerCase();
+                                        const label = i.labels && i.labels[0] ? i.labels[0].innerText.toLowerCase() : '';
+                                        return name.includes(labelPart) || id.includes(labelPart) || placeholder.includes(labelPart) || label.includes(labelPart);
+                                      });
+
+                                      if (target) {
+                                        target.value = value;
+                                        target.dispatchEvent(new Event('input', { bubbles: true }));
+                                        target.dispatchEvent(new Event('change', { bubbles: true }));
+                                        console.log('✅ Preenchido: ' + labelPart);
+                                        return true;
                                       }
+                                      return false;
                                     }
-                                    alert('Dados do pedido #${selectedOrder.id.split('-')[0].toUpperCase()} preenchidos! Confira e pague.');
+
+                                    fill('origem', data.origem);
+                                    fill('destino', data.destino);
+                                    fill('peso', data.peso);
+                                    fill('altura', data.altura);
+                                    fill('largura', data.largura);
+                                    fill('comp', data.comp);
+                                    fill('seguro', data.seguro);
+
+                                    alert('Dados do Pedido #${selectedOrder.id.split('-')[0].toUpperCase()} preenchidos!\\n\\nConfira os valores e clique em Gerar Etiqueta.');
                                   })();
                                 `.trim();
                                 navigator.clipboard.writeText(script);
-                                toast.success('Script copiado! Cole no Console (F12) do CepCerto.');
+                                toast.success('Script copiado! Siga as instruções abaixo.');
                               }}
-                              className="w-full flex items-center justify-center gap-2 p-2 bg-indigo-600 text-white rounded-lg text-[10px] font-bold hover:bg-indigo-700 transition-all shadow-sm"
+                              className="w-full flex items-center justify-center gap-2 p-3 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-md"
                               title="Copia um script para preencher o site automaticamente via Console"
                             >
-                              <Zap size={12} />
-                              Copiar Script Automático (F12)
+                              <Zap size={16} />
+                              Copiar Script de Preenchimento (F12)
                             </button>
+
+                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                              <p className="text-[10px] font-bold text-amber-800 uppercase mb-1 flex items-center gap-1">
+                                <Clock size={12} /> Como usar no CepCerto:
+                              </p>
+                              <ol className="text-[10px] text-amber-700 space-y-1 list-decimal ml-4">
+                                <li>No site do CepCerto, aperte <b>F12</b> no teclado.</li>
+                                <li>Clique na aba <b>Console</b> à direita.</li>
+                                <li>Se for a primeira vez, digite <code className="bg-amber-100 px-1">allow pasting</code> e dê Enter.</li>
+                                <li>Cole o script (Ctrl+V) e dê <b>Enter</b>.</li>
+                              </ol>
+                            </div>
 
                             {[
                               { label: 'Nome', value: selectedOrder.customer_name },
