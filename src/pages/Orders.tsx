@@ -77,7 +77,7 @@ export default function Orders() {
   const [showManualOrderModal, setShowManualOrderModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showPickingModal, setShowPickingModal] = useState(false);
-  const [pickingData, setPickingData] = useState<string>('');
+  const [pickingData, setPickingData] = useState<{ summary: Record<string, number>, orders: any[] } | null>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
   const [manualOrderData, setManualOrderData] = useState({
@@ -425,27 +425,27 @@ export default function Orders() {
     try {
       setLoadingItems(true);
       
-      // 1. Busca todos os itens dos pedidos selecionados
-      const { data: items, error } = await supabase
-        .from('order_items')
-        .select('product_name, quantity')
-        .in('order_id', selectedOrderIds);
+      // 1. Busca os pedidos com seus itens
+      const { data: detailedOrders, error } = await supabase
+        .from('orders')
+        .select('id, created_at, customer_name, order_items(product_name, quantity)')
+        .in('id', selectedOrderIds);
       
       if (error) throw error;
 
-      // 2. Agrupa os produtos
+      // 2. Agrupa os produtos para o resumo
       const summary: Record<string, number> = {};
-      items?.forEach(item => {
-        summary[item.product_name] = (summary[item.product_name] || 0) + item.quantity;
+      detailedOrders?.forEach(order => {
+        order.order_items.forEach((item: any) => {
+          summary[item.product_name] = (summary[item.product_name] || 0) + item.quantity;
+        });
       });
 
-      // 3. Formata o resumo
-      let pickingText = "RESUMO DE SEPARAÇÃO (LOTE):\n\n";
-      Object.entries(summary).forEach(([name, qty]) => {
-        pickingText += `${name}: ${qty}\n`;
+      // 3. Estrutura os dados para o modal
+      setPickingData({
+        summary,
+        orders: detailedOrders || []
       });
-
-      setPickingData(pickingText);
       setShowPickingModal(true);
       toast.success('Lista de separação gerada!');
     } catch (error: any) {
@@ -1177,12 +1177,44 @@ export default function Orders() {
       )}
 
       {/* Modal de Separação */}
-      {showPickingModal && (
+      {showPickingModal && pickingData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-8">
-            <h2 className="text-xl font-bold mb-4">Lista de Separação</h2>
-            <pre className="bg-slate-100 p-4 rounded-xl text-sm font-mono overflow-auto max-h-96 whitespace-pre-wrap">{pickingData}</pre>
-            <div className="flex gap-3 mt-6">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-6">Lista de Separação</h2>
+            
+            {/* Resumo */}
+            <div className="bg-indigo-50 p-4 rounded-2xl mb-6">
+              <h3 className="font-bold text-indigo-900 mb-2">Resumo Geral</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(pickingData.summary).map(([name, qty]) => (
+                  <div key={name} className="flex justify-between bg-white p-2 rounded-lg">
+                    <span className="text-sm text-slate-600">{name}</span>
+                    <span className="font-bold text-indigo-700">{qty}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Pedidos */}
+            <div className="space-y-4">
+              {pickingData.orders.map((order: any) => (
+                <div key={order.id} className="border border-slate-200 rounded-2xl p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <p className="font-bold text-slate-900">{order.customer_name}</p>
+                    <p className="text-xs text-slate-500">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                  <div className="space-y-1">
+                    {order.order_items.map((item: any, idx: number) => (
+                      <p key={idx} className="text-sm text-slate-600">
+                        {item.product_name} <span className="font-bold">({item.quantity}x)</span>
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-3 mt-8">
               <button onClick={() => window.print()} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700">Imprimir / Salvar PDF</button>
               <button onClick={() => setShowPickingModal(false)} className="flex-1 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Fechar</button>
             </div>
