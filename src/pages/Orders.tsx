@@ -307,7 +307,10 @@ export default function Orders() {
       const jsonData = JSON.parse(data);
       
       // Abre um modal com os dados (precisamos implementar o estado do modal)
-      setPickingData(jsonData);
+      setPickingData({
+        summary: jsonData.summary || {},
+        orders: jsonData.orders || []
+      });
       setShowPickingModal(true);
       
       toast.success('Lista de separação carregada!');
@@ -348,6 +351,10 @@ export default function Orders() {
   const [loadingItems, setLoadingItems] = useState(false);
   const [trackingStatus, setTrackingStatus] = useState<any>(null);
   const [loadingTracking, setLoadingTracking] = useState(false);
+
+  useEffect(() => {
+    setSelectedOrderIds([]);
+  }, [searchTerm, statusFilter, startDate, endDate]);
 
   const fetchData = async () => {
     try {
@@ -423,6 +430,7 @@ export default function Orders() {
     }
   };
   const generateBatchPickingList = async () => {
+    console.log('Generating batch picking list for:', selectedOrderIds);
     try {
       setLoadingItems(true);
       
@@ -431,6 +439,8 @@ export default function Orders() {
         .from('orders')
         .select('id, created_at, customer_name, order_items(product_name, quantity)')
         .in('id', selectedOrderIds);
+      
+      console.log('Detailed orders:', detailedOrders);
       
       if (error) throw error;
 
