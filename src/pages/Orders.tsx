@@ -1200,7 +1200,10 @@ export default function Orders() {
                 {pickingData.orders.map((order: any) => (
                   <div key={order.id} className="border-b border-slate-300 pb-4 last:border-0">
                     <div className="font-bold text-slate-900 mb-1">
-                      Pedido: {order.id.split('-')[0].toUpperCase()} | Cliente: {order.customer_name} | Cidade: {order.shipping_address?.city || 'N/A'}
+                      Pedido: {order.id.split('-')[0].toUpperCase()} | 
+                      Cliente: {order.customer_name} | 
+                      Cidade: {order.shipping_address?.city || 'N/A'} | 
+                      Rastreio: {order.tracking_code || 'Não gerado'}
                     </div>
                     <div className="space-y-1">
                       {order.order_items.map((item: any, idx: number) => (
