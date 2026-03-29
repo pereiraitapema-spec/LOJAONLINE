@@ -74,6 +74,9 @@ export default function Orders() {
   const [showFilters, setShowFilters] = useState(false);
   const [activeTab, setActiveTab] = useState<'orders' | 'abandoned'>('orders');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [tempTrackingCode, setTempTrackingCode] = useState('');
+  const [realTimeTracking, setRealTimeTracking] = useState<any>(null);
+  const [loadingRealTime, setLoadingRealTime] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
 
   // Manual Order State
@@ -108,6 +111,39 @@ export default function Orders() {
       fetchAffiliates();
     }
   }, [activeTab, isAdmin]);
+
+  useEffect(() => {
+    if (selectedOrder) {
+      setTempTrackingCode(selectedOrder.tracking_code || '');
+      setRealTimeTracking(null);
+      
+      // Se já tem rastreio, tenta buscar o status real
+      if (selectedOrder.tracking_code) {
+        fetchRealTimeTracking(selectedOrder.tracking_code);
+      }
+    }
+  }, [selectedOrder]);
+
+  const fetchRealTimeTracking = async (code: string) => {
+    if (!code) return;
+    setLoadingRealTime(true);
+    try {
+      const { data: carrier } = await supabase
+        .from('shipping_carriers')
+        .select('*')
+        .eq('provider', 'cepcerto')
+        .single();
+      
+      if (carrier?.config) {
+        const status = await shippingService.getTrackingStatus(code);
+        setRealTimeTracking(status);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar rastreio real:', err);
+    } finally {
+      setLoadingRealTime(false);
+    }
+  };
 
   const fetchProducts = async () => {
     const { data } = await supabase.from('products').select('*').eq('active', true);
@@ -801,6 +837,12 @@ Complemento: ${addr.complement || 'N/A'}
       const updateData: any = { tracking_code: trackingCode };
       if (shippingLabelUrl !== undefined) {
         updateData.shipping_label_url = shippingLabelUrl;
+      }
+
+      // Se o status atual for 'paid' ou 'processing', muda para 'shipped' ao adicionar rastreio
+      const currentOrder = orders.find(o => o.id === orderId);
+      if (currentOrder && (currentOrder.status === 'paid' || currentOrder.status === 'processing')) {
+        updateData.status = 'shipped';
       }
 
       const { error } = await supabase
@@ -1647,6 +1689,45 @@ Complemento: ${addr.complement || 'N/A'}
                           Manual (Site)
                         </button>
                       </div>
+
+                      <div className="flex flex-col gap-1 mt-2">
+                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Código de Rastreio</p>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text"
+                            value={tempTrackingCode}
+                            onChange={(e) => setTempTrackingCode(e.target.value)}
+                            placeholder="Ex: AA123456789BR"
+                            className="flex-1 px-3 py-2 bg-white border border-indigo-100 rounded-xl text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <button 
+                            onClick={() => {
+                              updateTrackingCode(selectedOrder.id, tempTrackingCode);
+                              fetchRealTimeTracking(tempTrackingCode);
+                            }}
+                            className="px-4 py-2 bg-indigo-100 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-200 transition-all"
+                          >
+                            Salvar
+                          </button>
+                        </div>
+                      </div>
+
+                      {realTimeTracking && (
+                        <div className="mt-2 p-3 bg-white rounded-xl border border-indigo-100 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">Status Real-Time</p>
+                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                              {realTimeTracking.status}
+                            </span>
+                          </div>
+                          {realTimeTracking.history && realTimeTracking.history.length > 0 && (
+                            <div className="text-[10px] text-slate-500 italic line-clamp-1">
+                              Última atualização: {realTimeTracking.history[0].description} ({realTimeTracking.history[0].location})
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <button 
                         onClick={() => handlePrintPickingList(selectedOrder.id)}
                         disabled={processingLogistics}

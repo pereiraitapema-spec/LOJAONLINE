@@ -1,18 +1,37 @@
-import React, { useState } from 'react';
-import { Search, Truck, Package, CheckCircle2, Clock, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Truck, Package, CheckCircle2, Clock, ArrowLeft, MapPin, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
+import { shippingService } from '../services/shippingService';
 
 export default function Tracking() {
   const [trackingCode, setTrackingCode] = useState('');
   const [trackingData, setTrackingData] = useState<any>(null);
+  const [realTimeHistory, setRealTimeHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [carrierConfig, setCarrierConfig] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchCarrierConfig = async () => {
+      const { data, error } = await supabase
+        .from('shipping_carriers')
+        .select('*')
+        .eq('provider', 'cepcerto')
+        .single();
+      
+      if (!error && data) {
+        setCarrierConfig(data.config);
+      }
+    };
+    fetchCarrierConfig();
+  }, []);
 
   const handleTrack = async () => {
     if (!trackingCode) return;
     setLoading(true);
+    setRealTimeHistory([]);
     try {
-      // Busca o pedido e seu histórico
+      // Busca o pedido e seu histórico local
       const { data: order, error } = await supabase
         .from('orders')
         .select('id, status, tracking_code, tracking_history(*)')
@@ -23,8 +42,21 @@ export default function Tracking() {
       if (!order) {
         toast.error('Pedido ou código de rastreio não encontrado.');
         setTrackingData(null);
-      } else {
-        setTrackingData(order);
+        return;
+      }
+
+      setTrackingData(order);
+
+      // Se houver código de rastreio, busca na API do CepCerto
+      if (order.tracking_code) {
+        try {
+          const realTime = await shippingService.getTrackingStatus(order.tracking_code);
+          if (realTime && realTime.history && realTime.history.length > 0) {
+            setRealTimeHistory(realTime.history);
+          }
+        } catch (apiError) {
+          console.warn('Erro ao buscar rastreio na API:', apiError);
+        }
       }
     } catch (error: any) {
       toast.error('Erro ao buscar rastreio: ' + error.message);
@@ -72,8 +104,32 @@ export default function Tracking() {
             </div>
 
             <div className="space-y-6">
-              <h3 className="font-bold text-slate-900">Histórico de Movimentação</h3>
-              {trackingData.tracking_history && trackingData.tracking_history.length > 0 ? (
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <MapPin size={18} className="text-indigo-600" />
+                Histórico de Movimentação
+              </h3>
+              
+              {/* Prioriza o histórico em tempo real da API */}
+              {realTimeHistory.length > 0 ? (
+                <div className="relative pl-8 space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+                  {realTimeHistory.map((h: any, idx: number) => (
+                    <div key={idx} className="relative">
+                      <div className={`absolute -left-8 w-6 h-6 rounded-full border-4 border-white flex items-center justify-center ${idx === 0 ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                        <div className={`w-2 h-2 rounded-full bg-white ${idx === 0 ? 'animate-pulse' : ''}`} />
+                      </div>
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <p className="text-sm font-bold text-slate-900">{h.description}</p>
+                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                          <MapPin size={10} /> {h.location}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                          <Clock size={10} /> {h.date}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : trackingData.tracking_history && trackingData.tracking_history.length > 0 ? (
                 <div className="relative pl-8 space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
                   {trackingData.tracking_history.map((h: any, idx: number) => (
                     <div key={h.id} className="relative">
@@ -86,8 +142,10 @@ export default function Tracking() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 bg-slate-50 rounded-2xl text-slate-500 italic">
-                  O produto está sendo embalado e logo será enviado.
+                <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                  <Package size={40} className="mx-auto text-slate-300 mb-3" />
+                  <p className="text-sm text-slate-500 font-medium">O produto está sendo preparado para envio.</p>
+                  <p className="text-xs text-slate-400 mt-1">Assim que for postado, você verá as atualizações aqui.</p>
                 </div>
               )}
             </div>
