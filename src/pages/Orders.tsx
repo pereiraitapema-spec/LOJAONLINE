@@ -326,36 +326,66 @@ export default function Orders() {
 
   const getZip = (addr: any) => addr?.zip_code || addr?.zipCode || addr?.zip || addr?.cep || 'N/A';
 
-  const handleManualLabelRedirect = (order: any) => {
+  const handleManualLabelRedirect = async (order: any) => {
     console.log('🚀 Iniciando redirecionamento manual para pedido:', order.id);
+    
+    // Buscar CEP de origem das configurações da loja (mais confiável)
+    const { data: settings } = await supabase.from('store_settings').select('origin_zip_code').maybeSingle();
+    const originZip = settings?.origin_zip_code || carrierConfig?.origin_zip || '88240-000';
+    
     const addr = order.shipping_address || {};
-    const originZip = carrierConfig?.origin_zip || '00000-000';
     const destZip = getZip(addr);
     
-    console.log('📍 CEP Origem:', originZip);
+    console.log('📍 CEP Origem Real:', originZip);
     console.log('📍 CEP Destino:', destZip);
 
-    // Tenta passar parâmetros via URL (se o site suportar)
-    const url = `https://www.cepcerto.com/area-restrita?cep_origem=${originZip}&cep_destino=${destZip}&peso=0.500`; 
-    
-    try {
-      console.log('🌐 Abrindo URL:', url);
-      const newWindow = window.open(url, '_blank');
-      
-      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-        console.warn('⚠️ Popup bloqueado ou falhou ao abrir.');
-        toast.error('O navegador bloqueou a abertura do site. Por favor, permita popups para este site.');
-        // Fallback: tenta abrir na mesma aba se o usuário permitir ou apenas mostra o assistente
-      } else {
-        console.log('✅ Janela aberta com sucesso.');
-      }
-    } catch (err) {
-      console.error('❌ Erro ao tentar abrir janela:', err);
-      toast.error('Erro ao abrir o site da transportadora.');
-    }
+    const script = `
+      (function() {
+        const data = {
+          'origem': '${originZip}',
+          'destino': '${destZip}',
+          'peso': '0.500',
+          'altura': '10',
+          'largura': '15',
+          'comp': '20',
+          'seguro': '${order.total.toFixed(2)}'
+        };
+        function fill(lp, v) {
+          const target = Array.from(document.querySelectorAll('input, select')).find(i => 
+            (i.name||'').toLowerCase().includes(lp) || (i.id||'').toLowerCase().includes(lp) || (i.placeholder||'').toLowerCase().includes(lp)
+          );
+          if (target) {
+            target.value = v;
+            target.dispatchEvent(new Event('input', { bubbles: true }));
+            target.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
+          return false;
+        }
+        fill('origem', data.origem); fill('destino', data.destino);
+        fill('peso', data.peso); fill('altura', data.altura);
+        fill('largura', data.largura); fill('comp', data.comp);
+        fill('seguro', data.seguro);
+        alert('✅ DADOS PREENCHIDOS COM SUCESSO!');
+      })();
+    `.trim();
+
+    navigator.clipboard.writeText(script);
+
+    const url = `https://www.cepcerto.com/area-restrita`; 
+    window.open(url, '_blank');
     
     setShowManualAssistant(true);
-    toast.success('Assistente de Postagem aberto! Use os botões para copiar os dados.');
+    
+    // Alerta visual bem forte sobre o 'allow pasting'
+    toast((t) => (
+      <span className="flex flex-col gap-2">
+        <b className="text-indigo-600">PASSO OBRIGATÓRIO NO CONSOLE:</b>
+        <span>1. Digite <code className="bg-slate-200 px-1">allow pasting</code> e dê Enter.</span>
+        <span>2. Só depois dê <code className="bg-slate-200 px-1">Ctrl+V</code> e Enter.</span>
+        <button onClick={() => toast.dismiss(t.id)} className="bg-indigo-600 text-white px-2 py-1 rounded text-[10px]">Entendi</button>
+      </span>
+    ), { duration: 10000 });
   };
 
   const handleGenerateLabel = async (orderId: string) => {
@@ -775,7 +805,7 @@ export default function Orders() {
       // 1. Busca os pedidos com seus itens (incluindo endereço e rastreio)
       const { data: detailedOrders, error } = await supabase
         .from('orders')
-        .select('*, order_items(*)')
+        .select('id, created_at, customer_name, shipping_address, tracking_code, order_items(product_name, quantity)')
         .in('id', targetIds);
       
       console.log('Detailed orders returned from Supabase:', detailedOrders);
