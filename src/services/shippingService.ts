@@ -609,12 +609,23 @@ export const shippingService = {
   },
 
   async generateLabel(orderId: string) {
-    // Tenta buscar pelo ID completo (UUID) ou pelo ID curto (primeiros 8 caracteres)
+    // Tenta buscar pelo ID completo (UUID)
     let { data: order, error: orderError } = await supabase
       .from('orders')
       .select('id, shipping_method')
-      .or(`id.eq.${orderId},id.ilike.${orderId}%`)
+      .eq('id', orderId)
       .maybeSingle();
+
+    // Se não encontrar pelo ID completo, tenta pelo ID curto (primeiros 8 caracteres)
+    if (!order) {
+      const { data: orderShort, error: orderErrorShort } = await supabase
+        .from('orders')
+        .select('id, shipping_method')
+        .ilike('id', `${orderId}%`)
+        .maybeSingle();
+      order = orderShort;
+      orderError = orderErrorShort;
+    }
 
     if (orderError || !order) {
       console.error('❌ Pedido não encontrado:', orderId, orderError);
@@ -631,7 +642,23 @@ export const shippingService = {
   },
 
   async cancelLabel(orderId: string) {
-    const { data: order } = await supabase.from('orders').select('shipping_method').eq('id', orderId).single();
+    // Tenta buscar pelo ID completo (UUID)
+    let { data: order } = await supabase
+      .from('orders')
+      .select('shipping_method')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    // Se não encontrar pelo ID completo, tenta pelo ID curto (primeiros 8 caracteres)
+    if (!order) {
+      const { data: orderShort } = await supabase
+        .from('orders')
+        .select('shipping_method')
+        .ilike('id', `${orderId}%`)
+        .maybeSingle();
+      order = orderShort;
+    }
+    
     if (!order) return { success: false, error: 'Order not found' };
     
     const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.shipping_method).single();
