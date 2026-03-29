@@ -15,29 +15,11 @@ async function startServer() {
 
   // Middleware CORS
   app.use(cors());
+  app.use(express.json()); // Essencial para ler o body da requisição
 
-  // Profissional: Confiar no proxy reverso (essencial no Railway)
-  app.set('trust proxy', 1);
-
-  // Log global para todas as requisições
-  app.use((req, res, next) => {
-    console.log(`🌐 Requisição recebida: ${req.method} ${req.url}`);
-    next();
-  });
-
-  // Rota de depuração explícita
-  app.post("/api/cepcerto/generate-label", express.json(), async (req, res, next) => {
-    console.log('✅ Rota /api/cepcerto/generate-label foi atingida!');
-    next();
-  });
-
-  // API routes
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
-  });
-
-  // Proxy para CepCerto - Registrado explicitamente no início
-  app.post("/api/cepcerto/generate-label", express.json(), async (req, res) => {
+  // Rota de API - NO TOPO para evitar interceptação
+  app.post("/api/cepcerto/generate-label", async (req, res) => {
+    console.log('🚀 Rota /api/cepcerto/generate-label atingida!');
     const { orderId, apiKeyPostagem } = req.body;
     
     if (!orderId || !apiKeyPostagem) {
@@ -45,33 +27,30 @@ async function startServer() {
     }
 
     try {
-      const url = `https://www.cepcerto.com/ws/json-postagem/${orderId}/${apiKeyPostagem}`;
+      const shortOrderId = orderId.substring(0, 8);
+      const url = `https://www.cepcerto.com/ws/json-postagem/${shortOrderId}/${apiKeyPostagem}`;
       console.log('🔗 URL Postagem CepCerto (Proxy):', url);
       
       const response = await fetch(url);
-      
-      console.log('🔍 Status da resposta CepCerto:', response.status, response.statusText);
-      
       const text = await response.text();
       
       if (response.ok) {
         try {
           const data = JSON.parse(text);
-          console.log('📦 Resposta Postagem CepCerto (Proxy):', data);
-          res.json({ success: true, data });
+          return res.json({ success: true, data });
         } catch (e) {
-          console.error('💥 Erro: Resposta do CepCerto não é JSON válido:', text);
-          res.status(500).json({ success: false, error: 'Resposta não é JSON', details: text });
+          return res.json({ success: true, data: { raw: text } });
         }
       } else {
-        console.error('💥 Erro: CepCerto retornou erro:', response.status, text);
-        res.status(response.status).json({ success: false, error: 'Erro na API do CepCerto', details: text });
+        return res.status(response.status).json({ success: false, error: `CepCerto falhou: ${response.statusText}`, details: text });
       }
     } catch (error: any) {
-      console.error('💥 Erro no proxy CepCerto:', error.message);
-      res.status(500).json({ success: false, error: error.message });
+      return res.status(500).json({ success: false, error: error.message });
     }
   });
+
+  // Profissional: Confiar no proxy reverso
+  app.set('trust proxy', 1);
 
   // Proxy para Pagar.me (Segurança: chaves no servidor)
   app.post("/api/payments/pagarme", express.json(), async (req, res) => {
