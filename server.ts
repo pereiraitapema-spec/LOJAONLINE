@@ -200,6 +200,40 @@ async function startServer() {
     }
   });
 
+  // Rota para buscar rastreamento no Pagar.me
+  app.get("/api/pagarme/tracking/:orderId", express.json(), async (req, res) => {
+    const { orderId } = req.params;
+    console.log(`🔍 Buscando rastreamento para o pedido ${orderId} no Pagar.me...`);
+
+    const pagarmeApiKey = process.env.PAGARME_API_KEY;
+    
+    if (!pagarmeApiKey) {
+      return res.status(400).json({ success: false, error: 'Chave API Pagar.me não configurada.' });
+    }
+
+    const authHeader = `Basic ${Buffer.from(pagarmeApiKey + ':').toString('base64')}`;
+
+    try {
+      const response = await fetch(`https://api.pagar.me/core/v5/orders/${orderId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': authHeader,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return res.status(response.status).json({ success: false, error: 'Erro ao buscar no Pagar.me', details: errorText });
+      }
+
+      const data = await response.json();
+      res.json({ success: true, data });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // Worker profissional: Supabase Realtime (escuta eventos em tempo real)
   const supabaseUrl = process.env.VITE_SUPABASE_URL!;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY!;
