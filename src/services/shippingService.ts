@@ -618,10 +618,11 @@ export const shippingService = {
 
     // Se não encontrar pelo ID completo, tenta pelo ID curto (primeiros 8 caracteres)
     if (!order) {
+      // Tenta buscar como string para evitar erro de cast em UUID
       const { data: orderShort, error: orderErrorShort } = await supabase
         .from('orders')
         .select('id, shipping_method')
-        .ilike('id', `${orderId}%`)
+        .textSearch('id', `${orderId}:*`, { type: 'websearch' })
         .maybeSingle();
       order = orderShort;
       orderError = orderErrorShort;
@@ -651,10 +652,11 @@ export const shippingService = {
 
     // Se não encontrar pelo ID completo, tenta pelo ID curto (primeiros 8 caracteres)
     if (!order) {
+      // Tenta buscar como string para evitar erro de cast em UUID
       const { data: orderShort } = await supabase
         .from('orders')
         .select('shipping_method')
-        .ilike('id', `${orderId}%`)
+        .textSearch('id', `${orderId}:*`, { type: 'websearch' })
         .maybeSingle();
       order = orderShort;
     }
