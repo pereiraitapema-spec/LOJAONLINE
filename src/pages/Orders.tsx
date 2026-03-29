@@ -432,43 +432,51 @@ export default function Orders() {
 
   const printPickingList = () => {
     if (!pickingData) {
-      console.error('❌ Sem dados para impressão');
+      toast.error('Sem dados para imprimir');
       return;
     }
 
-    console.log('🖨️ Iniciando processo de impressão para', pickingData.orders.length, 'pedidos');
+    // Cria um iframe oculto para isolar totalmente a impressão
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.top = '-10000px';
+    iframe.style.left = '-10000px';
+    document.body.appendChild(iframe);
 
-    // Cria um container temporário no root para evitar problemas de herança de estilos
-    const printContainer = document.createElement('div');
-    printContainer.id = 'print-only-container';
-    
-    // Gera o HTML do resumo
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    // Gera o HTML do Resumo Geral
     const summaryHtml = Object.entries(pickingData.summary)
       .map(([name, qty]) => `
-        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding: 8px 0;">
-          <span style="font-size: 14px; color: #475569;">${name}</span>
-          <span style="font-weight: 700; color: #1e293b;">${qty}</span>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding: 10px 0; font-size: 16px;">
+          <span style="font-weight: 600;">${name}</span>
+          <span style="font-weight: 800; color: #4f46e5;">${qty} unidades</span>
         </div>
       `).join('');
 
-    // Gera o HTML dos pedidos
+    // Gera o HTML dos Pedidos Individuais
     const ordersHtml = pickingData.orders.map((order: any) => {
-      const city = order.shipping_address?.city || order.shipping_address?.street || 'N/A';
-      const orderIdShort = order.id.split('-')[0].toUpperCase();
-      
+      // Lógica robusta para encontrar a cidade em diferentes formatos de objeto
+      const addr = order.shipping_address || {};
+      const city = addr.city || addr.localidade || addr.neighborhood || addr.street || 'Balcão/Local';
+      const tracking = order.tracking_code || 'Aguardando postagem';
+      const orderId = order.id.split('-')[0].toUpperCase();
+
       return `
-        <div style="border: 2px solid #e2e8f0; padding: 20px; border-radius: 12px; margin-bottom: 20px; page-break-inside: avoid; background: white;">
-          <div style="font-weight: 700; color: #1e293b; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; font-size: 14px;">
-            Pedido: ${orderIdShort} | 
-            Cliente: ${order.customer_name} | 
-            Cidade: ${city} | 
-            Rastreio: ${order.tracking_code || 'Não gerado'}
+        <div style="border: 2px solid #000; margin-bottom: 25px; padding: 15px; border-radius: 8px; page-break-inside: avoid;">
+          <div style="border-bottom: 2px solid #eee; margin-bottom: 10px; padding-bottom: 10px;">
+            <div style="font-size: 14px; font-weight: 800; color: #1a1a1a;">
+              PEDIDO: #${orderId} | CLIENTE: ${order.customer_name}
+            </div>
+            <div style="font-size: 12px; color: #444; margin-top: 5px;">
+              CIDADE: ${city} | RASTREIO: <span style="font-family: monospace; font-weight: bold;">${tracking}</span>
+            </div>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="margin-left: 10px;">
             ${order.order_items.map((item: any) => `
-              <div style="font-size: 13px; color: #475569;">
-                <span style="font-weight: 600;">Produto:</span> ${item.product_name} - 
-                <span style="font-weight: 600;">Qtd:</span> ${item.quantity}
+              <div style="font-size: 13px; margin: 5px 0;">
+                • <strong>${item.product_name}</strong> - Quantidade: <strong>${item.quantity}</strong>
               </div>
             `).join('')}
           </div>
@@ -476,59 +484,53 @@ export default function Orders() {
       `;
     }).join('');
 
-    // Estilos específicos para a impressão
-    const style = document.createElement('style');
-    style.id = 'print-style-override';
-    style.innerHTML = `
-      @media print {
-        body > *:not(#print-only-container) {
-          display: none !important;
-        }
-        #print-only-container {
-          display: block !important;
-          position: absolute !important;
-          left: 0 !important;
-          top: 0 !important;
-          width: 100% !important;
-          height: auto !important;
-          background: white !important;
-          z-index: 99999 !important;
-          padding: 40px !important;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
-          color: #1e293b !important;
-        }
-        h1 { font-size: 24px; font-weight: 800; margin-bottom: 24px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; }
-        h2 { font-size: 18px; font-weight: 700; margin-bottom: 12px; color: #1e293b; }
-      }
-    `;
+    // Injeta o documento completo no iframe
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Lista de Separação - G-Fit</title>
+          <style>
+            @page { size: A4; margin: 15mm; }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.4; margin: 0; padding: 0; }
+            .header { text-align: center; border-bottom: 3px solid #000; padding-bottom: 15px; margin-bottom: 30px; }
+            .section-title { background: #f0f0f0; padding: 8px 15px; font-weight: bold; font-size: 18px; margin-bottom: 15px; border-left: 5px solid #4f46e5; }
+            .summary-box { border: 1px solid #ccc; padding: 20px; border-radius: 10px; margin-bottom: 40px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 style="margin: 0; font-size: 28px;">LISTA DE SEPARAÇÃO</h1>
+            <p style="margin: 5px 0; font-size: 12px; color: #666;">Gerado em: ${new Date().toLocaleString('pt-BR')}</p>
+          </div>
 
-    printContainer.innerHTML = `
-      <h1>Lista de Separação - G-Fit</h1>
-      
-      <div style="background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 32px; border: 1px solid #e2e8f0;">
-        <h2 style="margin-top: 0;">Resumo Geral de Produtos</h2>
-        ${summaryHtml}
-      </div>
+          <div class="section-title">RESUMO DE PRODUTOS (TOTAL PARA SEPARAR)</div>
+          <div class="summary-box">
+            ${summaryHtml}
+          </div>
 
-      <div class="orders-container">
-        <h2>Detalhamento por Pedido</h2>
-        ${ordersHtml}
-      </div>
-    `;
+          <div class="section-title">DETALHAMENTO POR PEDIDO</div>
+          ${ordersHtml}
 
-    document.head.appendChild(style);
-    document.body.appendChild(printContainer);
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.focus();
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    doc.close();
 
-    // Pequeno delay para garantir que o DOM renderizou o container
+    // Limpeza após a impressão
     setTimeout(() => {
-      window.print();
-      
-      // Limpa após a impressão (com um delay maior para garantir que o diálogo fechou)
-      setTimeout(() => {
-        if (document.head.contains(style)) document.head.removeChild(style);
-        if (document.body.contains(printContainer)) document.body.removeChild(printContainer);
-      }, 1000);
-    }, 100);
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    }, 5000);
   };
 
   const toggleSelectAll = () => {
