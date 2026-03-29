@@ -342,6 +342,8 @@ export default function Orders() {
   };
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [trackingStatus, setTrackingStatus] = useState<any>(null);
+  const [loadingTracking, setLoadingTracking] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -405,6 +407,19 @@ export default function Orders() {
       toast.error('Erro ao carregar itens: ' + error.message);
     } finally {
       setLoadingItems(false);
+    }
+  };
+
+  const fetchTrackingStatus = async (orderId: string) => {
+    try {
+      setLoadingTracking(true);
+      const status = await shippingService.getTrackingStatus(orderId);
+      setTrackingStatus(status);
+    } catch (error: any) {
+      console.error('Erro ao buscar rastreio:', error);
+      setTrackingStatus({ status: 'Erro ao buscar rastreio', history: [] });
+    } finally {
+      setLoadingTracking(false);
     }
   };
 
@@ -747,6 +762,7 @@ export default function Orders() {
                           setSelectedOrder(order);
                           setShowDetailsModal(true);
                           fetchOrderItems(order.id);
+                          fetchTrackingStatus(order.id);
                         }}
                         className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-flex"
                         title="Ver Detalhes"
@@ -1308,36 +1324,33 @@ export default function Orders() {
                     </div>
                   )}
 
-                  {selectedOrder.tracking_code && (
+                  {/* Status de Rastreamento Dinâmico */}
+                  {loadingTracking ? (
+                    <div className="text-center py-4 text-slate-500">Carregando rastreamento...</div>
+                  ) : trackingStatus && (
                     <div className="p-6 bg-slate-900 text-white rounded-3xl space-y-6">
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-black uppercase tracking-widest text-indigo-400">Status de Rastreamento</h4>
-                        <span className="text-[10px] font-mono bg-white/10 px-2 py-1 rounded uppercase">{selectedOrder.tracking_code}</span>
+                        <span className="text-[10px] font-mono bg-white/10 px-2 py-1 rounded uppercase">{selectedOrder.tracking_code || 'Manual'}</span>
                       </div>
                       
-                      <div className="relative pl-8 space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-white/10">
-                        <div className="relative">
-                          <div className="absolute -left-8 w-6 h-6 bg-emerald-500 rounded-full border-4 border-slate-900 flex items-center justify-center">
-                            <CheckCircle2 size={12} className="text-white" />
-                          </div>
-                          <p className="text-xs font-bold">Objeto Entregue</p>
-                          <p className="text-[10px] text-slate-400">Cidade de Destino - SC | 09/03/2026 14:30</p>
+                      {trackingStatus.history && trackingStatus.history.length > 0 ? (
+                        <div className="relative pl-8 space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-white/10">
+                          {trackingStatus.history.map((h: any, idx: number) => (
+                            <div key={idx} className="relative">
+                              <div className={`absolute -left-8 w-6 h-6 rounded-full border-4 border-slate-900 flex items-center justify-center ${idx === 0 ? 'bg-emerald-500' : 'bg-slate-700'}`}>
+                                <Truck size={12} className="text-white" />
+                              </div>
+                              <p className="text-xs font-bold">{h.status}</p>
+                              <p className="text-[10px] text-slate-400">{h.location} | {h.date}</p>
+                            </div>
+                          ))}
                         </div>
-                        <div className="relative">
-                          <div className="absolute -left-8 w-6 h-6 bg-indigo-500 rounded-full border-4 border-slate-900 flex items-center justify-center">
-                            <Truck size={12} className="text-white" />
-                          </div>
-                          <p className="text-xs font-bold">Objeto saiu para entrega ao destinatário</p>
-                          <p className="text-[10px] text-slate-400">Unidade de Distribuição - SC | 09/03/2026 09:15</p>
+                      ) : (
+                        <div className="text-center py-4 text-slate-400 italic text-sm">
+                          {trackingStatus.status || 'Aguardando confirmação'}
                         </div>
-                        <div className="relative opacity-50">
-                          <div className="absolute -left-8 w-6 h-6 bg-slate-700 rounded-full border-4 border-slate-900 flex items-center justify-center">
-                            <Clock size={12} className="text-white" />
-                          </div>
-                          <p className="text-xs font-bold">Objeto postado</p>
-                          <p className="text-[10px] text-slate-400">Agência de Postagem - SP | 07/03/2026 16:45</p>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
