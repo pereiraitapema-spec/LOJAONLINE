@@ -1,12 +1,17 @@
 @import "tailwindcss";
 
 @media print {
+  /* Esconde tudo por padrão */
   body * {
-    visibility: hidden;
+    display: none !important;
   }
+  
+  /* Torna visível apenas o conteúdo da lista de separação e seus filhos */
   #picking-list-content, #picking-list-content * {
-    visibility: visible;
+    display: block !important;
   }
+  
+  /* Ajusta o layout para impressão */
   #picking-list-content {
     position: absolute;
     left: 0;

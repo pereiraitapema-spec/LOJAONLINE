@@ -1256,7 +1256,7 @@ export default function Orders() {
             </div>
 
             <div className="flex gap-3 mt-8 print:hidden">
-              <button onClick={() => window.print()} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700">Imprimir / Salvar PDF</button>
+              <button onClick={() => setTimeout(() => window.print(), 500)} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700">Imprimir / Salvar PDF</button>
               <button onClick={() => setShowPickingModal(false)} className="flex-1 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Fechar</button>
             </div>
           </motion.div>
