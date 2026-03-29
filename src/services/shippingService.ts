@@ -345,7 +345,7 @@ const cepcertoProvider: ShippingProvider = {
     
     try {
       // Chamada através do proxy no backend
-      const response = await fetch('/api/cepcerto/generate-label', {
+      const response = await fetch(`${window.location.origin}/api/cepcerto/generate-label`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

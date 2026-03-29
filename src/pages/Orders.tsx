@@ -1293,7 +1293,10 @@ export default function Orders() {
                     <p className="text-sm text-slate-600"><span className="font-bold text-slate-900">Método Envio:</span> {selectedOrder.shipping_method || 'Padrão'}</p>
                     <p className="text-sm text-slate-600"><span className="font-bold text-slate-900">Total:</span> R$ {selectedOrder.total.toFixed(2)}</p>
                     <p className="text-sm text-slate-600"><span className="font-bold text-slate-900">Endereço:</span> {selectedOrder.shipping_address?.street}, {selectedOrder.shipping_address?.number}</p>
-                    <p className="text-sm text-slate-500 text-xs">{selectedOrder.shipping_address?.city} - {selectedOrder.shipping_address?.state}, {selectedOrder.shipping_address?.zipCode}</p>
+                    <p className="text-sm text-slate-500 text-xs">
+                      {selectedOrder.shipping_address?.city} - {selectedOrder.shipping_address?.state}, 
+                      CEP: {selectedOrder.shipping_address?.zipCode || selectedOrder.shipping_address?.zip || selectedOrder.shipping_address?.cep || 'N/A'}
+                    </p>
                   </div>
                 </div>
               </div>
