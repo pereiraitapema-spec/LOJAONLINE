@@ -36,8 +36,7 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  // Proxy para CepCerto
-  console.log('🚀 Registrando rota: POST /api/cepcerto/generate-label');
+  // Proxy para CepCerto - Registrado explicitamente no início
   app.post("/api/cepcerto/generate-label", express.json(), async (req, res) => {
     const { orderId, apiKeyPostagem } = req.body;
     
