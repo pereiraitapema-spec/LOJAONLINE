@@ -725,7 +725,7 @@ export const shippingService = {
   },
 
   async getTrackingStatus(trackingCode: string) {
-    // Tenta buscar pelo código de rastreio ou ID, solicitando apenas os campos essenciais
+    // Tenta buscar pelo código de rastreio ou ID
     let { data: order, error: orderError } = await supabase
       .from('orders')
       .select('id, shipping_method, logistics_history, current_logistics_status, status, tracking_code')
@@ -747,14 +747,14 @@ export const shippingService = {
       return { status: 'Aguardando confirmação', history: [] };
     }
 
-    // Se tiver código, busca a transportadora
-    const shippingMethod = order.shipping_method.toUpperCase();
-    let carrierName = shippingMethod;
-    
-    // Mapeamento de serviços para a transportadora CEPCERTO
-    if (['SEDEX', 'PAC', 'JADLOG'].includes(shippingMethod)) {
-        carrierName = 'CEPCERTO';
-    }
+    // Normalização profissional do nome da transportadora
+    const normalizeCarrierName = (name: string) => {
+        const normalized = name.toUpperCase().trim();
+        if (['SEDEX', 'PAC', 'JADLOG'].includes(normalized)) return 'CEPCERTO';
+        return normalized;
+    };
+
+    const carrierName = normalizeCarrierName(order.shipping_method);
 
     const { data: carrier, error: carrierError } = await supabase
       .from('shipping_carriers')

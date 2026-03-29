@@ -376,8 +376,20 @@ export default function Orders() {
 
         const { data, error } = await query;
         if (error) throw error;
-        setOrders(data || []);
+        
+        const ordersData = data || [];
+        setOrders(ordersData);
+
+        // Busca automática de rastreamento para clientes
+        if (!userIsAdmin) {
+          for (const order of ordersData) {
+            if (order.tracking_code) {
+              fetchTrackingStatus(order.id);
+            }
+          }
+        }
       } else if (activeTab === 'abandoned' && userIsAdmin) {
+        // ... (resto da lógica de abandonados)
         const { data, error } = await supabase
           .from('abandoned_carts')
           .select('*')
@@ -1331,7 +1343,20 @@ export default function Orders() {
                     <div className="p-6 bg-slate-900 text-white rounded-3xl space-y-6">
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-black uppercase tracking-widest text-indigo-400">Status de Rastreamento</h4>
-                        <span className="text-[10px] font-mono bg-white/10 px-2 py-1 rounded uppercase">{selectedOrder.tracking_code || 'Manual'}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono bg-white/10 px-2 py-1 rounded uppercase">{selectedOrder.tracking_code || 'Manual'}</span>
+                          {selectedOrder.tracking_code && (
+                            <button 
+                              onClick={() => {
+                                navigator.clipboard.writeText(selectedOrder.tracking_code);
+                                toast.success('Código copiado!');
+                              }}
+                              className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-1 rounded"
+                            >
+                              Copiar
+                            </button>
+                          )}
+                        </div>
                       </div>
                       
                       {trackingStatus.history && trackingStatus.history.length > 0 ? (
@@ -1341,14 +1366,14 @@ export default function Orders() {
                               <div className={`absolute -left-8 w-6 h-6 rounded-full border-4 border-slate-900 flex items-center justify-center ${idx === 0 ? 'bg-emerald-500' : 'bg-slate-700'}`}>
                                 <Truck size={12} className="text-white" />
                               </div>
-                              <p className="text-xs font-bold">{h.status}</p>
+                              <p className="text-xs font-bold">{h.status || h.description}</p>
                               <p className="text-[10px] text-slate-400">{h.location} | {h.date}</p>
                             </div>
                           ))}
                         </div>
                       ) : (
                         <div className="text-center py-4 text-slate-400 italic text-sm">
-                          {trackingStatus.status || 'Aguardando confirmação'}
+                          {trackingStatus.status || 'Aguardando atualização da transportadora'}
                         </div>
                       )}
                     </div>
