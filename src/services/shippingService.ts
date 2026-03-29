@@ -633,8 +633,17 @@ export const shippingService = {
       return { success: false, error: 'Order not found' };
     }
     
-    console.log('🔍 Buscando carrier em generateLabel para o método:', order.shipping_method);
-    const { data: carrier, error: carrierError } = await supabase.from('shipping_carriers').select('*').eq('id', order.shipping_method).single();
+    console.log('🔍 Buscando carrier em generateLabel para o método (por nome):', order.shipping_method);
+    // Tenta buscar pelo ID (UUID) primeiro, se falhar, tenta pelo nome
+    let { data: carrier, error: carrierError } = await supabase.from('shipping_carriers').select('*').eq('id', order.shipping_method).maybeSingle();
+    
+    if (!carrier) {
+      console.log('🔍 Carrier não encontrado pelo ID, tentando pelo nome:', order.shipping_method);
+      const { data: carrierByName, error: carrierErrorByName } = await supabase.from('shipping_carriers').select('*').eq('name', order.shipping_method).maybeSingle();
+      carrier = carrierByName;
+      carrierError = carrierErrorByName;
+    }
+
     if (carrierError) {
       console.error('❌ Erro ao buscar carrier em generateLabel:', carrierError);
     }
@@ -667,7 +676,18 @@ export const shippingService = {
     
     if (!order) return { success: false, error: 'Order not found' };
     
-    const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.shipping_method).single();
+    // Tenta buscar pelo ID (UUID) primeiro, se falhar, tenta pelo nome
+    let { data: carrier, error: carrierError } = await supabase.from('shipping_carriers').select('*').eq('id', order.shipping_method).maybeSingle();
+    
+    if (!carrier) {
+      const { data: carrierByName, error: carrierErrorByName } = await supabase.from('shipping_carriers').select('*').eq('name', order.shipping_method).maybeSingle();
+      carrier = carrierByName;
+      carrierError = carrierErrorByName;
+    }
+
+    if (carrierError) {
+      console.error('❌ Erro ao buscar carrier em cancelLabel:', carrierError);
+    }
     if (!carrier) return { success: false, error: 'Carrier not found' };
 
     const provider = providers[carrier.provider];
@@ -695,7 +715,18 @@ export const shippingService = {
     }
 
     // Se não tiver histórico, busca a transportadora
-    const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.shipping_method).single();
+    // Tenta buscar pelo ID (UUID) primeiro, se falhar, tenta pelo nome
+    let { data: carrier, error: carrierError } = await supabase.from('shipping_carriers').select('*').eq('id', order.shipping_method).maybeSingle();
+    
+    if (!carrier) {
+      const { data: carrierByName, error: carrierErrorByName } = await supabase.from('shipping_carriers').select('*').eq('name', order.shipping_method).maybeSingle();
+      carrier = carrierByName;
+      carrierError = carrierErrorByName;
+    }
+
+    if (carrierError) {
+      console.error('❌ Erro ao buscar carrier em getTrackingStatus:', carrierError);
+    }
     if (!carrier) return { status: 'Transportadora não encontrada', history: [] };
 
     const provider = providers[carrier.provider];
