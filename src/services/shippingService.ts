@@ -742,8 +742,12 @@ export const shippingService = {
       };
     }
 
-    // Se não tiver histórico, busca a transportadora
-    // Busca diretamente pelo nome, pois shipping_method contém o nome (ex: "SEDEX")
+    // Se não tiver código de rastreio, retorna status inicial
+    if (!order.tracking_code) {
+      return { status: 'Aguardando confirmação', history: [] };
+    }
+
+    // Se tiver código, busca a transportadora
     const shippingMethod = order.shipping_method.toUpperCase();
     let carrierName = shippingMethod;
     
@@ -766,6 +770,20 @@ export const shippingService = {
     const provider = providers[carrier.provider];
     if (!provider) return { status: 'Provedor não encontrado', history: [] };
 
-    return provider.getTrackingStatus(order.tracking_code || trackingCode, carrier.config);
+    return provider.getTrackingStatus(order.tracking_code, carrier.config);
+  },
+
+  /**
+   * Atualiza o código de rastreio de um pedido manualmente.
+   */
+  async updateTrackingCode(orderId: string, trackingCode: string) {
+    console.log(`📝 Atualizando rastreio manual para o pedido ${orderId}: ${trackingCode}`);
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ tracking_code: trackingCode })
+      .eq('id', orderId);
+
+    if (error) throw error;
+    return { success: true };
   }
 };
