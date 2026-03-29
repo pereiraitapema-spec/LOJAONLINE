@@ -327,13 +327,32 @@ export default function Orders() {
   const getZip = (addr: any) => addr?.zip_code || addr?.zipCode || addr?.zip || addr?.cep || 'N/A';
 
   const handleManualLabelRedirect = (order: any) => {
+    console.log('🚀 Iniciando redirecionamento manual para pedido:', order.id);
     const addr = order.shipping_address || {};
     const originZip = carrierConfig?.origin_zip || '00000-000';
     const destZip = getZip(addr);
     
+    console.log('📍 CEP Origem:', originZip);
+    console.log('📍 CEP Destino:', destZip);
+
     // Tenta passar parâmetros via URL (se o site suportar)
     const url = `https://www.cepcerto.com/area-restrita?cep_origem=${originZip}&cep_destino=${destZip}&peso=0.500`; 
-    window.open(url, '_blank');
+    
+    try {
+      console.log('🌐 Abrindo URL:', url);
+      const newWindow = window.open(url, '_blank');
+      
+      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+        console.warn('⚠️ Popup bloqueado ou falhou ao abrir.');
+        toast.error('O navegador bloqueou a abertura do site. Por favor, permita popups para este site.');
+        // Fallback: tenta abrir na mesma aba se o usuário permitir ou apenas mostra o assistente
+      } else {
+        console.log('✅ Janela aberta com sucesso.');
+      }
+    } catch (err) {
+      console.error('❌ Erro ao tentar abrir janela:', err);
+      toast.error('Erro ao abrir o site da transportadora.');
+    }
     
     setShowManualAssistant(true);
     toast.success('Assistente de Postagem aberto! Use os botões para copiar os dados.');
