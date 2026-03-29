@@ -431,54 +431,104 @@ export default function Orders() {
   }, [showPickingModal]);
 
   const printPickingList = () => {
-    const content = document.getElementById('picking-list-content');
-    if (!content) return;
+    if (!pickingData) {
+      console.error('❌ Sem dados para impressão');
+      return;
+    }
 
-    // Cria um iframe temporário para impressão (estratégia sênior)
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
+    console.log('🖨️ Iniciando processo de impressão para', pickingData.orders.length, 'pedidos');
 
-    const doc = iframe.contentWindow?.document;
-    if (!doc) return;
+    // Cria um container temporário no root para evitar problemas de herança de estilos
+    const printContainer = document.createElement('div');
+    printContainer.id = 'print-only-container';
+    
+    // Gera o HTML do resumo
+    const summaryHtml = Object.entries(pickingData.summary)
+      .map(([name, qty]) => `
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding: 8px 0;">
+          <span style="font-size: 14px; color: #475569;">${name}</span>
+          <span style="font-weight: 700; color: #1e293b;">${qty}</span>
+        </div>
+      `).join('');
 
-    // Injeta o conteúdo e estilos no iframe
-    doc.write(`
-      <html>
-        <head>
-          <title>Lista de Separação</title>
-          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-          <style>
-            body { padding: 40px; font-family: sans-serif; color: #1e293b; }
-            .order-box { border: 2px solid #e2e8f0; padding: 20px; border-radius: 12px; margin-bottom: 20px; page-break-inside: avoid; }
-            .summary-box { background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
-            .product-row { display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding: 8px 0; }
-            .font-bold { font-weight: 700; }
-            .text-xl { font-size: 1.5rem; }
-            .mb-4 { margin-bottom: 1rem; }
-            .mb-2 { margin-bottom: 0.5rem; }
-            .text-indigo-600 { color: #4f46e5; }
-          </style>
-        </head>
-        <body>
-          <h1 class="text-xl font-bold mb-4">Lista de Separação - G-Fit</h1>
-          ${content.innerHTML}
-        </body>
-      </html>
-    `);
-    doc.close();
+    // Gera o HTML dos pedidos
+    const ordersHtml = pickingData.orders.map((order: any) => {
+      const city = order.shipping_address?.city || order.shipping_address?.street || 'N/A';
+      const orderIdShort = order.id.split('-')[0].toUpperCase();
+      
+      return `
+        <div style="border: 2px solid #e2e8f0; padding: 20px; border-radius: 12px; margin-bottom: 20px; page-break-inside: avoid; background: white;">
+          <div style="font-weight: 700; color: #1e293b; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; font-size: 14px;">
+            Pedido: ${orderIdShort} | 
+            Cliente: ${order.customer_name} | 
+            Cidade: ${city} | 
+            Rastreio: ${order.tracking_code || 'Não gerado'}
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            ${order.order_items.map((item: any) => `
+              <div style="font-size: 13px; color: #475569;">
+                <span style="font-weight: 600;">Produto:</span> ${item.product_name} - 
+                <span style="font-weight: 600;">Qtd:</span> ${item.quantity}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
 
-    // Aguarda carregar estilos e dispara a impressão
+    // Estilos específicos para a impressão
+    const style = document.createElement('style');
+    style.id = 'print-style-override';
+    style.innerHTML = `
+      @media print {
+        body > *:not(#print-only-container) {
+          display: none !important;
+        }
+        #print-only-container {
+          display: block !important;
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          height: auto !important;
+          background: white !important;
+          z-index: 99999 !important;
+          padding: 40px !important;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+          color: #1e293b !important;
+        }
+        h1 { font-size: 24px; font-weight: 800; margin-bottom: 24px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; }
+        h2 { font-size: 18px; font-weight: 700; margin-bottom: 12px; color: #1e293b; }
+      }
+    `;
+
+    printContainer.innerHTML = `
+      <h1>Lista de Separação - G-Fit</h1>
+      
+      <div style="background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 32px; border: 1px solid #e2e8f0;">
+        <h2 style="margin-top: 0;">Resumo Geral de Produtos</h2>
+        ${summaryHtml}
+      </div>
+
+      <div class="orders-container">
+        <h2>Detalhamento por Pedido</h2>
+        ${ordersHtml}
+      </div>
+    `;
+
+    document.head.appendChild(style);
+    document.body.appendChild(printContainer);
+
+    // Pequeno delay para garantir que o DOM renderizou o container
     setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      document.body.removeChild(iframe);
-    }, 800);
+      window.print();
+      
+      // Limpa após a impressão (com um delay maior para garantir que o diálogo fechou)
+      setTimeout(() => {
+        if (document.head.contains(style)) document.head.removeChild(style);
+        if (document.body.contains(printContainer)) document.body.removeChild(printContainer);
+      }, 1000);
+    }, 100);
   };
 
   const toggleSelectAll = () => {
