@@ -329,63 +329,96 @@ export default function Orders() {
   const handleManualLabelRedirect = async (order: any) => {
     console.log('🚀 Iniciando redirecionamento manual para pedido:', order.id);
     
-    // Buscar CEP de origem das configurações da loja (mais confiável)
     const { data: settings } = await supabase.from('store_settings').select('origin_zip_code').maybeSingle();
     const originZip = settings?.origin_zip_code || carrierConfig?.origin_zip || '88240-000';
+    const destZip = getZip(order.shipping_address);
     
-    const addr = order.shipping_address || {};
-    const destZip = getZip(addr);
-    
-    console.log('📍 CEP Origem Real:', originZip);
-    console.log('📍 CEP Destino:', destZip);
+    // Buscar itens se não estiverem carregados
+    let items = orderItems;
+    if (items.length === 0 || items[0].order_id !== order.id) {
+      const { data } = await supabase.from('order_items').select('*, products(*)').eq('order_id', order.id);
+      items = data || [];
+    }
 
+    // Calcular dimensões reais
+    let totalWeight = 0;
+    let maxHeight = 0;
+    let maxWidth = 0;
+    let maxLength = 0;
+
+    items.forEach((item: any) => {
+      const p = item.products;
+      if (p) {
+        totalWeight += (Number(p.weight) || 0) * item.quantity;
+        maxHeight = Math.max(maxHeight, Number(p.height) || 0);
+        maxWidth = Math.max(maxWidth, Number(p.width) || 0);
+        maxLength = Math.max(maxLength, Number(p.length) || 0);
+      }
+    });
+
+    // Fallbacks se não houver dados
+    const weight = totalWeight || 0.5;
+    const height = maxHeight || 10;
+    const width = maxWidth || 15;
+    const length = maxLength || 20;
+
+    // Script otimizado para os campos exatos da imagem do CepCerto
     const script = `
       (function() {
+        console.clear();
+        console.log('%c🚀 ASSISTENTE MAGNIFIQUE ATIVADO', 'color: #4f46e5; font-size: 20px; font-weight: bold;');
+        
         const data = {
           'origem': '${originZip}',
           'destino': '${destZip}',
-          'peso': '0.500',
-          'altura': '10',
-          'largura': '15',
-          'comp': '20',
-          'seguro': '${order.total.toFixed(2)}'
+          'peso': '${weight.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}',
+          'altura': '${height.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
+          'largura': '${width.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
+          'comp': '${length.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
+          'seguro': '${order.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}'
         };
-        function fill(lp, v) {
-          const target = Array.from(document.querySelectorAll('input, select')).find(i => 
-            (i.name||'').toLowerCase().includes(lp) || (i.id||'').toLowerCase().includes(lp) || (i.placeholder||'').toLowerCase().includes(lp)
-          );
+
+        function fillField(keywords, value) {
+          const inputs = Array.from(document.querySelectorAll('input, select'));
+          const target = inputs.find(i => {
+            const text = (i.name + i.id + i.placeholder + (i.labels?.[0]?.innerText || '') + (i.parentElement?.innerText || '')).toLowerCase();
+            return keywords.some(k => text.includes(k.toLowerCase()));
+          });
+
           if (target) {
-            target.value = v;
+            target.value = value;
             target.dispatchEvent(new Event('input', { bubbles: true }));
             target.dispatchEvent(new Event('change', { bubbles: true }));
+            console.log('%c✅ Preenchido: ' + keywords[0], 'color: green');
             return true;
           }
           return false;
         }
-        fill('origem', data.origem); fill('destino', data.destino);
-        fill('peso', data.peso); fill('altura', data.altura);
-        fill('largura', data.largura); fill('comp', data.comp);
-        fill('seguro', data.seguro);
-        alert('✅ DADOS PREENCHIDOS COM SUCESSO!');
+
+        fillField(['origem', 'cep origem'], data.origem);
+        fillField(['destino', 'cep destino'], data.destino);
+        fillField(['peso'], data.peso);
+        fillField(['altura'], data.altura);
+        fillField(['largura'], data.largura);
+        fillField(['comp', 'comprimento'], data.comp);
+        fillField(['seguro', 'valor'], data.seguro);
+
+        alert('✅ DADOS DO PEDIDO #${order.id.split('-')[0].toUpperCase()} PREENCHIDOS!\\n\\nVerifique os valores e clique em Gerar Etiqueta.');
       })();
     `.trim();
 
-    navigator.clipboard.writeText(script);
+    // Copia para a área de transferência
+    await navigator.clipboard.writeText(script);
 
-    const url = `https://www.cepcerto.com/area-restrita`; 
-    window.open(url, '_blank');
+    // Abre o site
+    window.open('https://www.cepcerto.com/area-restrita', '_blank');
     
     setShowManualAssistant(true);
     
-    // Alerta visual bem forte sobre o 'allow pasting'
-    toast((t) => (
-      <span className="flex flex-col gap-2">
-        <b className="text-indigo-600">PASSO OBRIGATÓRIO NO CONSOLE:</b>
-        <span>1. Digite <code className="bg-slate-200 px-1">allow pasting</code> e dê Enter.</span>
-        <span>2. Só depois dê <code className="bg-slate-200 px-1">Ctrl+V</code> e Enter.</span>
-        <button onClick={() => toast.dismiss(t.id)} className="bg-indigo-600 text-white px-2 py-1 rounded text-[10px]">Entendi</button>
-      </span>
-    ), { duration: 10000 });
+    toast.success('Dados reais copiados! No CepCerto: F12 -> Ctrl+V -> Enter.', {
+      duration: 6000,
+      icon: '📋'
+    });
   };
 
   const handleGenerateLabel = async (orderId: string) => {
@@ -845,7 +878,7 @@ export default function Orders() {
     try {
       const { data, error } = await supabase
         .from('order_items')
-        .select('*')
+        .select('*, products(*)')
         .eq('order_id', orderId);
       
       if (error) throw error;
@@ -1768,20 +1801,42 @@ export default function Orders() {
                                 const originZip = carrierConfig?.origin_zip || '00000-000';
                                 const addr = selectedOrder.shipping_address || {};
                                 const destZip = getZip(addr);
+
+                                // Calcular dimensões reais dos itens carregados
+                                let totalWeight = 0;
+                                let maxHeight = 0;
+                                let maxWidth = 0;
+                                let maxLength = 0;
+
+                                orderItems.forEach((item: any) => {
+                                  const p = item.products;
+                                  if (p) {
+                                    totalWeight += (Number(p.weight) || 0) * item.quantity;
+                                    maxHeight = Math.max(maxHeight, Number(p.height) || 0);
+                                    maxWidth = Math.max(maxWidth, Number(p.width) || 0);
+                                    maxLength = Math.max(maxLength, Number(p.length) || 0);
+                                  }
+                                });
+
+                                const weight = totalWeight || 0.5;
+                                const height = maxHeight || 10;
+                                const width = maxWidth || 15;
+                                const length = maxLength || 20;
+
                                 const script = `
                                   (function() {
-                                    console.log('🚀 Iniciando preenchimento automático...');
+                                    console.clear();
+                                    console.log('%c🚀 ASSISTENTE MAGNIFIQUE ATIVADO', 'color: #4f46e5; font-size: 20px; font-weight: bold;');
                                     const data = {
                                       'origem': '${originZip}',
                                       'destino': '${destZip}',
-                                      'peso': '0.500',
-                                      'altura': '10',
-                                      'largura': '15',
-                                      'comp': '20',
-                                      'seguro': '${selectedOrder.total.toFixed(2)}'
+                                      'peso': '${weight.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}',
+                                      'altura': '${height.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
+                                      'largura': '${width.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
+                                      'comp': '${length.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
+                                      'seguro': '${selectedOrder.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}'
                                     };
 
-                                    // Função para encontrar e preencher
                                     function fill(labelPart, value) {
                                       const inputs = Array.from(document.querySelectorAll('input, select'));
                                       const target = inputs.find(i => {
@@ -1810,11 +1865,11 @@ export default function Orders() {
                                     fill('comp', data.comp);
                                     fill('seguro', data.seguro);
 
-                                    alert('Dados do Pedido #${selectedOrder.id.split('-')[0].toUpperCase()} preenchidos!\\n\\nConfira os valores e clique em Gerar Etiqueta.');
+                                    alert('✅ DADOS DO PEDIDO #${selectedOrder.id.split('-')[0].toUpperCase()} PREENCHIDOS!\\n\\nVerifique os valores e clique em Gerar Etiqueta.');
                                   })();
                                 `.trim();
                                 navigator.clipboard.writeText(script);
-                                toast.success('Script copiado! Siga as instruções abaixo.');
+                                toast.success('Script com dados reais copiado!');
                               }}
                               className="w-full flex items-center justify-center gap-2 p-3 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-md"
                               title="Copia um script para preencher o site automaticamente via Console"
@@ -2012,7 +2067,9 @@ export default function Orders() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Peso Total (Est.)</p>
-                    <p className="text-sm font-bold text-slate-900">{orderItems.reduce((acc, item) => acc + (item.quantity * 0.5), 0).toFixed(2)} kg</p>
+                    <p className="text-sm font-bold text-slate-900">
+                      {orderItems.reduce((acc, item) => acc + (item.quantity * (Number(item.products?.weight) || 0.5)), 0).toFixed(3)} kg
+                    </p>
                   </div>
                 </div>
                 <div className="flex gap-2">
