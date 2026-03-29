@@ -634,17 +634,26 @@ export const shippingService = {
     }
     
     console.log('🔍 Buscando carrier em generateLabel para o método (por nome):', order.shipping_method);
-    // Busca diretamente pelo nome, pois shipping_method contém o nome (ex: "SEDEX")
+    console.log('🔍 Tipo de order.shipping_method:', typeof order.shipping_method);
+    
+    // Log para listar todas as transportadoras e entender o que existe no banco
+    const { data: allCarriers } = await supabase.from('shipping_carriers').select('name');
+    console.log('📋 Todas as transportadoras no banco:', allCarriers);
+
+    // Busca pelo nome, tentando ser mais flexível (case-insensitive)
     const { data: carrier, error: carrierError } = await supabase
       .from('shipping_carriers')
       .select('*')
-      .eq('name', order.shipping_method)
+      .ilike('name', order.shipping_method)
       .maybeSingle();
 
     if (carrierError) {
       console.error('❌ Erro ao buscar carrier em generateLabel:', carrierError);
     }
-    if (!carrier) return { success: false, error: 'Carrier not found' };
+    if (!carrier) {
+      console.log('❌ Carrier não encontrado pelo nome (ilike):', order.shipping_method);
+      return { success: false, error: 'Carrier not found' };
+    }
 
     const provider = providers[carrier.provider];
     if (!provider) return { success: false, error: 'Provider not found' };
