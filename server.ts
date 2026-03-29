@@ -123,11 +123,18 @@ async function startServer() {
       console.log('🔗 URL Postagem CepCerto (Proxy):', url);
       
       const response = await fetch(url);
-      const data = await response.json();
       
-      console.log('📦 Resposta Postagem CepCerto (Proxy):', data);
-      
-      res.json({ success: true, data });
+      // Verifica se a resposta é JSON
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        const data = await response.json();
+        console.log('📦 Resposta Postagem CepCerto (Proxy):', data);
+        res.json({ success: true, data });
+      } else {
+        const text = await response.text();
+        console.error('💥 Erro: Resposta do CepCerto não é JSON:', text);
+        res.status(500).json({ success: false, error: 'Resposta inválida do CepCerto', details: text });
+      }
     } catch (error: any) {
       console.error('💥 Erro no proxy CepCerto:', error.message);
       res.status(500).json({ success: false, error: error.message });
