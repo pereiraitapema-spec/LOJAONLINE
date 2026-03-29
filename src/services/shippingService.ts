@@ -633,18 +633,21 @@ export const shippingService = {
       return { success: false, error: 'Order not found' };
     }
     
-    console.log('🔍 Buscando carrier em generateLabel para o método (por nome):', order.shipping_method);
-    console.log('🔍 Tipo de order.shipping_method:', typeof order.shipping_method);
+    const shippingMethod = order.shipping_method.toUpperCase();
+    let carrierName = shippingMethod;
     
-    // Log para listar todas as transportadoras e entender o que existe no banco
-    const { data: allCarriers } = await supabase.from('shipping_carriers').select('name');
-    console.log('📋 Conteúdo detalhado das transportadoras no banco:', JSON.stringify(allCarriers));
-
+    // Mapeamento de serviços para a transportadora CEPCERTO
+    if (['SEDEX', 'PAC', 'JADLOG'].includes(shippingMethod)) {
+        carrierName = 'CEPCERTO';
+    }
+    
+    console.log('🔍 Buscando carrier em generateLabel para o método:', shippingMethod, '-> procurando por:', carrierName);
+    
     // Busca pelo nome, tentando ser mais flexível (case-insensitive)
     const { data: carrier, error: carrierError } = await supabase
       .from('shipping_carriers')
       .select('*')
-      .ilike('name', order.shipping_method)
+      .ilike('name', carrierName)
       .maybeSingle();
 
     if (carrierError) {
@@ -683,10 +686,18 @@ export const shippingService = {
     if (!order) return { success: false, error: 'Order not found' };
     
     // Busca diretamente pelo nome, pois shipping_method contém o nome (ex: "SEDEX")
+    const shippingMethod = order.shipping_method.toUpperCase();
+    let carrierName = shippingMethod;
+    
+    // Mapeamento de serviços para a transportadora CEPCERTO
+    if (['SEDEX', 'PAC', 'JADLOG'].includes(shippingMethod)) {
+        carrierName = 'CEPCERTO';
+    }
+
     const { data: carrier, error: carrierError } = await supabase
       .from('shipping_carriers')
       .select('*')
-      .eq('name', order.shipping_method)
+      .ilike('name', carrierName)
       .maybeSingle();
 
     if (carrierError) {
@@ -720,10 +731,18 @@ export const shippingService = {
 
     // Se não tiver histórico, busca a transportadora
     // Busca diretamente pelo nome, pois shipping_method contém o nome (ex: "SEDEX")
+    const shippingMethod = order.shipping_method.toUpperCase();
+    let carrierName = shippingMethod;
+    
+    // Mapeamento de serviços para a transportadora CEPCERTO
+    if (['SEDEX', 'PAC', 'JADLOG'].includes(shippingMethod)) {
+        carrierName = 'CEPCERTO';
+    }
+
     const { data: carrier, error: carrierError } = await supabase
       .from('shipping_carriers')
       .select('*')
-      .eq('name', order.shipping_method)
+      .ilike('name', carrierName)
       .maybeSingle();
 
     if (carrierError) {
