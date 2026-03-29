@@ -1,21 +1,20 @@
 @import "tailwindcss";
 
-@media print {
-  /* Esconde tudo por padrão */
-  body * {
-    display: none !important;
-  }
-  
-  /* Torna visível apenas o conteúdo da lista de separação e seus filhos */
-  #picking-list-content, #picking-list-content * {
-    display: block !important;
-  }
-  
-  /* Ajusta o layout para impressão */
-  #picking-list-content {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-  }
+/* Estilos globais para a barra de rolagem personalizada */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

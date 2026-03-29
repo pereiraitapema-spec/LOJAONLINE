@@ -430,6 +430,57 @@ export default function Orders() {
     }
   }, [showPickingModal]);
 
+  const printPickingList = () => {
+    const content = document.getElementById('picking-list-content');
+    if (!content) return;
+
+    // Cria um iframe temporário para impressão (estratégia sênior)
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    // Injeta o conteúdo e estilos no iframe
+    doc.write(`
+      <html>
+        <head>
+          <title>Lista de Separação</title>
+          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+          <style>
+            body { padding: 40px; font-family: sans-serif; color: #1e293b; }
+            .order-box { border: 2px solid #e2e8f0; padding: 20px; border-radius: 12px; margin-bottom: 20px; page-break-inside: avoid; }
+            .summary-box { background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #e2e8f0; }
+            .product-row { display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding: 8px 0; }
+            .font-bold { font-weight: 700; }
+            .text-xl { font-size: 1.5rem; }
+            .mb-4 { margin-bottom: 1rem; }
+            .mb-2 { margin-bottom: 0.5rem; }
+            .text-indigo-600 { color: #4f46e5; }
+          </style>
+        </head>
+        <body>
+          <h1 class="text-xl font-bold mb-4">Lista de Separação - G-Fit</h1>
+          ${content.innerHTML}
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    // Aguarda carregar estilos e dispara a impressão
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      document.body.removeChild(iframe);
+    }, 800);
+  };
+
   const toggleSelectAll = () => {
     console.log('Toggle select all. Current selection:', selectedOrderIds);
     console.log('Filtered orders count:', filteredOrders.length);
@@ -444,10 +495,10 @@ export default function Orders() {
     try {
       setLoadingItems(true);
       
-      // 1. Busca os pedidos com seus itens
+      // 1. Busca os pedidos com seus itens (incluindo endereço e rastreio)
       const { data: detailedOrders, error } = await supabase
         .from('orders')
-        .select('id, created_at, customer_name, order_items(product_name, quantity)')
+        .select('id, created_at, customer_name, shipping_address, tracking_code, order_items(product_name, quantity)')
         .in('id', selectedOrderIds);
       
       console.log('Detailed orders returned from Supabase:', detailedOrders);
@@ -1256,7 +1307,13 @@ export default function Orders() {
             </div>
 
             <div className="flex gap-3 mt-8 print:hidden">
-              <button onClick={() => setTimeout(() => window.print(), 500)} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700">Imprimir / Salvar PDF</button>
+              <button 
+                onClick={printPickingList} 
+                className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
+              >
+                <Printer size={20} />
+                Imprimir / Salvar PDF
+              </button>
               <button onClick={() => setShowPickingModal(false)} className="flex-1 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Fechar</button>
             </div>
           </motion.div>
