@@ -347,12 +347,28 @@ export default function Orders() {
     let maxLength = 0;
 
     items.forEach((item: any) => {
-      const p = item.products;
+      // Tentar encontrar o produto em várias propriedades possíveis (Supabase join pode variar)
+      const p = item.products || item.product || (Array.isArray(item.products) ? item.products[0] : null);
+      
       if (p) {
-        totalWeight += (Number(p.weight) || 0) * item.quantity;
-        maxHeight = Math.max(maxHeight, Number(p.height) || 0);
-        maxWidth = Math.max(maxWidth, Number(p.width) || 0);
-        maxLength = Math.max(maxLength, Number(p.length) || 0);
+        // Tentar buscar de várias colunas possíveis (weight ou weight_kg, e dimensões individuais ou jsonb)
+        const itemWeight = Number(p.weight) || Number(p.weight_kg) || 0.5;
+        
+        let itemHeight = Number(p.height) || 10;
+        let itemWidth = Number(p.width) || 15;
+        let itemLength = Number(p.length) || Number(p.depth) || 20;
+
+        // Se houver dimensions_cm (jsonb)
+        if (p.dimensions_cm) {
+          itemHeight = Number(p.dimensions_cm.height) || itemHeight;
+          itemWidth = Number(p.dimensions_cm.width) || itemWidth;
+          itemLength = Number(p.dimensions_cm.depth) || Number(p.dimensions_cm.length) || itemLength;
+        }
+
+        totalWeight += itemWeight * item.quantity;
+        maxHeight = Math.max(maxHeight, itemHeight);
+        maxWidth = Math.max(maxWidth, itemWidth);
+        maxLength = Math.max(maxLength, itemLength);
       }
     });
 
@@ -2068,7 +2084,11 @@ export default function Orders() {
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Peso Total (Est.)</p>
                     <p className="text-sm font-bold text-slate-900">
-                      {orderItems.reduce((acc, item) => acc + (item.quantity * (Number(item.products?.weight) || 0.5)), 0).toFixed(3)} kg
+                      {orderItems.reduce((acc, item) => {
+                        const p = item.products || item.product || (Array.isArray(item.products) ? item.products[0] : null);
+                        const w = Number(p?.weight) || Number(p?.weight_kg) || 0.5;
+                        return acc + (item.quantity * w);
+                      }, 0).toFixed(3)} kg
                     </p>
                   </div>
                 </div>

@@ -54,6 +54,10 @@ interface Product {
   active: boolean;
   quantity_info?: string;
   usage_instructions?: string;
+  weight?: number;
+  height?: number;
+  width?: number;
+  length?: number;
   category?: { name: string };
   tiers?: { quantity: number; discount_percentage: number }[];
   media?: { url: string; type: 'image' | 'video'; position: number }[];
@@ -291,7 +295,13 @@ export default function Products() {
         weight: parseFloat(productForm.weight || '0.5'),
         height: parseFloat(productForm.height || '10'),
         width: parseFloat(productForm.width || '10'),
-        length: parseFloat(productForm.length || '10')
+        length: parseFloat(productForm.length || '10'),
+        weight_kg: parseFloat(productForm.weight || '0.5'),
+        dimensions_cm: {
+          width: parseFloat(productForm.width || '10'),
+          height: parseFloat(productForm.height || '10'),
+          depth: parseFloat(productForm.length || '10')
+        }
       };
 
       let productId = editingProduct?.id;
@@ -575,10 +585,10 @@ export default function Products() {
       active: product.active,
       quantity_info: product.quantity_info || '60 cápsulas',
       usage_instructions: product.usage_instructions || 'Tomar 2 cápsulas ao dia',
-      weight: (product as any).weight?.toString() || '0.5',
-      height: (product as any).height?.toString() || '10',
-      width: (product as any).width?.toString() || '10',
-      length: (product as any).length?.toString() || '10'
+      weight: (product.weight ?? (product as any).weight_kg ?? 0.5).toString(),
+      height: (product.height ?? (product as any).dimensions_cm?.height ?? 10).toString(),
+      width: (product.width ?? (product as any).dimensions_cm?.width ?? 10).toString(),
+      length: (product.length ?? (product as any).dimensions_cm?.depth ?? (product as any).dimensions_cm?.length ?? 10).toString()
     });
     setProductTiers(product.tiers || []);
     setProductMedia(product.media || []);
