@@ -78,6 +78,7 @@ export default function Orders() {
   const [realTimeTracking, setRealTimeTracking] = useState<any>(null);
   const [loadingRealTime, setLoadingRealTime] = useState(false);
   const [showManualAssistant, setShowManualAssistant] = useState(false);
+  const [carrierConfig, setCarrierConfig] = useState<any>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
 
   // Manual Order State
@@ -107,11 +108,28 @@ export default function Orders() {
 
   useEffect(() => {
     fetchData();
+    fetchCarrierConfig();
     if (isAdmin) {
       fetchProducts();
       fetchAffiliates();
     }
   }, [activeTab, isAdmin]);
+
+  const fetchCarrierConfig = async () => {
+    try {
+      const { data } = await supabase
+        .from('shipping_carriers')
+        .select('*')
+        .eq('provider', 'cepcerto')
+        .maybeSingle();
+      
+      if (data) {
+        setCarrierConfig(data.config);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar carrier config:', err);
+    }
+  };
 
   useEffect(() => {
     if (selectedOrder) {
@@ -306,12 +324,15 @@ export default function Orders() {
   const [processingShipping, setProcessingShipping] = useState(false);
   const [processingLogistics, setProcessingLogistics] = useState(false);
 
+  const getZip = (addr: any) => addr?.zip_code || addr?.zipCode || addr?.zip || addr?.cep || 'N/A';
+
   const handleManualLabelRedirect = (order: any) => {
     const addr = order.shipping_address || {};
     const originZip = carrierConfig?.origin_zip || '00000-000';
+    const destZip = getZip(addr);
     
     // Tenta passar parâmetros via URL (se o site suportar)
-    const url = `https://www.cepcerto.com/area-restrita?cep_origem=${originZip}&cep_destino=${addr.zip_code}&peso=0.500`; 
+    const url = `https://www.cepcerto.com/area-restrita?cep_origem=${originZip}&cep_destino=${destZip}&peso=0.500`; 
     window.open(url, '_blank');
     
     setShowManualAssistant(true);
@@ -735,7 +756,7 @@ export default function Orders() {
       // 1. Busca os pedidos com seus itens (incluindo endereço e rastreio)
       const { data: detailedOrders, error } = await supabase
         .from('orders')
-        .select('id, created_at, customer_name, shipping_address, tracking_code, order_items(product_name, quantity)')
+        .select('*, order_items(*)')
         .in('id', targetIds);
       
       console.log('Detailed orders returned from Supabase:', detailedOrders);
@@ -1115,7 +1136,7 @@ export default function Orders() {
 
         {/* Lista de Pedidos */}
         <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm">
-          <div className="overflow-auto max-h-[calc(100vh-320px)] scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 transition-colors">
+          <div className="overflow-auto max-h-[calc(100vh-350px)] scrollbar-thin scrollbar-always-visible scrollbar-thumb-slate-300 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 transition-colors">
             <table className="w-full text-left border-collapse min-w-[1000px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
@@ -1697,22 +1718,27 @@ export default function Orders() {
                               onClick={() => {
                                 const originZip = carrierConfig?.origin_zip || '00000-000';
                                 const addr = selectedOrder.shipping_address || {};
+                                const destZip = getZip(addr);
                                 const script = `
                                   (function() {
                                     const fields = {
                                       'cep_origem': '${originZip}',
-                                      'cep_destino': '${addr.zip_code}',
+                                      'cep_destino': '${destZip}',
                                       'peso': '0.500',
                                       'altura': '10',
                                       'largura': '15',
                                       'comprimento': '20',
-                                      'valor_seguro': '50.00'
+                                      'valor_seguro': '${selectedOrder.total.toFixed(2)}'
                                     };
                                     for (const [id, val] of Object.entries(fields)) {
-                                      const el = document.getElementById(id) || document.querySelector(\`[name="\${id}"]\`);
-                                      if (el) { el.value = val; el.dispatchEvent(new Event('change', { bubbles: true })); }
+                                      const el = document.getElementById(id) || document.querySelector(\`[name="\${id}"]\`) || document.querySelector(\`[placeholder*="\${id}"]\`);
+                                      if (el) { 
+                                        el.value = val; 
+                                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                                        el.dispatchEvent(new Event('change', { bubbles: true })); 
+                                      }
                                     }
-                                    alert('Campos preenchidos! Confira os dados.');
+                                    alert('Dados do pedido #${selectedOrder.id.split('-')[0].toUpperCase()} preenchidos! Confira e pague.');
                                   })();
                                 `.trim();
                                 navigator.clipboard.writeText(script);
@@ -1727,7 +1753,7 @@ export default function Orders() {
 
                             {[
                               { label: 'Nome', value: selectedOrder.customer_name },
-                              { label: 'CEP Destino', value: selectedOrder.shipping_address?.zip_code },
+                              { label: 'CEP Destino', value: getZip(selectedOrder.shipping_address) },
                               { label: 'Endereço', value: selectedOrder.shipping_address?.street },
                               { label: 'Número', value: selectedOrder.shipping_address?.number },
                               { label: 'Bairro', value: selectedOrder.shipping_address?.neighborhood },
