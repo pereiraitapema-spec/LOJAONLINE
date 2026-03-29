@@ -77,6 +77,7 @@ export default function Orders() {
   const [tempTrackingCode, setTempTrackingCode] = useState('');
   const [realTimeTracking, setRealTimeTracking] = useState<any>(null);
   const [loadingRealTime, setLoadingRealTime] = useState(false);
+  const [showManualAssistant, setShowManualAssistant] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
 
   // Manual Order State
@@ -307,22 +308,14 @@ export default function Orders() {
 
   const handleManualLabelRedirect = (order: any) => {
     const addr = order.shipping_address || {};
-    const url = `https://www.cepcerto.com/`; 
+    const originZip = carrierConfig?.origin_zip || '00000-000';
+    
+    // Tenta passar parâmetros via URL (se o site suportar)
+    const url = `https://www.cepcerto.com/area-restrita?cep_origem=${originZip}&cep_destino=${addr.zip_code}&peso=0.500`; 
     window.open(url, '_blank');
     
-    // Copia dados para o clipboard para facilitar o preenchimento manual
-    const dataToCopy = `
-DADOS PARA ETIQUETA:
-Nome: ${order.customer_name}
-CEP: ${addr.zip_code}
-Endereço: ${addr.street}, ${addr.number}
-Bairro: ${addr.neighborhood}
-Cidade: ${addr.city}/${addr.state}
-Complemento: ${addr.complement || 'N/A'}
-    `.trim();
-    
-    navigator.clipboard.writeText(dataToCopy);
-    toast.success('Dados do cliente copiados! Basta colar no site do CepCerto.');
+    setShowManualAssistant(true);
+    toast.success('Assistente de Postagem aberto! Use os botões para copiar os dados.');
   };
 
   const handleGenerateLabel = async (orderId: string) => {
@@ -1682,13 +1675,101 @@ Complemento: ${addr.complement || 'N/A'}
                         </button>
                         <button 
                           onClick={() => handleManualLabelRedirect(selectedOrder)}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition-all"
-                          title="Abre o site do CepCerto com dados copiados"
+                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 ${showManualAssistant ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-700'} rounded-xl text-xs font-bold hover:bg-slate-200 transition-all`}
+                          title="Abre o site do CepCerto e o assistente de cópia"
                         >
                           <ExternalLink size={14} />
-                          Manual (Site)
+                          {showManualAssistant ? 'Assistente Ativo' : 'Manual (Site)'}
                         </button>
                       </div>
+
+                      {showManualAssistant && (
+                        <div className="mt-2 p-4 bg-indigo-50 rounded-2xl border border-indigo-100 space-y-3 animate-in fade-in slide-in-from-top-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Assistente de Cópia</p>
+                            <button onClick={() => setShowManualAssistant(false)} className="text-indigo-400 hover:text-indigo-600">
+                              <X size={14} />
+                            </button>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 gap-2">
+                            <button 
+                              onClick={() => {
+                                const originZip = carrierConfig?.origin_zip || '00000-000';
+                                const addr = selectedOrder.shipping_address || {};
+                                const script = `
+                                  (function() {
+                                    const fields = {
+                                      'cep_origem': '${originZip}',
+                                      'cep_destino': '${addr.zip_code}',
+                                      'peso': '0.500',
+                                      'altura': '10',
+                                      'largura': '15',
+                                      'comprimento': '20',
+                                      'valor_seguro': '50.00'
+                                    };
+                                    for (const [id, val] of Object.entries(fields)) {
+                                      const el = document.getElementById(id) || document.querySelector(\`[name="\${id}"]\`);
+                                      if (el) { el.value = val; el.dispatchEvent(new Event('change', { bubbles: true })); }
+                                    }
+                                    alert('Campos preenchidos! Confira os dados.');
+                                  })();
+                                `.trim();
+                                navigator.clipboard.writeText(script);
+                                toast.success('Script copiado! Cole no Console (F12) do CepCerto.');
+                              }}
+                              className="w-full flex items-center justify-center gap-2 p-2 bg-indigo-600 text-white rounded-lg text-[10px] font-bold hover:bg-indigo-700 transition-all shadow-sm"
+                              title="Copia um script para preencher o site automaticamente via Console"
+                            >
+                              <Zap size={12} />
+                              Copiar Script Automático (F12)
+                            </button>
+
+                            {[
+                              { label: 'Nome', value: selectedOrder.customer_name },
+                              { label: 'CEP Destino', value: selectedOrder.shipping_address?.zip_code },
+                              { label: 'Endereço', value: selectedOrder.shipping_address?.street },
+                              { label: 'Número', value: selectedOrder.shipping_address?.number },
+                              { label: 'Bairro', value: selectedOrder.shipping_address?.neighborhood },
+                              { label: 'Cidade/UF', value: `${selectedOrder.shipping_address?.city}/${selectedOrder.shipping_address?.state}` },
+                              { label: 'CPF/CNPJ', value: selectedOrder.customer_document },
+                              { label: 'Peso (kg)', value: '0.500' },
+                              { label: 'Dimensões (CxLxA)', value: '20x15x10' },
+                            ].map((field, idx) => (
+                              <div key={idx} className="flex items-center justify-between bg-white p-2 rounded-lg border border-indigo-100">
+                                <div className="overflow-hidden flex-1">
+                                  <p className="text-[9px] font-bold text-slate-400 uppercase leading-none mb-1">{field.label}</p>
+                                  <p className="text-xs font-medium text-slate-700 truncate">{field.value || 'N/A'}</p>
+                                </div>
+                                <div className="flex gap-1">
+                                  {field.label === 'Endereço' && (
+                                    <button 
+                                      onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${field.value}, ${selectedOrder.shipping_address?.number}, ${selectedOrder.shipping_address?.city}`)}`, '_blank')}
+                                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                                      title="Verificar no Google Maps"
+                                    >
+                                      <MapPin size={14} />
+                                    </button>
+                                  )}
+                                  <button 
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(field.value || '');
+                                      toast.success(`${field.label} copiado!`);
+                                    }}
+                                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                                    title="Copiar"
+                                  >
+                                    <Save size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[9px] text-indigo-400 italic text-center">
+                            Dica: Clique no ícone ao lado de cada campo e cole no site do CepCerto.
+                          </p>
+                        </div>
+                      )}
 
                       <div className="flex flex-col gap-1 mt-2">
                         <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Código de Rastreio</p>
