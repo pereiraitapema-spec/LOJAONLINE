@@ -417,10 +417,18 @@ export default function Orders() {
   };
 
   const toggleOrderSelection = (orderId: string) => {
-    setSelectedOrderIds(prev => 
-      prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
-    );
+    setSelectedOrderIds(prev => {
+      const next = prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId];
+      console.log('Selected order IDs:', next);
+      return next;
+    });
   };
+
+  useEffect(() => {
+    if (!showPickingModal) {
+      setPickingData(null);
+    }
+  }, [showPickingModal]);
 
   const toggleSelectAll = () => {
     if (selectedOrderIds.length === filteredOrders.length) {
@@ -440,7 +448,7 @@ export default function Orders() {
         .select('id, created_at, customer_name, order_items(product_name, quantity)')
         .in('id', selectedOrderIds);
       
-      console.log('Detailed orders:', detailedOrders);
+      console.log('Detailed orders returned from Supabase:', detailedOrders);
       
       if (error) throw error;
 
