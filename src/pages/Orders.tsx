@@ -304,9 +304,10 @@ export default function Orders() {
       const response = await fetch(`/api/logistics/picking-data/${orderId}`);
       if (!response.ok) throw new Error('Erro ao buscar dados de separação');
       const data = await response.text();
+      const jsonData = JSON.parse(data);
       
       // Abre um modal com os dados (precisamos implementar o estado do modal)
-      setPickingData(data);
+      setPickingData(jsonData);
       setShowPickingModal(true);
       
       toast.success('Lista de separação carregada!');
@@ -450,6 +451,23 @@ export default function Orders() {
       toast.success('Lista de separação gerada!');
     } catch (error: any) {
       toast.error('Erro ao gerar separação: ' + error.message);
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  const fetchOrderItems = async (orderId: string) => {
+    setLoadingItems(true);
+    try {
+      const { data, error } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('order_id', orderId);
+      
+      if (error) throw error;
+      setOrderItems(data || []);
+    } catch (error: any) {
+      toast.error('Erro ao carregar itens do pedido: ' + error.message);
     } finally {
       setLoadingItems(false);
     }
@@ -777,10 +795,10 @@ export default function Orders() {
 
         {/* Lista de Pedidos */}
         <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
+                <tr className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     <input type="checkbox" checked={selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0} onChange={toggleSelectAll} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                   </th>
@@ -1196,10 +1214,10 @@ export default function Orders() {
                 </div>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {pickingData.orders.map((order: any) => (
-                  <div key={order.id} className="border-b border-slate-300 pb-4 last:border-0">
-                    <div className="font-bold text-slate-900 mb-1">
+                  <div key={order.id} className="border border-slate-300 p-4 rounded-lg">
+                    <div className="font-bold text-slate-900 mb-2 border-b border-slate-200 pb-2">
                       Pedido: {order.id.split('-')[0].toUpperCase()} | 
                       Cliente: {order.customer_name} | 
                       Cidade: {order.shipping_address?.city || 'N/A'} | 
