@@ -638,7 +638,7 @@ export const shippingService = {
     
     // Log para listar todas as transportadoras e entender o que existe no banco
     const { data: allCarriers } = await supabase.from('shipping_carriers').select('name');
-    console.log('📋 Todas as transportadoras no banco:', allCarriers);
+    console.log('📋 Conteúdo detalhado das transportadoras no banco:', JSON.stringify(allCarriers));
 
     // Busca pelo nome, tentando ser mais flexível (case-insensitive)
     const { data: carrier, error: carrierError } = await supabase
