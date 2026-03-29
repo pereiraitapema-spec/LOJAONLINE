@@ -482,6 +482,12 @@ export default function Orders() {
         setSelectedOrder({ ...selectedOrder, status: newStatus });
       }
       toast.success('Status do pedido atualizado!');
+
+      // Automação: Se o status mudou para 'paid', tenta gerar a etiqueta automaticamente
+      if (newStatus === 'paid') {
+        toast.loading('Pagamento confirmado! Gerando etiqueta automaticamente...');
+        await handleGenerateLabel(orderId);
+      }
     } catch (error: any) {
       toast.error('Erro ao atualizar status: ' + error.message);
     }
