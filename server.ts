@@ -134,7 +134,7 @@ async function startServer() {
         res.json({ success: true, data });
       } else {
         const text = await response.text();
-        console.error('💥 Erro: Resposta do CepCerto não é JSON:', text);
+        console.error('💥 Erro: Resposta do CepCerto não é JSON. Status:', response.status, 'Conteúdo:', text);
         res.status(500).json({ success: false, error: 'Resposta inválida do CepCerto', details: text });
       }
     } catch (error: any) {
