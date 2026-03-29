@@ -1178,43 +1178,43 @@ export default function Orders() {
 
       {/* Modal de Separação */}
       {showPickingModal && pickingData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm print:hidden">
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-6">Lista de Separação</h2>
             
-            {/* Resumo */}
-            <div className="bg-indigo-50 p-4 rounded-2xl mb-6">
-              <h3 className="font-bold text-indigo-900 mb-2">Resumo Geral</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(pickingData.summary).map(([name, qty]) => (
-                  <div key={name} className="flex justify-between bg-white p-2 rounded-lg">
-                    <span className="text-sm text-slate-600">{name}</span>
-                    <span className="font-bold text-indigo-700">{qty}</span>
+            {/* Conteúdo para Impressão */}
+            <div id="picking-list-content" className="print:block print:w-full">
+              <div className="bg-slate-50 p-4 rounded-2xl mb-6">
+                <h3 className="font-bold text-slate-900 mb-2">Resumo Geral</h3>
+                <div className="space-y-1">
+                  {Object.entries(pickingData.summary).map(([name, qty]) => (
+                    <div key={name} className="flex justify-between border-b border-slate-200 py-1">
+                      <span className="text-sm text-slate-700">{name}</span>
+                      <span className="font-bold text-slate-900">{qty}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {pickingData.orders.map((order: any) => (
+                  <div key={order.id} className="border-b border-slate-300 pb-4 last:border-0">
+                    <div className="font-bold text-slate-900 mb-1">
+                      Pedido: {order.id.split('-')[0].toUpperCase()} | Cliente: {order.customer_name} | Cidade: {order.shipping_address?.city || 'N/A'}
+                    </div>
+                    <div className="space-y-1">
+                      {order.order_items.map((item: any, idx: number) => (
+                        <div key={idx} className="text-sm text-slate-700">
+                          Produto: {item.product_name} - Quantidade: {item.quantity}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Pedidos */}
-            <div className="space-y-4">
-              {pickingData.orders.map((order: any) => (
-                <div key={order.id} className="border border-slate-200 rounded-2xl p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <p className="font-bold text-slate-900">{order.customer_name}</p>
-                    <p className="text-xs text-slate-500">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
-                  </div>
-                  <div className="space-y-1">
-                    {order.order_items.map((item: any, idx: number) => (
-                      <p key={idx} className="text-sm text-slate-600">
-                        {item.product_name} <span className="font-bold">({item.quantity}x)</span>
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-3 mt-8">
+            <div className="flex gap-3 mt-8 print:hidden">
               <button onClick={() => window.print()} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700">Imprimir / Salvar PDF</button>
               <button onClick={() => setShowPickingModal(false)} className="flex-1 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Fechar</button>
             </div>
