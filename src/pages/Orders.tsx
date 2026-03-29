@@ -462,6 +462,7 @@ export default function Orders() {
       const city = addr.city || addr.localidade || addr.neighborhood || addr.street || 'Balcão/Local';
       const tracking = order.tracking_code || 'Aguardando postagem';
       const orderId = order.id.split('-')[0].toUpperCase();
+      const orderDate = new Date(order.created_at).toLocaleDateString('pt-BR');
 
       return `
         <div style="border: 2px solid #000; margin-bottom: 25px; padding: 15px; border-radius: 8px; page-break-inside: avoid;">
@@ -470,7 +471,7 @@ export default function Orders() {
               PEDIDO: #${orderId} | CLIENTE: ${order.customer_name}
             </div>
             <div style="font-size: 12px; color: #444; margin-top: 5px;">
-              CIDADE: ${city} | RASTREIO: <span style="font-family: monospace; font-weight: bold;">${tracking}</span>
+              DATA: ${orderDate} | CIDADE: ${city} | RASTREIO: <span style="font-family: monospace; font-weight: bold;">${tracking}</span>
             </div>
           </div>
           <div style="margin-left: 10px;">
