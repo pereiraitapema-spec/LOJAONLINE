@@ -22,7 +22,8 @@ import {
   Ban,
   MapPin,
   Zap,
-  QrCode
+  QrCode,
+  ExternalLink
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'react-hot-toast';
@@ -268,6 +269,26 @@ export default function Orders() {
   const [processingShipping, setProcessingShipping] = useState(false);
   const [processingLogistics, setProcessingLogistics] = useState(false);
 
+  const handleManualLabelRedirect = (order: any) => {
+    const addr = order.shipping_address || {};
+    const url = `https://www.cepcerto.com/`; 
+    window.open(url, '_blank');
+    
+    // Copia dados para o clipboard para facilitar o preenchimento manual
+    const dataToCopy = `
+DADOS PARA ETIQUETA:
+Nome: ${order.customer_name}
+CEP: ${addr.zip_code}
+Endereço: ${addr.street}, ${addr.number}
+Bairro: ${addr.neighborhood}
+Cidade: ${addr.city}/${addr.state}
+Complemento: ${addr.complement || 'N/A'}
+    `.trim();
+    
+    navigator.clipboard.writeText(dataToCopy);
+    toast.success('Dados do cliente copiados! Basta colar no site do CepCerto.');
+  };
+
   const handleGenerateLabel = async (orderId: string) => {
     setProcessingShipping(true);
     try {
@@ -302,27 +323,7 @@ export default function Orders() {
   };
 
   const handlePrintPickingList = async (orderId: string) => {
-    setProcessingLogistics(true);
-    try {
-      // Busca os dados de separação
-      const response = await fetch(`/api/logistics/picking-data/${orderId}`);
-      if (!response.ok) throw new Error('Erro ao buscar dados de separação');
-      const data = await response.text();
-      const jsonData = JSON.parse(data);
-      
-      // Abre um modal com os dados (precisamos implementar o estado do modal)
-      setPickingData({
-        summary: jsonData.summary || {},
-        orders: jsonData.orders || []
-      });
-      setShowPickingModal(true);
-      
-      toast.success('Lista de separação carregada!');
-    } catch (error: any) {
-      toast.error('Erro ao gerar lista de separação: ' + error.message);
-    } finally {
-      setProcessingLogistics(false);
-    }
+    generateBatchPickingList([orderId]);
   };
 
   const handleCancelLabel = async (orderId: string) => {
@@ -690,8 +691,15 @@ export default function Orders() {
       setSelectedOrderIds(filteredOrders.map(o => o.id));
     }
   };
-  const generateBatchPickingList = async () => {
-    console.log('Generating batch picking list for:', selectedOrderIds);
+  const generateBatchPickingList = async (ids?: string[]) => {
+    const targetIds = ids || selectedOrderIds;
+    
+    if (!targetIds || targetIds.length === 0) {
+      toast.error('Nenhum pedido selecionado para separação.');
+      return;
+    }
+
+    console.log('Generating batch picking list for:', targetIds);
     try {
       setLoadingItems(true);
       
@@ -699,24 +707,30 @@ export default function Orders() {
       const { data: detailedOrders, error } = await supabase
         .from('orders')
         .select('id, created_at, customer_name, shipping_address, tracking_code, order_items(product_name, quantity)')
-        .in('id', selectedOrderIds);
+        .in('id', targetIds);
       
       console.log('Detailed orders returned from Supabase:', detailedOrders);
       
       if (error) throw error;
 
+      if (!detailedOrders || detailedOrders.length === 0) {
+        throw new Error('Nenhum dado encontrado para os pedidos selecionados.');
+      }
+
       // 2. Agrupa os produtos para o resumo
       const summary: Record<string, number> = {};
-      detailedOrders?.forEach(order => {
-        order.order_items.forEach((item: any) => {
-          summary[item.product_name] = (summary[item.product_name] || 0) + item.quantity;
-        });
+      detailedOrders.forEach(order => {
+        if (order.order_items) {
+          order.order_items.forEach((item: any) => {
+            summary[item.product_name] = (summary[item.product_name] || 0) + item.quantity;
+          });
+        }
       });
 
       // 3. Estrutura os dados para o modal
       setPickingData({
         summary,
-        orders: detailedOrders || []
+        orders: detailedOrders
       });
       setShowPickingModal(true);
       toast.success('Lista de separação gerada!');
@@ -989,7 +1003,7 @@ export default function Orders() {
                 <h2 className="text-xl font-black text-slate-900">Gestão de Pedidos</h2>
                 {selectedOrderIds.length > 0 && (
                   <button 
-                    onClick={generateBatchPickingList}
+                    onClick={() => generateBatchPickingList()}
                     className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2"
                   >
                     <Package size={16} />
@@ -1066,8 +1080,8 @@ export default function Orders() {
 
         {/* Lista de Pedidos */}
         <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-left border-collapse min-w-[800px]">
+          <div className="overflow-auto max-h-[calc(100vh-320px)] scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent hover:scrollbar-thumb-slate-400 transition-colors">
+            <table className="w-full text-left border-collapse min-w-[1000px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -1553,7 +1567,20 @@ export default function Orders() {
                 className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
               >
                 <QrCode size={20} />
-                Gerar Etiquetas
+                Gerar Etiquetas (Auto)
+              </button>
+              <button 
+                onClick={() => {
+                  if (pickingData && pickingData.orders.length > 0) {
+                    handleManualLabelRedirect(pickingData.orders[0]);
+                  } else {
+                    toast.error('Nenhum pedido selecionado');
+                  }
+                }} 
+                className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+              >
+                <ExternalLink size={20} />
+                Manual (Site)
               </button>
               <button onClick={() => setShowPickingModal(false)} className="px-6 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Fechar</button>
             </div>
@@ -1600,22 +1627,35 @@ export default function Orders() {
                     <div className="w-full mb-2">
                       <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Ações de Logística</p>
                     </div>
-                    <button 
-                      onClick={() => handleGenerateLabel(selectedOrder.id)}
-                      disabled={processingShipping || !!selectedOrder.tracking_code}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
-                    >
-                      <Printer size={16} />
-                      Gerar Etiqueta
-                    </button>
-                    <button 
-                      onClick={() => handlePrintPickingList(selectedOrder.id)}
-                      disabled={processingLogistics}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
-                    >
-                      <Printer size={16} />
-                      Separar Produto
-                    </button>
+                    <div className="flex flex-col gap-2 w-full">
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleGenerateLabel(selectedOrder.id)}
+                          disabled={processingShipping || !!selectedOrder.tracking_code}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
+                          title="Gera etiqueta usando seus créditos CepCerto"
+                        >
+                          <Zap size={14} />
+                          Automática
+                        </button>
+                        <button 
+                          onClick={() => handleManualLabelRedirect(selectedOrder)}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition-all"
+                          title="Abre o site do CepCerto com dados copiados"
+                        >
+                          <ExternalLink size={14} />
+                          Manual (Site)
+                        </button>
+                      </div>
+                      <button 
+                        onClick={() => handlePrintPickingList(selectedOrder.id)}
+                        disabled={processingLogistics}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
+                      >
+                        <Printer size={16} />
+                        Separar Produto
+                      </button>
+                    </div>
                     <button 
                       onClick={() => handleCancelLabel(selectedOrder.id)}
                       disabled={processingShipping || !selectedOrder.tracking_code}
