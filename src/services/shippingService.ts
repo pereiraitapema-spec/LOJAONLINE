@@ -633,7 +633,11 @@ export const shippingService = {
       return { success: false, error: 'Order not found' };
     }
     
-    const { data: carrier } = await supabase.from('shipping_carriers').select('*').eq('id', order.shipping_method).single();
+    console.log('🔍 Buscando carrier em generateLabel para o método:', order.shipping_method);
+    const { data: carrier, error: carrierError } = await supabase.from('shipping_carriers').select('*').eq('id', order.shipping_method).single();
+    if (carrierError) {
+      console.error('❌ Erro ao buscar carrier em generateLabel:', carrierError);
+    }
     if (!carrier) return { success: false, error: 'Carrier not found' };
 
     const provider = providers[carrier.provider];
