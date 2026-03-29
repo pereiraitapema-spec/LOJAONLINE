@@ -419,18 +419,35 @@ export default function Orders() {
       setSelectedOrderIds(filteredOrders.map(o => o.id));
     }
   };
-  const fetchOrderItems = async (orderId: string) => {
+  const generateBatchPickingList = async () => {
     try {
       setLoadingItems(true);
-      const { data, error } = await supabase
+      
+      // 1. Busca todos os itens dos pedidos selecionados
+      const { data: items, error } = await supabase
         .from('order_items')
-        .select('id, order_id, product_id, product_name, quantity, price')
-        .eq('order_id', orderId);
+        .select('product_name, quantity')
+        .in('order_id', selectedOrderIds);
       
       if (error) throw error;
-      setOrderItems(data || []);
+
+      // 2. Agrupa os produtos
+      const summary: Record<string, number> = {};
+      items?.forEach(item => {
+        summary[item.product_name] = (summary[item.product_name] || 0) + item.quantity;
+      });
+
+      // 3. Formata o resumo
+      let pickingText = "RESUMO DE SEPARAÇÃO (LOTE):\n\n";
+      Object.entries(summary).forEach(([name, qty]) => {
+        pickingText += `${name}: ${qty}\n`;
+      });
+
+      setPickingData(pickingText);
+      setShowPickingModal(true);
+      toast.success('Lista de separação gerada!');
     } catch (error: any) {
-      toast.error('Erro ao carregar itens: ' + error.message);
+      toast.error('Erro ao gerar separação: ' + error.message);
     } finally {
       setLoadingItems(false);
     }
@@ -676,7 +693,7 @@ export default function Orders() {
                 <h2 className="text-xl font-black text-slate-900">Gestão de Pedidos</h2>
                 {selectedOrderIds.length > 0 && (
                   <button 
-                    onClick={() => { /* Lógica de separação em lote */ }}
+                    onClick={generateBatchPickingList}
                     className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2"
                   >
                     <Package size={16} />
@@ -1152,8 +1169,11 @@ export default function Orders() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-8">
             <h2 className="text-xl font-bold mb-4">Lista de Separação</h2>
-            <pre className="bg-slate-100 p-4 rounded-xl text-xs font-mono overflow-auto max-h-96">{pickingData}</pre>
-            <button onClick={() => setShowPickingModal(false)} className="mt-6 w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700">Fechar</button>
+            <pre className="bg-slate-100 p-4 rounded-xl text-sm font-mono overflow-auto max-h-96 whitespace-pre-wrap">{pickingData}</pre>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => window.print()} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700">Imprimir / Salvar PDF</button>
+              <button onClick={() => setShowPickingModal(false)} className="flex-1 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Fechar</button>
+            </div>
           </motion.div>
         </div>
       )}
