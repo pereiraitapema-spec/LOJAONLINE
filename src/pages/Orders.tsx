@@ -69,6 +69,7 @@ export default function Orders() {
   const [showFilters, setShowFilters] = useState(false);
   const [activeTab, setActiveTab] = useState<'orders' | 'abandoned'>('orders');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
 
   // Manual Order State
   const [showManualOrderModal, setShowManualOrderModal] = useState(false);
@@ -405,6 +406,19 @@ export default function Orders() {
     }
   };
 
+  const toggleOrderSelection = (orderId: string) => {
+    setSelectedOrderIds(prev => 
+      prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedOrderIds.length === filteredOrders.length) {
+      setSelectedOrderIds([]);
+    } else {
+      setSelectedOrderIds(filteredOrders.map(o => o.id));
+    }
+  };
   const fetchOrderItems = async (orderId: string) => {
     try {
       setLoadingItems(true);
@@ -658,12 +672,24 @@ export default function Orders() {
           <>
             {/* Filtros */}
             <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-              <input 
-                type="text" 
-                placeholder="Buscar por ID, Nome, Email ou CPF..."
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-black text-slate-900">Gestão de Pedidos</h2>
+                {selectedOrderIds.length > 0 && (
+                  <button 
+                    onClick={() => { /* Lógica de separação em lote */ }}
+                    className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2"
+                  >
+                    <Package size={16} />
+                    Gerar Separação ({selectedOrderIds.length})
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar por ID, Nome, Email ou CPF..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -726,6 +752,9 @@ export default function Orders() {
             <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    <input type="checkbox" checked={selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0} onChange={toggleSelectAll} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                  </th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">ID do Pedido</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</th>
                   {isAdmin && <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cliente</th>}
@@ -737,6 +766,9 @@ export default function Orders() {
               <tbody>
                 {filteredOrders.map((order) => (
                   <tr key={order.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <input type="checkbox" checked={selectedOrderIds.includes(order.id)} onChange={() => toggleOrderSelection(order.id)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    </td>
                     <td className="px-6 py-4">
                       <span className="font-mono text-xs font-bold text-slate-600">
                         {order.id.split('-')[0].toUpperCase()}
