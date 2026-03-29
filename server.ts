@@ -76,12 +76,10 @@ async function startServer() {
     console.log('🚀 Iniciando pagamento Pagar.me...');
     console.log('📦 Dados do Pedido:', JSON.stringify(orderData, null, 2));
     
-    // ... (restante do código do Pagar.me) ...
     res.status(501).json({ success: false, error: 'Implementação Pagar.me pendente' });
   });
 
-  // ... (restante das rotas e configuração do Vite) ...
-
+  // Middleware de Frontend (Vite ou Estático) - DEVE VIR APÓS AS ROTAS DE API
   if (process.env.NODE_ENV === "production") {
     app.use(express.static(path.join(__dirname, "dist"), {
       setHeaders: (res, filePath) => {
