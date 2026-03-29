@@ -344,12 +344,25 @@ const cepcertoProvider: ShippingProvider = {
     console.log('📦 Gerando etiqueta real CepCerto para o pedido:', orderId);
     
     try {
-      // URL baseada no padrão de postagem do CepCerto
-      const url = `https://www.cepcerto.com/ws/json-postagem/${orderId}/${config.api_key_postagem}`;
+      // Chamada através do proxy no backend
+      const response = await fetch('/api/cepcerto/generate-label', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: orderId,
+          apiKeyPostagem: config.api_key_postagem
+        })
+      });
       
-      console.log('🔗 URL Postagem CepCerto:', url);
-      const response = await fetch(url);
-      const data = await response.json();
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Erro no proxy CepCerto');
+      }
+      
+      const data = result.data;
       
       console.log('📦 Resposta Postagem CepCerto:', data);
       

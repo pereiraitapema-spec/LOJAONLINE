@@ -110,6 +110,30 @@ async function startServer() {
     }
   });
 
+  // Proxy para CepCerto
+  app.post("/api/cepcerto/generate-label", express.json(), async (req, res) => {
+    const { orderId, apiKeyPostagem } = req.body;
+    
+    if (!orderId || !apiKeyPostagem) {
+      return res.status(400).json({ success: false, error: 'Dados incompletos.' });
+    }
+
+    try {
+      const url = `https://www.cepcerto.com/ws/json-postagem/${orderId}/${apiKeyPostagem}`;
+      console.log('🔗 URL Postagem CepCerto (Proxy):', url);
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      console.log('📦 Resposta Postagem CepCerto (Proxy):', data);
+      
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('💥 Erro no proxy CepCerto:', error.message);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // Webhook Pagar.me
   app.post("/api/webhooks/pagarme", express.json(), async (req, res) => {
     console.log('🔔 Webhook Pagar.me recebido!');
