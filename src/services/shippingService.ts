@@ -364,7 +364,7 @@ const cepcertoProvider: ShippingProvider = {
       
       const data = result.data;
       
-      console.log('📦 Resposta Postagem CepCerto:', data);
+      console.log('📦 Resposta Postagem CepCerto (DEBUG):', JSON.stringify(data, null, 2));
       
       // Verificação de erro baseada na documentação
       if (data.erro && data.erro !== '0') {
