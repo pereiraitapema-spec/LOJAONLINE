@@ -431,7 +431,9 @@ export default function Orders() {
   }, [showPickingModal]);
 
   const toggleSelectAll = () => {
-    if (selectedOrderIds.length === filteredOrders.length) {
+    console.log('Toggle select all. Current selection:', selectedOrderIds);
+    console.log('Filtered orders count:', filteredOrders.length);
+    if (selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0) {
       setSelectedOrderIds([]);
     } else {
       setSelectedOrderIds(filteredOrders.map(o => o.id));
