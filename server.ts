@@ -25,6 +25,12 @@ async function startServer() {
     next();
   });
 
+  // Rota de depuração explícita
+  app.post("/api/cepcerto/generate-label", express.json(), async (req, res, next) => {
+    console.log('✅ Rota /api/cepcerto/generate-label foi atingida!');
+    next();
+  });
+
   // API routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
