@@ -94,11 +94,15 @@ export default function Profile() {
 
       setProfile(prev => ({ ...prev, avatar_url: publicUrl }));
       
-      // Salvar automaticamente no perfil para não perder a foto
+      // Salvar automaticamente no perfil usando upsert para garantir a persistência
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', user.id);
+        .upsert({ 
+          id: user.id,
+          avatar_url: publicUrl,
+          full_name: profile.full_name,
+          email: user.email
+        }, { onConflict: 'id' });
       
       if (updateError) throw updateError;
 
@@ -114,13 +118,15 @@ export default function Profile() {
     e.preventDefault();
     setSaving(true);
     try {
+      // Usar upsert em vez de update para garantir que o registro exista
       const { error } = await supabase
         .from('profiles')
-        .update({
+        .upsert({
+          id: user.id,
           full_name: profile.full_name,
-          avatar_url: profile.avatar_url
-        })
-        .eq('id', user.id);
+          avatar_url: profile.avatar_url,
+          email: user.email
+        }, { onConflict: 'id' });
 
       if (error) throw error;
       toast.success('Perfil atualizado com sucesso!');
