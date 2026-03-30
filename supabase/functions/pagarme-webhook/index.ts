@@ -35,7 +35,11 @@ Deno.serve(async (req) => {
     // Processar confirmação de pagamento
     if (eventType === 'order.paid') {
         // Tenta buscar o order_id de diferentes locais possíveis no payload
-        const orderId = payload.data?.metadata?.order_id || payload.data?.order?.metadata?.order_id;
+        const orderId = 
+            payload.data?.metadata?.order_id || 
+            payload.data?.order?.metadata?.order_id ||
+            payload.data?.metadata?.orderId ||
+            payload.data?.id; // Tenta pegar o ID do próprio objeto Pagar.me como fallback se necessário
         
         if (orderId) {
             console.log(`✅ Pagamento confirmado para o pedido ${orderId}. Atualizando status...`);
@@ -78,7 +82,15 @@ Deno.serve(async (req) => {
                 console.log(`✅ Status do pedido ${orderId} atualizado para 'paid'.`);
             }
         } else {
-            console.error('❌ order_id não encontrado no metadata do payload:', JSON.stringify(payload));
+            console.error('❌ order_id não encontrado no payload. Estrutura recebida:', JSON.stringify(payload, null, 2));
+            
+            // Registra o erro de falta de order_id na tabela de debug para análise
+            await supabase
+                .from('webhook_debug_logs')
+                .insert({
+                    payload: { error: 'order_id_not_found', raw_payload: payload },
+                    created_at: new Date().toISOString()
+                });
         }
     }
 
