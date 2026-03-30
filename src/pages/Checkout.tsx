@@ -1146,11 +1146,18 @@ export default function Checkout() {
           }
 
           // ATUALIZAÇÃO IMEDIATA: Forçar status 'paid' no Supabase
-          await supabase
+          console.log('🔄 Tentando atualizar status do pedido para "paid" no Supabase para o ID:', orderData.id);
+          const { data: updateData, error: updateError } = await supabase
             .from('orders')
             .update({ status: 'paid' })
-            .eq('id', orderData.id);
-          console.log('✅ Status do pedido atualizado para "paid" imediatamente no checkout.');
+            .eq('id', orderData.id)
+            .select();
+          
+          if (updateError) {
+            console.error('❌ Erro ao atualizar status do pedido para "paid" no checkout:', updateError);
+          } else {
+            console.log('✅ Status do pedido atualizado com sucesso no checkout:', updateData);
+          }
 
           // 4. Comunicar com CepCerto para gerar etiqueta (Resiliente)
           try {

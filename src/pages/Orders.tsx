@@ -668,17 +668,10 @@ export default function Orders() {
         
         const ordersData = data || [];
         
-        // Lógica para atualizar 'approved' para 'paid' automaticamente
-        let processedOrders = ordersData;
-        const approvedOrders = ordersData.filter(o => o.status === 'approved');
-        if (approvedOrders.length > 0) {
-          for (const order of approvedOrders) {
-            await supabase.from('orders').update({ status: 'paid' }).eq('id', order.id);
-          }
-          processedOrders = ordersData.map(o => o.status === 'approved' ? {...o, status: 'paid'} : o);
-        }
+        // Prioridade 1: Status já está 'paid' ou 'approved' no banco
+        let processedOrders = ordersData.map(o => (o.status === 'approved' || o.status === 'paid') ? {...o, status: 'paid'} : o);
 
-        // Nova lógica: Verificar payment_logs para pedidos pendentes
+        // Prioridade 2: Verificar payment_logs apenas para pedidos que ainda estão 'pending'
         const pendingOrders = processedOrders.filter(o => o.status === 'pending');
         console.log('🔍 Verificando logs de pagamento para pedidos pendentes:', pendingOrders.map(o => o.id));
         if (pendingOrders.length > 0) {
@@ -696,8 +689,6 @@ export default function Orders() {
               const paidOrderIds = logs.map(l => l.order_id);
               console.log('✅ Pedidos encontrados em payment_logs como pagos:', paidOrderIds);
               processedOrders = processedOrders.map(o => paidOrderIds.includes(o.id) ? {...o, status: 'paid'} : o);
-            } else {
-              console.log('⚠️ Nenhum log de pagamento encontrado para os pedidos pendentes.');
             }
           }
         }
