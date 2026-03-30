@@ -676,6 +676,21 @@ export default function Orders() {
           }
           processedOrders = ordersData.map(o => o.status === 'approved' ? {...o, status: 'paid'} : o);
         }
+
+        // Nova lógica: Verificar payment_logs para pedidos pendentes
+        const pendingOrders = processedOrders.filter(o => o.status === 'pending');
+        if (pendingOrders.length > 0) {
+          const { data: logs } = await supabase
+            .from('payment_logs')
+            .select('order_id')
+            .eq('event_type', 'order.paid')
+            .in('order_id', pendingOrders.map(o => o.id));
+            
+          if (logs && logs.length > 0) {
+            const paidOrderIds = logs.map(l => l.order_id);
+            processedOrders = processedOrders.map(o => paidOrderIds.includes(o.id) ? {...o, status: 'paid'} : o);
+          }
+        }
         
         setOrders(processedOrders);
 
