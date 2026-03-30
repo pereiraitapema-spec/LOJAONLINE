@@ -208,16 +208,15 @@ const cepcertoProvider: ShippingProvider = {
     const startTime = Date.now();
     try {
       const totalWeightInGrams = Math.max(300, Math.ceil(packages.reduce((acc, p) => acc + p.weight, 0) * 1000));
-      const maxDim = packages.reduce((acc, p) => ({
-        h: Math.max(acc.h, p.height, 2),
-        w: Math.max(acc.w, p.width, 11),
-        l: Math.max(acc.l, p.length, 16)
-      }), { h: 2, w: 11, l: 16 });
+      const totalDim = packages.reduce((acc, p) => ({
+        h: acc.h + (p.height || 2),
+        w: Math.max(acc.w, p.width || 11),
+        l: Math.max(acc.l, p.length || 16)
+      }), { h: 0, w: 11, l: 16 });
 
       // URL format: https://www.cepcerto.com/ws/json-frete/{origem}/{destino}/{peso_gramas}/{altura}/{largura}/{comprimento}/{chave}
-      // Note: The documentation says "peso_gramas" but some examples use kg. Let's ensure we send grams as integer.
-      // Multiplicamos as dimensões por 10 pois o CepCerto espera mm e os produtos estão em cm
-      const baseUrl = `https://www.cepcerto.com/ws/json-frete/${config.origin_zip.replace(/\D/g, '')}/${destZipCode.replace(/\D/g, '')}/${totalWeightInGrams}/${Math.ceil(maxDim.h * 10)}/${Math.ceil(maxDim.w * 10)}/${Math.ceil(maxDim.l * 10)}/${config.api_key}`;
+      // Note: Dimensions are in CM for CepCerto API
+      const baseUrl = `https://www.cepcerto.com/ws/json-frete/${config.origin_zip.replace(/\D/g, '')}/${destZipCode.replace(/\D/g, '')}/${totalWeightInGrams}/${Math.ceil(totalDim.h)}/${Math.ceil(totalDim.w)}/${Math.ceil(totalDim.l)}/${config.api_key}`;
       
       console.log('🔗 URL CepCerto:', baseUrl);
       const response = await fetch(baseUrl);

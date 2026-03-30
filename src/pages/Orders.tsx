@@ -331,18 +331,10 @@ export default function Orders() {
 
   const getZip = (addr: any) => addr?.zip_code || addr?.zipCode || addr?.zip || addr?.cep || 'N/A';
 
-  const handleManualLabelRedirect = async (order: any, providedItems?: any[], skipOpen = false) => {
-    // Abrir a janela IMEDIATAMENTE para evitar bloqueio de popup
-    if (!skipOpen) {
-      window.open('https://cepcerto.com/area-restrita', 'cepcerto_window');
-    }
-    
-    console.log('🚀 Iniciando redirecionamento manual para pedido:', order.id);
-    
-    const { data: settings } = await supabase.from('store_settings').select('origin_zip_code').maybeSingle();
-    const originZip = settings?.origin_zip_code || carrierConfig?.origin_zip || '88240-000';
-    const destZip = getZip(order.shipping_address);
-    
+  const handleManualLabelRedirect = async (order: any, providedItems?: any[]) => {
+    const originZip = (carrierConfig?.origin_zip || '88240-000').replace(/\D/g, '');
+    const destZip = (order.shipping_address?.zip_code || '').replace(/\D/g, '');
+
     // Priorizar itens fornecidos ou que já vieram no objeto order
     let items = providedItems || order.order_items || [];
     
@@ -355,19 +347,17 @@ export default function Orders() {
       items = itemsData?.map(item => ({ ...item, products: productsMap[item.product_id] })) || [];
     }
 
-    // Calcular dimensões reais
+    // Calcular dimensões reais (empilhamento simples)
     let totalWeight = 0;
-    let maxHeight = 0;
+    let totalHeight = 0;
     let maxWidth = 0;
     let maxLength = 0;
 
     items.forEach((item: any) => {
-      // Tentar encontrar o produto em várias propriedades possíveis
       const p = item.products || item.product || (Array.isArray(item.products) ? item.products[0] : null);
       
       if (p) {
         const itemWeight = Number(p.weight) || Number(p.weight_kg) || 0.5;
-        
         let itemHeight = Number(p.height) || 10;
         let itemWidth = Number(p.width) || 15;
         let itemLength = Number(p.length) || Number(p.depth) || 20;
@@ -379,29 +369,30 @@ export default function Orders() {
         }
 
         totalWeight += itemWeight * item.quantity;
-        maxHeight = Math.max(maxHeight, itemHeight);
+        totalHeight += itemHeight * item.quantity;
         maxWidth = Math.max(maxWidth, itemWidth);
         maxLength = Math.max(maxLength, itemLength);
       }
     });
 
     const weight = totalWeight || 0.5;
-    const height = (maxHeight || 10) * 10;
-    const width = (maxWidth || 15) * 10;
-    const length = (maxLength || 20) * 10;
+    const height = Math.max(totalHeight, 2);
+    const width = Math.max(maxWidth, 11);
+    const length = Math.max(maxLength, 16);
 
     const script = `
       (function() {
         console.clear();
-        console.log('%c🚀 ASSISTENTE MAGNIFIQUE ATIVADO', 'color: #4f46e5; font-size: 20px; font-weight: bold;');
+        console.log('%c🚀 ASSISTENTE CEPCERTO ATIVADO', 'color: #4f46e5; font-size: 20px; font-weight: bold;');
+        console.log('%cEste script irá preencher os campos automaticamente conforme eles aparecerem.', 'color: #666;');
         
         const data = {
           'origem': '${originZip}',
           'destino': '${destZip}',
           'peso': '${weight.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}',
-          'altura': '${height.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
-          'largura': '${width.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
-          'comp': '${length.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
+          'altura': '${Math.ceil(height)}',
+          'largura': '${Math.ceil(width)}',
+          'comp': '${Math.ceil(length)}',
           'seguro': '${(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}',
           'nome': '${(order.customer_name || '').replace(/'/g, "\\'")}',
           'documento': '${(order.customer_document || '').replace(/'/g, "\\'")}',
@@ -416,8 +407,12 @@ export default function Orders() {
           'conteudo': '${items.map(i => `${i.quantity}x ${i.product_name || i.products?.name || 'Produto'}`).join(', ').replace(/'/g, "\\'")}'
         };
 
+        const filledFields = new Set();
+
         function fillField(keywords, value) {
           if (!value || value === 'undefined' || value === 'null') return false;
+          const key = keywords.join('|');
+          if (filledFields.has(key)) return true;
           
           const inputs = Array.from(document.querySelectorAll('input, select, textarea'));
           const target = inputs.find(i => {
@@ -431,46 +426,59 @@ export default function Orders() {
           });
 
           if (target) {
-            target.value = value;
+            if (target.tagName === 'SELECT') {
+              const options = Array.from(target.options);
+              const bestOption = options.find(opt => 
+                opt.text.toLowerCase().includes(value.toLowerCase()) || 
+                (keywords.includes('peso') && opt.text.toLowerCase().includes(parseInt(value) + ' kilo'))
+              );
+              if (bestOption) target.value = bestOption.value;
+              else target.value = value;
+            } else {
+              target.value = value;
+            }
+            
             target.dispatchEvent(new Event('input', { bubbles: true }));
             target.dispatchEvent(new Event('change', { bubbles: true }));
-            console.log('%c✅ Preenchido: ' + keywords[0], 'color: green');
+            console.log('%c✅ Preenchido: ' + keywords[0] + ' -> ' + value, 'color: green; font-weight: bold;');
+            filledFields.add(key);
             return true;
           }
           return false;
         }
 
-        // Dados de Envio
-        fillField(['origem', 'cep origem'], data.origem);
-        fillField(['destino', 'cep destino'], data.destino);
-        fillField(['peso'], data.peso);
-        fillField(['altura'], data.altura);
-        fillField(['largura'], data.largura);
-        fillField(['comp', 'comprimento'], data.comp);
-        fillField(['seguro', 'valor declarado'], data.seguro);
-        fillField(['conteudo', 'descrição', 'objeto'], data.conteudo);
+        const interval = setInterval(() => {
+          fillField(['origem', 'cep origem'], data.origem);
+          fillField(['destino', 'cep destino'], data.destino);
+          fillField(['peso'], data.peso);
+          fillField(['altura'], data.altura);
+          fillField(['largura'], data.largura);
+          fillField(['comp', 'comprimento'], data.comp);
+          fillField(['nome', 'destinatário'], data.nome);
+          fillField(['cpf', 'cnpj', 'documento'], data.documento);
+          fillField(['whatsapp', 'telefone', 'celular'], data.telefone);
+          fillField(['email'], data.email);
+          fillField(['logradouro', 'endereco', 'rua'], data.endereco);
+          fillField(['numero', 'nº'], data.numero);
+          fillField(['complemento'], data.complemento);
+          fillField(['bairro'], data.bairro);
+          fillField(['cidade'], data.cidade);
+          fillField(['uf', 'estado'], data.uf);
+          fillField(['conteudo', 'descrição'], data.conteudo);
+          fillField(['seguro', 'valor declarado'], data.seguro);
 
-        // Dados do Destinatário
-        fillField(['nome', 'destinatário'], data.nome);
-        fillField(['cpf', 'cnpj', 'documento'], data.documento);
-        fillField(['logradouro', 'endereço', 'rua'], data.endereco);
-        fillField(['numero', 'número'], data.numero);
-        fillField(['complemento'], data.complemento);
-        fillField(['bairro'], data.bairro);
-        fillField(['cidade'], data.cidade);
-        fillField(['estado', 'uf'], data.uf);
-        fillField(['telefone', 'celular'], data.telefone);
-        fillField(['email', 'e-mail'], data.email);
+          if (filledFields.size >= 15) {
+            console.log('%c🎉 Todos os campos detectados foram preenchidos!', 'color: #4f46e5; font-weight: bold;');
+          }
+        }, 1000);
 
-        alert('✅ DADOS DO PEDIDO #${(order.id || '').split('-')[0].toUpperCase()} PREENCHIDOS!\\n\\nVerifique os valores e clique em Gerar Etiqueta.');
+        console.log('%c💡 DICA: Mantenha esta aba do console aberta enquanto navega no site.', 'color: #f59e0b;');
       })();
-    `.trim();
+    `;
 
     await navigator.clipboard.writeText(script);
-    
     setShowManualAssistant(true);
-    
-    toast.success('Dados reais copiados! No CepCerto: F12 -> Ctrl+V -> Enter.', {
+    toast.success('Script copiado! No CepCerto: F12 -> Console -> Ctrl+V -> Enter.', {
       duration: 6000,
       icon: '📋'
     });
