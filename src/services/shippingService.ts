@@ -406,10 +406,17 @@ const cepcertoProvider: ShippingProvider = {
     
     try {
       // Endpoint de rastreio do CepCerto
-      const url = `https://www.cepcerto.com/ws/json-rastreio/${trackingCode}/${config.api_key}`;
+      // O código de rastreio deve ser passado sem espaços ou caracteres especiais que possam quebrar a URL
+      const cleanTrackingCode = trackingCode.trim();
+      const url = `https://www.cepcerto.com/ws/json-rastreio/${cleanTrackingCode}/${config.api_key}`;
       
       console.log('🔗 URL Rastreio CepCerto:', url);
       const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Erro na API CepCerto: ${response.status} ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
       console.log('📦 Resposta Rastreio CepCerto:', data);
