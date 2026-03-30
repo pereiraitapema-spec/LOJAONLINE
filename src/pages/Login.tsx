@@ -119,8 +119,7 @@ export default function Login() {
               id: data.user.id,
               email: data.user.email,
               role: (data.user.email === 'pereira.itapema@gmail.com') ? 'admin' : (existingProfile?.role || 'customer'),
-              full_name: data.user.email.split('@')[0],
-              updated_at: new Date().toISOString()
+              full_name: data.user.email.split('@')[0]
             });
           }
 

@@ -66,8 +66,7 @@ function AppContent() {
       supabase.from('profiles').upsert({ 
         id: userId, 
         email: email,
-        role: 'admin',
-        updated_at: new Date().toISOString()
+        role: 'admin'
       }, { onConflict: 'id' }).then(({ error }) => {
         if (error) console.warn('⚠️ Falha ao sincronizar role admin no banco:', error);
       });

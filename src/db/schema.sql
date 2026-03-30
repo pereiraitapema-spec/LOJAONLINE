@@ -332,10 +332,13 @@ create policy "Auth all banners" on public.banners for all using (auth.role() = 
 
 -- Policies para Profiles
 drop policy if exists "Users can view own profile" on public.profiles;
-create policy "Users can view own profile" on public.profiles for select using (auth.uid() = id);
+create policy "Users can view own profile" on public.profiles for select using (auth.uid() = id OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
 
 drop policy if exists "Users can update own profile" on public.profiles;
-create policy "Users can update own profile" on public.profiles for update using (auth.uid() = id);
+create policy "Users can update own profile" on public.profiles for update using (auth.uid() = id OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+
+drop policy if exists "Admins can manage all profiles" on public.profiles;
+create policy "Admins can manage all profiles" on public.profiles for all using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
 
 -- Policies para Produtos e Categorias (Público pode ler, Apenas Admin pode escrever)
 drop policy if exists "Public read products" on public.products;
