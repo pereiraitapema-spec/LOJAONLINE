@@ -1135,7 +1135,8 @@ export default function Checkout() {
             card_name: cardData.name,
             expiry: cardData.expiry,
             cvv: cardData.cvv,
-            installments: cardData.installments
+            installments: cardData.installments,
+            order_id: orderData.id
           }, activeGateway.config);
 
           console.log('📡 Resposta do processamento de pagamento:', paymentResponse);
