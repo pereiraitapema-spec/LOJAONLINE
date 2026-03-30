@@ -82,7 +82,14 @@ export default function Orders() {
   const [loadingRealTime, setLoadingRealTime] = useState(false);
   const [showManualAssistant, setShowManualAssistant] = useState(false);
   const [carrierConfig, setCarrierConfig] = useState<any>(null);
-  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>(() => {
+    const saved = sessionStorage.getItem('selectedOrderIds');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('selectedOrderIds', JSON.stringify(selectedOrderIds));
+  }, [selectedOrderIds]);
 
   // Manual Order State
   const [showManualOrderModal, setShowManualOrderModal] = useState(false);
@@ -335,6 +342,8 @@ export default function Orders() {
     const originZip = (carrierConfig?.origin_zip || '88240-000').replace(/\D/g, '');
     const destZip = (order.shipping_address?.zip_code || '').replace(/\D/g, '');
 
+    window.open('https://cepcerto.com/area-restrita', '_blank');
+
     // Priorizar itens fornecidos ou que já vieram no objeto order
     let items = providedItems || order.order_items || [];
     
@@ -376,9 +385,9 @@ export default function Orders() {
     });
 
     const weight = totalWeight || 0.5;
-    const height = Math.max(totalHeight, 2);
-    const width = Math.max(maxWidth, 11);
-    const length = Math.max(maxLength, 16);
+    const height = Math.max(totalHeight * 10, 2);
+    const width = Math.max(maxWidth * 10, 11);
+    const length = Math.max(maxLength * 10, 16);
 
     const script = `
       (function() {
@@ -390,9 +399,9 @@ export default function Orders() {
           'origem': '${originZip}',
           'destino': '${destZip}',
           'peso': '${weight.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}',
-          'altura': '${Math.ceil(height)}',
-          'largura': '${Math.ceil(width)}',
-          'comp': '${Math.ceil(length)}',
+          'altura': '${height.toFixed(1).replace('.', ',')}',
+          'largura': '${width.toFixed(1).replace('.', ',')}',
+          'comp': '${length.toFixed(1).replace('.', ',')}',
           'seguro': '${(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}',
           'nome': '${(order.customer_name || '').replace(/'/g, "\\'")}',
           'documento': '${(order.customer_document || '').replace(/'/g, "\\'")}',
@@ -1319,14 +1328,6 @@ export default function Orders() {
                 {selectedOrderIds.length > 0 && (
                   <div className="flex items-center gap-2">
                     <button 
-                      onClick={() => handleBatchGenerateLabels()}
-                      disabled={processingShipping}
-                      className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all flex items-center gap-2 disabled:opacity-50"
-                    >
-                      <Zap size={16} />
-                      Gerar Etiquetas ({selectedOrderIds.length})
-                    </button>
-                    <button 
                       onClick={() => generateBatchPickingList()}
                       className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2"
                     >
@@ -1883,7 +1884,7 @@ export default function Orders() {
                             </button>
                             <div className="flex gap-1 ml-1 pl-1 border-l border-slate-200">
                               <a 
-                                href="https://www.cepcerto.com/painel/nova-etiqueta"
+                                href="https://cepcerto.com/area-restrita"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={() => handleManualLabelRedirect(order, order.order_items)}
@@ -1939,6 +1940,7 @@ export default function Orders() {
                 <FileText size={20} />
                 Imprimir Separação
               </button>
+              <button onClick={() => setShowPickingModal(false)} className="px-6 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Voltar</button>
               <button onClick={() => setShowPickingModal(false)} className="px-6 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Fechar</button>
             </div>
           </motion.div>
