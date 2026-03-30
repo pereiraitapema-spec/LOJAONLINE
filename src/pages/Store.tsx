@@ -9,11 +9,12 @@ import {
   Heart, Truck, CreditCard, Phone, Instagram, Facebook, Twitter, Youtube, Linkedin,
   Star, Zap, Leaf, Droplets, Activity, Flame, Megaphone,
   QrCode, Barcode, Landmark, Package, DollarSign, Tag, BarChart, Users, Copy, Link as LinkIcon,
-  MapPin
+  MapPin, Clock
 } from 'lucide-react';
 import { Loading } from '../components/Loading';
 import SmartChat from '../components/SmartChat';
 import { DebugModeIndicator } from '../components/DebugModeIndicator';
+import TrackingModal from '../components/TrackingModal';
 
 import { leadService } from '../services/leadService';
 import { shippingService } from '../services/shippingService';
@@ -150,6 +151,9 @@ export default function Store() {
   const [isMuted, setIsMuted] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [userOrders, setUserOrders] = useState<any[]>([]);
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+  const [selectedOrderTracking, setSelectedOrderTracking] = useState<{ code?: string, id?: string } | null>(null);
 
   // Cache initialization
   const [banners, setBanners] = useState<Banner[]>(() => {
@@ -252,19 +256,19 @@ export default function Store() {
         if (showCart) {
           packages = cart.map(item => ({
             weight: (item.product as any).weight || 0.5,
-            height: (item.product as any).height || 10,
-            width: (item.product as any).width || 10,
-            length: (item.product as any).length || 10
+            height: ((item.product as any).height || 10) * 10,
+            width: ((item.product as any).width || 10) * 10,
+            length: ((item.product as any).length || 10) * 10
           }));
         } else if (selectedProduct) {
           packages = [{
             weight: (selectedProduct as any).weight || 0.5,
-            height: (selectedProduct as any).height || 10,
-            width: (selectedProduct as any).width || 10,
-            length: (selectedProduct as any).length || 10
+            height: ((selectedProduct as any).height || 10) * 10,
+            width: ((selectedProduct as any).width || 10) * 10,
+            length: ((selectedProduct as any).length || 10) * 10
           }];
         } else {
-          packages = [{ weight: 0.5, height: 10, width: 10, length: 10 }];
+          packages = [{ weight: 0.5, height: 100, width: 100, length: 100 }];
         }
 
         let allQuotes: any[] = [];
@@ -450,6 +454,18 @@ export default function Store() {
           if (affData) {
             setAffiliateData(affData);
           }
+
+          // Buscar pedidos do usuário para mostrar no carrinho
+          const { data: orders } = await withTimeout(
+            supabase
+              .from('orders')
+              .select('*')
+              .eq('customer_email', session.user.email)
+              .order('created_at', { ascending: false })
+              .limit(3),
+            5000
+          );
+          if (orders) setUserOrders(orders);
         }
       } catch (err) {
         console.warn('⚠️ Erro ao verificar usuário (timeout?):', err);
@@ -927,6 +943,20 @@ export default function Store() {
             >
               <Users size={18} />
               Seja um Afiliado
+            </button>
+
+            {/* Botão de Rastreio */}
+            <button 
+              onClick={() => setIsTrackingModalOpen(true)}
+              className="hidden lg:flex items-center gap-2 text-slate-600 hover:text-indigo-600 transition-colors"
+            >
+              <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
+                <Truck size={20} />
+              </div>
+              <div className="flex flex-col items-start">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Onde está?</span>
+                <span className="text-sm font-bold text-slate-800">Rastrear</span>
+              </div>
             </button>
 
             {/* Botão de Favoritos */}
@@ -1542,6 +1572,14 @@ export default function Store() {
           </motion.div>
         </div>
       </section>
+
+      {/* Modais */}
+      <TrackingModal 
+        isOpen={isTrackingModalOpen}
+        onClose={() => setIsTrackingModalOpen(false)}
+        trackingCode={selectedOrderTracking?.code}
+        orderId={selectedOrderTracking?.id}
+      />
 
       {/* Modal de Detalhes do Produto */}
       <AnimatePresence>
@@ -2185,6 +2223,53 @@ export default function Store() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+
+                {/* Meus Pedidos Recentes no Carrinho */}
+                {session && userOrders.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-1.5">
+                        <Package size={12} className="text-indigo-600" />
+                        Meus Pedidos Recentes
+                      </h4>
+                      <button 
+                        onClick={() => navigate('/profile')}
+                        className="text-[8px] font-bold text-indigo-600 uppercase hover:underline"
+                      >
+                        Ver todos
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {userOrders.map(order => (
+                        <div key={order.id} className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex items-center justify-between">
+                          <div>
+                            <p className="text-[9px] font-bold text-slate-900">#{order.id.substring(0, 8).toUpperCase()}</p>
+                            <p className="text-[8px] text-slate-500">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full ${
+                              order.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                              order.status === 'cancelled' ? 'bg-rose-100 text-rose-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>
+                              {order.status}
+                            </span>
+                            <button 
+                              onClick={() => {
+                                setSelectedOrderTracking({ code: order.tracking_code, id: order.id });
+                                setIsTrackingModalOpen(true);
+                              }}
+                              className="p-1.5 bg-white text-indigo-600 rounded-lg border border-indigo-100 hover:bg-indigo-50 transition-colors"
+                              title="Rastrear"
+                            >
+                              <Truck size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 

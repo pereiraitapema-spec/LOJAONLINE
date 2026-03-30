@@ -736,6 +736,12 @@ export default function Orders() {
       return;
     }
 
+    // Fetch store settings for sender info
+    const { data: settings } = await supabase
+      .from('store_settings')
+      .select('*')
+      .maybeSingle();
+
     const iframe = document.createElement('iframe');
     iframe.style.position = 'absolute';
     iframe.style.top = '-10000px';
@@ -756,6 +762,10 @@ export default function Orders() {
         ${addr.neighborhood || ''} - ${addr.city || ''}/${addr.state || ''}<br/>
         CEP: ${addr.zip_code || ''}
       `;
+
+      const senderName = settings?.company_name || 'Magnifique4Life';
+      const senderAddress = settings?.address || 'Itapema/SC';
+      const senderEmail = settings?.email || 'contato@magnifique4life.com.br';
 
       return `
         <div style="width: 100mm; height: 140mm; border: 2px solid #000; padding: 15px; margin-bottom: 20px; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; position: relative; page-break-after: always; background: #fff;">
@@ -784,7 +794,7 @@ export default function Orders() {
 
           <div style="position: absolute; bottom: 15px; left: 15px; right: 15px; border-top: 1px solid #ccc; padding-top: 10px; font-size: 10px; color: #444;">
             <div style="font-weight: bold; text-transform: uppercase; margin-bottom: 2px; font-size: 9px;">Remetente:</div>
-            Magnifique4Life - Itapema/SC - contato@magnifique4life.com.br
+            ${senderName} - ${senderAddress} - ${senderEmail}
           </div>
         </div>
       `;

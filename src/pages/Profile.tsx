@@ -2,15 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { User, Camera, Save, ArrowLeft, Shield, LayoutDashboard, Package, Truck, Printer } from 'lucide-react';
+import { User, Camera, Save, ArrowLeft, Shield, LayoutDashboard, Package, Truck, Printer, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
+import TrackingModal from '../components/TrackingModal';
 
 export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
+  const [selectedOrderTracking, setSelectedOrderTracking] = useState<{ code?: string, id?: string } | null>(null);
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
   const [profile, setProfile] = useState<any>({
     full_name: '',
     avatar_url: '',
@@ -308,12 +311,15 @@ export default function Profile() {
                                 <p className="text-sm font-mono text-indigo-700">{order.tracking_code}</p>
                               </div>
                             </div>
-                            <Link 
-                              to={`/tracking/${order.tracking_code}`}
+                            <button 
+                              onClick={() => {
+                                setSelectedOrderTracking({ code: order.tracking_code });
+                                setIsTrackingModalOpen(true);
+                              }}
                               className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-white px-3 py-1.5 rounded-lg border border-indigo-200 shadow-sm"
                             >
                               Rastrear
-                            </Link>
+                            </button>
                           </div>
                         )}
                       </div>
@@ -324,6 +330,13 @@ export default function Profile() {
             )}
           </div>
         </motion.div>
+
+        <TrackingModal 
+          isOpen={isTrackingModalOpen}
+          onClose={() => setIsTrackingModalOpen(false)}
+          trackingCode={selectedOrderTracking?.code}
+          orderId={selectedOrderTracking?.id}
+        />
       </div>
     </div>
   );

@@ -8,27 +8,35 @@ export default function ShippingLabel() {
   const { orderId } = useParams();
   const navigate = useNavigate();
   const [order, setOrder] = useState<any>(null);
+  const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchOrder = async () => {
+    const fetchData = async () => {
       if (!orderId) return;
       try {
-        const { data, error } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('id', orderId)
-          .single();
+        const [orderRes, settingsRes] = await Promise.all([
+          supabase
+            .from('orders')
+            .select('*')
+            .eq('id', orderId)
+            .single(),
+          supabase
+            .from('store_settings')
+            .select('*')
+            .maybeSingle()
+        ]);
         
-        if (error) throw error;
-        setOrder(data);
+        if (orderRes.error) throw orderRes.error;
+        setOrder(orderRes.data);
+        setSettings(settingsRes.data);
       } catch (err) {
-        console.error('Error fetching order for label:', err);
+        console.error('Error fetching data for label:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchOrder();
+    fetchData();
   }, [orderId]);
 
   if (loading) return <Loading message="Carregando etiqueta..." />;
@@ -148,9 +156,9 @@ export default function ShippingLabel() {
         {/* Remetente */}
         <div className="mt-4 border-t border-dashed border-black pt-2 text-[9px]">
           <div className="font-bold uppercase mb-1">Remetente:</div>
-          <div className="font-bold uppercase">Magnifique4Life</div>
-          <div>Rua Exemplo, 123 - Centro</div>
-          <div>88330-000 Balneário Camboriú/SC</div>
+          <div className="font-bold uppercase">{settings?.company_name || 'Magnifique4Life'}</div>
+          <div>{settings?.address || 'Rua Exemplo, 123 - Centro'}</div>
+          <div>{settings?.cep || '88330-000'} {settings?.city || 'Balneário Camboriú'}/{settings?.state || 'SC'}</div>
         </div>
 
       </div>
