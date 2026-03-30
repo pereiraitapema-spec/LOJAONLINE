@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { motion } from 'motion/react';
-import { CheckCircle2, ShoppingBag, ArrowRight, Home, Download, Share2, QrCode, Barcode, Landmark, Clock, Truck } from 'lucide-react';
+import { CheckCircle2, ShoppingBag, ArrowRight, Home, Download, Share2, QrCode, Barcode, Landmark, Clock, Truck, LayoutDashboard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Loading } from '../components/Loading';
+import { TrackingModal } from '../components/TrackingModal';
 
 export default function Success() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function Success() {
   const [order, setOrder] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
 
   useEffect(() => {
     if (!orderId) {
@@ -98,27 +100,30 @@ export default function Success() {
           </h1>
           <p className="text-slate-500 text-lg mb-8">
             {(order?.status === 'paid' || order?.status === 'processing' || order?.status === 'shipped') 
-              ? 'Obrigado por sua compra. Seu pedido foi processado com sucesso e está sendo preparado para envio.'
+              ? (order?.tracking_code ? 'Seu pedido está sendo levado para a transportadora.' : 'Obrigado por sua compra. Seu pedido foi processado com sucesso e está sendo preparado para envio.')
               : 'Seu pedido foi recebido e está aguardando o pagamento para ser processado.'}
           </p>
 
-          {order && order.tracking_code && (
+          {order && (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 mb-8 text-left"
+              className="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 mb-8 text-left"
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
+                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
                   <Truck size={24} />
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Código de Rastreio</p>
-                  <p className="text-lg font-black text-slate-900 tracking-tight">{order.tracking_code}</p>
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Código de Rastreio</p>
+                  <p className="text-lg font-black text-slate-900 tracking-tight">
+                    {order.tracking_code || 'Aguardando Postagem'}
+                  </p>
                   <button 
-                    onClick={() => navigate(`/tracking/${order.tracking_code}`)}
-                    className="text-xs font-bold text-indigo-600 hover:underline mt-1"
+                    onClick={() => setIsTrackingModalOpen(true)}
+                    className="text-xs font-bold text-indigo-600 hover:underline mt-1 flex items-center gap-1"
                   >
+                    <LayoutDashboard size={14} />
                     Acompanhar Entrega
                   </button>
                 </div>
@@ -290,6 +295,11 @@ export default function Success() {
           </p>
         </div>
       </motion.div>
+
+      <TrackingModal 
+        isOpen={isTrackingModalOpen}
+        onClose={() => setIsTrackingModalOpen(false)}
+      />
     </div>
   );
 }

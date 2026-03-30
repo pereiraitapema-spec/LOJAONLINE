@@ -24,6 +24,7 @@ import { Loading } from '../components/Loading';
 import { cepService } from '../services/cepService';
 import { paymentService } from '../services/paymentService';
 import { shippingService, ShippingPackage, ShippingQuote } from '../services/shippingService';
+import { TrackingModal } from '../components/TrackingModal';
 import { leadService } from '../services/leadService';
 
 interface Product {
@@ -151,6 +152,7 @@ export default function Checkout() {
   const [boletoData, setBoletoData] = useState<{ url: string; pdf: string; barcode: string; expires_at: string } | null>(null);
   const [showBoletoModal, setShowBoletoModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
   const [createAccount, setCreateAccount] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
   const [trackingCode, setTrackingCode] = useState<string | null>(null);
@@ -175,7 +177,9 @@ export default function Checkout() {
         
         <p className="text-slate-600 text-lg leading-relaxed mb-8">
           Parabéns! Seu pagamento foi confirmado com sucesso. <br/>
-          <span className="font-bold text-indigo-600">O produto já está sendo preparado</span> e em breve será enviado para você.
+          <span className="font-bold text-indigo-600">
+            {trackingCode ? 'Seu pedido está sendo levado para a transportadora' : 'Seu pedido está sendo preparado'}
+          </span> e em breve será enviado para você.
         </p>
 
         <div className="space-y-4 mb-8">
@@ -183,24 +187,30 @@ export default function Checkout() {
             <span className="text-slate-500 font-medium">Número do Pedido:</span>
             <span className="text-slate-900 font-bold font-mono">#{currentOrderId?.split('-')[0].toUpperCase()}</span>
           </div>
-          {trackingCode && (
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
-              <span className="text-slate-500 font-medium">Rastreio:</span>
-              <span className="text-indigo-600 font-bold font-mono">{trackingCode}</span>
-            </div>
-          )}
+          
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Código de Rastreio:</span>
+            <span className="text-indigo-600 font-bold font-mono">
+              {trackingCode || 'Aguardando Postagem'}
+            </span>
+          </div>
+
           <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex items-center gap-3 text-left">
             <Truck className="text-indigo-600 shrink-0" size={24} />
             <div>
               <p className="text-indigo-900 font-bold text-sm">Próximo Passo:</p>
-              <p className="text-indigo-700 text-xs">Você receberá o código de rastreio por e-mail assim que o produto for postado.</p>
+              <p className="text-indigo-700 text-xs">
+                {trackingCode 
+                  ? 'Seu pedido já foi processado e está a caminho da transportadora.' 
+                  : 'Você receberá o código de rastreio por e-mail assim que o produto for postado.'}
+              </p>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3">
           <button 
-            onClick={() => navigate(`/tracking/${trackingCode || currentOrderId}`)}
+            onClick={() => setIsTrackingModalOpen(true)}
             className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
           >
             Acompanhar Pedido
@@ -1101,6 +1111,7 @@ export default function Checkout() {
       // 3. Process Payment Gateway
       const activeGateway = gateways.find(g => g.id === selectedGateway);
       let paymentResponse: any = null;
+      let finalTrackingCode: string | null = null;
 
       if (activeGateway) {
         try {
@@ -1147,6 +1158,7 @@ export default function Checkout() {
             
             if (labelResponse.success && labelResponse.tracking_code) {
               console.log('✅ Etiqueta gerada com sucesso. Código de rastreio:', labelResponse.tracking_code);
+              finalTrackingCode = labelResponse.tracking_code;
               await supabase
                 .from('orders')
                 .update({ tracking_code: labelResponse.tracking_code })
@@ -1163,13 +1175,17 @@ export default function Checkout() {
 
           // Salvar cartão se for cartão de crédito
           if (paymentMethod === 'credit_card' && paymentResponse.charges?.[0]?.last_transaction?.card?.id) {
-            const card = paymentResponse.charges[0].last_transaction.card;
-            await supabase.from('saved_cards').insert({
-              user_id: currentUserId,
-              card_id: card.id,
-              brand: card.brand,
-              last_four_digits: card.last_four_digits
-            });
+            try {
+              const card = paymentResponse.charges[0].last_transaction.card;
+              await supabase.from('saved_cards').insert({
+                user_id: currentUserId,
+                card_id: card.id,
+                brand: card.brand,
+                last_four_digits: card.last_four_digits
+              });
+            } catch (cardErr) {
+              console.warn('⚠️ Erro ao salvar cartão (não crítico):', cardErr);
+            }
           }
 
         } catch (err: any) {
@@ -1188,21 +1204,94 @@ export default function Checkout() {
       // Determine initial status based on payment method
       // For simulation: Credit Card is paid immediately, others are pending
       const isCreditCard = paymentMethod === 'credit_card' || (paymentMethod === 'pagarme' && pagarmeMethod === 'credit_card');
-      const initialStatus = paymentResponse.success ? (isCreditCard ? 'paid' : 'pending') : 'failed';
+      let initialStatus = paymentResponse.success ? (isCreditCard ? 'paid' : 'pending') : 'failed';
+
+      // Se o provedor retornar um status específico, use-o
+      if (paymentResponse.status) {
+        console.log('📊 Status retornado pelo gateway:', paymentResponse.status);
+        const statusMap: Record<string, string> = {
+          'paid': 'paid',
+          'authorized': 'paid',
+          'pending_analysis': 'pending',
+          'waiting_payment': 'pending',
+          'failed': 'failed',
+          'canceled': 'canceled'
+        };
+        initialStatus = statusMap[paymentResponse.status] || initialStatus;
+      }
 
       // Update order status
-      await supabase
+      const { error: updateError } = await supabase
         .from('orders')
         .update({ 
           status: initialStatus, 
           payment_id: paymentResponse.payment_id,
           payment_url: paymentResponse.pix?.qr_code_url || paymentResponse.boleto?.url || paymentResponse.boleto?.pdf,
-          pix_code: paymentResponse.pix?.qr_code || paymentResponse.boleto?.barcode
+          pix_code: paymentResponse.pix?.qr_code || paymentResponse.boleto?.barcode,
+          tracking_code: finalTrackingCode || null
         })
         .eq('id', orderData.id);
 
+      if (updateError) {
+        console.error('❌ Erro ao atualizar status do pedido:', updateError);
+      }
+
+      // Helper function to trigger tracking and webhooks
+      const triggerPostPurchaseActions = () => {
+        // Salvar no localStorage para persistência na home
+        localStorage.setItem('last_order_id', orderData.id);
+        if (finalTrackingCode) {
+          localStorage.setItem('last_tracking_code', finalTrackingCode);
+          setTrackingCode(finalTrackingCode);
+        }
+
+        // Trigger n8n webhook for purchase
+        leadService.sendToWebhook('purchase_complete', {
+          order_id: orderData.id,
+          customer_email: customer.email,
+          customer_name: customer.name,
+          total: finalTotal,
+          items: cart.map(item => ({
+            name: item.product.name,
+            qty: item.quantity,
+            price: item.product.discount_price || item.product.price
+          }))
+        });
+
+        // Trigger Purchase Event
+        if (settings?.tracking_pixels) {
+          settings.tracking_pixels.forEach((pixel: any) => {
+            if (pixel.active && pixel.pixel_id) {
+              if (settings.debug_mode) {
+                console.log(`[DEBUG] Evento de pixel ${pixel.platform} disparado para ID ${pixel.pixel_id}`);
+                return;
+              }
+              if (pixel.platform === 'facebook' && (window as any).fbq) {
+                (window as any).fbq('track', 'Purchase', {
+                  value: finalTotal,
+                  currency: 'BRL'
+                });
+              } else if (pixel.platform === 'google_analytics' && (window as any).gtag) {
+                (window as any).gtag('event', 'purchase', {
+                  transaction_id: orderData.id,
+                  value: finalTotal,
+                  currency: 'BRL',
+                  items: cart.map(item => ({
+                    item_id: item.product.id,
+                    item_name: item.product.name,
+                    quantity: item.quantity,
+                    price: item.product.discount_price || item.product.price
+                  }))
+                });
+              }
+            }
+          });
+        }
+      };
+
       if (paymentResponse.pix) {
         console.log('🔍 Dados do PIX recebidos:', paymentResponse.pix);
+        triggerPostPurchaseActions();
         setPixData(paymentResponse.pix);
         setCurrentOrderId(orderData.id);
         setShowPixModal(true);
@@ -1214,6 +1303,7 @@ export default function Checkout() {
       }
 
       if (paymentResponse.boleto) {
+        triggerPostPurchaseActions();
         setBoletoData(paymentResponse.boleto);
         setCurrentOrderId(orderData.id);
         setShowBoletoModal(true);
@@ -1247,56 +1337,23 @@ export default function Checkout() {
 
       // 3.2 Se for cartão (pago na hora), mostrar modal de sucesso
       if (initialStatus === 'paid') {
+        triggerPostPurchaseActions();
         setCurrentOrderId(orderData.id);
         setShowSuccessModal(true);
         setProcessing(false);
         return;
       }
 
-      toast.success('Pedido realizado com sucesso!');
-      
-      // Trigger n8n webhook for purchase
-      leadService.sendToWebhook('purchase_complete', {
-        order_id: orderData.id,
-        customer_email: customer.email,
-        customer_name: customer.name,
-        total: finalTotal,
-        items: cart.map(item => ({
-          name: item.product.name,
-          qty: item.quantity,
-          price: item.product.discount_price || item.product.price
-        }))
-      });
-
-      // Trigger Purchase Event
-      if (settings?.tracking_pixels) {
-        settings.tracking_pixels.forEach((pixel: any) => {
-          if (pixel.active && pixel.pixel_id) {
-            if (settings.debug_mode) {
-              console.log(`[DEBUG] Evento de pixel ${pixel.platform} disparado para ID ${pixel.pixel_id}`);
-              return;
-            }
-            if (pixel.platform === 'facebook' && (window as any).fbq) {
-              (window as any).fbq('track', 'Purchase', {
-                value: finalTotal,
-                currency: 'BRL'
-              });
-            } else if (pixel.platform === 'google_analytics' && (window as any).gtag) {
-              (window as any).gtag('event', 'purchase', {
-                transaction_id: orderData.id,
-                value: finalTotal,
-                currency: 'BRL',
-                items: cart.map(item => ({
-                  item_id: item.product.id,
-                  item_name: item.product.name,
-                  quantity: item.quantity,
-                  price: item.product.discount_price || item.product.price
-                }))
-              });
-            }
-          }
-        });
+      // Se estiver pendente (ex: análise de risco), avisar o usuário
+      if (initialStatus === 'pending' && isCreditCard) {
+        toast.success('Pedido recebido! Seu pagamento está em análise de segurança e será aprovado em breve.');
+        triggerPostPurchaseActions();
+        navigate(`/success?orderId=${orderData.id}`);
+        return;
       }
+
+      toast.success('Pedido realizado com sucesso!');
+      triggerPostPurchaseActions();
 
       // Redirect to success page
       navigate(`/success?orderId=${orderData.id}`);
@@ -2059,6 +2116,11 @@ export default function Checkout() {
       )}
 
       {showSuccessModal && <SuccessModal />}
+      
+      <TrackingModal 
+        isOpen={isTrackingModalOpen}
+        onClose={() => setIsTrackingModalOpen(false)}
+      />
     </div>
   );
 }

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Truck, Package, CheckCircle2, Clock, ArrowLeft, MapPin, Calendar } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Truck, Package, CheckCircle2, Clock, ArrowLeft, MapPin, Calendar, Home } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { shippingService } from '../services/shippingService';
 
 export default function Tracking() {
+  const navigate = useNavigate();
   const [trackingCode, setTrackingCode] = useState('');
   const [trackingData, setTrackingData] = useState<any>(null);
   const [realTimeHistory, setRealTimeHistory] = useState<any[]>([]);
@@ -68,6 +70,14 @@ export default function Tracking() {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
+        <button 
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors mb-6 font-bold"
+        >
+          <Home size={20} />
+          Voltar para o site
+        </button>
+
         <h1 className="text-2xl font-black text-slate-900 mb-6">Acompanhe seu Pedido</h1>
         
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 mb-8">
@@ -144,8 +154,16 @@ export default function Tracking() {
               ) : (
                 <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
                   <Package size={40} className="mx-auto text-slate-300 mb-3" />
-                  <p className="text-sm text-slate-500 font-medium">O produto está sendo preparado para envio.</p>
-                  <p className="text-xs text-slate-400 mt-1">Assim que for postado, você verá as atualizações aqui.</p>
+                  <p className="text-sm text-slate-500 font-medium">
+                    {trackingData.tracking_code 
+                      ? 'Seu pedido está sendo levado para a transportadora.' 
+                      : 'Seu pedido está sendo preparado.'}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {trackingData.tracking_code 
+                      ? 'O código de rastreio já foi gerado e aguarda coleta.' 
+                      : 'Assim que for postado, você verá as atualizações aqui.'}
+                  </p>
                 </div>
               )}
             </div>

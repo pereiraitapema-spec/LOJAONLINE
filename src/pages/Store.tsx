@@ -153,6 +153,8 @@ export default function Store() {
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [userOrders, setUserOrders] = useState<any[]>([]);
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+  const [lastOrderId, setLastOrderId] = useState<string | null>(localStorage.getItem('last_order_id'));
+  const [lastTrackingCode, setLastTrackingCode] = useState<string | null>(localStorage.getItem('last_tracking_code'));
   const [selectedOrderTracking, setSelectedOrderTracking] = useState<{ code?: string, id?: string } | null>(null);
 
   // Cache initialization
@@ -948,14 +950,21 @@ export default function Store() {
             {/* Botão de Rastreio */}
             <button 
               onClick={() => setIsTrackingModalOpen(true)}
-              className="hidden lg:flex items-center gap-2 text-slate-600 hover:text-indigo-600 transition-colors"
+              className="hidden lg:flex items-center gap-2 text-slate-600 hover:text-indigo-600 transition-colors group"
             >
-              <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
+              <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
                 <Truck size={20} />
               </div>
               <div className="flex flex-col items-start">
                 <span className="text-[10px] uppercase font-bold text-slate-400">Onde está?</span>
-                <span className="text-sm font-bold text-slate-800">Rastrear</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-bold text-slate-800">Rastrear</span>
+                  {(lastTrackingCode || lastOrderId) && (
+                    <span className="text-[10px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded font-mono font-bold">
+                      #{ (lastTrackingCode || lastOrderId)?.split('-')[0].toUpperCase() }
+                    </span>
+                  )}
+                </div>
               </div>
             </button>
 

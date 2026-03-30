@@ -176,6 +176,7 @@ const pagarmeProvider: PaymentProvider = {
         return { 
           success: true, 
           payment_id: data.id,
+          status: data.status || data.charges?.[0]?.status || data.charges?.[0]?.last_transaction?.status,
           pix: pixData,
           boleto: boletoData
         };

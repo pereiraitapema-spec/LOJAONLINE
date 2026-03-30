@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Truck, Package, MapPin, Clock, Search, ChevronRight, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, Truck, Package, MapPin, Clock, Search, ChevronRight, ArrowLeft, Home } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { shippingService } from '../services/shippingService';
 import { toast } from 'react-hot-toast';
@@ -13,6 +14,7 @@ interface TrackingModalProps {
 }
 
 export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: TrackingModalProps) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [trackingData, setTrackingData] = useState<any>(null);
   const [realTimeHistory, setRealTimeHistory] = useState<any[]>([]);
@@ -172,7 +174,16 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                     <ArrowLeft size={20} />
                   </button>
                 ) : (
-                  <Truck size={24} />
+                  <button 
+                    onClick={() => {
+                      onClose();
+                      navigate('/');
+                    }}
+                    className="p-2 hover:bg-white/20 rounded-full transition-colors flex items-center gap-2"
+                    title="Voltar para o site"
+                  >
+                    <Home size={20} />
+                  </button>
                 )}
                 <h2 className="text-xl font-black italic uppercase tracking-tighter">
                   {viewMode === 'list' ? 'Meus Pedidos' : 'Rastreio do Pedido'}
@@ -312,8 +323,16 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                         ) : (
                           <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
                             <Package size={40} className="mx-auto text-slate-300 mb-3" />
-                            <p className="text-sm text-slate-500 font-bold">O produto está sendo preparado.</p>
-                            <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">Aguardando postagem</p>
+                            <p className="text-sm text-slate-500 font-bold">
+                              {trackingData.tracking_code 
+                                ? 'Seu pedido está sendo levado para a transportadora.' 
+                                : 'Seu pedido está sendo preparado.'}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">
+                              {trackingData.tracking_code 
+                                ? 'O código de rastreio já foi gerado e aguarda coleta.' 
+                                : 'Aguardando postagem'}
+                            </p>
                           </div>
                         )}
                       </div>
