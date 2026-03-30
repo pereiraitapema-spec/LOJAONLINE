@@ -41,9 +41,17 @@ Deno.serve(async (req) => {
             console.log(`✅ Pagamento confirmado para o pedido ${orderId}. Atualizando status...`);
             
             // 1. Atualiza o status na tabela orders
+            const updateData: any = { status: 'paid', updated_at: new Date().toISOString() };
+            
+            // Tenta extrair a forma de pagamento do payload (exemplo de estrutura Pagar.me)
+            const paymentMethod = payload.data?.charges?.[0]?.payment_method;
+            if (paymentMethod) {
+                updateData.payment_method = paymentMethod;
+            }
+
             const { error: updateError } = await supabase
                 .from('orders')
-                .update({ status: 'paid', updated_at: new Date().toISOString() })
+                .update(updateData)
                 .eq('id', orderId);
             
             // 2. Registra o log na tabela payment_logs
