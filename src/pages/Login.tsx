@@ -107,20 +107,32 @@ export default function Login() {
           toast.success('Bem-vindo de volta!');
           await leadService.updateStatus('frio');
           
-          // Garantir que o profile existe
+          // Garantir que o profile existe e tem o role correto se for master
           const { data: existingProfile } = await supabase
             .from('profiles')
-            .select('id')
+            .select('role, full_name, avatar_url')
             .eq('id', data.user.id)
             .maybeSingle();
             
-          if (!existingProfile) {
-            await supabase.from('profiles').upsert({
+          if (!existingProfile || (data.user.email === 'pereira.itapema@gmail.com' && existingProfile.role !== 'admin')) {
+            const profileData: any = {
               id: data.user.id,
               email: data.user.email,
-              role: data.user.email === 'pereira.itapema@gmail.com' ? 'admin' : 'customer',
-              full_name: data.user.email.split('@')[0]
-            });
+              role: (data.user.email === 'pereira.itapema@gmail.com') ? 'admin' : (existingProfile?.role || 'customer')
+            };
+
+            // Preserva dados existentes se houver
+            if (existingProfile?.full_name) {
+              profileData.full_name = existingProfile.full_name;
+            } else if (data.user.email) {
+              profileData.full_name = data.user.email.split('@')[0];
+            }
+
+            if (existingProfile?.avatar_url) {
+              profileData.avatar_url = existingProfile.avatar_url;
+            }
+
+            await supabase.from('profiles').upsert(profileData);
           }
 
           // O App.tsx cuidará do redirecionamento via onAuthStateChange

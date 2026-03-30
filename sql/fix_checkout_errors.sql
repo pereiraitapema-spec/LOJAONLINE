@@ -20,12 +20,7 @@ CREATE POLICY "Users can view their own orders" ON public.orders
 
 DROP POLICY IF EXISTS "Admins can view all orders" ON public.orders;
 CREATE POLICY "Admins can view all orders" ON public.orders
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles
-            WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
-        )
-    );
+    FOR ALL USING (public.is_admin());
 
 -- Allow anonymous inserts for checkout (if user is not logged in)
 DROP POLICY IF EXISTS "Anyone can insert orders" ON public.orders;

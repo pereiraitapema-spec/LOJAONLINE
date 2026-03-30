@@ -12,6 +12,17 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Função para verificar se o usuário é admin sem causar recursão infinita
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Habilitar RLS para profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
@@ -24,8 +35,8 @@ CREATE POLICY "Usuários podem atualizar seus próprios perfis" ON public.profil
 
 DROP POLICY IF EXISTS "Admins can manage profiles" ON public.profiles;
 CREATE POLICY "Admins can manage profiles" ON public.profiles FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
-    OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
+    auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
+    OR public.is_admin()
 );
 
 -- 2. Garantir que a tabela categories existe

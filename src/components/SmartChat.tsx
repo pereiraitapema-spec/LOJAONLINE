@@ -62,7 +62,7 @@ export default function SmartChat() {
       const { data: adminProfile, error: profileError } = await supabase
         .from('profiles')
         .select('avatar_url')
-        .eq('email', 'pereira.itapema@gmail.com')
+        .in('email', ['pereira.itapema@gmail.com'])
         .maybeSingle();
       
       console.log('[SmartChat] adminProfile:', adminProfile, 'Error:', profileError);

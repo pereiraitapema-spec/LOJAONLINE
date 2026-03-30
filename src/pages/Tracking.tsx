@@ -12,39 +12,76 @@ export default function Tracking() {
   const [realTimeHistory, setRealTimeHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      setLoading(true);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const fetchOrders = async (term?: string) => {
+    setLoading(true);
+    try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      let query = supabase.from('orders').select('id, status, tracking_code, tracking_history(*), created_at');
+      let query = supabase.from('orders').select('id, status, tracking_code, tracking_history(*), created_at, customer_email, customer_document');
       
-      // Se não for admin, filtra pelo usuário
-      // Nota: Assumindo que temos uma forma de verificar admin. 
-      // Por enquanto, vamos buscar todos se não houver filtro, ou filtrar pelo usuário.
-      if (user) {
-        query = query.eq('user_id', user.id);
+      if (term) {
+        // Se houver termo de busca, busca por email ou documento
+        query = query.or(`customer_email.ilike.%${term}%,customer_document.ilike.%${term}%`);
+      } else if (user) {
+        // Se estiver logado, busca por user_id ou pelo email do usuário
+        query = query.or(`user_id.eq.${user.id},customer_email.eq.${user.email}`);
+      } else {
+        // Se não estiver logado e não houver termo, não busca nada
+        setOrders([]);
+        setLoading(false);
+        return;
       }
       
       const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
+        console.error('Erro ao buscar pedidos:', error);
         toast.error('Erro ao buscar pedidos.');
       } else {
-        let ordersData = data || [];
-        const approvedOrders = ordersData.filter(o => o.status === 'approved');
-        if (approvedOrders.length > 0) {
-          for (const order of approvedOrders) {
-            await supabase.from('orders').update({ status: 'paid' }).eq('id', order.id);
-          }
-          ordersData = ordersData.map(o => o.status === 'approved' ? {...o, status: 'paid'} : o);
-        }
+        const ordersData = data || [];
         setOrders(ordersData);
+        setLoading(false); // Libera o UI imediatamente
+        
+        // Sincronização automática de status (approved -> paid) em background
+        const syncOrders = async () => {
+          const approvedOrders = ordersData.filter(o => o.status === 'approved');
+          if (approvedOrders.length > 0) {
+            for (const order of approvedOrders) {
+              const { error: updateError } = await supabase.from('orders').update({ status: 'paid' }).eq('id', order.id);
+              if (!updateError) {
+                setOrders(prev => prev.map(o => o.id === order.id ? {...o, status: 'paid'} : o));
+              }
+            }
+          }
+        };
+        
+        syncOrders();
+        
+        if (ordersData.length === 0 && term) {
+          toast.error('Nenhum pedido encontrado para este termo.');
+        }
       }
+    } catch (err) {
+      console.error('Erro inesperado:', err);
+    } finally {
       setLoading(false);
-    };
+    }
+  };
+
+  useEffect(() => {
     fetchOrders();
   }, []);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchTerm.trim()) {
+      fetchOrders();
+    } else {
+      fetchOrders(searchTerm.trim());
+    }
+  };
 
   const handleSelectOrder = async (order: any) => {
     setSelectedOrder(order);
@@ -75,6 +112,28 @@ export default function Tracking() {
 
         <h1 className="text-2xl font-black text-slate-900 mb-6">Acompanhar Pedidos</h1>
         
+        <form onSubmit={handleSearch} className="mb-8">
+          <div className="relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
+            <input
+              type="text"
+              placeholder="Busque por E-mail ou CPF/CNPJ..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-24 py-4 bg-white rounded-2xl border-2 border-slate-100 focus:border-indigo-600 focus:ring-0 transition-all shadow-sm outline-none font-medium"
+            />
+            <button
+              type="submit"
+              className="absolute right-2 top-2 bottom-2 px-6 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+            >
+              Buscar
+            </button>
+          </div>
+          <p className="text-xs text-slate-400 mt-2 ml-2">
+            Insira o e-mail ou documento usado na compra para localizar seus pedidos.
+          </p>
+        </form>
+
         <div className="grid md:grid-cols-3 gap-8">
           <div className="md:col-span-1 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 h-fit">
             <h2 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
