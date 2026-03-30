@@ -731,19 +731,28 @@ export const shippingService = {
   },
 
   async getTrackingStatus(trackingCode: string) {
+    console.log('🔍 getTrackingStatus chamado para:', trackingCode);
     // Tenta buscar pelo código de rastreio ou ID
     let { data: orders, error: orderError } = await supabase
       .from('orders')
       .select('id, shipping_method, logistics_history, current_logistics_status, status, tracking_code')
       .or(`tracking_code.eq.${trackingCode},id.eq.${trackingCode}`);
 
-    if (orderError) throw orderError;
-    if (!orders || orders.length === 0) return { status: 'Não encontrado', history: [] };
+    if (orderError) {
+      console.error('❌ Erro ao buscar pedido:', orderError);
+      throw orderError;
+    }
+    if (!orders || orders.length === 0) {
+      console.warn('⚠️ Pedido não encontrado para:', trackingCode);
+      return { status: 'Não encontrado', history: [] };
+    }
     
     const order = orders[0];
+    console.log('📦 Pedido encontrado:', order);
     
     // Se tiver histórico de logística no banco, priorizar ele
     if (order.logistics_history && order.logistics_history.length > 0) {
+      console.log('✅ Histórico encontrado no banco.');
       return {
         status: order.current_logistics_status || order.status,
         history: order.logistics_history
@@ -752,17 +761,20 @@ export const shippingService = {
 
     // Se não tiver código de rastreio, retorna status inicial
     if (!order.tracking_code) {
+      console.warn('⚠️ Pedido sem código de rastreio.');
       return { status: 'Aguardando confirmação', history: [] };
     }
 
     // Normalização profissional do nome da transportadora
     const normalizeCarrierName = (name: string) => {
         const normalized = name.toUpperCase().trim();
+        console.log('⚙️ Normalizando carrier:', name, '->', normalized);
         if (['SEDEX', 'PAC', 'JADLOG'].includes(normalized)) return 'CEPCERTO';
         return normalized;
     };
 
     const carrierName = normalizeCarrierName(order.shipping_method);
+    console.log('🔍 Buscando carrier:', carrierName);
 
     const { data: carrier, error: carrierError } = await supabase
       .from('shipping_carriers')
@@ -773,10 +785,18 @@ export const shippingService = {
     if (carrierError) {
       console.error('❌ Erro ao buscar carrier em getTrackingStatus:', carrierError);
     }
-    if (!carrier) return { status: 'Transportadora não encontrada', history: [] };
+    if (!carrier) {
+      console.warn('⚠️ Transportadora não encontrada:', carrierName);
+      return { status: 'Transportadora não encontrada', history: [] };
+    }
+    
+    console.log('✅ Transportadora encontrada:', carrier);
 
     const provider = providers[carrier.provider];
-    if (!provider) return { status: 'Provedor não encontrado', history: [] };
+    if (!provider) {
+      console.warn('⚠️ Provedor não encontrado:', carrier.provider);
+      return { status: 'Provedor não encontrado', history: [] };
+    }
 
     return provider.getTrackingStatus(order.tracking_code, carrier.config);
   },

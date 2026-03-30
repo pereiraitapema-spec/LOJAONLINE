@@ -79,7 +79,7 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
     try {
       const query = supabase
         .from('orders')
-        .select('id, status, tracking_code, tracking_history(*)');
+        .select('id, status, tracking_code, created_at, total, tracking_history(*), order_items(product_name, price)');
       
       const codeToUse = searchCode || trackingCode;
       const idToUse = searchId || orderId;
@@ -115,6 +115,9 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
           const realTime = await shippingService.getTrackingStatus(order.tracking_code);
           if (realTime && realTime.history && realTime.history.length > 0) {
             setRealTimeHistory(realTime.history);
+          } else {
+            // Se a API não retornou histórico, podemos forçar uma mensagem de "Em preparação"
+            // ou buscar novamente se necessário.
           }
         } catch (apiError) {
           console.warn('Erro ao buscar rastreio na API:', apiError);
@@ -270,12 +273,27 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                     </div>
                   ) : trackingData ? (
                     <div className="space-y-6">
-                      <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pedido</p>
-                          <p className="font-mono font-bold text-slate-900">#{trackingData.id.substring(0, 8).toUpperCase()}</p>
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pedido</p>
+                            <p className="font-mono font-bold text-slate-900">#{trackingData.id.substring(0, 8).toUpperCase()}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</p>
+                            <p className="font-bold text-slate-900">{new Date(trackingData.created_at).toLocaleDateString('pt-BR')}</p>
+                          </div>
                         </div>
-                        <div className="text-right">
+                        
+                        {trackingData.order_items && trackingData.order_items.length > 0 && (
+                          <div className="border-t border-slate-200 pt-4">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Produto</p>
+                            <p className="font-bold text-slate-900">{trackingData.order_items[0].product_name}</p>
+                            <p className="text-sm text-indigo-600 font-bold">R$ {trackingData.total.toFixed(2)}</p>
+                          </div>
+                        )}
+                        
+                        <div className="flex justify-between items-center border-t border-slate-200 pt-4">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</p>
                           <p className="font-bold text-indigo-600 uppercase tracking-tighter">{getStatusText(trackingData.status)}</p>
                         </div>
@@ -326,9 +344,7 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                           <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
                             <Package size={40} className="mx-auto text-slate-300 mb-3" />
                             <p className="text-sm text-slate-500 font-bold">
-                              {trackingData.tracking_code 
-                                ? 'Seu pedido está sendo levado para a transportadora.' 
-                                : 'Seu pedido está sendo preparado.'}
+                              SEU PRODUTO ESTÁ SENDO PREPARADO
                             </p>
                             <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">
                               {trackingData.tracking_code 

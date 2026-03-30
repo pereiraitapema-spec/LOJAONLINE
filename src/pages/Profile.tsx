@@ -236,6 +236,14 @@ export default function Profile() {
 
               <div className="pt-4">
                 <button
+                  type="button"
+                  onClick={() => navigate('/profile')}
+                  className="w-full bg-slate-100 text-slate-700 py-4 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2 mb-4"
+                >
+                  <User size={20} />
+                  ENTRAR NO PERFIL
+                </button>
+                <button
                   type="submit"
                   disabled={saving}
                   className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
@@ -284,11 +292,13 @@ export default function Profile() {
                           </div>
                           <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
                             order.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                            order.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
                             order.status === 'processing' ? 'bg-blue-100 text-blue-700' :
                             order.status === 'cancelled' ? 'bg-rose-100 text-rose-700' :
                             'bg-amber-100 text-amber-700'
                           }`}>
                             {order.status === 'completed' ? 'Concluído' :
+                             order.status === 'paid' ? 'Pago' :
                              order.status === 'processing' ? 'Processando' :
                              order.status === 'cancelled' ? 'Cancelado' :
                              'Pendente'}

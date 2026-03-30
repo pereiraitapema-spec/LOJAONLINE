@@ -1125,15 +1125,24 @@ export default function Orders() {
   const fetchTrackingStatus = async (orderId: string) => {
     try {
       setLoadingTracking(true);
+      console.log('🔍 Buscando rastreio para:', orderId);
       const status = await shippingService.getTrackingStatus(orderId);
+      console.log('✅ Status de rastreio recebido:', status);
       setTrackingStatus(status);
     } catch (error: any) {
-      console.error('Erro ao buscar rastreio:', error);
+      console.error('❌ Erro ao buscar rastreio:', error);
       setTrackingStatus({ status: 'Erro ao buscar rastreio', history: [] });
     } finally {
       setLoadingTracking(false);
     }
   };
+
+  useEffect(() => {
+    if (selectedOrder) {
+      fetchTrackingStatus(selectedOrder.id);
+      fetchOrderItems(selectedOrder.id);
+    }
+  }, [selectedOrder]);
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
