@@ -90,18 +90,18 @@ export default function Success() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.2 }}
-            className={`w-24 h-24 ${(order?.status === 'paid' || order?.status === 'processing' || order?.status === 'shipped') ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'} rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner`}
+            className={`w-24 h-24 ${(order?.status === 'paid' || order?.status === 'approved' || order?.status === 'processing' || order?.status === 'shipped') ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'} rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner`}
           >
-            {(order?.status === 'paid' || order?.status === 'processing' || order?.status === 'shipped') ? <CheckCircle2 size={48} /> : <Clock size={48} />}
+            {(order?.status === 'paid' || order?.status === 'approved' || order?.status === 'processing' || order?.status === 'shipped') ? <CheckCircle2 size={48} /> : <Clock size={48} />}
           </motion.div>
 
           <h1 className="text-4xl font-black text-slate-900 uppercase italic tracking-tighter mb-4">
-            {(order?.status === 'paid' || order?.status === 'processing' || order?.status === 'shipped') 
+            {(order?.status === 'paid' || order?.status === 'approved' || order?.status === 'processing' || order?.status === 'shipped') 
               ? 'Pedido Confirmado!' 
               : (order?.status === 'pending' && order?.payment_method === 'credit_card' ? 'Pagamento em Análise!' : 'Pedido Recebido!')}
           </h1>
           <p className="text-slate-500 text-lg mb-8">
-            {(order?.status === 'paid' || order?.status === 'processing' || order?.status === 'shipped') 
+            {(order?.status === 'paid' || order?.status === 'approved' || order?.status === 'processing' || order?.status === 'shipped') 
               ? (order?.tracking_code ? 'Seu pedido está sendo levado para a transportadora.' : 'Obrigado por sua compra. Seu pedido foi processado com sucesso e está sendo preparado para envio.')
               : (order?.status === 'pending' && order?.payment_method === 'credit_card' 
                   ? 'Seu pagamento está passando por uma análise de segurança e será aprovado em breve.' 
@@ -240,8 +240,8 @@ export default function Success() {
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Status</p>
-                  <span className={`px-3 py-1 ${order.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} rounded-full text-xs font-bold uppercase`}>
-                    {order.status === 'paid' ? 'Pago' : 'Aguardando Pagamento'}
+                  <span className={`px-3 py-1 ${(order.status === 'paid' || order.status === 'approved') ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} rounded-full text-xs font-bold uppercase`}>
+                    {(order.status === 'paid' || order.status === 'approved') ? 'Pago' : 'Aguardando Pagamento'}
                   </span>
                 </div>
               </div>

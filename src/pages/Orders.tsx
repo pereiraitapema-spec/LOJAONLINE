@@ -340,7 +340,7 @@ export default function Orders() {
 
   const handleManualLabelRedirect = async (order: any, providedItems?: any[]) => {
     const originZip = (carrierConfig?.origin_zip || '88240-000').replace(/\D/g, '');
-    const destZip = (order.shipping_address?.zip_code || '').replace(/\D/g, '');
+    const destZip = (order.shipping_address?.zip_code || order.shipping_address?.cep || '').replace(/\D/g, '');
 
     window.open('https://cepcerto.com/area-restrita', '_blank');
 
