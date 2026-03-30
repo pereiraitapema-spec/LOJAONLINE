@@ -82,23 +82,9 @@ export const logisticsService = {
    * Adiciona um passo na logística
    */
   async addLogisticsStep(orderId: string, step: LogisticsStep) {
-    const { data: order } = await supabase
-      .from('orders')
-      .select('logistics_history')
-      .eq('id', orderId)
-      .single();
-      
-    const history = order?.logistics_history || [];
-    const newHistory = [...history, step];
-    
-    await supabase
-      .from('orders')
-      .update({ 
-        logistics_history: newHistory,
-        current_logistics_status: step.status
-      })
-      .eq('id', orderId);
-      
-    return newHistory;
+    console.log(`⚠️ addLogisticsStep chamado para ${orderId}, mas a persistência no banco de dados está desativada (coluna logistics_history inexistente).`);
+    // O histórico não será persistido no banco de dados.
+    // A localização do produto será buscada dinamicamente da API do Cep Certo.
+    return [step];
   }
 };

@@ -420,12 +420,16 @@ const cepcertoProvider: ShippingProvider = {
         return { status: 'Não encontrado', history: [] };
       }
       
+      console.log('🔍 Tipo de dados da resposta:', typeof data, 'É array?', Array.isArray(data));
+      
       // Mapear o histórico conforme a estrutura da API (baseado nas fotos que você enviou)
       const history = Array.isArray(data) ? data.map((event: any) => ({
         date: event.data,
         location: `${event.unidade} - ${event.cidade}/${event.uf}`,
         description: event.descricao
       })) : [];
+      
+      console.log('📊 Histórico mapeado:', history);
       
       return {
         status: history.length > 0 ? history[0].description : 'Em trânsito',
@@ -735,7 +739,7 @@ export const shippingService = {
     // Tenta buscar pelo código de rastreio ou ID
     let { data: orders, error: orderError } = await supabase
       .from('orders')
-      .select('id, shipping_method, logistics_history, current_logistics_status, status, tracking_code')
+      .select('id, shipping_method, status, tracking_code')
       .or(`tracking_code.eq.${trackingCode},id.eq.${trackingCode}`);
 
     if (orderError) {
@@ -750,15 +754,6 @@ export const shippingService = {
     const order = orders[0];
     console.log('📦 Pedido encontrado:', order);
     
-    // Se tiver histórico de logística no banco, priorizar ele
-    if (order.logistics_history && order.logistics_history.length > 0) {
-      console.log('✅ Histórico encontrado no banco.');
-      return {
-        status: order.current_logistics_status || order.status,
-        history: order.logistics_history
-      };
-    }
-
     // Se não tiver código de rastreio, retorna status inicial
     if (!order.tracking_code) {
       console.warn('⚠️ Pedido sem código de rastreio.');
