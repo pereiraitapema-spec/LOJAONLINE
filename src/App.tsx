@@ -63,12 +63,29 @@ function AppContent() {
       localStorage.setItem('user_role', 'admin');
       
       // Sincroniza em background sem dar await para não travar a UI
-      supabase.from('profiles').upsert({ 
-        id: userId, 
-        email: email,
-        role: 'admin'
-      }, { onConflict: 'id' }).then(({ error }) => {
-        if (error) console.warn('⚠️ Falha ao sincronizar role admin no banco:', error);
+      supabase.from('profiles').select('id, full_name, avatar_url, role').eq('id', userId).maybeSingle().then(({ data: existing }) => {
+        if (!existing || existing.role !== 'admin') {
+          const profileData: any = { 
+            id: userId, 
+            email: email,
+            role: 'admin'
+          };
+          
+          // Preserva dados existentes se houver
+          if (existing?.full_name) {
+            profileData.full_name = existing.full_name;
+          } else if (email) {
+            profileData.full_name = email.split('@')[0];
+          }
+
+          if (existing?.avatar_url) {
+            profileData.avatar_url = existing.avatar_url;
+          }
+          
+          supabase.from('profiles').upsert(profileData, { onConflict: 'id' }).then(({ error }) => {
+            if (error) console.warn('⚠️ Falha ao sincronizar role admin no banco:', error);
+          });
+        }
       });
       
       return 'admin';
