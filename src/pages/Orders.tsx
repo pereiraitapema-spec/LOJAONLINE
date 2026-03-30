@@ -458,7 +458,8 @@ export default function Orders() {
 
         const interval = setInterval(() => {
           fillField(['origem', 'cep origem'], data.origem);
-          fillField(['destino', 'cep destino', 'cep de destino'], data.destino);
+          // Adicionando mais variações para garantir que o campo de destino seja encontrado
+          fillField(['destino', 'cep destino', 'cep de destino', 'cep', 'destino'], data.destino);
           fillField(['peso'], data.peso);
           fillField(['altura'], data.altura);
           fillField(['largura'], data.largura);
