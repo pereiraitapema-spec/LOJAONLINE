@@ -987,6 +987,17 @@ export default function Store() {
               </div>
             </button>
             
+            <button 
+              onClick={() => navigate('/tracking')}
+              className="flex items-center gap-2 text-slate-600 hover:text-indigo-600 transition-colors"
+            >
+              <Truck size={20} />
+              <div className="hidden lg:flex flex-col items-start">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Rastrear</span>
+                <span className="text-sm font-bold text-slate-800">Pedido</span>
+              </div>
+            </button>
+
             {session ? (
               <button 
                 onClick={() => navigate('/profile')}
