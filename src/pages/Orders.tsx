@@ -23,7 +23,8 @@ import {
   MapPin,
   Zap,
   QrCode,
-  ExternalLink
+  ExternalLink,
+  FileText
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'react-hot-toast';
@@ -344,8 +345,11 @@ export default function Orders() {
     
     // Se não tiver itens ou forem de outro pedido, buscar
     if (items.length === 0 || (items[0].order_id && items[0].order_id !== order.id)) {
-      const { data } = await supabase.from('order_items').select('*, products(*)').eq('order_id', order.id);
-      items = data || [];
+      const { data: itemsData } = await supabase.from('order_items').select('*').eq('order_id', order.id);
+      const productIds = [...new Set(itemsData?.map(item => item.product_id).filter(Boolean))];
+      const { data: productsData } = await supabase.from('products').select('*').in('id', productIds);
+      const productsMap = Object.fromEntries(productsData?.map(p => [p.id, p]) || []);
+      items = itemsData?.map(item => ({ ...item, products: productsMap[item.product_id] })) || [];
     }
 
     // Calcular dimensões reais
@@ -379,9 +383,9 @@ export default function Orders() {
     });
 
     const weight = totalWeight || 0.5;
-    const height = maxHeight || 10;
-    const width = maxWidth || 15;
-    const length = maxLength || 20;
+    const height = (maxHeight || 10) * 10;
+    const width = (maxWidth || 15) * 10;
+    const length = (maxLength || 20) * 10;
 
     const script = `
       (function() {
@@ -453,6 +457,55 @@ export default function Orders() {
       toast.error('Erro ao gerar etiqueta: ' + error.message);
     } finally {
       setProcessingShipping(false);
+    }
+  };
+
+  const handleBatchGenerateLabels = async (ids?: string[]) => {
+    const targetIds = ids || selectedOrderIds;
+    
+    if (!targetIds || targetIds.length === 0) {
+      toast.error('Nenhum pedido selecionado');
+      return;
+    }
+
+    setProcessingShipping(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    const toastId = toast.loading(`Gerando ${targetIds.length} etiquetas...`);
+
+    for (let i = 0; i < targetIds.length; i++) {
+      const id = targetIds[i];
+      try {
+        toast.loading(`Gerando etiqueta ${i + 1}/${targetIds.length}...`, { id: toastId });
+        const result = await shippingService.generateLabel(id);
+        if (result.success) {
+          // updateTrackingCode handles status update and state refresh
+          await updateTrackingCode(id, result.tracking_code || '', result.shipping_label_url);
+          successCount++;
+        } else {
+          console.error(`Falha no pedido ${id}:`, result.error);
+          failCount++;
+        }
+      } catch (error) {
+        console.error(`Erro no pedido ${id}:`, error);
+        failCount++;
+      }
+    }
+
+    setProcessingShipping(false);
+    toast.dismiss(toastId);
+    
+    if (successCount > 0) {
+      toast.success(`${successCount} etiquetas geradas com sucesso!`);
+    }
+    if (failCount > 0) {
+      toast.error(`${failCount} etiquetas falharam.`);
+    }
+    
+    // Refresh picking data if modal is open
+    if (showPickingModal) {
+      generateBatchPickingList(targetIds);
     }
   };
 
@@ -768,36 +821,44 @@ export default function Orders() {
 
       const senderName = settings?.company_name || 'Magnifique4Life';
       const senderAddress = settings?.address || 'Itapema/SC';
-      const senderEmail = settings?.email || 'contato@magnifique4life.com.br';
+      const senderZip = settings?.origin_zip_code || '';
 
       return `
-        <div style="width: 100mm; height: 140mm; border: 2px solid #000; padding: 15px; margin-bottom: 20px; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; position: relative; page-break-after: always; background: #fff;">
-          <div style="display: flex; justify-content: space-between; border-bottom: 3px solid #000; padding-bottom: 10px; margin-bottom: 15px;">
-            <div style="font-size: 22px; font-weight: 900; letter-spacing: -1px;">DESTINATÁRIO</div>
-            <div style="font-size: 12px; text-align: right; font-weight: bold;">PEDIDO: #${order.id.split('-')[0].toUpperCase()}</div>
-          </div>
-          
-          <div style="font-size: 16px; line-height: 1.5; margin-bottom: 30px; color: #000;">
-            ${recipient}
+        <div style="width: 100mm; height: 140mm; border: 1px solid #000; padding: 10px; margin-bottom: 20px; box-sizing: border-box; font-family: Arial, sans-serif; position: relative; page-break-after: always; background: #fff; color: #000;">
+          <!-- Remetente no Topo (Padrão Correios) -->
+          <div style="font-size: 9px; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 15px; line-height: 1.2;">
+            <div style="font-weight: bold; text-transform: uppercase;">Remetente:</div>
+            ${senderName}<br/>
+            ${senderAddress}<br/>
+            CEP: ${senderZip}
           </div>
 
-          <div style="border: 2px solid #000; padding: 15px; border-radius: 8px; background: #f9f9f9;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <div style="font-size: 11px; font-weight: 800; color: #666; text-transform: uppercase; margin-bottom: 4px;">Código de Rastreio</div>
-                <div style="font-size: 24px; font-weight: 900; font-family: 'Courier New', monospace; letter-spacing: 1px;">${tracking}</div>
-                <div style="font-size: 12px; margin-top: 8px; font-weight: 600;">Transportadora: ${order.shipping_method || 'Padrão'}</div>
-              </div>
-              <div style="text-align: center; background: #fff; padding: 5px; border: 1px solid #eee;">
-                <img src="${qrCodeUrl}" style="width: 110px; height: 110px; display: block;" />
-                <div style="font-size: 8px; font-weight: bold; margin-top: 4px; color: #000;">RASTREIO RÁPIDO</div>
-              </div>
+          <!-- Destinatário (Destaque Central) -->
+          <div style="margin-top: 20px; padding: 0 5px;">
+            <div style="font-size: 14px; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; border-left: 4px solid #000; padding-left: 8px;">Destinatário</div>
+            <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">${order.customer_name}</div>
+            <div style="font-size: 15px; line-height: 1.4;">
+              ${addr.street || 'Endereço não informado'}, ${addr.number || 'S/N'}${addr.complement ? ` - ${addr.complement}` : ''}<br/>
+              ${addr.neighborhood || ''}<br/>
+              ${addr.city || ''} - ${addr.state || ''}<br/>
+              <div style="font-size: 20px; font-weight: 900; margin-top: 10px; font-family: monospace;">CEP: ${addr.zip_code || ''}</div>
             </div>
           </div>
 
-          <div style="position: absolute; bottom: 15px; left: 15px; right: 15px; border-top: 1px solid #ccc; padding-top: 10px; font-size: 10px; color: #444;">
-            <div style="font-weight: bold; text-transform: uppercase; margin-bottom: 2px; font-size: 9px;">Remetente:</div>
-            ${senderName} - ${senderAddress} - ${senderEmail}
+          <!-- Rodapé com Rastreio e QR Code -->
+          <div style="position: absolute; bottom: 10px; left: 10px; right: 10px; border-top: 2px solid #000; padding-top: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+              <div style="flex: 1;">
+                <div style="font-size: 10px; font-weight: bold; color: #444; text-transform: uppercase; margin-bottom: 4px;">Código de Rastreio</div>
+                <div style="font-size: 22px; font-weight: 900; font-family: 'Courier New', monospace; letter-spacing: 1px; background: #eee; padding: 4px 8px; display: inline-block;">${tracking}</div>
+                <div style="font-size: 11px; margin-top: 8px; font-weight: bold;">Transportadora: ${order.shipping_method || 'Padrão'}</div>
+                <div style="font-size: 9px; margin-top: 4px; color: #666;">Pedido: #${order.id.split('-')[0].toUpperCase()}</div>
+              </div>
+              <div style="text-align: center; margin-left: 10px;">
+                <img src="${qrCodeUrl}" style="width: 90px; height: 90px; display: block; border: 1px solid #eee;" />
+                <div style="font-size: 8px; font-weight: bold; margin-top: 4px; text-transform: uppercase;">Rastreio Rápido</div>
+              </div>
+            </div>
           </div>
         </div>
       `;
@@ -861,21 +922,49 @@ export default function Orders() {
     try {
       setLoadingItems(true);
       
-      // 1. Busca os pedidos com seus itens (incluindo endereço e rastreio)
-      const { data: detailedOrders, error } = await supabase
+      // 1. Busca os pedidos
+      const { data: orders, error: ordersError } = await supabase
         .from('orders')
-        .select('*, order_items(*, products(*))')
+        .select('*')
         .in('id', targetIds);
       
-      console.log('Detailed orders returned from Supabase:', detailedOrders);
-      
-      if (error) throw error;
+      if (ordersError) throw ordersError;
 
-      if (!detailedOrders || detailedOrders.length === 0) {
+      if (!orders || orders.length === 0) {
         throw new Error('Nenhum dado encontrado para os pedidos selecionados.');
       }
 
-      // 2. Agrupa os produtos para o resumo
+      // 2. Busca os itens dos pedidos
+      const { data: items, error: itemsError } = await supabase
+        .from('order_items')
+        .select('*')
+        .in('order_id', targetIds);
+      
+      if (itemsError) throw itemsError;
+
+      // 3. Busca os produtos para os itens (para dimensões e nomes)
+      const productIds = [...new Set(items?.map(item => item.product_id).filter(Boolean))];
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('*')
+        .in('id', productIds);
+      
+      if (productsError) throw productsError;
+
+      const productsMap = Object.fromEntries(products?.map(p => [p.id, p]) || []);
+
+      // 4. Monta o objeto final
+      const detailedOrders = orders.map(order => ({
+        ...order,
+        order_items: items?.filter(item => item.order_id === order.id).map(item => ({
+          ...item,
+          products: productsMap[item.product_id] || null
+        })) || []
+      }));
+
+      console.log('Detailed orders assembled:', detailedOrders);
+
+      // 5. Agrupa os produtos para o resumo
       const summary: Record<string, number> = {};
       detailedOrders.forEach(order => {
         if (order.order_items) {
@@ -885,15 +974,16 @@ export default function Orders() {
         }
       });
 
-      // 3. Estrutura os dados para o modal
+      // 6. Estrutura os dados para o modal
       setPickingData({
         summary,
         orders: detailedOrders
       });
+      console.log('✅ Picking data set:', { summaryCount: Object.keys(summary).length, ordersCount: detailedOrders.length });
       setShowPickingModal(true);
-      console.log('Picking modal should be visible now');
       toast.success('Lista de separação gerada!');
     } catch (error: any) {
+      console.error('❌ Erro ao gerar separação:', error);
       toast.error('Erro ao gerar separação: ' + error.message);
     } finally {
       setLoadingItems(false);
@@ -903,13 +993,28 @@ export default function Orders() {
   const fetchOrderItems = async (orderId: string) => {
     setLoadingItems(true);
     try {
-      const { data, error } = await supabase
+      const { data: itemsData, error: itemsError } = await supabase
         .from('order_items')
-        .select('*, products(*)')
+        .select('*')
         .eq('order_id', orderId);
       
-      if (error) throw error;
-      setOrderItems(data || []);
+      if (itemsError) throw itemsError;
+
+      const productIds = [...new Set(itemsData?.map(item => item.product_id).filter(Boolean))];
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('*')
+        .in('id', productIds);
+      
+      if (productsError) throw productsError;
+
+      const productsMap = Object.fromEntries(productsData?.map(p => [p.id, p]) || []);
+      const itemsWithProducts = itemsData?.map(item => ({
+        ...item,
+        products: productsMap[item.product_id] || null
+      })) || [];
+
+      setOrderItems(itemsWithProducts);
     } catch (error: any) {
       toast.error('Erro ao carregar itens do pedido: ' + error.message);
     } finally {
@@ -1167,13 +1272,23 @@ export default function Orders() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-black text-slate-900">Gestão de Pedidos</h2>
                 {selectedOrderIds.length > 0 && (
-                  <button 
-                    onClick={() => generateBatchPickingList()}
-                    className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2"
-                  >
-                    <Package size={16} />
-                    Gerar Separação ({selectedOrderIds.length})
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleBatchGenerateLabels()}
+                      disabled={processingShipping}
+                      className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <Zap size={16} />
+                      Gerar Etiquetas ({selectedOrderIds.length})
+                    </button>
+                    <button 
+                      onClick={() => generateBatchPickingList()}
+                      className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2"
+                    >
+                      <Package size={16} />
+                      Gerar Separação ({selectedOrderIds.length})
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="flex flex-col md:flex-row gap-4">
@@ -1324,7 +1439,7 @@ export default function Orders() {
                 ))}
                 {filteredOrders.length === 0 && (
                   <tr>
-                    <td colSpan={isAdmin ? 6 : 5} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={isAdmin ? 7 : 6} className="px-6 py-12 text-center text-slate-500">
                       Nenhum pedido encontrado.
                     </td>
                   </tr>
@@ -1745,18 +1860,26 @@ export default function Orders() {
 
             <div className="flex gap-3 mt-8 print:hidden">
               <button 
-                onClick={printPickingList} 
-                className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
+                onClick={() => handleBatchGenerateLabels(pickingData.orders.filter((o: any) => !o.tracking_code).map((o: any) => o.id))}
+                disabled={processingShipping}
+                className="flex-1 py-3 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-all shadow-lg shadow-amber-100 flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <Printer size={20} />
-                Imprimir / Salvar PDF
+                <Zap size={20} />
+                Gerar Etiquetas (Auto)
               </button>
               <button 
                 onClick={printShippingLabels} 
                 className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
               >
-                <QrCode size={20} />
-                Gerar Etiquetas (Auto)
+                <Printer size={20} />
+                Imprimir Etiquetas
+              </button>
+              <button 
+                onClick={printPickingList} 
+                className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
+              >
+                <FileText size={20} />
+                Imprimir Separação
               </button>
               <button onClick={() => setShowPickingModal(false)} className="px-6 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Fechar</button>
             </div>
@@ -1896,9 +2019,9 @@ export default function Orders() {
                                 });
 
                                 const weight = totalWeight || 0.5;
-                                const height = maxHeight || 10;
-                                const width = maxWidth || 15;
-                                const length = maxLength || 20;
+                                const height = (maxHeight || 10) * 10;
+                                const width = (maxWidth || 15) * 10;
+                                const length = (maxLength || 20) * 10;
 
                                 const script = `
                                   (function() {

@@ -731,9 +731,9 @@ export default function Checkout() {
         // Calculate shipping automatically
         const packages: ShippingPackage[] = cart.map(item => ({
           weight: (item.product as any).weight || 0.5,
-          height: ((item.product as any).height || 10) * 10,
-          width: ((item.product as any).width || 10) * 10,
-          length: ((item.product as any).length || 10) * 10
+          height: (item.product as any).height || 10,
+          width: (item.product as any).width || 10,
+          length: (item.product as any).length || 10
         }));
 
         console.log('📦 Pacotes para cálculo:', packages);
