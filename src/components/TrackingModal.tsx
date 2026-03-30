@@ -93,9 +93,11 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
         return;
       }
 
-      const { data: order, error } = await query.maybeSingle();
+      const { data: orders, error } = await query;
 
       if (error) throw error;
+      const order = orders && orders.length > 0 ? orders[0] : null;
+
       if (!order) {
         toast.error('Pedido ou código de rastreio não encontrado.');
         if (viewMode === 'detail' && !trackingCode && !orderId) {
