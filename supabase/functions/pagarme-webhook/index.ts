@@ -32,23 +32,24 @@ Deno.serve(async (req) => {
         status: 'processed'
       });
 
-    // Processar confirmação de pagamento
-    if (eventType === 'order.paid') {
+    // Processar confirmação de pagamento (aceita order.paid ou charge.paid)
+    if (eventType === 'order.paid' || eventType === 'charge.paid') {
         // Tenta buscar o order_id de diferentes locais possíveis no payload
         const orderId = 
             payload.data?.metadata?.order_id || 
             payload.data?.order?.metadata?.order_id ||
             payload.data?.metadata?.orderId ||
-            payload.data?.id; // Tenta pegar o ID do próprio objeto Pagar.me como fallback se necessário
+            payload.data?.order?.id || // Caso seja charge.paid, o order_id pode estar em payload.data.order.id
+            payload.data?.id; // Fallback
         
         if (orderId) {
-            console.log(`✅ Pagamento confirmado para o pedido ${orderId}. Atualizando status...`);
+            console.log(`✅ Pagamento confirmado para o pedido ${orderId} (Evento: ${eventType}). Atualizando status...`);
             
             // 1. Atualiza o status na tabela orders
             const updateData: any = { status: 'paid', updated_at: new Date().toISOString() };
             
-            // Tenta extrair a forma de pagamento do payload (exemplo de estrutura Pagar.me)
-            const paymentMethod = payload.data?.charges?.[0]?.payment_method;
+            // Tenta extrair a forma de pagamento do payload
+            const paymentMethod = payload.data?.charges?.[0]?.payment_method || payload.data?.payment_method;
             if (paymentMethod) {
                 updateData.payment_method = paymentMethod;
             }
@@ -88,7 +89,7 @@ Deno.serve(async (req) => {
             await supabase
                 .from('webhook_debug_logs')
                 .insert({
-                    payload: { error: 'order_id_not_found', raw_payload: payload },
+                    payload: { error: 'order_id_not_found', event_type: eventType, raw_payload: payload },
                     created_at: new Date().toISOString()
                 });
         }
