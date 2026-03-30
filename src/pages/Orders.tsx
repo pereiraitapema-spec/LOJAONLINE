@@ -385,9 +385,9 @@ export default function Orders() {
     });
 
     const weight = totalWeight || 0.5;
-    const height = Math.max(totalHeight * 10, 2);
-    const width = Math.max(maxWidth * 10, 11);
-    const length = Math.max(maxLength * 10, 16);
+    const height = Math.max(totalHeight, 2);
+    const width = Math.max(maxWidth, 11);
+    const length = Math.max(maxLength, 16);
 
     const script = `
       (function() {
