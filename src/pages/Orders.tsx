@@ -662,6 +662,7 @@ export default function Orders() {
         if (!userIsAdmin) {
           query = query.eq('user_id', session.user.id);
         }
+        // Se for admin, não filtra por user_id, garantindo visibilidade total.
 
         const { data, error } = await query;
         if (error) throw error;
