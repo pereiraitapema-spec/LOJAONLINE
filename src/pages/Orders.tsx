@@ -679,16 +679,25 @@ export default function Orders() {
 
         // Nova lógica: Verificar payment_logs para pedidos pendentes
         const pendingOrders = processedOrders.filter(o => o.status === 'pending');
+        console.log('🔍 Verificando logs de pagamento para pedidos pendentes:', pendingOrders.map(o => o.id));
         if (pendingOrders.length > 0) {
-          const { data: logs } = await supabase
+          const { data: logs, error: logsError } = await supabase
             .from('payment_logs')
             .select('order_id')
             .eq('event_type', 'order.paid')
             .in('order_id', pendingOrders.map(o => o.id));
             
-          if (logs && logs.length > 0) {
-            const paidOrderIds = logs.map(l => l.order_id);
-            processedOrders = processedOrders.map(o => paidOrderIds.includes(o.id) ? {...o, status: 'paid'} : o);
+          if (logsError) {
+            console.error('❌ Erro ao buscar payment_logs:', logsError);
+          } else {
+            console.log('📊 Logs de pagamento encontrados:', logs);
+            if (logs && logs.length > 0) {
+              const paidOrderIds = logs.map(l => l.order_id);
+              console.log('✅ Pedidos encontrados em payment_logs como pagos:', paidOrderIds);
+              processedOrders = processedOrders.map(o => paidOrderIds.includes(o.id) ? {...o, status: 'paid'} : o);
+            } else {
+              console.log('⚠️ Nenhum log de pagamento encontrado para os pedidos pendentes.');
+            }
           }
         }
         
