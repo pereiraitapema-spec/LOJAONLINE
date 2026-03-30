@@ -397,7 +397,7 @@ export default function Orders() {
         
         const data = {
           'origem': '${originZip}',
-          'destino': '${destZip.replace(/(\d{5})(\d{3})/, '$1-$2')}',
+          'destino': '${destZip}',
           'peso': '${weight.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}',
           'altura': '${height.toFixed(1).replace('.', ',')}',
           'largura': '${width.toFixed(1).replace('.', ',')}',
