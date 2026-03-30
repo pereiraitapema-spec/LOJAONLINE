@@ -40,18 +40,25 @@ export default function Tracking() {
         console.error('Erro ao buscar pedidos:', error);
         toast.error('Erro ao buscar pedidos.');
       } else {
-        let ordersData = data || [];
-        
-        // Sincronização automática de status (approved -> paid)
-        const approvedOrders = ordersData.filter(o => o.status === 'approved');
-        if (approvedOrders.length > 0) {
-          for (const order of approvedOrders) {
-            await supabase.from('orders').update({ status: 'paid' }).eq('id', order.id);
-          }
-          ordersData = ordersData.map(o => o.status === 'approved' ? {...o, status: 'paid'} : o);
-        }
-        
+        const ordersData = data || [];
         setOrders(ordersData);
+        setLoading(false); // Libera o UI imediatamente
+        
+        // Sincronização automática de status (approved -> paid) em background
+        const syncOrders = async () => {
+          const approvedOrders = ordersData.filter(o => o.status === 'approved');
+          if (approvedOrders.length > 0) {
+            for (const order of approvedOrders) {
+              const { error: updateError } = await supabase.from('orders').update({ status: 'paid' }).eq('id', order.id);
+              if (!updateError) {
+                setOrders(prev => prev.map(o => o.id === order.id ? {...o, status: 'paid'} : o));
+              }
+            }
+          }
+        };
+        
+        syncOrders();
+        
         if (ordersData.length === 0 && term) {
           toast.error('Nenhum pedido encontrado para este termo.');
         }

@@ -63,7 +63,12 @@ function AppContent() {
       localStorage.setItem('user_role', 'admin');
       // Garante que o banco também saiba que é admin para o RLS funcionar
       try {
-        await supabase.from('profiles').update({ role: 'admin' }).eq('id', userId);
+        await supabase.from('profiles').upsert({ 
+          id: userId, 
+          email: email,
+          role: 'admin',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
       } catch (e) {
         console.warn('⚠️ Falha ao sincronizar role admin no banco:', e);
       }
