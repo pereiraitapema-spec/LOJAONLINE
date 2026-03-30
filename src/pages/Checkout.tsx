@@ -1145,6 +1145,13 @@ export default function Checkout() {
             throw new Error(paymentResponse.error || 'Erro ao processar pagamento com Pagar.me');
           }
 
+          // ATUALIZAÇÃO IMEDIATA: Forçar status 'paid' no Supabase
+          await supabase
+            .from('orders')
+            .update({ status: 'paid' })
+            .eq('id', orderData.id);
+          console.log('✅ Status do pedido atualizado para "paid" imediatamente no checkout.');
+
           // 4. Comunicar com CepCerto para gerar etiqueta (Resiliente)
           try {
             console.log('📦 Comunicando com CepCerto para gerar etiqueta...');
