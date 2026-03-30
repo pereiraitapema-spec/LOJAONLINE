@@ -1134,26 +1134,31 @@ export default function Checkout() {
           }
 
           // 4. Comunicar com CepCerto para gerar etiqueta
-          console.log('📦 Comunicando com CepCerto para gerar etiqueta...');
-          // Garante que orderData.id é uma string
-          const orderId = typeof orderData.id === 'string' ? orderData.id : orderData.id.toString();
-          
-          // Aguardar um pouco para garantir consistência no banco antes de buscar para etiqueta
-          console.log('⏱️ Aguardando consistência do banco...');
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          const labelResponse = await shippingService.generateLabel(orderId);
-          
-          if (labelResponse.success && labelResponse.tracking_code) {
-            console.log('✅ Etiqueta gerada com sucesso. Código de rastreio:', labelResponse.tracking_code);
-            await supabase
-              .from('orders')
-              .update({ tracking_code: labelResponse.tracking_code })
-              .eq('id', orderId);
-            setTrackingCode(labelResponse.tracking_code);
-          } else {
-            console.error('❌ Erro ao gerar etiqueta:', labelResponse.error);
-            toast.error('Pedido aprovado, mas houve erro ao gerar etiqueta de envio.');
+          try {
+            console.log('📦 Comunicando com CepCerto para gerar etiqueta...');
+            // Garante que orderData.id é uma string
+            const orderId = typeof orderData.id === 'string' ? orderData.id : orderData.id.toString();
+            
+            // Aguardar um pouco para garantir consistência no banco antes de buscar para etiqueta
+            console.log('⏱️ Aguardando consistência do banco...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            const labelResponse = await shippingService.generateLabel(orderId);
+            
+            if (labelResponse.success && labelResponse.tracking_code) {
+              console.log('✅ Etiqueta gerada com sucesso. Código de rastreio:', labelResponse.tracking_code);
+              await supabase
+                .from('orders')
+                .update({ tracking_code: labelResponse.tracking_code })
+                .eq('id', orderId);
+              setTrackingCode(labelResponse.tracking_code);
+            } else {
+              console.error('❌ Erro ao gerar etiqueta:', labelResponse.error);
+              toast.success('Pagamento aprovado! Houve uma pequena falha na geração automática da etiqueta, mas nossa equipe fará o envio manualmente e você receberá o código em breve.');
+            }
+          } catch (labelErr: any) {
+            console.error('❌ Erro crítico na geração de etiqueta:', labelErr);
+            toast.success('Pagamento aprovado! Houve uma falha na comunicação com a transportadora para gerar a etiqueta, mas faremos o envio manualmente e você receberá o código em breve.');
           }
 
           // Salvar cartão se for cartão de crédito

@@ -1200,7 +1200,9 @@ export default function Orders() {
       (order.customer_name && order.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (order.customer_document && order.customer_document.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    const matchesStatus = 
+      statusFilter === 'all' || 
+      (statusFilter === 'no_label' ? !order.tracking_code : order.status === statusFilter);
 
     let matchesDate = true;
     const orderDate = new Date(order.created_at);
@@ -1332,6 +1334,7 @@ export default function Orders() {
                   <option value="shipped">Enviado</option>
                   <option value="delivered">Entregue</option>
                   <option value="cancelled">Cancelado</option>
+                  <option value="no_label">Sem Etiqueta</option>
                 </select>
               </div>
 
