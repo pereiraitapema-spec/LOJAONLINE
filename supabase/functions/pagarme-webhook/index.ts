@@ -1,6 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 Deno.serve(async (req) => {
+  // LOG IMEDIATO: Verificar se a requisição está chegando
+  console.log(`🚀 Webhook chamado: ${req.method} ${req.url}`);
+
   if (req.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 })
   }
@@ -13,6 +16,9 @@ Deno.serve(async (req) => {
   try {
     const payload = await req.json()
     
+    // Log do payload para depuração
+    console.log('📦 Payload recebido:', JSON.stringify(payload));
+    
     // Validação robusta
     if (!payload || typeof payload !== 'object') {
         throw new Error('Payload inválido');
@@ -20,8 +26,7 @@ Deno.serve(async (req) => {
 
     const eventType = payload.type || 'unknown';
     
-    console.log(`🔍 Webhook recebido: ${eventType}`);
-    console.log('📦 Payload completo:', JSON.stringify(payload, null, 2));
+    console.log(`🔍 Webhook processando evento: ${eventType}`);
     
     // Log do webhook
     await supabase

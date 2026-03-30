@@ -122,11 +122,11 @@ export default function Orders() {
     const channel = supabase
       .channel('orders-channel')
       .on('postgres_changes', { 
-        event: 'UPDATE', 
+        event: '*', 
         schema: 'public', 
         table: 'orders' 
       }, (payload) => {
-        console.log('🔄 Pedido atualizado em tempo real:', payload);
+        console.log('🔄 Mudança detectada no banco (Realtime):', payload);
         fetchData(); // Recarrega os dados para garantir consistência
       })
       .subscribe();
