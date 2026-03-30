@@ -881,6 +881,7 @@ export default function Orders() {
         orders: detailedOrders
       });
       setShowPickingModal(true);
+      console.log('Picking modal should be visible now');
       toast.success('Lista de separação gerada!');
     } catch (error: any) {
       toast.error('Erro ao gerar separação: ' + error.message);
@@ -1635,9 +1636,13 @@ export default function Orders() {
 
       {/* Modal de Separação */}
       {showPickingModal && pickingData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm print:hidden">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-6">Lista de Separação</h2>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm print:bg-white print:p-0 print:static print:block">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }} 
+            animate={{ opacity: 1, scale: 1 }} 
+            className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto print:shadow-none print:p-0 print:max-h-none print:w-full print:max-w-none"
+          >
+            <h2 className="text-xl font-bold mb-6 print:hidden">Lista de Separação</h2>
             
             {/* Conteúdo para Impressão */}
             <div id="picking-list-content" className="print:block print:w-full">
