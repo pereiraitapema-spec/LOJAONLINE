@@ -18,12 +18,28 @@ Deno.serve(async (req) => {
     });
 
     const eventType = payload.type;
+    
+    // Extração robusta do order_id
+    const orderId = payload.data?.metadata?.order_id || 
+                    payload.data?.order?.id || 
+                    payload.data?.id || 
+                    payload.data?.metadata?.id;
+
     if (eventType === 'order.paid' || eventType === 'charge.paid') {
-        const orderId = payload.data?.metadata?.order_id || payload.data?.order?.id || payload.data?.id;
-        
         if (orderId) {
+            // Atualiza status do pedido
             await supabase.from('orders').update({ status: 'paid' }).eq('id', orderId);
-            console.log(`✅ Pedido ${orderId} atualizado para paid`);
+            
+            // Registra em payment_logs para backup e histórico
+            await supabase.from('payment_logs').insert({
+                order_id: orderId,
+                event_type: eventType,
+                created_at: new Date().toISOString()
+            });
+            
+            console.log(`✅ Pedido ${orderId} atualizado para paid e logado em payment_logs`);
+        } else {
+            console.error('❌ Não foi possível extrair order_id do payload:', payload);
         }
     }
 

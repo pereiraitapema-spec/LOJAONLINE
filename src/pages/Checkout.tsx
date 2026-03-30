@@ -1110,7 +1110,16 @@ export default function Checkout() {
 
       // 3. Process Payment Gateway
       console.log('🚀 [DEBUG CHECKOUT] Iniciando processamento de pagamento...');
-      const activeGateway = gateways.find(g => g.id === selectedGateway);
+      
+      // TORNAR A VERIFICAÇÃO DE ROLE NÃO-BLOQUEANTE
+      let activeGateway = gateways.find(g => g.id === selectedGateway);
+      
+      // Se o gateway não foi encontrado, tentamos buscar novamente ou usamos um padrão
+      if (!activeGateway && gateways.length > 0) {
+          console.warn('⚠️ [DEBUG CHECKOUT] Gateway não encontrado inicialmente, usando primeiro disponível.');
+          activeGateway = gateways[0];
+      }
+      
       console.log('🔍 [DEBUG CHECKOUT] Gateway ativo:', activeGateway);
       let paymentResponse: any = null;
       let finalTrackingCode: string | null = null;
