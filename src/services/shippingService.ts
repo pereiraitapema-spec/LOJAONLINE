@@ -209,7 +209,7 @@ const cepcertoProvider: ShippingProvider = {
     try {
       const totalWeightInGrams = Math.max(300, Math.ceil(packages.reduce((acc, p) => acc + p.weight, 0) * 1000));
       const totalDim = packages.reduce((acc, p) => ({
-        h: acc.h + (p.height || 2),
+        h: acc.h + Math.max(p.height || 0, 2),
         w: Math.max(acc.w, p.width || 11),
         l: Math.max(acc.l, p.length || 16)
       }), { h: 0, w: 11, l: 16 });
