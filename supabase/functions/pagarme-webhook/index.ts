@@ -20,6 +20,9 @@ Deno.serve(async (req) => {
 
     const eventType = payload.type || 'unknown';
     
+    console.log(`🔍 Webhook recebido: ${eventType}`);
+    console.log('📦 Payload completo:', JSON.stringify(payload, null, 2));
+    
     // Log do webhook
     await supabase
       .from('webhook_logs')
