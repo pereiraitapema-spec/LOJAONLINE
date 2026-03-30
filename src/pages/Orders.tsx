@@ -512,13 +512,14 @@ export default function Orders() {
     });
   };
 
-  const handleGenerateLabel = async (orderId: string) => {
+  const handleGenerateLabel = async (orderId: string, currentStatus?: string) => {
     setProcessingShipping(true);
     try {
       const result = await shippingService.generateLabel(orderId);
       console.log('🔍 Resultado da geração de etiqueta:', result);
       if (result.success) {
-        await updateTrackingCode(orderId, result.tracking_code || '', result.shipping_label_url);
+        await updateTrackingCode(orderId, result.tracking_code || '', result.shipping_label_url, currentStatus);
+        await fetchTrackingStatus(orderId);
         toast.success('Etiqueta gerada com sucesso!');
       } else {
         toast.error('Falha ao gerar etiqueta: ' + (result.error || 'Erro desconhecido'));
@@ -1162,14 +1163,14 @@ export default function Orders() {
       // Automação: Se o status mudou para 'paid', tenta gerar a etiqueta automaticamente
       if (newStatus === 'paid') {
         toast.loading('Pagamento confirmado! Gerando etiqueta automaticamente...');
-        await handleGenerateLabel(orderId);
+        await handleGenerateLabel(orderId, newStatus);
       }
     } catch (error: any) {
       toast.error('Erro ao atualizar status: ' + error.message);
     }
   };
 
-  const updateTrackingCode = async (orderId: string, trackingCode: string, shippingLabelUrl?: string) => {
+  const updateTrackingCode = async (orderId: string, trackingCode: string, shippingLabelUrl?: string, currentStatus?: string) => {
     try {
       const updateData: any = { tracking_code: trackingCode };
       if (shippingLabelUrl !== undefined) {
@@ -1177,7 +1178,7 @@ export default function Orders() {
       }
 
       // Se o status atual for 'paid' ou 'processing', muda para 'shipped' ao adicionar rastreio
-      const currentOrder = orders.find(o => o.id === orderId);
+      const currentOrder = currentStatus ? { status: currentStatus } : orders.find(o => o.id === orderId);
       if (currentOrder && (currentOrder.status === 'paid' || currentOrder.status === 'processing')) {
         updateData.status = 'shipped';
       }
