@@ -736,16 +736,33 @@ export const shippingService = {
 
   async getTrackingStatus(trackingCode: string) {
     console.log('🔍 getTrackingStatus chamado para:', trackingCode);
-    // Tenta buscar pelo código de rastreio ou ID
+    
+    // Tenta buscar primeiro pelo código de rastreio (string)
     let { data: orders, error: orderError } = await supabase
       .from('orders')
       .select('id, shipping_method, status, tracking_code')
-      .or(`tracking_code.eq.${trackingCode},id.eq.${trackingCode}`);
+      .or(`tracking_code.eq.${trackingCode}`);
+
+    // Se não encontrar pelo código de rastreio, tenta pelo ID (UUID)
+    if (!orders || orders.length === 0) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trackingCode);
+      if (isUuid) {
+        const { data: ordersById, error: orderErrorById } = await supabase
+          .from('orders')
+          .select('id, shipping_method, status, tracking_code')
+          .eq('id', trackingCode);
+        
+        if (ordersById && ordersById.length > 0) {
+          orders = ordersById;
+        }
+      }
+    }
 
     if (orderError) {
       console.error('❌ Erro ao buscar pedido:', orderError);
-      throw orderError;
+      // Não lançar erro aqui para permitir que o fluxo continue
     }
+    
     if (!orders || orders.length === 0) {
       console.warn('⚠️ Pedido não encontrado para:', trackingCode);
       return { status: 'Não encontrado', history: [] };
