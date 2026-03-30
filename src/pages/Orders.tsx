@@ -427,7 +427,7 @@ export default function Orders() {
     await navigator.clipboard.writeText(script);
 
     // Abre o site
-    window.open('https://www.cepcerto.com/area-restrita', '_blank');
+    window.open('https://cepcerto.com/area-restrita', 'cepcerto_window');
     
     setShowManualAssistant(true);
     
@@ -1814,9 +1814,14 @@ export default function Orders() {
                           <div className="grid grid-cols-1 gap-2">
                             <button 
                               onClick={() => {
-                                const originZip = carrierConfig?.origin_zip || '00000-000';
+                                const originZip = carrierConfig?.origin_zip || '88220-000';
                                 const addr = selectedOrder.shipping_address || {};
                                 const destZip = getZip(addr);
+
+                                if (!destZip) {
+                                  toast.error('CEP de destino não encontrado!');
+                                  return;
+                                }
 
                                 // Calcular dimensões reais dos itens carregados
                                 let totalWeight = 0;
@@ -1825,12 +1830,23 @@ export default function Orders() {
                                 let maxLength = 0;
 
                                 orderItems.forEach((item: any) => {
-                                  const p = item.products;
+                                  const p = item.products || item.product || (Array.isArray(item.products) ? item.products[0] : null);
                                   if (p) {
-                                    totalWeight += (Number(p.weight) || 0) * item.quantity;
-                                    maxHeight = Math.max(maxHeight, Number(p.height) || 0);
-                                    maxWidth = Math.max(maxWidth, Number(p.width) || 0);
-                                    maxLength = Math.max(maxLength, Number(p.length) || 0);
+                                    const itemWeight = Number(p.weight) || Number(p.weight_kg) || 0.5;
+                                    let itemHeight = Number(p.height) || 10;
+                                    let itemWidth = Number(p.width) || 15;
+                                    let itemLength = Number(p.length) || Number(p.depth) || 20;
+
+                                    if (p.dimensions_cm) {
+                                      itemHeight = Number(p.dimensions_cm.height) || itemHeight;
+                                      itemWidth = Number(p.dimensions_cm.width) || itemWidth;
+                                      itemLength = Number(p.dimensions_cm.depth) || Number(p.dimensions_cm.length) || itemLength;
+                                    }
+
+                                    totalWeight += itemWeight * item.quantity;
+                                    maxHeight = Math.max(maxHeight, itemHeight);
+                                    maxWidth = Math.max(maxWidth, itemWidth);
+                                    maxLength = Math.max(maxLength, itemLength);
                                   }
                                 });
 
@@ -1860,7 +1876,9 @@ export default function Orders() {
                                         const id = (i.id || '').toLowerCase();
                                         const placeholder = (i.placeholder || '').toLowerCase();
                                         const label = i.labels && i.labels[0] ? i.labels[0].innerText.toLowerCase() : '';
-                                        return name.includes(labelPart) || id.includes(labelPart) || placeholder.includes(labelPart) || label.includes(labelPart);
+                                        const parentText = (i.parentElement?.innerText || '').toLowerCase();
+                                        const fullText = name + id + placeholder + label + parentText;
+                                        return fullText.includes(labelPart.toLowerCase());
                                       });
 
                                       if (target) {
@@ -1885,6 +1903,7 @@ export default function Orders() {
                                   })();
                                 `.trim();
                                 navigator.clipboard.writeText(script);
+                                window.open('https://cepcerto.com/area-restrita', 'cepcerto_window');
                                 toast.success('Script com dados reais copiado!');
                               }}
                               className="w-full flex items-center justify-center gap-2 p-3 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-md"
@@ -1914,8 +1933,30 @@ export default function Orders() {
                               { label: 'Bairro', value: selectedOrder.shipping_address?.neighborhood },
                               { label: 'Cidade/UF', value: `${selectedOrder.shipping_address?.city}/${selectedOrder.shipping_address?.state}` },
                               { label: 'CPF/CNPJ', value: selectedOrder.customer_document },
-                              { label: 'Peso (kg)', value: '0.500' },
-                              { label: 'Dimensões (CxLxA)', value: '20x15x10' },
+                              { label: 'Peso (kg)', value: (orderItems.reduce((acc, item) => {
+                                 const p = item.products || item.product || (Array.isArray(item.products) ? item.products[0] : null);
+                                 return acc + (p ? (Number(p.weight) || Number(p.weight_kg) || 0.5) * item.quantity : 0);
+                               }, 0) || 0.5).toFixed(3) },
+                              { label: 'Dimensões (CxLxA)', value: (() => {
+                                 const dims = orderItems.reduce((acc, item) => {
+                                   const p = item.products || item.product || (Array.isArray(item.products) ? item.products[0] : null);
+                                   if (p) {
+                                     let h = Number(p.height) || 10;
+                                     let wi = Number(p.width) || 15;
+                                     let l = Number(p.length) || Number(p.depth) || 20;
+                                     if (p.dimensions_cm) {
+                                       h = Number(p.dimensions_cm.height) || h;
+                                       wi = Number(p.dimensions_cm.width) || wi;
+                                       l = Number(p.dimensions_cm.depth) || Number(p.dimensions_cm.length) || l;
+                                     }
+                                     acc.h = Math.max(acc.h, h);
+                                     acc.w = Math.max(acc.w, wi);
+                                     acc.l = Math.max(acc.l, l);
+                                   }
+                                   return acc;
+                                 }, { h: 0, w: 0, l: 0 });
+                                 return `${dims.l || 20}x${dims.w || 15}x${dims.h || 10}`;
+                               })() },
                             ].map((field, idx) => (
                               <div key={idx} className="flex items-center justify-between bg-white p-2 rounded-lg border border-indigo-100">
                                 <div className="overflow-hidden flex-1">
