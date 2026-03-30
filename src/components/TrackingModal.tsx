@@ -243,7 +243,7 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                               <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Pedido #{order.id.substring(0, 8).toUpperCase()}</p>
                               <p className="font-bold text-slate-900">{getStatusText(order.status)}</p>
                               <p className="text-[10px] text-slate-500 font-medium">
-                                {new Date(order.updated_at).toLocaleDateString('pt-BR')} • R$ {order.total.toFixed(2)}
+                                {new Date(order.created_at).toLocaleDateString('pt-BR')} • R$ {order.total.toFixed(2)}
                               </p>
                             </div>
                           </div>

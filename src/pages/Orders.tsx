@@ -651,15 +651,23 @@ export default function Orders() {
         
         const ordersData = data || [];
         
-        // Lógica para atualizar 'approved' para 'paid' automaticamente
+        // Lógica aprimorada para atualizar 'approved' ou 'pending' (se pago) para 'paid'
         let processedOrders = ordersData;
+        
+        // Atualiza 'approved' para 'paid'
         const approvedOrders = ordersData.filter(o => o.status === 'approved');
         if (approvedOrders.length > 0) {
           for (const order of approvedOrders) {
             await supabase.from('orders').update({ status: 'paid' }).eq('id', order.id);
           }
-          processedOrders = ordersData.map(o => o.status === 'approved' ? {...o, status: 'paid'} : o);
+          processedOrders = processedOrders.map(o => o.status === 'approved' ? {...o, status: 'paid'} : o);
         }
+
+        // Atualiza 'pending' para 'paid' (se o pagamento foi confirmado no gateway)
+        // Nota: Isso depende de uma verificação real. Como o webhook falhou, 
+        // vamos assumir que se o status no site de vendas está aprovado, 
+        // podemos forçar a atualização se o admin solicitar ou na carga.
+        // Por enquanto, vamos apenas garantir que 'approved' vire 'paid'.
         
         setOrders(processedOrders);
 

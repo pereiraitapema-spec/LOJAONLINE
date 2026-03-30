@@ -58,7 +58,7 @@ function AppContent() {
     console.log('🔍 fetchUserRole iniciada para:', { userId, email });
     
     // Admin Master - Prioridade absoluta
-    if (email === 'pereira.itapema@gmail.com') {
+    if (email === 'pereira.itapema@gmail.com' || email === 'pereira.brusque@gmail.com') {
       console.log('👑 Admin Master detectado em fetchUserRole');
       localStorage.setItem('user_role', 'admin');
       return 'admin';
