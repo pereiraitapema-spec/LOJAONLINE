@@ -55,6 +55,14 @@ Deno.serve(async (req) => {
                     payload: payload,
                     status: 'success'
                 });
+
+            // DEBUG: Registra o payload completo em uma tabela de debug
+            await supabase
+                .from('webhook_debug_logs')
+                .insert({
+                    payload: payload,
+                    created_at: new Date().toISOString()
+                });
             
             if (updateError) {
                 console.error('❌ Erro ao atualizar status do pedido:', updateError);
