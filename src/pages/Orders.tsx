@@ -28,6 +28,7 @@ import {
 import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
+import { TrackingModal } from '../components/TrackingModal';
 import { shippingService } from '../services/shippingService';
 import { cepService } from '../services/cepService';
 
@@ -88,6 +89,8 @@ export default function Orders() {
   const [pickingData, setPickingData] = useState<{ summary: Record<string, number>, orders: any[] } | null>(null);
   const [manualTracking, setManualTracking] = useState<Record<string, string>>({});
   const [isUpdatingTracking, setIsUpdatingTracking] = useState(false);
+  const [showTrackingModal, setShowTrackingModal] = useState(false);
+  const [selectedTrackingOrder, setSelectedTrackingOrder] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
   const [manualOrderData, setManualOrderData] = useState({
@@ -1678,7 +1681,20 @@ export default function Orders() {
                         <span className="text-xs text-slate-500">Rastreio:</span>
                         {order.tracking_code ? (
                           <div className="flex flex-col items-end gap-1">
-                            <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">{order.tracking_code}</span>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => {
+                                  setSelectedTrackingOrder(order);
+                                  setShowTrackingModal(true);
+                                }}
+                                className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 transition-colors flex items-center gap-1 text-[10px] font-bold uppercase"
+                                title="Ver Rastreamento Detalhado"
+                              >
+                                <Truck size={12} />
+                                Rastrear
+                              </button>
+                              <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">{order.tracking_code}</span>
+                            </div>
                             <div className="p-1 bg-white border border-slate-200 rounded shadow-sm">
                               <QRCodeCanvas 
                                 value={getTrackingUrl(order.tracking_code, order.shipping_method)} 
@@ -1748,6 +1764,14 @@ export default function Orders() {
         </div>
       )}
 
+      {/* Modal de Rastreamento */}
+      <TrackingModal 
+        isOpen={showTrackingModal}
+        onClose={() => setShowTrackingModal(false)}
+        orderId={selectedTrackingOrder?.id}
+        trackingCode={selectedTrackingOrder?.tracking_code}
+      />
+
       {/* Modal de Detalhes do Pedido */}
       {showDetailsModal && selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
@@ -1789,6 +1813,17 @@ export default function Orders() {
                     </div>
                     <div className="flex flex-col gap-2 w-full">
                       <div className="flex gap-2">
+                        <button 
+                          onClick={() => {
+                            setSelectedTrackingOrder(selectedOrder);
+                            setShowTrackingModal(true);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-200 transition-all"
+                          title="Ver Rastreamento Detalhado"
+                        >
+                          <Truck size={14} />
+                          Rastrear
+                        </button>
                         <button 
                           onClick={() => handleGenerateLabel(selectedOrder.id)}
                           disabled={processingShipping || !!selectedOrder.tracking_code}

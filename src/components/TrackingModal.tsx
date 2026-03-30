@@ -12,7 +12,7 @@ interface TrackingModalProps {
   orderId?: string;
 }
 
-export default function TrackingModal({ isOpen, onClose, trackingCode, orderId }: TrackingModalProps) {
+export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: TrackingModalProps) {
   const [loading, setLoading] = useState(false);
   const [trackingData, setTrackingData] = useState<any>(null);
   const [realTimeHistory, setRealTimeHistory] = useState<any[]>([]);

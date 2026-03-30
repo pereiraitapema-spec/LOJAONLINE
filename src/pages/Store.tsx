@@ -14,7 +14,7 @@ import {
 import { Loading } from '../components/Loading';
 import SmartChat from '../components/SmartChat';
 import { DebugModeIndicator } from '../components/DebugModeIndicator';
-import TrackingModal from '../components/TrackingModal';
+import { TrackingModal } from '../components/TrackingModal';
 
 import { leadService } from '../services/leadService';
 import { shippingService } from '../services/shippingService';

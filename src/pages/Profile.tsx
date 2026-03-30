@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { User, Camera, Save, ArrowLeft, Shield, LayoutDashboard, Package, Truck, Printer, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
-import TrackingModal from '../components/TrackingModal';
+import { TrackingModal } from '../components/TrackingModal';
 
 export default function Profile() {
   const [loading, setLoading] = useState(true);
