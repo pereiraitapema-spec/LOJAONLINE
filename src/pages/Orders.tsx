@@ -327,15 +327,20 @@ export default function Orders() {
   const getZip = (addr: any) => addr?.zip_code || addr?.zipCode || addr?.zip || addr?.cep || 'N/A';
 
   const handleManualLabelRedirect = async (order: any) => {
+    // Abrir a janela IMEDIATAMENTE para evitar bloqueio de popup
+    const cepCertoWindow = window.open('https://cepcerto.com/area-restrita', 'cepcerto_window');
+    
     console.log('🚀 Iniciando redirecionamento manual para pedido:', order.id);
     
     const { data: settings } = await supabase.from('store_settings').select('origin_zip_code').maybeSingle();
     const originZip = settings?.origin_zip_code || carrierConfig?.origin_zip || '88240-000';
     const destZip = getZip(order.shipping_address);
     
-    // Buscar itens se não estiverem carregados
-    let items = orderItems;
-    if (items.length === 0 || items[0].order_id !== order.id) {
+    // Priorizar itens que já vieram no objeto order (ex: do PickingModal)
+    let items = order.order_items || [];
+    
+    // Se não tiver itens ou forem de outro pedido, buscar
+    if (items.length === 0 || (items[0].order_id && items[0].order_id !== order.id)) {
       const { data } = await supabase.from('order_items').select('*, products(*)').eq('order_id', order.id);
       items = data || [];
     }
@@ -347,18 +352,16 @@ export default function Orders() {
     let maxLength = 0;
 
     items.forEach((item: any) => {
-      // Tentar encontrar o produto em várias propriedades possíveis (Supabase join pode variar)
+      // Tentar encontrar o produto em várias propriedades possíveis
       const p = item.products || item.product || (Array.isArray(item.products) ? item.products[0] : null);
       
       if (p) {
-        // Tentar buscar de várias colunas possíveis (weight ou weight_kg, e dimensões individuais ou jsonb)
         const itemWeight = Number(p.weight) || Number(p.weight_kg) || 0.5;
         
         let itemHeight = Number(p.height) || 10;
         let itemWidth = Number(p.width) || 15;
         let itemLength = Number(p.length) || Number(p.depth) || 20;
 
-        // Se houver dimensions_cm (jsonb)
         if (p.dimensions_cm) {
           itemHeight = Number(p.dimensions_cm.height) || itemHeight;
           itemWidth = Number(p.dimensions_cm.width) || itemWidth;
@@ -372,13 +375,11 @@ export default function Orders() {
       }
     });
 
-    // Fallbacks se não houver dados
     const weight = totalWeight || 0.5;
     const height = maxHeight || 10;
     const width = maxWidth || 15;
     const length = maxLength || 20;
 
-    // Script otimizado para os campos exatos da imagem do CepCerto
     const script = `
       (function() {
         console.clear();
@@ -391,7 +392,7 @@ export default function Orders() {
           'altura': '${height.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
           'largura': '${width.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
           'comp': '${length.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
-          'seguro': '${order.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}'
+          'seguro': '${(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}'
         };
 
         function fillField(keywords, value) {
@@ -419,15 +420,11 @@ export default function Orders() {
         fillField(['comp', 'comprimento'], data.comp);
         fillField(['seguro', 'valor'], data.seguro);
 
-        alert('✅ DADOS DO PEDIDO #${order.id.split('-')[0].toUpperCase()} PREENCHIDOS!\\n\\nVerifique os valores e clique em Gerar Etiqueta.');
+        alert('✅ DADOS DO PEDIDO #${(order.id || '').split('-')[0].toUpperCase()} PREENCHIDOS!\\n\\nVerifique os valores e clique em Gerar Etiqueta.');
       })();
     `.trim();
 
-    // Copia para a área de transferência
     await navigator.clipboard.writeText(script);
-
-    // Abre o site
-    window.open('https://cepcerto.com/area-restrita', 'cepcerto_window');
     
     setShowManualAssistant(true);
     
@@ -854,7 +851,7 @@ export default function Orders() {
       // 1. Busca os pedidos com seus itens (incluindo endereço e rastreio)
       const { data: detailedOrders, error } = await supabase
         .from('orders')
-        .select('id, created_at, customer_name, shipping_address, tracking_code, order_items(product_name, quantity)')
+        .select('*, order_items(*, products(*))')
         .in('id', targetIds);
       
       console.log('Detailed orders returned from Supabase:', detailedOrders);
@@ -1818,8 +1815,9 @@ export default function Orders() {
                           
                           <div className="grid grid-cols-1 gap-2">
                             <button 
-                              onClick={() => {
-                                const originZip = carrierConfig?.origin_zip || '88220-000';
+                              onClick={async () => {
+                                const { data: settings } = await supabase.from('store_settings').select('origin_zip_code').maybeSingle();
+                                const originZip = settings?.origin_zip_code || carrierConfig?.origin_zip || '88240-000';
                                 const addr = selectedOrder.shipping_address || {};
                                 const destZip = getZip(addr);
 
@@ -1827,6 +1825,9 @@ export default function Orders() {
                                   toast.error('CEP de destino não encontrado!');
                                   return;
                                 }
+
+                                // Abrir janela imediatamente
+                                window.open('https://cepcerto.com/area-restrita', 'cepcerto_window');
 
                                 // Calcular dimensões reais dos itens carregados
                                 let totalWeight = 0;
@@ -1907,8 +1908,7 @@ export default function Orders() {
                                     alert('✅ DADOS DO PEDIDO #${selectedOrder.id.split('-')[0].toUpperCase()} PREENCHIDOS!\\n\\nVerifique os valores e clique em Gerar Etiqueta.');
                                   })();
                                 `.trim();
-                                navigator.clipboard.writeText(script);
-                                window.open('https://cepcerto.com/area-restrita', 'cepcerto_window');
+                                await navigator.clipboard.writeText(script);
                                 toast.success('Script com dados reais copiado!');
                               }}
                               className="w-full flex items-center justify-center gap-2 p-3 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-md"
