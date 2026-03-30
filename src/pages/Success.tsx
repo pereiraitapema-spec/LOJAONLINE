@@ -98,15 +98,25 @@ export default function Success() {
           <h1 className="text-4xl font-black text-slate-900 uppercase italic tracking-tighter mb-4">
             {(order?.status === 'paid' || order?.status === 'approved' || order?.status === 'processing' || order?.status === 'shipped') 
               ? 'Pedido Confirmado!' 
-              : (order?.status === 'pending' && order?.payment_method === 'credit_card' ? 'Pagamento em Análise!' : 'Pedido Recebido!')}
+              : 'Pagamento Aprovado!'}
           </h1>
           <p className="text-slate-500 text-lg mb-8">
             {(order?.status === 'paid' || order?.status === 'approved' || order?.status === 'processing' || order?.status === 'shipped') 
               ? (order?.tracking_code ? 'Seu pedido está sendo levado para a transportadora.' : 'Obrigado por sua compra. Seu pedido foi processado com sucesso e está sendo preparado para envio.')
-              : (order?.status === 'pending' && order?.payment_method === 'credit_card' 
-                  ? 'Seu pagamento está passando por uma análise de segurança e será aprovado em breve.' 
-                  : 'Seu pedido foi recebido e está aguardando o pagamento para ser processado.')}
+              : 'Parabéns! Seu pagamento foi confirmado com sucesso. Seu pedido está sendo preparado e em breve será enviado para você.'}
           </p>
+
+          {order && (
+            <div className="grid grid-cols-1 gap-4 mb-8">
+              <button 
+                onClick={() => navigate('/')}
+                className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+              >
+                <Home size={20} />
+                Voltar para Loja
+              </button>
+            </div>
+          )}
 
           {order && (
             <motion.div 

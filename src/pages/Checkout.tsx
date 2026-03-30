@@ -1144,34 +1144,34 @@ export default function Checkout() {
             throw new Error(paymentResponse.error || 'Erro ao processar pagamento com Pagar.me');
           }
 
-          // 4. Comunicar com CepCerto para gerar etiqueta
+          // 4. Comunicar com CepCerto para gerar etiqueta (Resiliente)
           try {
             console.log('📦 Comunicando com CepCerto para gerar etiqueta...');
-            // Garante que orderData.id é uma string
             const orderId = typeof orderData.id === 'string' ? orderData.id : orderData.id.toString();
             
-            // Aguardar um pouco para garantir consistência no banco antes de buscar para etiqueta
-            console.log('⏱️ Aguardando consistência do banco...');
+            // Aguardar um pouco para garantir consistência no banco
             await new Promise(resolve => setTimeout(resolve, 2000));
             
             const labelResponse = await shippingService.generateLabel(orderId);
             
             if (labelResponse.success && labelResponse.tracking_code) {
-              console.log('✅ Etiqueta gerada com sucesso. Código de rastreio:', labelResponse.tracking_code);
+              console.log('✅ Etiqueta gerada com sucesso.');
               finalTrackingCode = labelResponse.tracking_code;
               await supabase
                 .from('orders')
                 .update({ tracking_code: labelResponse.tracking_code })
                 .eq('id', orderId);
               setTrackingCode(labelResponse.tracking_code);
+              toast.success('Pagamento aprovado e etiqueta gerada!');
             } else {
-              console.error('❌ Erro ao gerar etiqueta:', labelResponse.error);
-              toast.success('Pagamento aprovado! Houve uma pequena falha na geração automática da etiqueta, mas nossa equipe fará o envio manualmente e você receberá o código em breve.');
+              console.warn('⚠️ Falha na geração automática da etiqueta:', labelResponse.error);
+              toast.success('Pagamento aprovado! A etiqueta será gerada manualmente por nossa equipe.');
             }
           } catch (labelErr: any) {
-            console.error('❌ Erro crítico na geração de etiqueta:', labelErr);
-            toast.success('Pagamento aprovado! Houve uma falha na comunicação com a transportadora para gerar a etiqueta, mas faremos o envio manualmente e você receberá o código em breve.');
+            console.error('⚠️ Erro não crítico na geração de etiqueta:', labelErr);
+            toast.success('Pagamento aprovado! A etiqueta será gerada manualmente por nossa equipe.');
           }
+          // O fluxo continua normalmente aqui, independentemente do sucesso da etiqueta
 
           // Salvar cartão se for cartão de crédito
           if (paymentMethod === 'credit_card' && paymentResponse.charges?.[0]?.last_transaction?.card?.id) {
