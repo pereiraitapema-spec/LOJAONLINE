@@ -400,47 +400,59 @@ const cepcertoProvider: ShippingProvider = {
     console.log('🔍 Buscando rastreio para:', trackingCode);
     const cleanTrackingCode = trackingCode.trim();
 
-    // 1. Tentar Linketrack (API robusta)
+    // 1. Tentar BrasilAPI (Única que resolve DNS neste ambiente)
     try {
-      const response = await fetch(`https://api.linketrack.com/track/json?user=teste&token=1abcd00b2731640e886fb41a8a9671ad1434c599dbaa0a0de9a5061958611115&codigo=${cleanTrackingCode}`);
+      const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${cleanTrackingCode}`);
       if (response.ok) {
         const data = await response.json();
-        if (data.eventos && data.eventos.length > 0) {
-          console.log('✅ Rastreio encontrado via Linketrack');
+        if (data.historico && data.historico.length > 0) {
+          console.log('✅ Rastreio encontrado via BrasilAPI');
           return {
-            status: data.eventos[0].status || 'Em trânsito',
-            history: data.eventos.map((e: any) => ({
-              date: `${e.data} ${e.hora}`,
+            status: data.status || 'Em trânsito',
+            history: data.historico.map((e: any) => ({
+              date: e.data,
               location: e.local,
-              description: e.status
+              description: e.detalhes
             }))
           };
         }
       }
     } catch (e) {
-      console.warn('⚠️ Linketrack falhou, tentando fallback...');
+      console.warn('⚠️ BrasilAPI falhou ou não encontrou dados.');
     }
 
-    // 2. Fallback para BrasilAPI
-    try {
-      const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${cleanTrackingCode}`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Rastreio encontrado via BrasilAPI');
-        return {
-          status: data.status || 'Em trânsito',
-          history: data.historico ? data.historico.map((e: any) => ({
-            date: e.data,
-            location: e.local,
-            description: e.detalhes
-          })) : []
-        };
+    // 2. Fallback Profissional: Melhor Envio (Se houver API Key configurada)
+    if (config?.api_key) {
+      try {
+        console.log('🔄 Tentando fallback via API Melhor Envio...');
+        const response = await fetch('https://www.melhorenvio.com.br/api/v2/me/shipment/tracking', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.api_key}`
+          },
+          body: JSON.stringify({ tracking_code: cleanTrackingCode })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Rastreio encontrado via Melhor Envio');
+          return {
+            status: 'Em trânsito',
+            history: data.map((e: any) => ({
+              date: e.created_at,
+              location: e.location || 'N/A',
+              description: e.status
+            }))
+          };
+        }
+      } catch (e) {
+        console.error('❌ Melhor Envio também falhou:', e);
       }
-    } catch (e) {
-      console.error('❌ BrasilAPI também falhou');
     }
 
-    return { status: 'Não encontrado', history: [] };
+    return { status: 'Não encontrado ou aguardando postagem', history: [] };
   }
 };
 
