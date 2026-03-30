@@ -650,7 +650,18 @@ export default function Orders() {
         if (error) throw error;
         
         const ordersData = data || [];
-        setOrders(ordersData);
+        
+        // Lógica para atualizar 'approved' para 'paid' automaticamente
+        let processedOrders = ordersData;
+        const approvedOrders = ordersData.filter(o => o.status === 'approved');
+        if (approvedOrders.length > 0) {
+          for (const order of approvedOrders) {
+            await supabase.from('orders').update({ status: 'paid' }).eq('id', order.id);
+          }
+          processedOrders = ordersData.map(o => o.status === 'approved' ? {...o, status: 'paid'} : o);
+        }
+        
+        setOrders(processedOrders);
 
         // Busca automática de rastreamento para clientes
         if (!userIsAdmin) {

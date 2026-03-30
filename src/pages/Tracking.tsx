@@ -31,7 +31,15 @@ export default function Tracking() {
       if (error) {
         toast.error('Erro ao buscar pedidos.');
       } else {
-        setOrders(data || []);
+        let ordersData = data || [];
+        const approvedOrders = ordersData.filter(o => o.status === 'approved');
+        if (approvedOrders.length > 0) {
+          for (const order of approvedOrders) {
+            await supabase.from('orders').update({ status: 'paid' }).eq('id', order.id);
+          }
+          ordersData = ordersData.map(o => o.status === 'approved' ? {...o, status: 'paid'} : o);
+        }
+        setOrders(ordersData);
       }
       setLoading(false);
     };

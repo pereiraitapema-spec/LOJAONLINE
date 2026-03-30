@@ -48,7 +48,7 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
 
       const { data: orders, error } = await supabase
         .from('orders')
-        .select('id, status, tracking_code, updated_at, total')
+        .select('id, status, tracking_code, created_at, total')
         .eq('customer_email', user.email)
         .order('created_at', { ascending: false });
 
@@ -58,11 +58,11 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
       const filteredOrders = (orders || []).filter(order => {
         if (order.status !== 'delivered') return true;
         
-        const updatedAt = new Date(order.updated_at);
+        const createdAt = new Date(order.created_at);
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         
-        return updatedAt > sevenDaysAgo;
+        return createdAt > sevenDaysAgo;
       });
 
       setUserOrders(filteredOrders);

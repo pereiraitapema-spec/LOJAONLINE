@@ -32,7 +32,13 @@ export default function Success() {
           .maybeSingle();
 
         if (orderError) throw orderError;
-        setOrder(orderData);
+        
+        let finalOrder = orderData;
+        if (finalOrder && finalOrder.status === 'approved') {
+          await supabase.from('orders').update({ status: 'paid' }).eq('id', orderId);
+          finalOrder = {...finalOrder, status: 'paid'};
+        }
+        setOrder(finalOrder);
 
         // Fetch Settings for payment details
         const { data: settingsData } = await supabase
