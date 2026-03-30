@@ -1704,6 +1704,13 @@ export default function Orders() {
                             >
                               <Save size={14} />
                             </button>
+                            <button 
+                              onClick={() => handleManualLabelRedirect(order)}
+                              className="p-1 bg-slate-100 text-slate-700 rounded hover:bg-slate-200"
+                              title="Gerar Manualmente (Site)"
+                            >
+                              <ExternalLink size={14} />
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1734,19 +1741,6 @@ export default function Orders() {
               >
                 <QrCode size={20} />
                 Gerar Etiquetas (Auto)
-              </button>
-              <button 
-                onClick={() => {
-                  if (pickingData && pickingData.orders.length > 0) {
-                    handleManualLabelRedirect(pickingData.orders[0]);
-                  } else {
-                    toast.error('Nenhum pedido selecionado');
-                  }
-                }} 
-                className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
-              >
-                <ExternalLink size={20} />
-                Manual (Site)
               </button>
               <button onClick={() => setShowPickingModal(false)} className="px-6 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300">Fechar</button>
             </div>
