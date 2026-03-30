@@ -411,8 +411,8 @@ const cepcertoProvider: ShippingProvider = {
             status: data.status || 'Em trânsito',
             history: data.historico.map((e: any) => ({
               date: e.data,
-              location: e.local,
-              description: e.detalhes
+              location: `${e.unidade} - ${e.cidade}/${e.uf}`,
+              description: e.descricao
             }))
           };
         }
