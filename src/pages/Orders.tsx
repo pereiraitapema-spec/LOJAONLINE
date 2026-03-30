@@ -425,62 +425,85 @@ export default function Orders() {
           const key = keywords.join('|');
           if (filledFields.has(key)) return true;
           
-          const inputs = Array.from(document.querySelectorAll('input, select, textarea'));
-          const target = inputs.find(i => {
-            const name = (i.name || '').toLowerCase();
-            const id = (i.id || '').toLowerCase();
-            const placeholder = (i.placeholder || '').toLowerCase();
-            const label = i.labels && i.labels[0] ? i.labels[0].innerText.toLowerCase() : '';
-            const parentText = (i.parentElement?.innerText || '').toLowerCase();
-            const fullText = name + id + placeholder + label + parentText;
-            return keywords.some(k => fullText.includes(k.toLowerCase()));
-          });
+          function findTarget(doc) {
+            const inputs = Array.from(doc.querySelectorAll('input, select, textarea'));
+            return inputs.find(i => {
+              const name = (i.name || '').toLowerCase();
+              const id = (i.id || '').toLowerCase();
+              const placeholder = (i.placeholder || '').toLowerCase();
+              const label = i.labels && i.labels[0] ? i.labels[0].innerText.toLowerCase() : '';
+              const parentText = (i.parentElement?.innerText || '').toLowerCase();
+              const fullText = name + id + placeholder + label + parentText;
+              return keywords.some(k => fullText.includes(k.toLowerCase()));
+            });
+          }
+
+          let target = findTarget(document);
+          
+          // Se não encontrar no documento principal, tenta nos iframes
+          if (!target) {
+            const iframes = Array.from(document.querySelectorAll('iframe'));
+            for (const iframe of iframes) {
+              try {
+                const doc = iframe.contentDocument || iframe.contentWindow.document;
+                target = findTarget(doc);
+                if (target) break;
+              } catch (e) {}
+            }
+          }
 
           if (target) {
-            if (target.tagName === 'SELECT') {
-              const options = Array.from(target.options);
-              const bestOption = options.find(opt => 
-                opt.text.toLowerCase().includes(value.toLowerCase()) || 
-                (keywords.includes('peso') && opt.text.toLowerCase().includes(parseInt(value) + ' kilo'))
-              );
-              if (bestOption) target.value = bestOption.value;
-              else target.value = value;
-            } else {
-              target.value = value;
+            try {
+              if (target.tagName === 'SELECT') {
+                const options = Array.from(target.options);
+                const bestOption = options.find(opt => 
+                  opt.text.toLowerCase().includes(value.toLowerCase()) || 
+                  (keywords.includes('peso') && opt.text.toLowerCase().includes(parseInt(value) + ' kilo'))
+                );
+                if (bestOption) target.value = bestOption.value;
+                else target.value = value;
+              } else {
+                target.value = value;
+              }
+              
+              target.dispatchEvent(new Event('input', { bubbles: true }));
+              target.dispatchEvent(new Event('change', { bubbles: true }));
+              console.log('%c✅ Preenchido: ' + keywords[0] + ' -> ' + value, 'color: green; font-weight: bold;');
+              filledFields.add(key);
+              return true;
+            } catch (e) {
+              console.error('❌ Erro ao preencher ' + keywords[0] + ':', e);
             }
-            
-            target.dispatchEvent(new Event('input', { bubbles: true }));
-            target.dispatchEvent(new Event('change', { bubbles: true }));
-            console.log('%c✅ Preenchido: ' + keywords[0] + ' -> ' + value, 'color: green; font-weight: bold;');
-            filledFields.add(key);
-            return true;
           }
           return false;
         }
 
         const interval = setInterval(() => {
-          fillField(['origem', 'cep origem'], data.origem);
-          // Adicionando mais variações para garantir que o campo de destino seja encontrado
-          fillField(['destino', 'cep destino', 'cep de destino', 'cep', 'destinatário'], data.destino);
-          fillField(['peso'], data.peso);
-          fillField(['altura'], data.altura);
-          fillField(['largura'], data.largura);
-          fillField(['comp', 'comprimento'], data.comp);
-          fillField(['nome', 'destinatário'], data.nome);
-          fillField(['cpf', 'cnpj', 'documento'], data.documento);
-          fillField(['whatsapp', 'telefone', 'celular'], data.telefone);
-          fillField(['email'], data.email);
-          fillField(['logradouro', 'endereco', 'rua'], data.endereco);
-          fillField(['numero', 'nº'], data.numero);
-          fillField(['complemento'], data.complemento);
-          fillField(['bairro'], data.bairro);
-          fillField(['cidade'], data.cidade);
-          fillField(['uf', 'estado'], data.uf);
-          fillField(['conteudo', 'descrição'], data.conteudo);
-          fillField(['seguro', 'valor declarado'], data.seguro);
+          try {
+            fillField(['origem', 'cep origem', 'cep_origem'], data.origem);
+            fillField(['destino', 'cep destino', 'cep_destino', 'cep de destino', 'cep', 'destinatário'], data.destino);
+            fillField(['peso', 'peso_gramas'], data.peso);
+            fillField(['altura'], data.altura);
+            fillField(['largura'], data.largura);
+            fillField(['comp', 'comprimento'], data.comp);
+            fillField(['nome', 'destinatário', 'nome_destinatario'], data.nome);
+            fillField(['cpf', 'cnpj', 'documento', 'cpf_cnpj'], data.documento);
+            fillField(['whatsapp', 'telefone', 'celular', 'tel'], data.telefone);
+            fillField(['email'], data.email);
+            fillField(['logradouro', 'endereco', 'rua', 'rua_destino'], data.endereco);
+            fillField(['numero', 'nº', 'numero_destino'], data.numero);
+            fillField(['complemento', 'complemento_destino'], data.complemento);
+            fillField(['bairro', 'bairro_destino'], data.bairro);
+            fillField(['cidade', 'cidade_destino'], data.cidade);
+            fillField(['uf', 'estado', 'uf_destino'], data.uf);
+            fillField(['conteudo', 'descrição', 'conteudo_objeto'], data.conteudo);
+            fillField(['seguro', 'valor declarado', 'valor_declarado'], data.seguro);
 
-          if (filledFields.size >= 15) {
-            console.log('%c🎉 Todos os campos detectados foram preenchidos!', 'color: #4f46e5; font-weight: bold;');
+            if (filledFields.size >= 15) {
+              console.log('%c🎉 Todos os campos detectados foram preenchidos!', 'color: #4f46e5; font-weight: bold;');
+            }
+          } catch (e) {
+            console.error('❌ Erro no loop do assistente:', e);
           }
         }, 1000);
 
@@ -658,7 +681,17 @@ export default function Orders() {
         const approvedOrders = ordersData.filter(o => o.status === 'approved');
         if (approvedOrders.length > 0) {
           for (const order of approvedOrders) {
-            await supabase.from('orders').update({ status: 'paid' }).eq('id', order.id);
+            console.log(`🔄 Sincronizando pedido ${order.id} de 'approved' para 'paid'...`);
+            const { error: updateError } = await supabase.from('orders').update({ status: 'paid' }).eq('id', order.id);
+            if (updateError) {
+              console.error(`❌ Erro ao sincronizar pedido ${order.id}:`, updateError);
+              // Se falhar o commit, avisamos o admin
+              if (updateError.message.includes('permission')) {
+                toast.error(`Erro de permissão ao atualizar pedido ${order.id}. Verifique se você é admin no banco.`);
+              }
+            } else {
+              console.log(`✅ Pedido ${order.id} sincronizado com sucesso.`);
+            }
           }
           processedOrders = processedOrders.map(o => o.status === 'approved' ? {...o, status: 'paid'} : o);
         }

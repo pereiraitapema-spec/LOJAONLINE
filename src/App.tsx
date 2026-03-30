@@ -61,6 +61,12 @@ function AppContent() {
     if (email === 'pereira.itapema@gmail.com' || email === 'pereira.brusque@gmail.com') {
       console.log('👑 Admin Master detectado em fetchUserRole');
       localStorage.setItem('user_role', 'admin');
+      // Garante que o banco também saiba que é admin para o RLS funcionar
+      try {
+        await supabase.from('profiles').update({ role: 'admin' }).eq('id', userId);
+      } catch (e) {
+        console.warn('⚠️ Falha ao sincronizar role admin no banco:', e);
+      }
       return 'admin';
     }
     

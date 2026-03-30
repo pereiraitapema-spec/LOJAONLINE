@@ -23,6 +23,7 @@ const pagarmeProvider: PaymentProvider = {
         },
         body: JSON.stringify({
           orderData: {
+            code: orderData.order_id,
             items: orderData.items.map((item: any) => ({
               amount: Math.round(item.price * 100),
               description: item.product_name,
