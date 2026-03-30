@@ -634,6 +634,7 @@ export default function Orders() {
   }, [searchTerm, statusFilter, startDate, endDate]);
 
   const fetchData = async () => {
+    console.log('🚀 fetchData chamada. activeTab:', activeTab);
     try {
       setLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
