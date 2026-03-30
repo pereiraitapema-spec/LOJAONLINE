@@ -34,19 +34,35 @@ Deno.serve(async (req) => {
 
     // Processar confirmação de pagamento
     if (eventType === 'order.paid') {
-        const orderId = payload.data?.metadata?.order_id;
+        // Tenta buscar o order_id de diferentes locais possíveis no payload
+        const orderId = payload.data?.metadata?.order_id || payload.data?.order?.metadata?.order_id;
+        
         if (orderId) {
             console.log(`✅ Pagamento confirmado para o pedido ${orderId}. Atualizando status...`);
+            
+            // 1. Atualiza o status na tabela orders
             const { error: updateError } = await supabase
                 .from('orders')
-                .update({ status: 'paid' })
+                .update({ status: 'paid', updated_at: new Date().toISOString() })
                 .eq('id', orderId);
+            
+            // 2. Registra o log na tabela payment_logs
+            await supabase
+                .from('payment_logs')
+                .insert({
+                    order_id: orderId,
+                    event_type: eventType,
+                    payload: payload,
+                    status: 'success'
+                });
             
             if (updateError) {
                 console.error('❌ Erro ao atualizar status do pedido:', updateError);
             } else {
                 console.log(`✅ Status do pedido ${orderId} atualizado para 'paid'.`);
             }
+        } else {
+            console.error('❌ order_id não encontrado no metadata do payload:', JSON.stringify(payload));
         }
     }
 
