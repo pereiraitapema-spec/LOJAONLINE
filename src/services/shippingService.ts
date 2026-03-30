@@ -397,46 +397,50 @@ const cepcertoProvider: ShippingProvider = {
     return { success: true };
   },
   async getTrackingStatus(trackingCode: string, config: any) {
-    if (!config?.api_key) {
-      console.warn('⚠️ CepCerto API Key missing!');
-      throw new Error('Token de Consulta do CepCerto não configurado.');
+    console.log('🔍 Buscando rastreio para:', trackingCode);
+    const cleanTrackingCode = trackingCode.trim();
+
+    // 1. Tentar Linketrack (API robusta)
+    try {
+      const response = await fetch(`https://api.linketrack.com/track/json?user=teste&token=1abcd00b2731640e886fb41a8a9671ad1434c599dbaa0a0de9a5061958611115&codigo=${cleanTrackingCode}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.eventos && data.eventos.length > 0) {
+          console.log('✅ Rastreio encontrado via Linketrack');
+          return {
+            status: data.eventos[0].status || 'Em trânsito',
+            history: data.eventos.map((e: any) => ({
+              date: `${e.data} ${e.hora}`,
+              location: e.local,
+              description: e.status
+            }))
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Linketrack falhou, tentando fallback...');
     }
 
-    console.log('🔍 Buscando rastreio real CepCerto para:', trackingCode);
-    
+    // 2. Fallback para BrasilAPI
     try {
-      // Endpoint de rastreio do BrasilAPI
-      const cleanTrackingCode = trackingCode.trim();
-      
-      // Chamada direta para a API pública BrasilAPI
       const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${cleanTrackingCode}`);
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-             return { status: 'Não encontrado', history: [] };
-        }
-        throw new Error(`Erro na API BrasilAPI: ${response.status} ${response.statusText}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Rastreio encontrado via BrasilAPI');
+        return {
+          status: data.status || 'Em trânsito',
+          history: data.historico ? data.historico.map((e: any) => ({
+            date: e.data,
+            location: e.local,
+            description: e.detalhes
+          })) : []
+        };
       }
-      
-      const data = await response.json();
-      
-      console.log('📦 Resposta Rastreio BrasilAPI:', data);
-      
-      // Mapear o histórico conforme a estrutura da BrasilAPI
-      const history = data.historico ? data.historico.map((event: any) => ({
-        date: event.data,
-        location: event.local,
-        description: event.detalhes
-      })) : [];
-      
-      return {
-        status: data.status || 'Em trânsito',
-        history: history
-      };
-    } catch (err) {
-      console.error('❌ Erro na API de Rastreio BrasilAPI:', err);
-      return { status: 'Erro ao buscar rastreio', history: [] };
+    } catch (e) {
+      console.error('❌ BrasilAPI também falhou');
     }
+
+    return { status: 'Não encontrado', history: [] };
   }
 };
 
