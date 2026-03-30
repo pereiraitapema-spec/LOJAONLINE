@@ -34,9 +34,11 @@ export default function Success() {
         if (orderError) throw orderError;
         
         let finalOrder = orderData;
-        if (finalOrder && finalOrder.status === 'approved') {
-          await supabase.from('orders').update({ status: 'paid' }).eq('id', orderId);
-          finalOrder = {...finalOrder, status: 'paid'};
+        if (finalOrder && (finalOrder.status === 'approved' || finalOrder.status === 'paid')) {
+          if (finalOrder.status === 'approved') {
+            await supabase.from('orders').update({ status: 'paid' }).eq('id', orderId);
+            finalOrder = {...finalOrder, status: 'paid'};
+          }
         }
         setOrder(finalOrder);
 

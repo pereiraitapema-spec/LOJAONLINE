@@ -1212,6 +1212,7 @@ export default function Checkout() {
         const statusMap: Record<string, string> = {
           'paid': 'paid',
           'authorized': 'paid',
+          'approved': 'paid',
           'pending_analysis': 'pending',
           'pending_review': 'pending',
           'waiting_payment': 'pending',
