@@ -405,55 +405,36 @@ const cepcertoProvider: ShippingProvider = {
     console.log('🔍 Buscando rastreio real CepCerto para:', trackingCode);
     
     try {
-      // Endpoint de rastreio do CepCerto
-      // O código de rastreio deve ser passado sem espaços ou caracteres especiais que possam quebrar a URL
+      // Endpoint de rastreio do BrasilAPI
       const cleanTrackingCode = trackingCode.trim();
       
-      // Chamada através da Edge Function do Supabase (Proxy Profissional) para evitar CORS
-      const response = await fetch('https://bnqxinknkjvfbaqaopjc.supabase.co/functions/v1/cepcerto-proxy-rastreio', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify({
-          trackingCode: cleanTrackingCode,
-          apiKey: config.api_key
-        })
-      });
+      // Chamada direta para a API pública BrasilAPI
+      const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${cleanTrackingCode}`);
       
       if (!response.ok) {
-        throw new Error(`Erro na API CepCerto: ${response.status} ${response.statusText}`);
+        if (response.status === 404) {
+             return { status: 'Não encontrado', history: [] };
+        }
+        throw new Error(`Erro na API BrasilAPI: ${response.status} ${response.statusText}`);
       }
       
-      const result = await response.json();
-      const data = result.data;
+      const data = await response.json();
       
-      console.log('📦 Resposta Rastreio CepCerto:', data);
+      console.log('📦 Resposta Rastreio BrasilAPI:', data);
       
-      // Se a API retornar erro ou não encontrar
-      if (data.erro && data.erro !== '0') {
-        console.warn('⚠️ CepCerto não encontrou o rastreio:', data.erro);
-        return { status: 'Não encontrado', history: [] };
-      }
-      
-      console.log('🔍 Tipo de dados da resposta:', typeof data, 'É array?', Array.isArray(data));
-      
-      // Mapear o histórico conforme a estrutura da API (baseado nas fotos que você enviou)
-      const history = Array.isArray(data) ? data.map((event: any) => ({
+      // Mapear o histórico conforme a estrutura da BrasilAPI
+      const history = data.historico ? data.historico.map((event: any) => ({
         date: event.data,
-        location: `${event.unidade} - ${event.cidade}/${event.uf}`,
-        description: event.descricao
+        location: event.local,
+        description: event.detalhes
       })) : [];
       
-      console.log('📊 Histórico mapeado:', history);
-      
       return {
-        status: history.length > 0 ? history[0].description : 'Em trânsito',
+        status: data.status || 'Em trânsito',
         history: history
       };
     } catch (err) {
-      console.error('❌ Erro na API de Rastreio CepCerto:', err);
+      console.error('❌ Erro na API de Rastreio BrasilAPI:', err);
       return { status: 'Erro ao buscar rastreio', history: [] };
     }
   }
