@@ -1109,11 +1109,14 @@ export default function Checkout() {
       }
 
       // 3. Process Payment Gateway
+      console.log('🚀 [DEBUG CHECKOUT] Iniciando processamento de pagamento...');
       const activeGateway = gateways.find(g => g.id === selectedGateway);
+      console.log('🔍 [DEBUG CHECKOUT] Gateway ativo:', activeGateway);
       let paymentResponse: any = null;
       let finalTrackingCode: string | null = null;
 
       if (activeGateway) {
+        console.log('✅ [DEBUG CHECKOUT] Gateway encontrado, processando...');
         try {
           console.log('💳 Iniciando processamento de pagamento real...');
           paymentResponse = await paymentService.processPayment(activeGateway.provider, {
