@@ -37,13 +37,6 @@ export default function Profile() {
           .eq('id', session.user.id)
           .maybeSingle();
 
-        if (error) {
-          console.error('❌ Erro ao buscar perfil:', error);
-          toast.error('Erro ao carregar perfil.');
-        } else if (!data) {
-          console.warn('⚠️ Nenhum perfil encontrado para o usuário:', session.user.id);
-        }
-
         if (data) {
           const isMaster = session.user.email === 'pereira.itapema@gmail.com';
           setProfile({
