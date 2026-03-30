@@ -156,8 +156,6 @@ create table if not exists public.orders (
   shipping_method text,
   shipping_address jsonb not null,
   tracking_code text,
-  logistics_history jsonb default '[]'::jsonb,
-  current_logistics_status text,
   notes text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
@@ -334,13 +332,10 @@ create policy "Auth all banners" on public.banners for all using (auth.role() = 
 
 -- Policies para Profiles
 drop policy if exists "Users can view own profile" on public.profiles;
-create policy "Users can view own profile" on public.profiles for select using (auth.uid() = id OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+create policy "Users can view own profile" on public.profiles for select using (auth.uid() = id);
 
 drop policy if exists "Users can update own profile" on public.profiles;
-create policy "Users can update own profile" on public.profiles for update using (auth.uid() = id OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
-
-drop policy if exists "Admins can manage all profiles" on public.profiles;
-create policy "Admins can manage all profiles" on public.profiles for all using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+create policy "Users can update own profile" on public.profiles for update using (auth.uid() = id);
 
 -- Policies para Produtos e Categorias (Público pode ler, Apenas Admin pode escrever)
 drop policy if exists "Public read products" on public.products;
@@ -395,11 +390,7 @@ create policy "Auth all product_tiers" on public.product_tiers for all using (au
 
 -- Policies para Pedidos
 drop policy if exists "Users can view own orders" on public.orders;
-create policy "Users can view own orders" on public.orders for select using (
-  auth.uid() = user_id 
-  OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
-  OR tracking_code IS NOT NULL -- Permitir leitura se houver código de rastreio (público)
-);
+create policy "Users can view own orders" on public.orders for select using (auth.uid() = user_id);
 
 drop policy if exists "Affiliates can view their attributed orders" on public.orders;
 create policy "Affiliates can view their attributed orders" on public.orders for select using (
@@ -412,49 +403,6 @@ create policy "Affiliates can view their attributed orders" on public.orders for
 
 drop policy if exists "Users can create orders" on public.orders;
 create policy "Users can create orders" on public.orders for insert with check (true); -- Permitir guest checkout
-
--- Tabela de Transportadoras
-create table if not exists public.shipping_carriers (
-  id uuid default gen_random_uuid() primary key,
-  name text not null,
-  provider text not null unique, -- Ex: 'cepcerto', 'melhorenvio', 'correios'
-  active boolean default true,
-  config jsonb default '{}'::jsonb,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- Seed de Transportadoras
-insert into public.shipping_carriers (name, provider, active, config)
-values ('CEPCERTO', 'cepcerto', true, '{"api_key": "YOUR_CONSULTA_TOKEN", "api_key_postagem": "YOUR_POSTAGEM_TOKEN"}')
-on conflict (provider) do nothing;
-
--- Policies para Shipping Carriers
-alter table public.shipping_carriers enable row level security;
-
-drop policy if exists "Public read shipping_carriers" on public.shipping_carriers;
-create policy "Public read shipping_carriers" on public.shipping_carriers for select using (true);
-
-drop policy if exists "Admin manage shipping_carriers" on public.shipping_carriers;
-create policy "Admin manage shipping_carriers" on public.shipping_carriers for all using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
-
--- Tabela de Histórico de Rastreio
-create table if not exists public.tracking_history (
-  id uuid default gen_random_uuid() primary key,
-  order_id uuid references public.orders(id) on delete cascade,
-  status text not null,
-  location text,
-  date timestamp with time zone default now(),
-  created_at timestamp with time zone default now()
-);
-
-alter table public.tracking_history enable row level security;
-
-drop policy if exists "Public read tracking history" on public.tracking_history;
-create policy "Public read tracking history" on public.tracking_history for select using (true);
-
-drop policy if exists "Admin manage tracking history" on public.tracking_history;
-create policy "Admin manage tracking history" on public.tracking_history for all using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
 
 -- Policies para Affiliates
 drop policy if exists "Public read affiliates" on public.affiliates;

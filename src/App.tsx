@@ -57,37 +57,10 @@ function AppContent() {
   const fetchUserRole = async (userId: string, email?: string) => {
     console.log('🔍 fetchUserRole iniciada para:', { userId, email });
     
-    // Admin Master - Prioridade absoluta e imediata
-    if (email === 'pereira.itapema@gmail.com') {
+    // Admin Master - Prioridade absoluta
+    if (email === 'pereira.itapema@gmail.com' || email === 'pereira.brusque@gmail.com') {
       console.log('👑 Admin Master detectado em fetchUserRole');
       localStorage.setItem('user_role', 'admin');
-      
-      // Sincroniza em background sem dar await para não travar a UI
-      supabase.from('profiles').select('id, full_name, avatar_url, role').eq('id', userId).maybeSingle().then(({ data: existing }) => {
-        if (!existing || existing.role !== 'admin') {
-          const profileData: any = { 
-            id: userId, 
-            email: email,
-            role: 'admin'
-          };
-          
-          // Preserva dados existentes se houver
-          if (existing?.full_name) {
-            profileData.full_name = existing.full_name;
-          } else if (email) {
-            profileData.full_name = email.split('@')[0];
-          }
-
-          if (existing?.avatar_url) {
-            profileData.avatar_url = existing.avatar_url;
-          }
-          
-          supabase.from('profiles').upsert(profileData, { onConflict: 'id' }).then(({ error }) => {
-            if (error) console.warn('⚠️ Falha ao sincronizar role admin no banco:', error);
-          });
-        }
-      });
-      
       return 'admin';
     }
     
@@ -133,7 +106,7 @@ function AppContent() {
       const timer = setTimeout(() => {
         console.warn('⚠️ Loading timeout reached in App.tsx, forcing loading to false');
         setLoading(false);
-      }, 5000);
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [loading]);
@@ -439,7 +412,7 @@ function AppContent() {
 
     if (userRole !== 'admin' && !isMasterAdmin) {
       console.log('🚫 AdminRoute: Access denied for', session.user.email, 'Role:', userRole, 'isMaster:', isMasterAdmin);
-      toast.error(`Acesso restrito a administradores. (Role: ${userRole || 'nenhum'})`);
+      toast.error('Acesso restrito a administradores.');
       return <Navigate to="/" replace />;
     }
     

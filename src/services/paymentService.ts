@@ -23,7 +23,6 @@ const pagarmeProvider: PaymentProvider = {
         },
         body: JSON.stringify({
           orderData: {
-            code: orderData.order_id,
             items: orderData.items.map((item: any) => ({
               amount: Math.round(item.price * 100),
               description: item.product_name,
@@ -197,35 +196,6 @@ const pagarmeProvider: PaymentProvider = {
   },
   async refundPayment(paymentId: string, config: any) {
     return { success: true };
-  },
-  async checkStatus(paymentId: string, config: any) {
-    if (!config?.access_token) return { success: false, error: 'Access Token não configurado.' };
-    
-    try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pagarme-proxy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify({
-          action: 'check_status',
-          orderId: paymentId,
-          config
-        })
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        return { 
-          success: true, 
-          status: data.status // Pagar.me status: paid, authorized, pending, etc.
-        };
-      }
-      return { success: false, error: data.error || 'Erro ao verificar status' };
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
   }
 };
 
@@ -236,9 +206,6 @@ const mockProvider: PaymentProvider = {
   },
   async refundPayment(paymentId: string, config: any) {
     return { success: true };
-  },
-  async checkStatus(paymentId: string, config: any) {
-    return { success: true, status: 'paid' };
   }
 };
 
@@ -265,12 +232,5 @@ export const paymentService = {
     const paymentProvider = providers[provider];
     if (!paymentProvider) throw new Error(`Provedor ${provider} não suportado.`);
     return paymentProvider.processPayment(orderData, gatewayConfig);
-  },
-  async checkStatus(provider: string, paymentId: string, gatewayConfig: any) {
-    const paymentProvider = providers[provider];
-    if (!paymentProvider || !paymentProvider.checkStatus) {
-      return { success: false, error: `Provedor ${provider} não suporta verificação de status.` };
-    }
-    return paymentProvider.checkStatus(paymentId, gatewayConfig);
   }
 };

@@ -64,8 +64,7 @@ export default function Dashboard() {
           .eq('id', session.user.id)
           .maybeSingle();
 
-        const isMaster = session.user.email === 'pereira.itapema@gmail.com';
-        if (!isMaster && (!profileData || profileData.role !== 'admin')) {
+        if (!profileData || (profileData.role !== 'admin' && session.user.email !== 'pereira.itapema@gmail.com')) {
           toast.error('Acesso negado.');
           navigate('/');
           return;

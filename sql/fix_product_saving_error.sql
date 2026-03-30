@@ -17,14 +17,15 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- Políticas para profiles
 DROP POLICY IF EXISTS "Perfis são visíveis pelos próprios usuários" ON public.profiles;
-CREATE POLICY "Perfis são visíveis pelos próprios usuários" ON public.profiles FOR SELECT USING (auth.uid() = id OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+CREATE POLICY "Perfis são visíveis pelos próprios usuários" ON public.profiles FOR SELECT USING (auth.uid() = id);
 
 DROP POLICY IF EXISTS "Usuários podem atualizar seus próprios perfis" ON public.profiles;
-CREATE POLICY "Usuários podem atualizar seus próprios perfis" ON public.profiles FOR UPDATE USING (auth.uid() = id OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+CREATE POLICY "Usuários podem atualizar seus próprios perfis" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
 DROP POLICY IF EXISTS "Admins can manage profiles" ON public.profiles;
 CREATE POLICY "Admins can manage profiles" ON public.profiles FOR ALL USING (
-    auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
+    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
 );
 
 -- 2. Garantir que a tabela categories existe
@@ -46,8 +47,8 @@ CREATE POLICY "Categorias públicas" ON public.categories FOR SELECT USING (true
 
 DROP POLICY IF EXISTS "Admin gerencia categorias" ON public.categories;
 CREATE POLICY "Admin gerencia categorias" ON public.categories FOR ALL USING (
-    auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
 );
 
 -- 3. Garantir que a tabela products existe e tem todas as colunas
@@ -108,8 +109,8 @@ CREATE POLICY "Produtos públicos" ON public.products FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Admin gerencia produtos" ON public.products;
 CREATE POLICY "Admin gerencia produtos" ON public.products FOR ALL USING (
-    auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
 );
 
 -- 4. Garantir que a tabela product_tiers existe
@@ -130,8 +131,8 @@ CREATE POLICY "Tiers públicos" ON public.product_tiers FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Admin gerencia tiers" ON public.product_tiers;
 CREATE POLICY "Admin gerencia tiers" ON public.product_tiers FOR ALL USING (
-    auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
 );
 
 -- 5. Garantir que a tabela product_media existe
@@ -153,8 +154,8 @@ CREATE POLICY "Media pública" ON public.product_media FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Admin gerencia media" ON public.product_media;
 CREATE POLICY "Admin gerencia media" ON public.product_media FOR ALL USING (
-    auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
 );
 
 -- 6. Garantir colunas na tabela orders
@@ -176,6 +177,6 @@ ALTER TABLE public.inventory_logs ENABLE ROW LEVEL SECURITY;
 -- Políticas para inventory_logs
 DROP POLICY IF EXISTS "Admin vê logs de estoque" ON public.inventory_logs;
 CREATE POLICY "Admin vê logs de estoque" ON public.inventory_logs FOR SELECT USING (
-    auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+    OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
 );
