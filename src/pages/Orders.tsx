@@ -685,7 +685,7 @@ export default function Orders() {
           const { data: logs, error: logsError } = await supabase
             .from('payment_logs')
             .select('order_id')
-            .eq('event_type', 'order.paid')
+            .in('event_type', ['order.paid', 'charge.paid'])
             .in('order_id', pendingOrders.map(o => o.id));
             
           if (logsError) {
@@ -2489,7 +2489,13 @@ export default function Orders() {
               </div>
             </div>
 
-            <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button 
+                onClick={() => navigate('/')}
+                className="px-6 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300 transition-colors"
+              >
+                Voltar para o site
+              </button>
               <button 
                 onClick={() => setShowDetailsModal(false)}
                 className="px-6 py-2 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors"
