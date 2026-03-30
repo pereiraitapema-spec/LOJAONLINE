@@ -407,7 +407,7 @@ export default function Orders() {
           'documento': '${(order.customer_document || '').replace(/'/g, "\\'")}',
           'endereco': '${(order.shipping_address?.street || '').replace(/'/g, "\\'")}',
           'numero': '${(order.shipping_address?.number || '').replace(/'/g, "\\'")}',
-          'complemento': '${(order.shipping_address?.complement || '').replace(/'/g, "\\'")}',
+          'complemento': '${(order.complemento || order.shipping_address?.complement || '').replace(/'/g, "\\'")}',
           'bairro': '${(order.shipping_address?.neighborhood || '').replace(/'/g, "\\'")}',
           'cidade': '${(order.shipping_address?.city || '').replace(/'/g, "\\'")}',
           'uf': '${(order.shipping_address?.state || '').replace(/'/g, "\\'")}',
@@ -415,6 +415,8 @@ export default function Orders() {
           'email': '${(order.customer_email || '').replace(/'/g, "\\'")}',
           'conteudo': '${items.map(i => `${i.quantity}x ${i.product_name || i.products?.name || 'Produto'}`).join(', ').replace(/'/g, "\\'")}'
         };
+
+        console.log('DEBUG: Data object:', data);
 
         const filledFields = new Set();
 
