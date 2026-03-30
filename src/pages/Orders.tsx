@@ -1882,15 +1882,18 @@ export default function Orders() {
                               <Save size={14} />
                             </button>
                             <div className="flex gap-1 ml-1 pl-1 border-l border-slate-200">
-                              <button 
+                              <a 
+                                href="https://www.cepcerto.com/painel/nova-etiqueta"
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 onClick={() => handleManualLabelRedirect(order, order.order_items)}
-                                className="p-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 transition-colors"
+                                className="p-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 transition-colors inline-flex items-center justify-center"
                                 title="Gerar Manualmente (Site)"
                               >
                                 <ExternalLink size={14} />
-                              </button>
+                              </a>
                               <button 
-                                onClick={() => handleManualLabelRedirect(order, order.order_items, true)}
+                                onClick={() => handleManualLabelRedirect(order, order.order_items)}
                                 className="p-1 bg-slate-100 text-slate-700 rounded hover:bg-slate-200 transition-colors"
                                 title="Copiar Script de Preenchimento (F12)"
                               >
@@ -2011,14 +2014,17 @@ export default function Orders() {
                           <Zap size={14} />
                           Automática
                         </button>
-                        <button 
+                        <a 
+                          href="https://www.cepcerto.com/painel/nova-etiqueta"
+                          target="_blank"
+                          rel="noopener noreferrer"
                           onClick={() => handleManualLabelRedirect(selectedOrder, orderItems)}
                           className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 ${showManualAssistant ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-700'} rounded-xl text-xs font-bold hover:bg-slate-200 transition-all`}
                           title="Abre o site do CepCerto e o assistente de cópia"
                         >
                           <ExternalLink size={14} />
                           {showManualAssistant ? 'Assistente Ativo' : 'Manual (Site)'}
-                        </button>
+                        </a>
                       </div>
 
                       {showManualAssistant && (
@@ -2032,7 +2038,7 @@ export default function Orders() {
                           
                           <div className="grid grid-cols-1 gap-2">
                             <button 
-                              onClick={() => handleManualLabelRedirect(selectedOrder, orderItems, true)}
+                              onClick={() => handleManualLabelRedirect(selectedOrder, orderItems)}
                               className="w-full flex items-center justify-center gap-2 p-3 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-md"
                               title="Copia um script para preencher o site automaticamente via Console"
                             >
