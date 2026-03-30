@@ -668,6 +668,7 @@ export default function Orders() {
         if (error) throw error;
         
         const ordersData = data || [];
+        console.log('📦 [DEBUG ADMIN] Status bruto dos pedidos recebidos:', ordersData.map(o => ({ id: o.id, status: o.status })));
         
         // Prioridade 1: Status já está 'paid' ou 'approved' no banco
         let processedOrders = ordersData.map(o => (o.status === 'approved' || o.status === 'paid') ? {...o, status: 'paid'} : o);
