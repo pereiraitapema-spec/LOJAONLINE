@@ -24,7 +24,8 @@ import {
   Zap,
   QrCode,
   ExternalLink,
-  FileText
+  FileText,
+  Copy
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'react-hot-toast';
@@ -330,9 +331,11 @@ export default function Orders() {
 
   const getZip = (addr: any) => addr?.zip_code || addr?.zipCode || addr?.zip || addr?.cep || 'N/A';
 
-  const handleManualLabelRedirect = async (order: any) => {
+  const handleManualLabelRedirect = async (order: any, providedItems?: any[], skipOpen = false) => {
     // Abrir a janela IMEDIATAMENTE para evitar bloqueio de popup
-    const cepCertoWindow = window.open('https://cepcerto.com/area-restrita', 'cepcerto_window');
+    if (!skipOpen) {
+      window.open('https://cepcerto.com/area-restrita', 'cepcerto_window');
+    }
     
     console.log('🚀 Iniciando redirecionamento manual para pedido:', order.id);
     
@@ -340,8 +343,8 @@ export default function Orders() {
     const originZip = settings?.origin_zip_code || carrierConfig?.origin_zip || '88240-000';
     const destZip = getZip(order.shipping_address);
     
-    // Priorizar itens que já vieram no objeto order (ex: do PickingModal)
-    let items = order.order_items || [];
+    // Priorizar itens fornecidos ou que já vieram no objeto order
+    let items = providedItems || order.order_items || [];
     
     // Se não tiver itens ou forem de outro pedido, buscar
     if (items.length === 0 || (items[0].order_id && items[0].order_id !== order.id)) {
@@ -399,14 +402,32 @@ export default function Orders() {
           'altura': '${height.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
           'largura': '${width.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
           'comp': '${length.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
-          'seguro': '${(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}'
+          'seguro': '${(order.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}',
+          'nome': '${(order.customer_name || '').replace(/'/g, "\\'")}',
+          'documento': '${(order.customer_document || '').replace(/'/g, "\\'")}',
+          'endereco': '${(order.shipping_address?.street || '').replace(/'/g, "\\'")}',
+          'numero': '${(order.shipping_address?.number || '').replace(/'/g, "\\'")}',
+          'complemento': '${(order.shipping_address?.complement || '').replace(/'/g, "\\'")}',
+          'bairro': '${(order.shipping_address?.neighborhood || '').replace(/'/g, "\\'")}',
+          'cidade': '${(order.shipping_address?.city || '').replace(/'/g, "\\'")}',
+          'uf': '${(order.shipping_address?.state || '').replace(/'/g, "\\'")}',
+          'telefone': '${(order.customer_phone || '').replace(/'/g, "\\'")}',
+          'email': '${(order.customer_email || '').replace(/'/g, "\\'")}',
+          'conteudo': '${items.map(i => `${i.quantity}x ${i.product_name || i.products?.name || 'Produto'}`).join(', ').replace(/'/g, "\\'")}'
         };
 
         function fillField(keywords, value) {
-          const inputs = Array.from(document.querySelectorAll('input, select'));
+          if (!value || value === 'undefined' || value === 'null') return false;
+          
+          const inputs = Array.from(document.querySelectorAll('input, select, textarea'));
           const target = inputs.find(i => {
-            const text = (i.name + i.id + i.placeholder + (i.labels?.[0]?.innerText || '') + (i.parentElement?.innerText || '')).toLowerCase();
-            return keywords.some(k => text.includes(k.toLowerCase()));
+            const name = (i.name || '').toLowerCase();
+            const id = (i.id || '').toLowerCase();
+            const placeholder = (i.placeholder || '').toLowerCase();
+            const label = i.labels && i.labels[0] ? i.labels[0].innerText.toLowerCase() : '';
+            const parentText = (i.parentElement?.innerText || '').toLowerCase();
+            const fullText = name + id + placeholder + label + parentText;
+            return keywords.some(k => fullText.includes(k.toLowerCase()));
           });
 
           if (target) {
@@ -419,13 +440,27 @@ export default function Orders() {
           return false;
         }
 
+        // Dados de Envio
         fillField(['origem', 'cep origem'], data.origem);
         fillField(['destino', 'cep destino'], data.destino);
         fillField(['peso'], data.peso);
         fillField(['altura'], data.altura);
         fillField(['largura'], data.largura);
         fillField(['comp', 'comprimento'], data.comp);
-        fillField(['seguro', 'valor'], data.seguro);
+        fillField(['seguro', 'valor declarado'], data.seguro);
+        fillField(['conteudo', 'descrição', 'objeto'], data.conteudo);
+
+        // Dados do Destinatário
+        fillField(['nome', 'destinatário'], data.nome);
+        fillField(['cpf', 'cnpj', 'documento'], data.documento);
+        fillField(['logradouro', 'endereço', 'rua'], data.endereco);
+        fillField(['numero', 'número'], data.numero);
+        fillField(['complemento'], data.complemento);
+        fillField(['bairro'], data.bairro);
+        fillField(['cidade'], data.cidade);
+        fillField(['estado', 'uf'], data.uf);
+        fillField(['telefone', 'celular'], data.telefone);
+        fillField(['email', 'e-mail'], data.email);
 
         alert('✅ DADOS DO PEDIDO #${(order.id || '').split('-')[0].toUpperCase()} PREENCHIDOS!\\n\\nVerifique os valores e clique em Gerar Etiqueta.');
       })();
@@ -1838,13 +1873,22 @@ export default function Orders() {
                             >
                               <Save size={14} />
                             </button>
-                            <button 
-                              onClick={() => handleManualLabelRedirect(order)}
-                              className="p-1 bg-slate-100 text-slate-700 rounded hover:bg-slate-200"
-                              title="Gerar Manualmente (Site)"
-                            >
-                              <ExternalLink size={14} />
-                            </button>
+                            <div className="flex gap-1 ml-1 pl-1 border-l border-slate-200">
+                              <button 
+                                onClick={() => handleManualLabelRedirect(order, order.order_items)}
+                                className="p-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 transition-colors"
+                                title="Gerar Manualmente (Site)"
+                              >
+                                <ExternalLink size={14} />
+                              </button>
+                              <button 
+                                onClick={() => handleManualLabelRedirect(order, order.order_items, true)}
+                                className="p-1 bg-slate-100 text-slate-700 rounded hover:bg-slate-200 transition-colors"
+                                title="Copiar Script de Preenchimento (F12)"
+                              >
+                                <Copy size={14} />
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1960,7 +2004,7 @@ export default function Orders() {
                           Automática
                         </button>
                         <button 
-                          onClick={() => handleManualLabelRedirect(selectedOrder)}
+                          onClick={() => handleManualLabelRedirect(selectedOrder, orderItems)}
                           className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 ${showManualAssistant ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-700'} rounded-xl text-xs font-bold hover:bg-slate-200 transition-all`}
                           title="Abre o site do CepCerto e o assistente de cópia"
                         >
@@ -1980,102 +2024,7 @@ export default function Orders() {
                           
                           <div className="grid grid-cols-1 gap-2">
                             <button 
-                              onClick={async () => {
-                                const { data: settings } = await supabase.from('store_settings').select('origin_zip_code').maybeSingle();
-                                const originZip = settings?.origin_zip_code || carrierConfig?.origin_zip || '88240-000';
-                                const addr = selectedOrder.shipping_address || {};
-                                const destZip = getZip(addr);
-
-                                if (!destZip) {
-                                  toast.error('CEP de destino não encontrado!');
-                                  return;
-                                }
-
-                                // Abrir janela imediatamente
-                                window.open('https://cepcerto.com/area-restrita', 'cepcerto_window');
-
-                                // Calcular dimensões reais dos itens carregados
-                                let totalWeight = 0;
-                                let maxHeight = 0;
-                                let maxWidth = 0;
-                                let maxLength = 0;
-
-                                orderItems.forEach((item: any) => {
-                                  const p = item.products || item.product || (Array.isArray(item.products) ? item.products[0] : null);
-                                  if (p) {
-                                    const itemWeight = Number(p.weight) || Number(p.weight_kg) || 0.5;
-                                    let itemHeight = Number(p.height) || 10;
-                                    let itemWidth = Number(p.width) || 15;
-                                    let itemLength = Number(p.length) || Number(p.depth) || 20;
-
-                                    if (p.dimensions_cm) {
-                                      itemHeight = Number(p.dimensions_cm.height) || itemHeight;
-                                      itemWidth = Number(p.dimensions_cm.width) || itemWidth;
-                                      itemLength = Number(p.dimensions_cm.depth) || Number(p.dimensions_cm.length) || itemLength;
-                                    }
-
-                                    totalWeight += itemWeight * item.quantity;
-                                    maxHeight = Math.max(maxHeight, itemHeight);
-                                    maxWidth = Math.max(maxWidth, itemWidth);
-                                    maxLength = Math.max(maxLength, itemLength);
-                                  }
-                                });
-
-                                const weight = totalWeight || 0.5;
-                                const height = (maxHeight || 10) * 10;
-                                const width = (maxWidth || 15) * 10;
-                                const length = (maxLength || 20) * 10;
-
-                                const script = `
-                                  (function() {
-                                    console.clear();
-                                    console.log('%c🚀 ASSISTENTE MAGNIFIQUE ATIVADO', 'color: #4f46e5; font-size: 20px; font-weight: bold;');
-                                    const data = {
-                                      'origem': '${originZip}',
-                                      'destino': '${destZip}',
-                                      'peso': '${weight.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}',
-                                      'altura': '${height.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
-                                      'largura': '${width.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
-                                      'comp': '${length.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}',
-                                      'seguro': '${selectedOrder.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}'
-                                    };
-
-                                    function fill(labelPart, value) {
-                                      const inputs = Array.from(document.querySelectorAll('input, select'));
-                                      const target = inputs.find(i => {
-                                        const name = (i.name || '').toLowerCase();
-                                        const id = (i.id || '').toLowerCase();
-                                        const placeholder = (i.placeholder || '').toLowerCase();
-                                        const label = i.labels && i.labels[0] ? i.labels[0].innerText.toLowerCase() : '';
-                                        const parentText = (i.parentElement?.innerText || '').toLowerCase();
-                                        const fullText = name + id + placeholder + label + parentText;
-                                        return fullText.includes(labelPart.toLowerCase());
-                                      });
-
-                                      if (target) {
-                                        target.value = value;
-                                        target.dispatchEvent(new Event('input', { bubbles: true }));
-                                        target.dispatchEvent(new Event('change', { bubbles: true }));
-                                        console.log('✅ Preenchido: ' + labelPart);
-                                        return true;
-                                      }
-                                      return false;
-                                    }
-
-                                    fill('origem', data.origem);
-                                    fill('destino', data.destino);
-                                    fill('peso', data.peso);
-                                    fill('altura', data.altura);
-                                    fill('largura', data.largura);
-                                    fill('comp', data.comp);
-                                    fill('seguro', data.seguro);
-
-                                    alert('✅ DADOS DO PEDIDO #${selectedOrder.id.split('-')[0].toUpperCase()} PREENCHIDOS!\\n\\nVerifique os valores e clique em Gerar Etiqueta.');
-                                  })();
-                                `.trim();
-                                await navigator.clipboard.writeText(script);
-                                toast.success('Script com dados reais copiado!');
-                              }}
+                              onClick={() => handleManualLabelRedirect(selectedOrder, orderItems, true)}
                               className="w-full flex items-center justify-center gap-2 p-3 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-md"
                               title="Copia um script para preencher o site automaticamente via Console"
                             >

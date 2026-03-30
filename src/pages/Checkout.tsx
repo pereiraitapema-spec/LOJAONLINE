@@ -1213,6 +1213,7 @@ export default function Checkout() {
           'paid': 'paid',
           'authorized': 'paid',
           'pending_analysis': 'pending',
+          'pending_review': 'pending',
           'waiting_payment': 'pending',
           'failed': 'failed',
           'canceled': 'canceled'

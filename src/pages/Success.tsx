@@ -96,12 +96,16 @@ export default function Success() {
           </motion.div>
 
           <h1 className="text-4xl font-black text-slate-900 uppercase italic tracking-tighter mb-4">
-            {(order?.status === 'paid' || order?.status === 'processing' || order?.status === 'shipped') ? 'Pedido Confirmado!' : 'Pedido Recebido!'}
+            {(order?.status === 'paid' || order?.status === 'processing' || order?.status === 'shipped') 
+              ? 'Pedido Confirmado!' 
+              : (order?.status === 'pending' && order?.payment_method === 'credit_card' ? 'Pagamento em Análise!' : 'Pedido Recebido!')}
           </h1>
           <p className="text-slate-500 text-lg mb-8">
             {(order?.status === 'paid' || order?.status === 'processing' || order?.status === 'shipped') 
               ? (order?.tracking_code ? 'Seu pedido está sendo levado para a transportadora.' : 'Obrigado por sua compra. Seu pedido foi processado com sucesso e está sendo preparado para envio.')
-              : 'Seu pedido foi recebido e está aguardando o pagamento para ser processado.'}
+              : (order?.status === 'pending' && order?.payment_method === 'credit_card' 
+                  ? 'Seu pagamento está passando por uma análise de segurança e será aprovado em breve.' 
+                  : 'Seu pedido foi recebido e está aguardando o pagamento para ser processado.')}
           </p>
 
           {order && (
