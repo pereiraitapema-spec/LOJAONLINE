@@ -408,16 +408,26 @@ const cepcertoProvider: ShippingProvider = {
       // Endpoint de rastreio do CepCerto
       // O código de rastreio deve ser passado sem espaços ou caracteres especiais que possam quebrar a URL
       const cleanTrackingCode = trackingCode.trim();
-      const url = `https://www.cepcerto.com/ws/json-rastreio/${cleanTrackingCode}/${config.api_key}`;
       
-      console.log('🔗 URL Rastreio CepCerto:', url);
-      const response = await fetch(url);
+      // Chamada através da Edge Function do Supabase (Proxy Profissional) para evitar CORS
+      const response = await fetch('https://bnqxinknkjvfbaqaopjc.supabase.co/functions/v1/cepcerto-proxy-rastreio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          trackingCode: cleanTrackingCode,
+          apiKey: config.api_key
+        })
+      });
       
       if (!response.ok) {
         throw new Error(`Erro na API CepCerto: ${response.status} ${response.statusText}`);
       }
       
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data;
       
       console.log('📦 Resposta Rastreio CepCerto:', data);
       
