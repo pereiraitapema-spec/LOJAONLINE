@@ -33,6 +33,7 @@ import { Loading } from '../components/Loading';
 import { TrackingModal } from '../components/TrackingModal';
 import { shippingService } from '../services/shippingService';
 import { cepService } from '../services/cepService';
+import { paymentService } from '../services/paymentService';
 
 interface Order {
   id: string;
@@ -423,89 +424,100 @@ export default function Orders() {
         function fillField(keywords, value) {
           if (!value || value === 'undefined' || value === 'null') return false;
           const key = keywords.join('|');
-          if (filledFields.has(key)) return true;
           
           function findTarget(doc) {
-            const inputs = Array.from(doc.querySelectorAll('input, select, textarea'));
+            const inputs = Array.from(doc.querySelectorAll('input, select, textarea, button'));
             return inputs.find(i => {
               const name = (i.name || '').toLowerCase();
               const id = (i.id || '').toLowerCase();
               const placeholder = (i.placeholder || '').toLowerCase();
+              const className = (i.className || '').toLowerCase();
               const label = i.labels && i.labels[0] ? i.labels[0].innerText.toLowerCase() : '';
               const parentText = (i.parentElement?.innerText || '').toLowerCase();
-              const fullText = name + id + placeholder + label + parentText;
+              const ariaLabel = (i.getAttribute('aria-label') || '').toLowerCase();
+              
+              const fullText = name + id + placeholder + className + label + parentText + ariaLabel;
               return keywords.some(k => fullText.includes(k.toLowerCase()));
             });
           }
 
-          let target = findTarget(document);
-          
-          // Se não encontrar no documento principal, tenta nos iframes
-          if (!target) {
-            const iframes = Array.from(document.querySelectorAll('iframe'));
-            for (const iframe of iframes) {
+          function tryFill(doc) {
+            const target = findTarget(doc);
+            if (target) {
               try {
-                const doc = iframe.contentDocument || iframe.contentWindow.document;
-                target = findTarget(doc);
-                if (target) break;
-              } catch (e) {}
+                if (target.tagName === 'SELECT') {
+                  const options = Array.from(target.options);
+                  const bestOption = options.find(opt => 
+                    opt.text.toLowerCase().includes(value.toLowerCase()) || 
+                    opt.value.toLowerCase().includes(value.toLowerCase()) ||
+                    (keywords.includes('peso') && opt.text.toLowerCase().includes(parseInt(value) + ' kilo'))
+                  );
+                  if (bestOption) {
+                    if (target.value !== bestOption.value) {
+                      target.value = bestOption.value;
+                      target.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                  }
+                } else if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+                  if (target.value !== value) {
+                    target.value = value;
+                    target.dispatchEvent(new Event('input', { bubbles: true }));
+                    target.dispatchEvent(new Event('change', { bubbles: true }));
+                    target.dispatchEvent(new Event('blur', { bubbles: true }));
+                  }
+                }
+                
+                if (!filledFields.has(key)) {
+                  console.log('%c✅ Detectado e Preenchido: ' + keywords[0] + ' -> ' + value, 'color: green; font-weight: bold;');
+                  filledFields.add(key);
+                }
+                return true;
+              } catch (e) {
+                console.error('❌ Erro ao preencher ' + keywords[0] + ':', e);
+              }
             }
+            return false;
           }
 
-          if (target) {
+          if (tryFill(document)) return true;
+          
+          // Tenta nos iframes
+          const iframes = Array.from(document.querySelectorAll('iframe'));
+          for (const iframe of iframes) {
             try {
-              if (target.tagName === 'SELECT') {
-                const options = Array.from(target.options);
-                const bestOption = options.find(opt => 
-                  opt.text.toLowerCase().includes(value.toLowerCase()) || 
-                  (keywords.includes('peso') && opt.text.toLowerCase().includes(parseInt(value) + ' kilo'))
-                );
-                if (bestOption) target.value = bestOption.value;
-                else target.value = value;
-              } else {
-                target.value = value;
-              }
-              
-              target.dispatchEvent(new Event('input', { bubbles: true }));
-              target.dispatchEvent(new Event('change', { bubbles: true }));
-              console.log('%c✅ Preenchido: ' + keywords[0] + ' -> ' + value, 'color: green; font-weight: bold;');
-              filledFields.add(key);
-              return true;
-            } catch (e) {
-              console.error('❌ Erro ao preencher ' + keywords[0] + ':', e);
-            }
+              const doc = iframe.contentDocument || iframe.contentWindow.document;
+              if (tryFill(doc)) return true;
+            } catch (e) {}
           }
           return false;
         }
 
         const interval = setInterval(() => {
           try {
-            fillField(['origem', 'cep origem', 'cep_origem'], data.origem);
-            fillField(['destino', 'cep destino', 'cep_destino', 'cep de destino', 'cep', 'destinatário'], data.destino);
-            fillField(['peso', 'peso_gramas'], data.peso);
-            fillField(['altura'], data.altura);
-            fillField(['largura'], data.largura);
-            fillField(['comp', 'comprimento'], data.comp);
-            fillField(['nome', 'destinatário', 'nome_destinatario'], data.nome);
-            fillField(['cpf', 'cnpj', 'documento', 'cpf_cnpj'], data.documento);
-            fillField(['whatsapp', 'telefone', 'celular', 'tel'], data.telefone);
-            fillField(['email'], data.email);
-            fillField(['logradouro', 'endereco', 'rua', 'rua_destino'], data.endereco);
-            fillField(['numero', 'nº', 'numero_destino'], data.numero);
-            fillField(['complemento', 'complemento_destino'], data.complemento);
-            fillField(['bairro', 'bairro_destino'], data.bairro);
-            fillField(['cidade', 'cidade_destino'], data.cidade);
-            fillField(['uf', 'estado', 'uf_destino'], data.uf);
-            fillField(['conteudo', 'descrição', 'conteudo_objeto'], data.conteudo);
-            fillField(['seguro', 'valor declarado', 'valor_declarado'], data.seguro);
+            fillField(['origem', 'cep_origem', 'cepOrigem'], data.origem);
+            fillField(['destino', 'cep_destino', 'cepDestino', 'cep_destinatario', 'cepDestinatario', 'cep de destino'], data.destino);
+            fillField(['peso', 'peso_gramas', 'peso_kg'], data.peso);
+            fillField(['altura', 'height'], data.altura);
+            fillField(['largura', 'width'], data.largura);
+            fillField(['comp', 'comprimento', 'length', 'depth'], data.comp);
+            fillField(['nome', 'destinatario', 'nome_destinatario', 'recipient'], data.nome);
+            fillField(['cpf', 'cnpj', 'documento', 'cpf_cnpj', 'doc'], data.documento);
+            fillField(['whatsapp', 'telefone', 'celular', 'tel', 'phone', 'mobile'], data.telefone);
+            fillField(['email', 'e-mail'], data.email);
+            fillField(['logradouro', 'endereco', 'rua', 'address', 'street'], data.endereco);
+            fillField(['numero', 'nº', 'number'], data.numero);
+            fillField(['complemento', 'complement', 'apt', 'sala'], data.complemento);
+            fillField(['bairro', 'neighborhood', 'district'], data.bairro);
+            fillField(['cidade', 'city', 'municipio'], data.cidade);
+            fillField(['uf', 'estado', 'state', 'province'], data.uf);
+            fillField(['conteudo', 'descricao', 'content', 'description'], data.conteudo);
+            fillField(['seguro', 'valor declarado', 'valor_declarado', 'insurance'], data.seguro);
 
-            if (filledFields.size >= 15) {
-              console.log('%c🎉 Todos os campos detectados foram preenchidos!', 'color: #4f46e5; font-weight: bold;');
-            }
+            console.log('Assistente Ativo: ' + filledFields.size + ' campos preenchidos.');
           } catch (e) {
             console.error('❌ Erro no loop do assistente:', e);
           }
-        }, 1000);
+        }, 1500);
 
         console.log('%c💡 DICA: Mantenha esta aba do console aberta enquanto navega no site.', 'color: #f59e0b;');
       })();
@@ -674,33 +686,55 @@ export default function Orders() {
         
         const ordersData = data || [];
         
+        // 1. Buscar gateways para verificação de status
+        const { data: gatewaysData } = await supabase
+          .from('payment_gateways')
+          .select('*')
+          .eq('active', true);
+        
+        const gateways = gatewaysData || [];
+
         // Lógica aprimorada para atualizar 'approved' ou 'pending' (se pago) para 'paid'
         let processedOrders = ordersData;
         
-        // Atualiza 'approved' para 'paid'
-        const approvedOrders = ordersData.filter(o => o.status === 'approved');
-        if (approvedOrders.length > 0) {
-          for (const order of approvedOrders) {
-            console.log(`🔄 Sincronizando pedido ${order.id} de 'approved' para 'paid'...`);
-            const { error: updateError } = await supabase.from('orders').update({ status: 'paid' }).eq('id', order.id);
-            if (updateError) {
-              console.error(`❌ Erro ao sincronizar pedido ${order.id}:`, updateError);
-              // Se falhar o commit, avisamos o admin
-              if (updateError.message.includes('permission')) {
-                toast.error(`Erro de permissão ao atualizar pedido ${order.id}. Verifique se você é admin no banco.`);
+        // Sincronização automática
+        const ordersToSync = ordersData.filter(o => o.status === 'approved' || (o.status === 'pending' && o.payment_id));
+        
+        if (ordersToSync.length > 0) {
+          console.log(`🔄 Verificando status de ${ordersToSync.length} pedidos...`);
+          
+          for (const order of ordersToSync) {
+            let shouldUpdate = false;
+            
+            if (order.status === 'approved') {
+              shouldUpdate = true;
+            } else if (order.status === 'pending' && order.payment_id) {
+              // Verifica no gateway se realmente foi pago
+              const gateway = gateways.find(g => g.provider === 'pagarme'); // Assumindo Pagar.me como principal
+              if (gateway) {
+                try {
+                  const statusRes = await paymentService.checkStatus('pagarme', order.payment_id, gateway.config);
+                  if (statusRes.success && (statusRes.status === 'paid' || statusRes.status === 'authorized')) {
+                    shouldUpdate = true;
+                    console.log(`✅ Pedido ${order.id} confirmado como PAGO no gateway.`);
+                  }
+                } catch (e) {
+                  console.error(`❌ Erro ao verificar status do pedido ${order.id}:`, e);
+                }
               }
-            } else {
-              console.log(`✅ Pedido ${order.id} sincronizado com sucesso.`);
+            }
+
+            if (shouldUpdate) {
+              console.log(`🔄 Atualizando pedido ${order.id} para 'paid'...`);
+              const { error: updateError } = await supabase.from('orders').update({ status: 'paid' }).eq('id', order.id);
+              if (updateError) {
+                console.error(`❌ Erro ao sincronizar pedido ${order.id}:`, updateError);
+              } else {
+                processedOrders = processedOrders.map(o => o.id === order.id ? {...o, status: 'paid'} : o);
+              }
             }
           }
-          processedOrders = processedOrders.map(o => o.status === 'approved' ? {...o, status: 'paid'} : o);
         }
-
-        // Atualiza 'pending' para 'paid' (se o pagamento foi confirmado no gateway)
-        // Nota: Isso depende de uma verificação real. Como o webhook falhou, 
-        // vamos assumir que se o status no site de vendas está aprovado, 
-        // podemos forçar a atualização se o admin solicitar ou na carga.
-        // Por enquanto, vamos apenas garantir que 'approved' vire 'paid'.
         
         setOrders(processedOrders);
 

@@ -11,12 +11,33 @@ serve(async (req) => {
   }
 
   try {
-    const { orderData, config } = await req.json()
+    const body = await req.json()
+    const { action, orderId, config } = body
     
     if (!config?.access_token) {
       throw new Error('Pagar.me Access Token is required')
     }
 
+    const authHeader = `Basic ${btoa(config.access_token + ':')}`
+
+    if (action === 'check_status' && orderId) {
+      console.log(`🔍 Checking status for Pagar.me order: ${orderId}`)
+      const response = await fetch(`https://api.pagar.me/core/v5/orders/${orderId}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': authHeader
+        }
+      })
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: response.status,
+      })
+    }
+
+    // Default action: Create order
+    const { orderData } = body
     console.log('📦 Processing payment with Pagar.me API...')
     
     const response = await fetch('https://api.pagar.me/core/v5/orders', {
@@ -24,7 +45,7 @@ serve(async (req) => {
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${btoa(config.access_token + ':')}`
+        'Authorization': authHeader
       },
       body: JSON.stringify(orderData)
     })
