@@ -209,14 +209,19 @@ const cepcertoProvider: ShippingProvider = {
     try {
       const totalWeightInGrams = Math.max(300, Math.ceil(packages.reduce((acc, p) => acc + p.weight, 0) * 1000));
       const totalDim = packages.reduce((acc, p) => ({
-        h: acc.h + Math.max(p.height || 0, 2),
+        h: Math.max(acc.h, p.height || 2),
         w: Math.max(acc.w, p.width || 11),
         l: Math.max(acc.l, p.length || 16)
-      }), { h: 0, w: 11, l: 16 });
+      }), { h: 0, w: 0, l: 0 });
+
+      // Ensure minimums
+      const finalH = Math.max(totalDim.h, 2);
+      const finalW = Math.max(totalDim.w, 11);
+      const finalL = Math.max(totalDim.l, 16);
 
       // URL format: https://www.cepcerto.com/ws/json-frete/{origem}/{destino}/{peso_gramas}/{altura}/{largura}/{comprimento}/{chave}
       // Note: Dimensions are in CM for CepCerto API
-      const baseUrl = `https://www.cepcerto.com/ws/json-frete/${config.origin_zip.replace(/\D/g, '')}/${destZipCode.replace(/\D/g, '')}/${totalWeightInGrams}/${Math.ceil(totalDim.h)}/${Math.ceil(totalDim.w)}/${Math.ceil(totalDim.l)}/${config.api_key}`;
+      const baseUrl = `https://www.cepcerto.com/ws/json-frete/${config.origin_zip.replace(/\D/g, '')}/${destZipCode.replace(/\D/g, '')}/${totalWeightInGrams}/${Math.ceil(finalH)}/${Math.ceil(finalW)}/${Math.ceil(finalL)}/${config.api_key}`;
       
       console.log('🔗 URL CepCerto:', baseUrl);
       const response = await fetch(baseUrl);
