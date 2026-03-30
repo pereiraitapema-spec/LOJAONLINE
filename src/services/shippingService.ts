@@ -424,20 +424,19 @@ const cepcertoProvider: ShippingProvider = {
     // 2. Fallback Profissional: Melhor Envio (Se houver API Key configurada)
     if (config?.api_key) {
       try {
-        console.log('🔄 Tentando fallback via API Melhor Envio...');
-        const response = await fetch('https://www.melhorenvio.com.br/api/v2/me/shipment/tracking', {
+        console.log('🔄 Tentando fallback via Proxy Melhor Envio...');
+        const response = await fetch('/api/tracking/melhorenvio', {
           method: 'POST',
           headers: {
             'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.api_key}`
+            'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ tracking_code: cleanTrackingCode })
+          body: JSON.stringify({ tracking_code: cleanTrackingCode, api_key: config.api_key })
         });
         
         if (response.ok) {
           const data = await response.json();
-          console.log('✅ Rastreio encontrado via Melhor Envio');
+          console.log('✅ Rastreio encontrado via Proxy Melhor Envio');
           return {
             status: 'Em trânsito',
             history: data.map((e: any) => ({

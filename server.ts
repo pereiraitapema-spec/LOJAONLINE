@@ -31,6 +31,27 @@ async function startServer() {
     res.status(501).json({ success: false, error: 'Implementação Pagar.me pendente' });
   });
 
+  // Proxy para Rastreio Melhor Envio (CORS Fix)
+  app.post("/api/tracking/melhorenvio", express.json(), async (req, res) => {
+    const { tracking_code, api_key } = req.body;
+    try {
+      const response = await fetch('https://www.melhorenvio.com.br/api/v2/me/shipment/tracking', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${api_key}`
+        },
+        body: JSON.stringify({ tracking_code })
+      });
+      const data = await response.json();
+      res.status(response.status).json(data);
+    } catch (error) {
+      console.error('❌ Erro no proxy Melhor Envio:', error);
+      res.status(500).json({ error: 'Erro ao contatar Melhor Envio' });
+    }
+  });
+
   // Middleware de Frontend (Vite ou Estático) - DEVE VIR APÓS AS ROTAS DE API
   if (process.env.NODE_ENV === "production") {
     app.use(express.static(path.join(__dirname, "dist"), {
