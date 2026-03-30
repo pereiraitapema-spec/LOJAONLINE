@@ -107,19 +107,20 @@ export default function Login() {
           toast.success('Bem-vindo de volta!');
           await leadService.updateStatus('frio');
           
-          // Garantir que o profile existe
+          // Garantir que o profile existe e tem o role correto se for master
           const { data: existingProfile } = await supabase
             .from('profiles')
-            .select('id')
+            .select('role')
             .eq('id', data.user.id)
             .maybeSingle();
             
-          if (!existingProfile) {
+          if (!existingProfile || (data.user.email === 'pereira.itapema@gmail.com' && existingProfile.role !== 'admin')) {
             await supabase.from('profiles').upsert({
               id: data.user.id,
               email: data.user.email,
-              role: data.user.email === 'pereira.itapema@gmail.com' ? 'admin' : 'customer',
-              full_name: data.user.email.split('@')[0]
+              role: (data.user.email === 'pereira.itapema@gmail.com') ? 'admin' : (existingProfile?.role || 'customer'),
+              full_name: data.user.email.split('@')[0],
+              updated_at: new Date().toISOString()
             });
           }
 

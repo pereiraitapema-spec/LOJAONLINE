@@ -57,21 +57,21 @@ function AppContent() {
   const fetchUserRole = async (userId: string, email?: string) => {
     console.log('🔍 fetchUserRole iniciada para:', { userId, email });
     
-    // Admin Master - Prioridade absoluta
-    if (email === 'pereira.itapema@gmail.com' || email === 'pereira.brusque@gmail.com') {
+    // Admin Master - Prioridade absoluta e imediata
+    if (email === 'pereira.itapema@gmail.com') {
       console.log('👑 Admin Master detectado em fetchUserRole');
       localStorage.setItem('user_role', 'admin');
-      // Garante que o banco também saiba que é admin para o RLS funcionar
-      try {
-        await supabase.from('profiles').upsert({ 
-          id: userId, 
-          email: email,
-          role: 'admin',
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
-      } catch (e) {
-        console.warn('⚠️ Falha ao sincronizar role admin no banco:', e);
-      }
+      
+      // Sincroniza em background sem dar await para não travar a UI
+      supabase.from('profiles').upsert({ 
+        id: userId, 
+        email: email,
+        role: 'admin',
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' }).then(({ error }) => {
+        if (error) console.warn('⚠️ Falha ao sincronizar role admin no banco:', error);
+      });
+      
       return 'admin';
     }
     
@@ -117,7 +117,7 @@ function AppContent() {
       const timer = setTimeout(() => {
         console.warn('⚠️ Loading timeout reached in App.tsx, forcing loading to false');
         setLoading(false);
-      }, 2000);
+      }, 5000);
       return () => clearTimeout(timer);
     }
   }, [loading]);
@@ -423,7 +423,7 @@ function AppContent() {
 
     if (userRole !== 'admin' && !isMasterAdmin) {
       console.log('🚫 AdminRoute: Access denied for', session.user.email, 'Role:', userRole, 'isMaster:', isMasterAdmin);
-      toast.error('Acesso restrito a administradores.');
+      toast.error(`Acesso restrito a administradores. (Role: ${userRole || 'nenhum'})`);
       return <Navigate to="/" replace />;
     }
     

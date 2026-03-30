@@ -437,7 +437,8 @@ export default function Store() {
           );
 
           console.log('📊 Store: Perfil carregado:', profile);
-          if (profile?.role === 'admin' || session.user.email === 'pereira.itapema@gmail.com') {
+          const isMaster = session.user.email === 'pereira.itapema@gmail.com';
+          if (profile?.role === 'admin' || isMaster) {
             console.log('👑 Store: Admin detectado!');
             setIsAdmin(true);
           }
