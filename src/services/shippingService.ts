@@ -821,13 +821,16 @@ export const shippingService = {
     
     console.log('✅ Transportadora encontrada:', carrier);
 
+    // Garante que o config seja um objeto, parseando se necessário
+    const config = typeof carrier.config === 'string' ? JSON.parse(carrier.config) : carrier.config;
+
     const provider = providers[carrier.provider];
     if (!provider) {
       console.warn('⚠️ Provedor não encontrado:', carrier.provider);
       return { status: 'Provedor não encontrado', history: [] };
     }
 
-    return provider.getTrackingStatus(order.tracking_code, carrier.config);
+    return provider.getTrackingStatus(order.tracking_code, config);
   },
 
   /**
