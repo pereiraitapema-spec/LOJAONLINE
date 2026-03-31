@@ -282,6 +282,27 @@ const correiosProvider: ShippingProvider = {
       console.warn('⚠️ BrasilAPI fallback falhou para Correios.', e);
     }
 
+    // Fallback para Linketrack (Muito estável para Correios)
+    try {
+      const response = await fetch(`https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${trackingCode}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.eventos && data.eventos.length > 0) {
+          console.log('✅ Rastreio encontrado via Linketrack (Correios)');
+          return {
+            status: data.eventos[0].status || 'Em trânsito',
+            history: data.eventos.map((e: any) => ({
+              date: `${e.data} ${e.hora}`,
+              location: e.local || 'Não informado',
+              description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
+            }))
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Linketrack fallback falhou.', e);
+    }
+
     return { status: 'Não encontrado ou aguardando postagem', history: [] };
   }
 };
@@ -489,12 +510,19 @@ const cepcertoProvider: ShippingProvider = {
     console.log('🔍 Buscando rastreio para:', trackingCode, 'Config:', JSON.stringify(config));
     const cleanTrackingCode = trackingCode.trim();
 
+    // Se o usuário tiver configuração de Melhor Envio no CepCerto, podemos usar o provedor do Melhor Envio
+    if (config?.api_key && config.api_key.length > 20) {
+       console.log('🔄 Redirecionando rastreio CepCerto para Melhor Envio (Token detectado)');
+       return melhorenvioProvider.getTrackingStatus(cleanTrackingCode, config);
+    }
+
+    // Fallback para BrasilAPI
     try {
       const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${cleanTrackingCode}`);
       if (response.ok) {
         const data = await response.json();
         if (data.historico && data.historico.length > 0) {
-          console.log('✅ Rastreio encontrado via BrasilAPI');
+          console.log('✅ Rastreio encontrado via BrasilAPI (CepCerto)');
           return {
             status: data.status || 'Em trânsito',
             history: data.historico.map((e: any) => ({
@@ -506,7 +534,28 @@ const cepcertoProvider: ShippingProvider = {
         }
       }
     } catch (e) {
-      console.warn('⚠️ BrasilAPI falhou ou não encontrou dados.', e);
+      console.warn('⚠️ BrasilAPI falhou ou não encontrou dados para CepCerto.', e);
+    }
+
+    // Fallback para Linketrack (Correios via CepCerto)
+    try {
+      const response = await fetch(`https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${cleanTrackingCode}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.eventos && data.eventos.length > 0) {
+          console.log('✅ Rastreio encontrado via Linketrack (CepCerto)');
+          return {
+            status: data.eventos[0].status || 'Em trânsito',
+            history: data.eventos.map((e: any) => ({
+              date: `${e.data} ${e.hora}`,
+              location: e.local || 'Não informado',
+              description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
+            }))
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Linketrack fallback falhou para CepCerto.', e);
     }
 
     return { status: 'Não encontrado ou aguardando postagem', history: [] };
