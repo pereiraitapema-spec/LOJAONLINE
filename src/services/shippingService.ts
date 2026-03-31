@@ -1038,20 +1038,25 @@ export const shippingService = {
     // 2. Tenta o endpoint unificado do backend
     try {
       const endpoint = isUuid ? `/api/tracking/order/${trackingCode}` : `/api/tracking/code/${trackingCode}`;
-      console.log(`📡 [FRONTEND] Consultando API rastreamento: ${trackingCode}`);
-      console.log(`🔄 Chamando Backend Unificado (${isUuid ? 'Order ID' : 'Code'}): ${endpoint}`);
+      console.log(`📡 [FRONTEND] Iniciando busca por ${isUuid ? 'ID do Pedido' : 'Código'}: ${trackingCode}`);
+      console.log("Consultando API Correios");
       
       const response = await fetch(endpoint);
       const data = await response.json();
       
       if (response.ok && data.success) {
-        console.log('✅ Rastreio encontrado via Backend');
-        console.log("📊 [FRONTEND] Eventos API encontrados:", data.history?.length || 0);
-        console.log("📋 [FRONTEND] Eventos completos:", data.history);
-        return {
-          status: data.status || 'Em trânsito',
-          history: data.history || []
-        };
+        console.log(`✅ [FRONTEND] Resposta recebida do servidor via ${data.provider}`);
+        console.log("Tracking Code:", trackingCode);
+        console.log("Eventos API:", data.history);
+        console.log("Eventos encontrados:", data.history?.length || 0);
+        
+        if (data.history && data.history.length > 0) {
+          console.log(`Exibindo ${data.history.length} eventos de rastreio`);
+          return {
+            status: data.status || 'Em trânsito',
+            history: data.history || []
+          };
+        }
       }
     } catch (e) {
       console.warn('⚠️ Backend falhou, tentando busca direta no Supabase...');
@@ -1060,6 +1065,7 @@ export const shippingService = {
     // 3. Fallback: Busca direta no Supabase se o backend falhar
     try {
       console.log("⚠️ [FRONTEND] Usando fallback manual/banco");
+      console.log("Fallback manual ativado");
       let query = supabase.from('orders').select('id, status, tracking_code');
       
       if (isUuid) {
@@ -1082,7 +1088,6 @@ export const shippingService = {
 
         if (history && history.length > 0) {
           console.log("📊 [FRONTEND_FALLBACK] Eventos encontrados:", history.length);
-          console.log("📋 [FRONTEND_FALLBACK] Eventos completos:", history);
           return {
             status: order.status || 'Em trânsito',
             history: history.map(h => ({

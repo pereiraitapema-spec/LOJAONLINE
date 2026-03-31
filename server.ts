@@ -22,14 +22,26 @@ async function startServer() {
     res.json({ status: "ok", message: "API de Rastreio Ativa" });
   });
 
-  // 2. Rastreio Direto por Código (BrasilAPI + Linketrack)
+  // 2. Rastreio Direto por Código (BrasilAPI + Linketrack + CepCerto)
   app.get("/api/tracking/code/:code", handleTracking);
 
   // 3. Rastreio por ID do Pedido (Busca no Supabase)
   app.get("/api/tracking/order/:orderId", handleOrderTracking);
 
-  // 4. Rota de Compatibilidade (Resolve o erro 404 do frontend)
-  app.get("/api/tracking/:orderId", handleOrderTracking);
+  // 4. Rota de Compatibilidade e Rastreio Direto (Prioriza Código se não for UUID)
+  app.get("/api/tracking/:idOrCode", async (req, res) => {
+    const { idOrCode } = req.params;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrCode) || 
+                   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrCode);
+    
+    if (isUuid) {
+      (req.params as any).orderId = idOrCode;
+      return handleOrderTracking(req, res);
+    } else {
+      (req.params as any).code = idOrCode;
+      return handleTracking(req, res);
+    }
+  });
 
   // 5. Proxy para Rastreio CepCerto (CORS Fix)
   app.all("/api/tracking/cepcerto", async (req, res) => {
