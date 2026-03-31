@@ -20,32 +20,45 @@ export async function handleTracking(req: any, res: any) {
     console.log(`🔍 [TRACKING_CODE] Buscando código: ${code}`);
 
     // 1. Tenta buscar no banco primeiro se esse código pertence a algum pedido com histórico
-    const { data: order } = await supabase
+    const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('id, status')
       .eq('tracking_code', code)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
+
+    if (orderError) {
+      console.error(`❌ [TRACKING_CODE] Erro ao buscar pedido:`, orderError);
+    }
 
     const orderId = order?.id;
 
     if (orderId) {
-      const { data: history } = await supabase
+      const { data: history, error: historyError } = await supabase
         .from('tracking_history')
-        .select('description, location, date')
+        .select('*')
         .eq('order_id', orderId)
         .order('date', { ascending: true });
 
+      if (historyError) {
+        console.error(`❌ [TRACKING_CODE] Erro ao buscar histórico:`, historyError);
+      }
+
       if (history && history.length > 0) {
         console.log(`✅ [TRACKING_CODE] Histórico encontrado no banco para o código ${code} (${history.length} eventos)`);
+        console.log("📊 [TRACKING_LOG] Eventos encontrados:", history.length);
+        console.log("📋 [TRACKING_LOG] Eventos completos:", JSON.stringify(history));
         
         return res.json({
           success: true,
           provider: 'Database',
-          status: order.status || "Em trânsito",
+          status: order.status || history[history.length - 1]?.status || "Em trânsito",
           history: history.map((h: any) => ({
+            ...h,
             date: new Date(h.date).toLocaleString('pt-BR'),
             location: h.location || 'Correios',
-            description: h.description
+            description: h.description || h.status
           }))
         });
       }
@@ -223,6 +236,30 @@ export async function handleTracking(req: any, res: any) {
 
     // 3. FALLBACK MANUAL
     console.log(`ℹ️ [TRACKING_LOG] Todas as APIs falharam. Usando fallback manual.`);
+    
+    if (orderId) {
+      const { data: finalHistory } = await supabase
+        .from('tracking_history')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('date', { ascending: true });
+        
+      if (finalHistory && finalHistory.length > 0) {
+        console.log(`📊 [TRACKING_LOG] Fallback encontrou ${finalHistory.length} eventos no banco.`);
+        return res.json({
+          success: true,
+          provider: 'Database (Fallback)',
+          status: order?.status || finalHistory[finalHistory.length - 1]?.status || "Em trânsito",
+          history: finalHistory.map((h: any) => ({
+            ...h,
+            date: new Date(h.date).toLocaleString('pt-BR'),
+            location: h.location || 'Correios',
+            description: h.description || h.status
+          }))
+        });
+      }
+    }
+
     return res.json({
       success: true,
       provider: 'Fallback Manual',
@@ -332,35 +369,42 @@ export async function handleOrderTracking(req: any, res: any) {
     console.log(`📡 [ORDER_TRACKING] Buscando histórico para o pedido: ${orderId}`);
 
     // 1. Busca o pedido e seu histórico completo no banco de dados
-    const { data: order, error } = await supabase
+    const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('status, tracking_code')
       .eq('id', orderId)
       .maybeSingle();
 
-    if (error || !order) {
-      console.error(`❌ [ORDER_TRACKING] Pedido não encontrado: ${orderId}`);
+    if (orderError || !order) {
+      console.error(`❌ [ORDER_TRACKING] Pedido não encontrado: ${orderId}`, orderError);
       return res.status(404).json({ success: false, error: "Pedido não encontrado" });
     }
 
-    const { data: history } = await supabase
+    const { data: history, error: historyError } = await supabase
       .from('tracking_history')
-      .select('description, location, date')
+      .select('*')
       .eq('order_id', orderId)
       .order('date', { ascending: true });
+
+    if (historyError) {
+      console.error(`❌ [ORDER_TRACKING] Erro ao buscar histórico:`, historyError);
+    }
 
     // 2. Se o pedido já possui eventos no tracking_history do banco, retornamos eles primeiro
     if (history && history.length > 0) {
       console.log(`✅ [ORDER_TRACKING] Encontrados ${history.length} eventos no banco.`);
+      console.log("📊 [ORDER_TRACKING] Eventos encontrados:", history.length);
+      console.log("📋 [ORDER_TRACKING] Eventos completos:", JSON.stringify(history));
       
       return res.json({
         success: true,
         provider: 'Database',
-        status: order.status || "Em trânsito",
+        status: order.status || history[history.length - 1]?.status || "Em trânsito",
         history: history.map((h: any) => ({
+          ...h,
           date: new Date(h.date).toLocaleString('pt-BR'),
           location: h.location || 'Correios',
-          description: h.description
+          description: h.description || h.status
         }))
       });
     }

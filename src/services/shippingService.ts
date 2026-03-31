@@ -1045,6 +1045,8 @@ export const shippingService = {
       
       if (response.ok && data.success) {
         console.log('✅ Rastreio encontrado via Backend');
+        console.log("📊 [FRONTEND] Eventos encontrados:", data.history?.length || 0);
+        console.log("📋 [FRONTEND] Eventos completos:", data.history);
         return {
           status: data.status || 'Em trânsito',
           history: data.history || []
@@ -1077,6 +1079,8 @@ export const shippingService = {
           .order('date', { ascending: true });
 
         if (history && history.length > 0) {
+          console.log("📊 [FRONTEND_FALLBACK] Eventos encontrados:", history.length);
+          console.log("📋 [FRONTEND_FALLBACK] Eventos completos:", history);
           return {
             status: order.status || 'Em trânsito',
             history: history.map(h => ({

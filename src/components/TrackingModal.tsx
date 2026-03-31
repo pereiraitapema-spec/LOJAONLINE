@@ -99,6 +99,8 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
             setTrackingData(order);
             if (data.history && data.history.length > 0) {
               console.log(`📊 [FRONTEND] Exibindo ${data.history.length} eventos de rastreio.`);
+              console.log("📊 [FRONTEND] Eventos encontrados:", data.history.length);
+              console.log("📋 [FRONTEND] Eventos completos:", data.history);
               setRealTimeHistory(data.history);
             } else {
               console.warn(`⚠️ [FRONTEND] Servidor respondeu com sucesso, mas o histórico está vazio.`);
