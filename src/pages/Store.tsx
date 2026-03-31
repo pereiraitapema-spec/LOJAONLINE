@@ -948,6 +948,20 @@ export default function Store() {
               Seja um Afiliado
             </button>
 
+            {/* Botão Rastrear Pedido */}
+            <button 
+              onClick={() => setIsTrackingModalOpen(true)}
+              className="hidden lg:flex items-center gap-2 text-slate-600 hover:text-indigo-600 transition-colors group"
+            >
+              <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
+                <Package size={20} />
+              </div>
+              <div className="flex flex-col items-start">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Rastrear</span>
+                <span className="text-sm font-bold text-slate-800">Pedido</span>
+              </div>
+            </button>
+
             {/* Botão de Favoritos */}
             <button 
               onClick={() => setShowFavorites(true)}
