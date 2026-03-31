@@ -32,8 +32,12 @@ async function startServer() {
   });
 
   // Proxy para Rastreio Melhor Envio (CORS Fix)
-  app.post("/api/tracking/melhorenvio", express.json(), async (req, res) => {
-    const { tracking_code, api_key } = req.body;
+  app.all("/api/tracking/melhorenvio", express.json(), async (req, res) => {
+    const { tracking_code, api_key } = { ...req.query, ...req.body };
+    if (!tracking_code || !api_key) {
+      return res.status(400).json({ error: 'Código de rastreio e chave API são obrigatórios' });
+    }
+
     try {
       const response = await fetch('https://www.melhorenvio.com.br/api/v2/me/shipment/tracking', {
         method: 'POST',
@@ -43,34 +47,37 @@ async function startServer() {
           'Authorization': `Bearer ${api_key}`,
           'User-Agent': 'Magnifique4Life (contato@magnifique4life.com.br)'
         },
-        body: JSON.stringify({ orders: [tracking_code] }) // v2 espera array de IDs ou códigos
+        body: JSON.stringify({ orders: [tracking_code] })
       });
       const data = await response.json();
       res.status(response.status).json(data);
     } catch (error) {
       console.error('❌ Erro no proxy Melhor Envio:', error);
-      res.status(500).json({ error: 'Erro ao contatar Melhor Envio' });
+      res.status(500).json({ error: 'Erro ao contatar Melhor Envio', details: error instanceof Error ? error.message : String(error) });
     }
   });
 
   // Proxy para Rastreio CepCerto (CORS Fix)
-  app.get("/api/tracking/cepcerto", async (req, res) => {
-    const { tracking_code, api_key } = req.query;
-    console.log(`🔍 Proxy CepCerto: Rastreando ${tracking_code} com token ${api_key?.toString().substring(0, 5)}...`);
+  app.all("/api/tracking/cepcerto", async (req, res) => {
+    const { tracking_code, api_key } = { ...req.query, ...req.body };
+    
+    if (!tracking_code || !api_key) {
+      return res.status(400).json({ error: 'Código de rastreio e chave API são obrigatórios' });
+    }
+
+    console.log(`🔍 Proxy CepCerto: Rastreando ${tracking_code}...`);
     
     try {
+      // CepCerto aceita tanto api.cepcerto.com quanto www.cepcerto.com
       const apiUrl = `https://www.cepcerto.com/ws/json-rastreio/${tracking_code}/${api_key}`;
       const response = await fetch(apiUrl);
       const text = await response.text();
-      
-      console.log(`📦 Resposta bruta CepCerto:`, text);
       
       try {
         const data = JSON.parse(text);
         res.status(response.status).json(data);
       } catch (parseError) {
-        console.error('❌ Erro ao parsear JSON do CepCerto:', parseError);
-        // Se não for JSON, pode ser um erro em texto puro
+        // Se não for JSON, retorna o texto (pode ser erro 404 ou 401 da própria CepCerto)
         res.status(response.status).send(text);
       }
     } catch (error) {
@@ -80,12 +87,21 @@ async function startServer() {
   });
 
   // Proxy para Rastreio Linketrack (CORS Fix)
-  app.get("/api/tracking/linketrack", async (req, res) => {
-    const { tracking_code } = req.query;
+  app.all("/api/tracking/linketrack", async (req, res) => {
+    const { tracking_code } = { ...req.query, ...req.body };
+    if (!tracking_code) {
+      return res.status(400).json({ error: 'Código de rastreio é obrigatório' });
+    }
+
     try {
       const response = await fetch(`https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${tracking_code}`);
-      const data = await response.json();
-      res.status(response.status).json(data);
+      const text = await response.text();
+      try {
+        const data = JSON.parse(text);
+        res.status(response.status).json(data);
+      } catch (e) {
+        res.status(response.status).send(text);
+      }
     } catch (error) {
       console.error('❌ Erro no proxy Linketrack:', error);
       res.status(500).json({ error: 'Erro ao contatar Linketrack' });
