@@ -519,7 +519,7 @@ export default function Checkout() {
   // Recalcular frete quando o carrinho ou cupom mudar
   useEffect(() => {
     if (shipping.cep && shipping.cep.length === 8) {
-      if (couponCode.toUpperCase() === 'BALCAO') {
+      if (couponCode.trim().toUpperCase() === 'BALCAO') {
         setShippingMethods([{
           id: 'balcao',
           name: 'CLIENTE BUSCA NA EMPRESA',
@@ -620,13 +620,23 @@ export default function Checkout() {
   }, [cartTotal, discountRules, campaigns, paymentMethod, isFirstPurchase, couponCode, affiliateCoupon]);
 
   const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
-  const currentShipping = shippingMethods[selectedShipping];
+  const isBalcao = couponCode.trim().toUpperCase() === 'BALCAO';
+  const displayShippingMethods = isBalcao ? [{
+    id: 'balcao',
+    name: 'CLIENTE BUSCA NA EMPRESA',
+    price: 0,
+    deadline: '0 dias',
+    provider: 'Balcão',
+    carrierName: 'Balcão'
+  }] : shippingMethods;
+
+  const currentShipping = displayShippingMethods[isBalcao ? 0 : selectedShipping];
   console.log('DEBUG: cartTotal=', cartTotal, 'threshold=', settings?.free_shipping_threshold || 0, 'selectedShipping=', selectedShipping, 'currentShipping=', currentShipping);
   
   const threshold = Number(settings?.free_shipping_threshold) || 0;
   
   // Se ainda não temos métodos de envio, o frete não é 0, é "não calculado" (null)
-  const shippingCost = shippingMethods.length === 0 
+  const shippingCost = displayShippingMethods.length === 0 
     ? null 
     : !currentShipping
       ? null // Ainda não selecionou um método ou o selecionado é inválido
@@ -637,7 +647,7 @@ export default function Checkout() {
   console.log('DEBUG FRETE:', {
     cartTotal,
     threshold,
-    shippingMethodsCount: shippingMethods.length,
+    shippingMethodsCount: displayShippingMethods.length,
     selectedShipping,
     currentShippingPrice: currentShipping?.price,
     finalShippingCost: shippingCost
@@ -769,7 +779,7 @@ export default function Checkout() {
         let allQuotes: ShippingQuote[] = [];
         let apiErrors: string[] = [];
 
-        if (couponCode.toUpperCase() === 'BALCAO') {
+        if (couponCode.trim().toUpperCase() === 'BALCAO') {
           console.log('🏷️ Cupom BALCAO aplicado, pulando cálculo de frete.');
           allQuotes = [{
             id: 'balcao',
@@ -1660,8 +1670,8 @@ export default function Checkout() {
               </div>
 
               <div className="space-y-3">
-                {shippingMethods.length > 0 ? (
-                  shippingMethods.map((method, index) => (
+                {displayShippingMethods.length > 0 ? (
+                  displayShippingMethods.map((method, index) => (
                     <button
                       key={index}
                       type="button"
