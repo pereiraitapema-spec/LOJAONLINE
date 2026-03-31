@@ -82,10 +82,10 @@ const pagarmeProvider: PaymentProvider = {
                     exp_year: parseInt('20' + orderData.expiry.split('/')[1].trim(), 10),
                     cvv: orderData.cvv,
                     billing_address: {
-                      line_1: `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}`,
-                      zip_code: orderData.shipping_address.cep.replace(/\D/g, ''),
-                      city: orderData.shipping_address.city,
-                      state: orderData.shipping_address.state,
+                      line_1: orderData.shipping_address.street ? `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}` : 'Rua Fictícia, 123, Centro',
+                      zip_code: orderData.shipping_address.cep ? orderData.shipping_address.cep.replace(/\D/g, '') : '01001000',
+                      city: orderData.shipping_address.city || 'São Paulo',
+                      state: orderData.shipping_address.state || 'SP',
                       country: 'BR'
                     }
                   },
@@ -100,10 +100,10 @@ const pagarmeProvider: PaymentProvider = {
                     exp_year: parseInt('20' + orderData.expiry.split('/')[1].trim()),
                     cvv: orderData.cvv,
                     billing_address: {
-                      line_1: `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}`,
-                      zip_code: orderData.shipping_address.cep.replace(/\D/g, ''),
-                      city: orderData.shipping_address.city,
-                      state: orderData.shipping_address.state,
+                      line_1: orderData.shipping_address.street ? `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}` : 'Rua Fictícia, 123, Centro',
+                      zip_code: orderData.shipping_address.cep ? orderData.shipping_address.cep.replace(/\D/g, '') : '01001000',
+                      city: orderData.shipping_address.city || 'São Paulo',
+                      state: orderData.shipping_address.state || 'SP',
                       country: 'BR'
                     }
                   }

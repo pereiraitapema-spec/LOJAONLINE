@@ -833,6 +833,7 @@ export default function Checkout() {
   };
 
   const handleCepBlur = async () => {
+    if (isBalcao) return;
     const cep = shipping.cep.replace(/\D/g, '');
     if (cep.length === 8 && cep !== lastCalculatedCep.current) {
       await handleCep(cep);
@@ -918,7 +919,7 @@ export default function Checkout() {
       return;
     }
 
-    if (!shipping.cep || !shipping.street || !shipping.number || !shipping.city || !shipping.state) {
+    if (!isBalcao && (!shipping.cep || !shipping.street || !shipping.number || !shipping.city || !shipping.state)) {
       toast.error('Preencha todos os campos obrigatórios do endereço.');
       return;
     }
@@ -1571,94 +1572,96 @@ export default function Checkout() {
             </section>
 
             {/* Endereço de Entrega */}
-            <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
-                  <MapPin size={20} />
-                </div>
-                <h2 className="text-xl font-bold text-slate-900">Endereço de Entrega</h2>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-bold text-slate-700 mb-1">CEP *</label>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={shipping.cep}
-                      onChange={handleCepChange}
-                      maxLength={8}
-                      onBlur={handleCepBlur}
-                      placeholder="00000-000"
-                      className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                      required
-                    />
+            {!isBalcao && (
+              <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
+                    <MapPin size={20} />
                   </div>
+                  <h2 className="text-xl font-bold text-slate-900">Endereço de Entrega</h2>
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Rua / Avenida *</label>
-                  <input 
-                    type="text" 
-                    value={shipping.street}
-                    onChange={e => setShipping({...shipping, street: e.target.value})}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Número *</label>
-                  <input 
-                    type="text" 
-                    value={shipping.number}
-                    onChange={e => setShipping({...shipping, number: e.target.value})}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Complemento</label>
-                  <input 
-                    type="text" 
-                    value={shipping.complement}
-                    onChange={e => setShipping({...shipping, complement: e.target.value})}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Bairro *</label>
-                  <input 
-                    type="text" 
-                    value={shipping.neighborhood}
-                    onChange={e => setShipping({...shipping, neighborhood: e.target.value})}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Cidade *</label>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-bold text-slate-700 mb-1">CEP *</label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        value={shipping.cep}
+                        onChange={handleCepChange}
+                        maxLength={8}
+                        onBlur={handleCepBlur}
+                        placeholder="00000-000"
+                        className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Rua / Avenida *</label>
                     <input 
                       type="text" 
-                      value={shipping.city}
-                      onChange={e => setShipping({...shipping, city: e.target.value})}
+                      value={shipping.street}
+                      onChange={e => setShipping({...shipping, street: e.target.value})}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">UF *</label>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Número *</label>
                     <input 
                       type="text" 
-                      value={shipping.state}
-                      onChange={e => setShipping({...shipping, state: e.target.value})}
-                      maxLength={2}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all uppercase"
+                      value={shipping.number}
+                      onChange={e => setShipping({...shipping, number: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       required
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Complemento</label>
+                    <input 
+                      type="text" 
+                      value={shipping.complement}
+                      onChange={e => setShipping({...shipping, complement: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Bairro *</label>
+                    <input 
+                      type="text" 
+                      value={shipping.neighborhood}
+                      onChange={e => setShipping({...shipping, neighborhood: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="col-span-2">
+                      <label className="block text-sm font-bold text-slate-700 mb-1">Cidade *</label>
+                      <input 
+                        type="text" 
+                        value={shipping.city}
+                        onChange={e => setShipping({...shipping, city: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">UF *</label>
+                      <input 
+                        type="text" 
+                        value={shipping.state}
+                        onChange={e => setShipping({...shipping, state: e.target.value})}
+                        maxLength={2}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all uppercase"
+                        required
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            )}
 
             {/* Entrega */}
             <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
