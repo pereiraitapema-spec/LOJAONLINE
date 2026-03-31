@@ -390,7 +390,7 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                                   <div className={`w-2 h-2 rounded-full bg-white ${idx === 0 ? 'animate-pulse' : ''}`} />
                                 </div>
                                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm">
-                                  <p className="text-sm font-bold text-slate-900 leading-tight">{h.description}</p>
+                                  <p className="text-sm font-bold text-slate-900 leading-tight">{h.description || h.status || h.message}</p>
                                   <div className="flex items-center gap-3 mt-2">
                                     <p className="text-[10px] text-slate-500 flex items-center gap-1 font-bold">
                                       <MapPin size={10} /> {h.location}

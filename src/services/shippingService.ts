@@ -1031,214 +1031,67 @@ export const shippingService = {
   async getTrackingStatus(trackingCode: string) {
     console.log('🔍 getTrackingStatus chamado para:', trackingCode);
     
-    // Tenta buscar primeiro pelo código de rastreio (string)
-    let { data: orders, error: orderError } = await supabase
-      .from('orders')
-      .select('id, shipping_method, status, tracking_code')
-      .eq('tracking_code', trackingCode);
+    // 1. Tenta identificar se é um UUID (Order ID) ou Código de Rastreio
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trackingCode) || 
+                   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trackingCode);
 
-    // Se não encontrar pelo código de rastreio, tenta pelo ID (UUID)
-    if (!orders || orders.length === 0) {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trackingCode) || 
-                     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trackingCode);
-      if (isUuid) {
-        const { data: ordersById } = await supabase
-          .from('orders')
-          .select('id, shipping_method, status, tracking_code')
-          .eq('id', trackingCode);
-        
-        if (ordersById && ordersById.length > 0) {
-          orders = ordersById;
-        }
-      }
-    }
-
-    if (orderError) {
-      console.error('❌ Erro ao buscar pedido:', orderError);
-    }
-    
-    if (!orders || orders.length === 0) {
-      console.warn('⚠️ Pedido não encontrado no banco para:', trackingCode, '. Tentando rastreio direto via BrasilAPI.');
-      // Se não encontrou o pedido, tenta um rastreio genérico via BrasilAPI
-      try {
-        const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${trackingCode}`);
-        if (response.ok) {
-          const data = await response.json();
-          return {
-            status: data.status || 'Em trânsito',
-            history: (data.historico || []).map((e: any) => ({
-              date: e.data,
-              location: `${e.unidade} - ${e.cidade}/${e.uf}`,
-              description: e.descricao
-            }))
-          };
-        }
-      } catch (e) {
-        console.error('❌ Erro no rastreio direto BrasilAPI:', e);
-      }
-      return { status: 'Não encontrado', history: [] };
-    }
-    
-    const order = orders[0];
-    console.log('📦 Pedido encontrado:', order);
-    
-    // Se não tiver código de rastreio, retorna status inicial
-    if (!order.tracking_code) {
-      console.warn('⚠️ Pedido sem código de rastreio.');
-      return { status: 'Aguardando confirmação', history: [] };
-    }
-
-    // Tenta o novo endpoint unificado do backend primeiro (por ID do pedido)
+    // 2. Tenta o endpoint unificado do backend
     try {
-      console.log('🔄 Chamando Backend Unificado (Order ID) para:', order.id);
-      const response = await fetch(`/api/tracking/order/${order.id}`);
-      const data = await response.json();
-      if (response.ok && data.success) {
-        console.log('✅ Rastreio encontrado via Backend (Order ID)');
-        return {
-          status: data.status || 'Em trânsito',
-          history: data.history || []
-        };
-      }
-    } catch (e) {
-      console.warn('⚠️ Backend Order ID falhou, tentando por código direto...');
-    }
-
-    // Tenta o endpoint por código direto
-    try {
-      console.log('🔄 Chamando Backend Unificado (Code) para:', order.tracking_code);
-      const response = await fetch(`/api/tracking/code/${order.tracking_code}`);
-      const data = await response.json();
-      if (response.ok && data.success) {
-        console.log('✅ Rastreio encontrado via Backend (Code)');
-        return {
-          status: data.status || 'Em trânsito',
-          history: data.history || []
-        };
-      }
-    } catch (e) {
-      console.warn('⚠️ Backend Code falhou, usando fallbacks client-side...');
-    }
-
-    // Normalização robusta do nome da transportadora
-    const normalizeCarrierName = (name: string) => {
-        if (!name) return 'CEPCERTO';
-        const normalized = name.toUpperCase().trim();
-        console.log('⚙️ Normalizando carrier:', name, '->', normalized);
-        
-        if (normalized.includes('MELHOR ENVIO')) return 'MELHOR ENVIO';
-        if (normalized.includes('CORREIOS')) return 'CORREIOS';
-        if (normalized.includes('JADLOG')) return 'JADLOG';
-        if (normalized.includes('CEPCERTO')) return 'CEPCERTO';
-        if (normalized.includes('FRENET')) return 'FRENET';
-        
-        // Fallback para métodos comuns que sabemos que o CepCerto atende nesta loja
-        if (['SEDEX', 'PAC'].some(m => normalized.includes(m))) return 'CEPCERTO';
-        
-        return normalized;
-    };
-
-    const carrierName = normalizeCarrierName(order.shipping_method);
-    console.log('🔍 Buscando carrier no banco:', carrierName);
-
-    // Busca pela transportadora ativa
-    const { data: carrier } = await supabase
-      .from('shipping_carriers')
-      .select('*')
-      .ilike('name', `%${carrierName}%`)
-      .eq('active', true)
-      .maybeSingle();
-
-    if (!carrier) {
-      console.warn('⚠️ Transportadora não encontrada ou inativa:', carrierName, '. Usando fallbacks.');
+      const endpoint = isUuid ? `/api/tracking/order/${trackingCode}` : `/api/tracking/code/${trackingCode}`;
+      console.log(`🔄 Chamando Backend Unificado (${isUuid ? 'Order ID' : 'Code'}): ${endpoint}`);
       
-      // Fallback 1: Linketrack (via Proxy)
-      try {
-        const response = await fetch(`/api/tracking/linketrack?tracking_code=${order.tracking_code}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.eventos && data.eventos.length > 0) {
-            return {
-              status: data.eventos[0].status || 'Em trânsito',
-              history: data.eventos.map((e: any) => ({
-                date: `${e.data} ${e.hora}`,
-                location: e.local || 'Não informado',
-                description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
-              }))
-            };
-          }
-        }
-      } catch (e) {
-        console.warn('⚠️ Linketrack fallback falhou.');
+      const response = await fetch(endpoint);
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        console.log('✅ Rastreio encontrado via Backend');
+        return {
+          status: data.status || 'Em trânsito',
+          history: data.history || []
+        };
+      }
+    } catch (e) {
+      console.warn('⚠️ Backend falhou, tentando busca direta no Supabase...');
+    }
+
+    // 3. Fallback: Busca direta no Supabase se o backend falhar
+    try {
+      let query = supabase.from('orders').select('id, status, tracking_code');
+      
+      if (isUuid) {
+        query = query.eq('id', trackingCode);
+      } else {
+        query = query.eq('tracking_code', trackingCode);
       }
 
-      // Fallback 2: BrasilAPI
-      try {
-        const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${order.tracking_code}`);
-        if (response.ok) {
-          const data = await response.json();
+      const { data: orders } = await query;
+
+      if (orders && orders.length > 0) {
+        const order = orders[0];
+        
+        // Busca histórico na tabela tracking_history
+        const { data: history } = await supabase
+          .from('tracking_history')
+          .select('*')
+          .eq('order_id', order.id)
+          .order('date', { ascending: true });
+
+        if (history && history.length > 0) {
           return {
-            status: data.status || 'Em trânsito',
-            history: (data.historico || []).map((e: any) => ({
-              date: e.data,
-              location: `${e.unidade} - ${e.cidade}/${e.uf}`,
-              description: e.descricao
+            status: order.status || 'Em trânsito',
+            history: history.map(h => ({
+              date: new Date(h.date).toLocaleString('pt-BR'),
+              location: h.location || 'Correios',
+              description: h.description
             }))
           };
         }
-      } catch (e) {
-        console.warn('⚠️ BrasilAPI fallback falhou.');
       }
-      return { status: 'Transportadora não configurada', history: [] };
+    } catch (e) {
+      console.error('❌ Erro no fallback Supabase:', e);
     }
-    
-    console.log('✅ Transportadora encontrada:', carrier.name);
 
-    const config = typeof carrier.config === 'string' ? JSON.parse(carrier.config) : carrier.config;
-    const provider = providers[carrier.provider];
-
-    if (provider && provider.getTrackingStatus) {
-      return provider.getTrackingStatus(order.tracking_code, config);
-    } else {
-      // Fallback final: Linketrack (via Proxy)
-      try {
-        const response = await fetch(`/api/tracking/linketrack?tracking_code=${order.tracking_code}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.eventos && data.eventos.length > 0) {
-            return {
-              status: data.eventos[0].status || 'Em trânsito',
-              history: data.eventos.map((e: any) => ({
-                date: `${e.data} ${e.hora}`,
-                location: e.local || 'Não informado',
-                description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
-              }))
-            };
-          }
-        }
-      } catch (e) {
-        console.warn('⚠️ Linketrack fallback final falhou.');
-      }
-
-      // Fallback final: BrasilAPI
-      try {
-        const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${order.tracking_code}`);
-        if (response.ok) {
-          const data = await response.json();
-          return {
-            status: data.status || 'Em trânsito',
-            history: (data.historico || []).map((e: any) => ({
-              date: e.data,
-              location: `${e.unidade} - ${e.cidade}/${e.uf}`,
-              description: e.descricao
-            }))
-          };
-        }
-      } catch (e) {
-        console.warn('⚠️ BrasilAPI fallback final falhou.');
-      }
-      return { status: 'Não encontrado ou aguardando postagem', history: [] };
-    }
+    return { status: 'Não encontrado', history: [] };
   },
 
   /**
@@ -1252,6 +1105,27 @@ export const shippingService = {
       .eq('id', orderId);
 
     if (error) throw error;
+    return { success: true };
+  },
+
+  /**
+   * Adiciona um evento de rastreio manualmente ao histórico.
+   */
+  async addTrackingEvent(orderId: string, description: string, location: string = 'Centro Logístico') {
+    console.log(`➕ Adicionando evento de rastreio para o pedido ${orderId}: ${description}`);
+    const { error } = await supabase
+      .from('tracking_history')
+      .insert({
+        order_id: orderId,
+        description,
+        location,
+        date: new Date().toISOString()
+      });
+
+    if (error) {
+      console.error('❌ Erro ao adicionar evento de rastreio:', error);
+      throw error;
+    }
     return { success: true };
   }
 };

@@ -442,7 +442,7 @@ create policy "Admin manage shipping_carriers" on public.shipping_carriers for a
 create table if not exists public.tracking_history (
   id uuid default gen_random_uuid() primary key,
   order_id uuid references public.orders(id) on delete cascade,
-  status text not null,
+  description text not null,
   location text,
   date timestamp with time zone default now(),
   created_at timestamp with time zone default now()

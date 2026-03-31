@@ -11,7 +11,7 @@ CREATE POLICY "Clientes podem ver seus próprios pedidos" ON public.orders
 CREATE TABLE IF NOT EXISTS public.tracking_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
-  status TEXT NOT NULL,
+  description TEXT NOT NULL,
   location TEXT,
   date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

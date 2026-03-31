@@ -1161,6 +1161,10 @@ export default function Orders() {
 
       if (error) throw error;
       
+      // Adiciona evento ao histórico
+      const statusText = getStatusText(newStatus);
+      await shippingService.addTrackingEvent(orderId, `Status do pedido alterado para: ${statusText}`);
+
       setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
       if (selectedOrder?.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: newStatus });
@@ -1197,6 +1201,12 @@ export default function Orders() {
 
       if (error) throw error;
       
+      // Adiciona evento ao histórico
+      await shippingService.addTrackingEvent(orderId, `Código de rastreio adicionado: ${trackingCode}`);
+      if (updateData.status === 'shipped') {
+        await shippingService.addTrackingEvent(orderId, `Status do pedido alterado para: Enviado`);
+      }
+
       setOrders(orders.map(o => o.id === orderId ? { ...o, ...updateData } : o));
       if (selectedOrder?.id === orderId) {
         setSelectedOrder({ ...selectedOrder, ...updateData });
@@ -2444,8 +2454,8 @@ export default function Orders() {
                               <div className={`absolute -left-8 w-6 h-6 rounded-full border-4 border-slate-900 flex items-center justify-center ${idx === 0 ? 'bg-emerald-500' : 'bg-slate-700'}`}>
                                 <Truck size={12} className="text-white" />
                               </div>
-                              <p className="text-xs font-bold">{h.status || h.description}</p>
-                              <p className="text-[10px] text-slate-400">{h.location} | {h.date}</p>
+                              <p className="text-xs font-bold">{h.description || h.status || h.message}</p>
+                              <p className="text-[10px] text-slate-400">{h.location || 'Correios'} | {h.date}</p>
                             </div>
                           ))}
                         </div>
