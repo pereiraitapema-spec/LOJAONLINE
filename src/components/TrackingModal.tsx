@@ -80,59 +80,6 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
       const idToUse = searchId || orderId;
       const codeToUse = searchCode || trackingCode;
 
-      // 1. Se tivermos um ID de pedido, usamos o novo endpoint unificado (Order ID)
-      if (idToUse) {
-        console.log(`📡 [FRONTEND] Iniciando busca por ID do Pedido: ${idToUse}`);
-        const response = await fetch(`/api/tracking/order/${idToUse}`);
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-          console.log(`✅ [FRONTEND] Resposta recebida do servidor via ${data.provider || 'Fallback'}`);
-          // Busca dados complementares do pedido no Supabase para exibir no modal
-          const { data: orders } = await supabase
-            .from('orders')
-            .select('id, status, tracking_code, created_at, total, order_items(product_name, price)')
-            .eq('id', idToUse)
-            .limit(1);
-
-          const order = orders?.[0];
-
-          if (order) {
-            setTrackingData(order);
-            if (data.history && data.history.length > 0) {
-              console.log(`📊 [FRONTEND] Exibindo ${data.history.length} eventos de rastreio.`);
-              console.log("📊 [FRONTEND] Eventos encontrados:", data.history.length);
-              console.log("📋 [FRONTEND] Eventos completos:", data.history);
-              setRealTimeHistory(data.history);
-            } else {
-              console.warn(`⚠️ [FRONTEND] Servidor respondeu com sucesso, mas o histórico está vazio.`);
-            }
-            setViewMode('detail');
-            return;
-          }
-        } else {
-          console.error(`❌ [FRONTEND] Erro no servidor:`, data.error || 'Erro desconhecido');
-        }
-      }
-
-      // 1.1 Se tivermos um código, tentamos o endpoint por código direto
-      if (codeToUse) {
-        const response = await fetch(`/api/tracking/code/${codeToUse}`);
-        const data = await response.json();
-        if (response.ok && data.success) {
-           setTrackingData({ 
-             id: codeToUse, 
-             tracking_code: codeToUse, 
-             status: data.status || 'Em trânsito', 
-             created_at: new Date().toISOString(),
-             shipping_method: 'Rastreio Externo'
-           });
-           setRealTimeHistory(data.history || []);
-           setViewMode('detail');
-           return;
-        }
-      }
-
       // 2. Fallback ou busca por código direto (se não houver ID ou o endpoint falhar)
       const query = supabase
         .from('orders')

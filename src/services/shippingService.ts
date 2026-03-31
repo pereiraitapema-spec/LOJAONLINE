@@ -1067,6 +1067,16 @@ export const shippingService = {
 
     console.log("Tracking Code:", trackingCode);
 
+    // Se não tivermos orderId mas tivermos trackingCode, tentamos achar o orderId para o histórico do banco
+    if (!orderId && trackingCode) {
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('tracking_code', trackingCode)
+        .limit(1);
+      if (orderData && orderData.length > 0) orderId = orderData[0].id;
+    }
+
     // Se tivermos um código de rastreio, tentamos a API obrigatoriamente
     if (trackingCode) {
       console.log("Consultando API de rastreamento...");
@@ -1075,7 +1085,9 @@ export const shippingService = {
       const timeoutId = setTimeout(() => controller.abort(), 20000);
 
       try {
-        const endpoint = `/api/tracking/code/${trackingCode}`;
+        const endpoint = orderId 
+          ? `/api/tracking/code/${trackingCode}?orderId=${orderId}`
+          : `/api/tracking/code/${trackingCode}`;
         const response = await fetch(endpoint, { signal: controller.signal });
         clearTimeout(timeoutId);
 
@@ -1085,6 +1097,20 @@ export const shippingService = {
 
         if (data && data.success && data.history && data.history.length > 0) {
           console.log("✅ Eventos encontrados API:", data.history.length);
+          
+          if (data.provider === 'Fallback Manual') {
+            console.log("Abrindo Correios fallback");
+            const url = `https://rastreamento.correios.com.br/app/index.php?objetos=${trackingCode}`;
+            window.open(url, '_blank');
+            
+            data.history = [{
+              description: "Não foi possível consultar automaticamente. Abrindo site dos Correios para verificação manual. Após verificar, volte para esta página.",
+              location: "Correios",
+              date: new Date().toLocaleString('pt-BR')
+            }];
+            data.status = 'Aguardando verificação manual';
+          }
+
           console.log("FINALIZANDO RASTREAMENTO");
           return {
             status: data.status || 'Em trânsito',
@@ -1102,35 +1128,12 @@ export const shippingService = {
       } finally {
         clearTimeout(timeoutId);
       }
-      
-      console.log("Abrindo Correios fallback");
-      const url = `https://rastreamento.correios.com.br/app/index.php?objetos=${trackingCode}`;
-      window.open(url, '_blank');
-      
-      return {
-        status: 'Aguardando verificação manual',
-        history: [{
-          description: "Não foi possível consultar automaticamente. Abrindo site dos Correios para verificação manual. Após verificar, volte para esta página.",
-          location: "Correios",
-          date: new Date().toLocaleString('pt-BR')
-        }]
-      };
     } else {
       console.log("⚠️ Código de rastreio não disponível para consulta API.");
     }
 
     // Fallback: Somente se a API falhar ou não houver código
     console.log("Nenhum evento API, ativando fallback");
-    
-    // Se não tivermos orderId mas tivermos trackingCode, tentamos achar o orderId para o histórico do banco
-    if (!orderId && trackingCode) {
-      const { data: orderData } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('tracking_code', trackingCode)
-        .limit(1);
-      if (orderData && orderData.length > 0) orderId = orderData[0].id;
-    }
 
     if (orderId) {
       console.log("Buscando histórico no banco de dados (tracking_history)...");
@@ -1152,6 +1155,21 @@ export const shippingService = {
           }))
         };
       }
+    }
+
+    if (trackingCode) {
+      console.log("Abrindo Correios fallback");
+      const url = `https://rastreamento.correios.com.br/app/index.php?objetos=${trackingCode}`;
+      window.open(url, '_blank');
+      
+      return {
+        status: 'Aguardando verificação manual',
+        history: [{
+          description: "Não foi possível consultar automaticamente. Abrindo site dos Correios para verificação manual. Após verificar, volte para esta página.",
+          location: "Correios",
+          date: new Date().toLocaleString('pt-BR')
+        }]
+      };
     }
 
     // Fallback Manual Final
