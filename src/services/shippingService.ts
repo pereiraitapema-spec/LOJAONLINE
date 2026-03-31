@@ -284,7 +284,7 @@ const correiosProvider: ShippingProvider = {
 
     // Fallback para Linketrack (Muito estável para Correios)
     try {
-      const response = await fetch(`https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${trackingCode}`);
+      const response = await fetch(`/api/tracking/linketrack?tracking_code=${trackingCode}`);
       if (response.ok) {
         const data = await response.json();
         if (data.eventos && data.eventos.length > 0) {
@@ -516,8 +516,10 @@ const cepcertoProvider: ShippingProvider = {
       try {
         console.log('🔄 Chamando Proxy CepCerto...');
         const response = await fetch(`/api/tracking/cepcerto?tracking_code=${cleanTrackingCode}&api_key=${apiKey}`);
-        if (response.ok) {
-          const data = await response.json();
+        const text = await response.text();
+        
+        try {
+          const data = JSON.parse(text);
           console.log('📦 Resposta CepCerto (DEBUG):', data);
           
           // CepCerto retorna um array de eventos ou objeto com erro
@@ -531,7 +533,11 @@ const cepcertoProvider: ShippingProvider = {
                 description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
               }))
             };
+          } else if (data.erro) {
+            console.warn(`⚠️ CepCerto API retornou erro: ${data.erro}`);
           }
+        } catch (parseError) {
+          console.warn('⚠️ Resposta do CepCerto não é JSON válido:', text);
         }
       } catch (e) {
         console.warn('⚠️ Erro ao buscar rastreio via CepCerto API:', e);
@@ -561,7 +567,7 @@ const cepcertoProvider: ShippingProvider = {
 
     // Fallback para Linketrack (Correios via CepCerto)
     try {
-      const response = await fetch(`https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${cleanTrackingCode}`);
+      const response = await fetch(`/api/tracking/linketrack?tracking_code=${cleanTrackingCode}`);
       if (response.ok) {
         const data = await response.json();
         if (data.eventos && data.eventos.length > 0) {

@@ -56,13 +56,39 @@ async function startServer() {
   // Proxy para Rastreio CepCerto (CORS Fix)
   app.get("/api/tracking/cepcerto", async (req, res) => {
     const { tracking_code, api_key } = req.query;
+    console.log(`🔍 Proxy CepCerto: Rastreando ${tracking_code} com token ${api_key?.toString().substring(0, 5)}...`);
+    
     try {
-      const response = await fetch(`https://www.cepcerto.com/ws/json-rastreio/${tracking_code}/${api_key}`);
+      const apiUrl = `https://www.cepcerto.com/ws/json-rastreio/${tracking_code}/${api_key}`;
+      const response = await fetch(apiUrl);
+      const text = await response.text();
+      
+      console.log(`📦 Resposta bruta CepCerto:`, text);
+      
+      try {
+        const data = JSON.parse(text);
+        res.status(response.status).json(data);
+      } catch (parseError) {
+        console.error('❌ Erro ao parsear JSON do CepCerto:', parseError);
+        // Se não for JSON, pode ser um erro em texto puro
+        res.status(response.status).send(text);
+      }
+    } catch (error) {
+      console.error('❌ Erro no proxy CepCerto:', error);
+      res.status(500).json({ error: 'Erro ao contatar CepCerto', details: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  // Proxy para Rastreio Linketrack (CORS Fix)
+  app.get("/api/tracking/linketrack", async (req, res) => {
+    const { tracking_code } = req.query;
+    try {
+      const response = await fetch(`https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${tracking_code}`);
       const data = await response.json();
       res.status(response.status).json(data);
     } catch (error) {
-      console.error('❌ Erro no proxy CepCerto:', error);
-      res.status(500).json({ error: 'Erro ao contatar CepCerto' });
+      console.error('❌ Erro no proxy Linketrack:', error);
+      res.status(500).json({ error: 'Erro ao contatar Linketrack' });
     }
   });
 
