@@ -1063,9 +1063,9 @@ export const shippingService = {
     if (trackingCode) {
       if (trackingCode.toUpperCase() === 'CLIENTE BUSCA NA EMPRESA') {
         return {
-          status: 'Aguardando retirada',
+          status: 'Pronto para retirada',
           history: [{
-            description: "Aguardando retirada na empresa.",
+            description: "É só ir buscar o produto na empresa e levar o comprovante de pagamento.",
             location: "Empresa",
             date: new Date().toLocaleString('pt-BR')
           }]
