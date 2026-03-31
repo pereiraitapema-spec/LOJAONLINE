@@ -1072,7 +1072,7 @@ export const shippingService = {
       console.log("Consultando API de rastreamento...");
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
 
       try {
         const endpoint = `/api/tracking/code/${trackingCode}`;
@@ -1095,13 +1095,26 @@ export const shippingService = {
         }
       } catch (error: any) {
         if (error.name === 'AbortError') {
-          console.log("❌ Erro: Timeout de 15 segundos atingido na chamada da API");
+          console.log("❌ Erro: Timeout de 20 segundos atingido na chamada da API");
         } else {
           console.log("❌ Erro ao consultar API:", error);
         }
       } finally {
         clearTimeout(timeoutId);
       }
+      
+      console.log("Abrindo Correios fallback");
+      const url = `https://rastreamento.correios.com.br/app/index.php?objetos=${trackingCode}`;
+      window.open(url, '_blank');
+      
+      return {
+        status: 'Aguardando verificação manual',
+        history: [{
+          description: "Não foi possível consultar automaticamente. Abrindo site dos Correios para verificação manual. Após verificar, volte para esta página.",
+          location: "Correios",
+          date: new Date().toLocaleString('pt-BR')
+        }]
+      };
     } else {
       console.log("⚠️ Código de rastreio não disponível para consulta API.");
     }
