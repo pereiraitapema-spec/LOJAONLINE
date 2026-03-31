@@ -375,9 +375,11 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                               SEU PRODUTO ESTÁ SENDO PREPARADO
                             </p>
                             <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">
-                              {trackingData.tracking_code 
-                                ? 'O código de rastreio já foi gerado e aguarda coleta.' 
-                                : 'Aguardando postagem'}
+                              {trackingData.tracking_code === 'CLIENTE BUSCA NA EMPRESA'
+                                ? 'Aguardando retirada na empresa.'
+                                : trackingData.tracking_code 
+                                  ? 'O código de rastreio já foi gerado e aguarda coleta.' 
+                                  : 'Aguardando postagem'}
                             </p>
                           </div>
                         )}

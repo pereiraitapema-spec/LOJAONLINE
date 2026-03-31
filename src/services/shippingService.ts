@@ -1061,6 +1061,16 @@ export const shippingService = {
     }
 
     if (trackingCode) {
+      if (trackingCode.toUpperCase() === 'CLIENTE BUSCA NA EMPRESA') {
+        return {
+          status: 'Aguardando retirada',
+          history: [{
+            description: "Aguardando retirada na empresa.",
+            location: "Empresa",
+            date: new Date().toLocaleString('pt-BR')
+          }]
+        };
+      }
       console.log("Normalizando código");
       trackingCode = trackingCode.replace(/\s/g, "").trim().toUpperCase();
     }
@@ -1175,14 +1185,10 @@ export const shippingService = {
     // Fallback Manual Final
     console.log("Usando fallback manual padrão");
     const manualResult = {
-      status: 'Enviado',
-      history: [{
-        description: "Objeto postado e em trânsito para a unidade de distribuição",
-        location: "Centro Logístico",
-        date: new Date().toLocaleString('pt-BR')
-      }]
+      status: 'Preparando envio',
+      history: []
     };
-    console.log("Exibindo 1 eventos (Fallback Manual)");
+    console.log("Exibindo 0 eventos (Fallback Manual)");
     console.log("FINALIZANDO RASTREAMENTO");
     return manualResult;
   },

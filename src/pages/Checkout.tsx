@@ -516,12 +516,30 @@ export default function Checkout() {
     return () => clearTimeout(timer);
   }, [couponCode]);
 
-  // Recalcular frete quando o carrinho mudar
+  // Recalcular frete quando o carrinho ou cupom mudar
   useEffect(() => {
-    if (shipping.cep && shippingMethods.length > 0) {
-      handleCepBlur();
+    if (shipping.cep && shipping.cep.length === 8) {
+      if (couponCode.toUpperCase() === 'BALCAO') {
+        setShippingMethods([{
+          id: 'balcao',
+          name: 'CLIENTE BUSCA NA EMPRESA',
+          price: 0,
+          deadline: '0 dias',
+          provider: 'Balcão',
+          carrierName: 'Balcão'
+        }]);
+        setSelectedShipping(0);
+      } else if (shippingMethods.length > 0 && shippingMethods[0].id === 'balcao') {
+        // Se era BALCAO e agora não é mais, força recálculo
+        lastCalculatedCep.current = '';
+        handleCepBlur();
+      } else if (shippingMethods.length > 0) {
+        // Se o carrinho mudou, recalcula
+        lastCalculatedCep.current = '';
+        handleCepBlur();
+      }
     }
-  }, [cart]);
+  }, [cart, couponCode]);
 
   const calculatePrice = (product: Product, quantity: number) => {
     const unitPrice = product.discount_price || product.price;
@@ -750,19 +768,32 @@ export default function Checkout() {
 
         let allQuotes: ShippingQuote[] = [];
         let apiErrors: string[] = [];
-        const activeCarriers = carriers.length > 0 ? carriers : (await supabase.from('shipping_carriers').select('*').eq('active', true)).data || [];
-        
-        for (const carrier of activeCarriers) {
-          if (!carrier.active) continue;
-          console.log(`🚚 Calculando frete para ${carrier.name} (${carrier.provider})...`);
-          try {
-            const quotes = await shippingService.calculateShipping(cep, packages, carrier.id);
-            console.log(`📊 Cotações para ${carrier.name}:`, quotes);
-            allQuotes = [...allQuotes, ...quotes];
-          } catch (err: any) {
-            console.error(`❌ Erro ao calcular frete para ${carrier.name}:`, err);
-            if (err.message) {
-              apiErrors.push(err.message);
+
+        if (couponCode.toUpperCase() === 'BALCAO') {
+          console.log('🏷️ Cupom BALCAO aplicado, pulando cálculo de frete.');
+          allQuotes = [{
+            id: 'balcao',
+            name: 'CLIENTE BUSCA NA EMPRESA',
+            price: 0,
+            deadline: '0 dias',
+            provider: 'Balcão',
+            carrierName: 'Balcão'
+          }];
+        } else {
+          const activeCarriers = carriers.length > 0 ? carriers : (await supabase.from('shipping_carriers').select('*').eq('active', true)).data || [];
+          
+          for (const carrier of activeCarriers) {
+            if (!carrier.active) continue;
+            console.log(`🚚 Calculando frete para ${carrier.name} (${carrier.provider})...`);
+            try {
+              const quotes = await shippingService.calculateShipping(cep, packages, carrier.id);
+              console.log(`📊 Cotações para ${carrier.name}:`, quotes);
+              allQuotes = [...allQuotes, ...quotes];
+            } catch (err: any) {
+              console.error(`❌ Erro ao calcular frete para ${carrier.name}:`, err);
+              if (err.message) {
+                apiErrors.push(err.message);
+              }
             }
           }
         }
@@ -1174,26 +1205,38 @@ export default function Checkout() {
 
           // 4. Comunicar com CepCerto para gerar etiqueta (Resiliente)
           try {
-            console.log('📦 Comunicando com CepCerto para gerar etiqueta...');
             const orderId = typeof orderData.id === 'string' ? orderData.id : orderData.id.toString();
             
-            // Aguardar um pouco para garantir consistência no banco
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            const labelResponse = await shippingService.generateLabel(orderId);
-            
-            if (labelResponse.success && labelResponse.tracking_code) {
-              console.log('✅ Etiqueta gerada com sucesso.');
-              finalTrackingCode = labelResponse.tracking_code;
+            if (currentShipping?.name === 'CLIENTE BUSCA NA EMPRESA') {
+              console.log('📦 Pedido com retirada na empresa. Pulando geração de etiqueta.');
+              finalTrackingCode = 'CLIENTE BUSCA NA EMPRESA';
               await supabase
                 .from('orders')
-                .update({ tracking_code: labelResponse.tracking_code })
+                .update({ tracking_code: finalTrackingCode })
                 .eq('id', orderId);
-              setTrackingCode(labelResponse.tracking_code);
-              toast.success('Pagamento aprovado e etiqueta gerada!');
+              setTrackingCode(finalTrackingCode);
+              toast.success('Pagamento aprovado! Seu pedido está sendo preparado para retirada.');
             } else {
-              console.warn('⚠️ Falha na geração automática da etiqueta:', labelResponse.error);
-              toast.success('Pagamento aprovado! A etiqueta será gerada manualmente por nossa equipe.');
+              console.log('📦 Comunicando com CepCerto para gerar etiqueta...');
+              
+              // Aguardar um pouco para garantir consistência no banco
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              const labelResponse = await shippingService.generateLabel(orderId);
+              
+              if (labelResponse.success && labelResponse.tracking_code) {
+                console.log('✅ Etiqueta gerada com sucesso.');
+                finalTrackingCode = labelResponse.tracking_code;
+                await supabase
+                  .from('orders')
+                  .update({ tracking_code: labelResponse.tracking_code })
+                  .eq('id', orderId);
+                setTrackingCode(labelResponse.tracking_code);
+                toast.success('Pagamento aprovado e etiqueta gerada!');
+              } else {
+                console.warn('⚠️ Falha na geração automática da etiqueta:', labelResponse.error);
+                toast.success('Pagamento aprovado! A etiqueta será gerada manualmente por nossa equipe.');
+              }
             }
           } catch (labelErr: any) {
             console.error('⚠️ Erro não crítico na geração de etiqueta:', labelErr);
