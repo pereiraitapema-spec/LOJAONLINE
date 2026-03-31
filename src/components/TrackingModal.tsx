@@ -82,10 +82,12 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
 
       // 1. Se tivermos um ID de pedido, usamos o novo endpoint unificado (Order ID)
       if (idToUse) {
+        console.log(`📡 [FRONTEND] Iniciando busca por ID do Pedido: ${idToUse}`);
         const response = await fetch(`/api/tracking/order/${idToUse}`);
         const data = await response.json();
 
         if (response.ok && data.success) {
+          console.log(`✅ [FRONTEND] Resposta recebida do servidor via ${data.provider || 'Fallback'}`);
           // Busca dados complementares do pedido no Supabase para exibir no modal
           const { data: order } = await supabase
             .from('orders')
@@ -96,13 +98,16 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
           if (order) {
             setTrackingData(order);
             if (data.history && data.history.length > 0) {
+              console.log(`📊 [FRONTEND] Exibindo ${data.history.length} eventos de rastreio.`);
               setRealTimeHistory(data.history);
+            } else {
+              console.warn(`⚠️ [FRONTEND] Servidor respondeu com sucesso, mas o histórico está vazio.`);
             }
             setViewMode('detail');
             return;
           }
-        } else if (data.error) {
-          console.warn('Erro no endpoint unificado (Order ID):', data.error);
+        } else {
+          console.error(`❌ [FRONTEND] Erro no servidor:`, data.error || 'Erro desconhecido');
         }
       }
 
@@ -177,8 +182,10 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
         }
       }
     } catch (error: any) {
+      console.error('❌ [FRONTEND] Erro crítico ao buscar rastreio:', error);
       toast.error('Erro ao buscar rastreio: ' + error.message);
     } finally {
+      console.log('🏁 [FRONTEND] Finalizando busca de rastreio.');
       setLoading(false);
     }
   };

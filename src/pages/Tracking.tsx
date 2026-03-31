@@ -64,8 +64,9 @@ export default function Tracking() {
         }
       }
     } catch (err) {
-      console.error('Erro inesperado:', err);
+      console.error('❌ [TRACKING_PAGE] Erro inesperado ao buscar pedidos:', err);
     } finally {
+      console.log('🏁 [TRACKING_PAGE] Finalizando busca de pedidos.');
       setLoading(false);
     }
   };

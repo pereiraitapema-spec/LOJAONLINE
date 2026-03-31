@@ -54,86 +54,87 @@ function AppContent() {
     ]);
   };
 
-  const fetchUserRole = async (userId: string, email?: string) => {
-    console.log('🔍 fetchUserRole iniciada para:', { userId, email });
+  const syncUserSession = async (userId: string, email?: string) => {
+    console.log('🔄 Sincronizando sessão para:', { userId, email });
     
-    // Admin Master - Prioridade absoluta e imediata
+    // 1. Admin Master - Instantâneo
     if (email === 'pereira.itapema@gmail.com') {
-      console.log('👑 Admin Master detectado em fetchUserRole');
+      console.log('👑 Admin Master detectado');
+      setUserRole('admin');
       localStorage.setItem('user_role', 'admin');
-      
-      // Sincroniza em background sem dar await para não travar a UI
-      supabase.from('profiles').select('id, full_name, avatar_url, role').eq('id', userId).maybeSingle().then(({ data: existing }) => {
-        if (!existing || existing.role !== 'admin') {
-          const profileData: any = { 
-            id: userId, 
-            email: email,
-            role: 'admin'
-          };
-          
-          // Preserva dados existentes se houver
-          if (existing?.full_name) {
-            profileData.full_name = existing.full_name;
-          } else if (email) {
-            profileData.full_name = email.split('@')[0];
-          }
-
-          if (existing?.avatar_url) {
-            profileData.avatar_url = existing.avatar_url;
-          }
-          
-          supabase.from('profiles').upsert(profileData, { onConflict: 'id' }).then(({ error }) => {
-            if (error) console.warn('⚠️ Falha ao sincronizar role admin no banco:', error);
-          });
-        }
-      });
-      
       return 'admin';
     }
-    
+
+    // 2. Tentar usar cache para liberar a UI rápido
+    const cachedRole = localStorage.getItem('user_role');
+    if (cachedRole) {
+      setUserRole(cachedRole);
+      // Não damos return aqui, continuamos em background para validar
+    }
+
     try {
-      console.log('⏱️ Buscando role no banco para:', userId);
+      // 3. Consulta Única Otimizada
+      // Buscamos o profile. Se não existir, criamos.
+      console.log('⏱️ Buscando dados no banco...');
       const { data: profile, error } = await withTimeout(
         supabase
           .from('profiles')
-          .select('role, full_name')
+          .select('role')
           .eq('id', userId)
           .maybeSingle(),
-        10000
+        4000
       );
-      
-      if (error) {
-        console.warn('⚠️ Erro ao buscar role no banco:', error);
-        // Se falhar o banco mas for o email master, ainda é admin
-        if (email === 'pereira.itapema@gmail.com') return 'admin';
-        return 'customer';
+
+      if (error) throw error;
+
+      let finalRole = 'customer';
+
+      if (!profile) {
+        console.log('🆕 Criando perfil inicial...');
+        const { data: newProfile } = await supabase.from('profiles').upsert({
+          id: userId,
+          email: email,
+          role: 'customer',
+          full_name: email?.split('@')[0] || 'Usuário'
+        }, { onConflict: 'id' }).select('role').single();
+        finalRole = newProfile?.role || 'customer';
+      } else {
+        finalRole = profile.role;
       }
-      
-      if (profile?.role) {
-        console.log('✅ Role encontrado no banco:', profile.role);
-        localStorage.setItem('user_role', profile.role);
-        if (profile.full_name) {
-          localStorage.setItem('user_full_name', profile.full_name);
+
+      // 4. Se for 'customer', verificar se é afiliado (apenas se necessário)
+      if (finalRole === 'customer') {
+        const { data: affiliate } = await supabase
+          .from('affiliates')
+          .select('status, active')
+          .eq('user_id', userId)
+          .maybeSingle();
+        
+        if (affiliate && (affiliate.status === 'approved' || affiliate.active)) {
+          finalRole = 'affiliate';
         }
-        return profile.role;
       }
-      
-      console.log('ℹ️ Nenhum perfil encontrado, assumindo customer');
-      return 'customer';
+
+      console.log('✅ Role final definido:', finalRole);
+      setUserRole(finalRole);
+      localStorage.setItem('user_role', finalRole);
+      return finalRole;
+
     } catch (error) {
-      console.error('❌ Erro crítico ao buscar user role:', error);
-      if (email === 'pereira.itapema@gmail.com') return 'admin';
-      return 'customer';
+      console.error('❌ Erro na sincronização:', error);
+      const fallback = cachedRole || 'customer';
+      setUserRole(fallback);
+      return fallback;
     }
   };
 
-  // Safety timeout for loading state - Reduzido para 2s
+  // Safety timeout for loading state
   useEffect(() => {
     if (loading) {
       const timer = setTimeout(() => {
-        console.warn('⚠️ Loading timeout reached in App.tsx, forcing loading to false');
+        console.warn('⚠️ Loading timeout reached, forcing UI release');
         setLoading(false);
-      }, 10000);
+      }, 6000); 
       return () => clearTimeout(timer);
     }
   }, [loading]);
@@ -149,7 +150,7 @@ function AppContent() {
     };
     checkDB();
 
-    // 1. Pegar sessão inicial e redirecionar se necessário
+    // 1. Pegar sessão inicial
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       
@@ -157,133 +158,42 @@ function AppContent() {
       const path = window.location.pathname;
 
       if (hash.includes('type=recovery') || hash.includes('access_token=')) {
-        console.log('🔑 Recovery link detected in URL hash');
-        // Se já estivermos na página de reset, não faz nada para não perder o hash
-        if (path !== '/reset-password') {
-          navigate('/reset-password' + hash);
-        }
-        setLoading(false);
-        return;
-      }
-
-      // Detectar se o usuário clicou no link de reset de senha (PKCE flow)
-      // O Supabase redireciona com ?code=... e nós salvamos no localStorage
-      if (window.location.search.includes('type=recovery') || (window.location.search.includes('code=') && localStorage.getItem('password_reset_requested') === 'true')) {
-        console.log('🔑 Password reset code detected in URL');
-        localStorage.removeItem('password_reset_requested');
-        if (path !== '/reset-password') {
-          navigate('/reset-password' + window.location.search);
-        }
+        if (path !== '/reset-password') navigate('/reset-password' + hash);
         setLoading(false);
         return;
       }
 
       if (session) {
-        console.log('👤 Sessão inicial detectada:', session.user.email);
-        
-        // Se for o Admin Master, forçamos o role admin IMEDIATAMENTE antes de qualquer coisa
-        if (session.user.email === 'pereira.itapema@gmail.com') {
-          console.log('👑 Admin Master na sessão inicial - Forçando estado');
-          setUserRole('admin');
-          localStorage.setItem('user_role', 'admin');
-          setLoading(false);
-          
-          // Sincroniza em background
-          fetchUserRole(session.user.id, session.user.email);
-          handleRoleRedirect(session);
-          return;
-        }
-
-        // Se já temos o role no cache, liberamos o loading IMEDIATAMENTE
-        const cachedRole = localStorage.getItem('user_role');
-        if (cachedRole) {
-          console.log('📦 Usando role em cache:', cachedRole);
-          setUserRole(cachedRole);
-          setLoading(false);
-          // Busca o role atualizado em background sem bloquear a UI
-          fetchUserRole(session.user.id, session.user.email).then(role => {
-            if (role !== cachedRole) {
-              console.log('🔄 Atualizando role em cache:', cachedRole, '->', role);
-              setUserRole(role);
-              localStorage.setItem('user_role', role);
-            }
-          });
-        } else {
-          console.log('⏱️ Buscando role inicial...');
-          const role = await fetchUserRole(session.user.id, session.user.email);
-          setUserRole(role);
-          localStorage.setItem('user_role', role);
-          setLoading(false);
-        }
-        
-        // Redirecionamento em background
-        handleRoleRedirect(session);
+        const role = await syncUserSession(session.user.id, session.user.email);
+        handleRoleRedirect(session, role);
       } else {
         localStorage.removeItem('user_role');
         setLoading(false);
       }
     });
 
-    // 2. Ouvir mudanças (Login/Logout)
+    // 2. Ouvir mudanças
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔔 Auth Event:', event);
       setSession(session);
       
-      if (event === 'PASSWORD_RECOVERY' || window.location.hash.includes('type=recovery')) {
-        console.log('🔑 Password Recovery Flow Detected');
-        // Garantir que estamos na página correta e manter o hash se existir
-        const hash = window.location.hash;
-        if (window.location.pathname !== '/reset-password') {
-          navigate('/reset-password' + hash);
-        }
-        setLoading(false);
-        return;
-      }
-
-      if (event === 'SIGNED_IN' && (window.location.search.includes('type=recovery') || (window.location.search.includes('code=') && localStorage.getItem('password_reset_requested') === 'true'))) {
-        console.log('🔑 Password reset code detected in URL during SIGNED_IN');
-        localStorage.removeItem('password_reset_requested');
-        if (window.location.pathname !== '/reset-password') {
-          navigate('/reset-password' + window.location.search);
-        }
-        setLoading(false);
-        return;
-      }
-
-      // Redirecionamento automático no Login inicial
       if (event === 'SIGNED_IN' && session) {
-        console.log('✅ Usuário logado:', session.user.email);
+        const role = await syncUserSession(session.user.id, session.user.email);
         
-        // Sempre aguardar a busca do role para garantir consistência
-        console.log('⏱️ Buscando role do usuário...');
-        const role = await fetchUserRole(session.user.id, session.user.email);
-        console.log('✅ Role obtido:', role);
-        setUserRole(role);
-        localStorage.setItem('user_role', role);
-
-        // Se estivermos em um fluxo de recuperação, NÃO redirecionar para dashboard
         if (window.location.hash.includes('type=recovery') || window.location.pathname === '/reset-password') {
-          console.log('⏳ Mantendo na página de recuperação...');
           setLoading(false);
           return;
         }
 
-        // Marcar como Lead Frio (apenas se for login normal, não recuperação)
         if (!sessionStorage.getItem('lead_status_updated')) {
           leadService.updateStatus('frio');
           sessionStorage.setItem('lead_status_updated', 'true');
         }
 
-        const path = window.location.pathname;
-        // Se estivermos em páginas de auth ou na home/profile, decidir para onde ir
-        if (path === '/login' || path === '/register' || path === '/' || path === '/callback.html' || path === '/profile') {
-          await handleRoleRedirect(session);
-        }
+        await handleRoleRedirect(session, role);
       }
       
       if (event === 'SIGNED_OUT') {
-        console.log('🚪 Usuário deslogado');
-        setSession(null);
         setUserRole(null);
         localStorage.removeItem('user_role');
         navigate('/login');
@@ -292,126 +202,27 @@ function AppContent() {
       setLoading(false);
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const handleRoleRedirect = async (session: any) => {
+  const handleRoleRedirect = async (session: any, forcedRole?: string) => {
     if (!session) {
       setLoading(false);
       return;
     }
     
     const path = window.location.pathname;
-    const userEmail = session.user.email;
-    const userId = session.user.id;
+    const role = forcedRole || userRole || localStorage.getItem('user_role') || 'customer';
 
-    console.log('🔍 Verificando permissões para:', userEmail, 'ID:', userId, 'Path:', path);
+    console.log('🚀 Redirecionando baseado no role:', role, 'Path atual:', path);
     
-    try {
-      console.log('⏱️ Iniciando verificação de Admin Master...');
-      // 1. Admin Master (Prioridade Máxima)
-      if (userEmail === 'pereira.itapema@gmail.com') {
-        console.log('👑 Admin Master detectado - Forçando role admin');
-        setUserRole('admin');
-        localStorage.setItem('user_role', 'admin');
-
-        if (path === '/login' || path === '/register') {
-          console.log('🚀 Redirecionando Admin para /dashboard');
-          navigate('/dashboard');
-        }
-        setLoading(false);
-        return;
-      }
-
-      console.log('⏱️ Verificando tabela de afiliados...');
-      // 2. Verificar se é Afiliado Aprovado (Consulta rápida)
-      const { data: affiliate, error: affError } = await withTimeout(
-        supabase
-          .from('affiliates')
-          .select('id, status, active')
-          .eq('user_id', userId)
-          .maybeSingle()
-      );
-
-      if (affError) {
-        console.warn('⚠️ Erro ao buscar afiliado:', affError);
-      }
-      console.log('📊 Dados Afiliado encontrados:', affiliate);
-
-      if (affiliate && (affiliate.status === 'approved' || (affiliate.active && !affiliate.status))) {
-        console.log('🤝 Afiliado aprovado detectado');
-        setUserRole('affiliate');
-        localStorage.setItem('user_role', 'affiliate');
-        
-        if (path === '/login' || path === '/register') {
-          console.log('🚀 Redirecionando Admin Afiliado para /affiliate-dashboard');
-          navigate('/affiliate-dashboard');
-        }
-        setLoading(false);
-        return;
-      }
-      
-      if (affiliate && affiliate.status === 'pending') {
-        console.log('⏳ Afiliado pendente detectado, tratando como cliente por enquanto');
-      }
-
-      console.log('⏱️ Verificando tabela de perfis...');
-      // 3. Sincronizar Profile
-      const { data: profile, error: profileError } = await withTimeout(
-        supabase
-          .from('profiles')
-          .select('role, full_name')
-          .eq('id', userId)
-          .maybeSingle()
-      );
-
-      if (profileError) console.warn('⚠️ Erro ao buscar perfil:', profileError);
-      console.log('📊 Dados Perfil encontrados:', profile);
-
-      if (!profile && !profileError) {
-        console.log('🆕 Criando perfil inicial para:', userEmail);
-        await withTimeout(
-          supabase.from('profiles').upsert({
-            id: userId,
-            email: userEmail,
-            role: 'customer',
-            full_name: userEmail.split('@')[0]
-          }, { onConflict: 'id' })
-        );
-        setUserRole('customer');
-      } else if (profile) {
-        setUserRole(profile.role);
-      }
-
-      // 4. Verificar se é Admin secundário
-      if (profile?.role === 'admin') {
-        console.log('🛠️ Admin secundário detectado');
-        const hasFullName = (profile as any)?.full_name;
-        if (path === '/login' || path === '/register') {
-          console.log('🚀 Redirecionando Admin secundário para /dashboard');
-          navigate('/dashboard');
-        }
-        setLoading(false);
-        return;
-      }
-
-      // 5. Cliente Normal
-      console.log('👤 Usuário comum detectado');
-      setUserRole(profile?.role || 'customer');
-      localStorage.setItem('user_role', profile?.role || 'customer');
-      
-      if (path === '/login' || path === '/register') {
-        console.log('🚀 Redirecionando Cliente para /');
-        navigate('/');
-      }
-    } catch (err) {
-      console.error('❌ Erro crítico no redirecionamento:', err);
-    } finally {
-      console.log('🏁 Finalizando handleRoleRedirect, loading -> false');
-      setLoading(false);
+    if (path === '/login' || path === '/register' || path === '/' || path === '/callback.html' || path === '/profile') {
+      if (role === 'admin') navigate('/dashboard');
+      else if (role === 'affiliate') navigate('/affiliate-dashboard');
+      else if (path !== '/') navigate('/');
     }
+    
+    setLoading(false);
   };
 
   const AdminRoute = ({ children }: { children: React.ReactNode }) => {
