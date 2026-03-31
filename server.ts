@@ -53,6 +53,19 @@ async function startServer() {
     }
   });
 
+  // Proxy para Rastreio CepCerto (CORS Fix)
+  app.get("/api/tracking/cepcerto", async (req, res) => {
+    const { tracking_code, api_key } = req.query;
+    try {
+      const response = await fetch(`https://www.cepcerto.com/ws/json-rastreio/${tracking_code}/${api_key}`);
+      const data = await response.json();
+      res.status(response.status).json(data);
+    } catch (error) {
+      console.error('❌ Erro no proxy CepCerto:', error);
+      res.status(500).json({ error: 'Erro ao contatar CepCerto' });
+    }
+  });
+
   // Middleware de Frontend (Vite ou Estático) - DEVE VIR APÓS AS ROTAS DE API
   if (process.env.NODE_ENV === "production") {
     app.use(express.static(path.join(__dirname, "dist"), {

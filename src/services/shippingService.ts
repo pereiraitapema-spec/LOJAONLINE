@@ -509,11 +509,33 @@ const cepcertoProvider: ShippingProvider = {
   async getTrackingStatus(trackingCode: string, config: any) {
     console.log('🔍 Buscando rastreio para:', trackingCode, 'Config:', JSON.stringify(config));
     const cleanTrackingCode = trackingCode.trim();
+    const apiKey = config?.api_key || config?.api_key_postagem;
 
-    // Se o usuário tiver configuração de Melhor Envio no CepCerto, podemos usar o provedor do Melhor Envio
-    if (config?.api_key && config.api_key.length > 20) {
-       console.log('🔄 Redirecionando rastreio CepCerto para Melhor Envio (Token detectado)');
-       return melhorenvioProvider.getTrackingStatus(cleanTrackingCode, config);
+    // Tenta via CepCerto API (Proxy)
+    if (apiKey) {
+      try {
+        console.log('🔄 Chamando Proxy CepCerto...');
+        const response = await fetch(`/api/tracking/cepcerto?tracking_code=${cleanTrackingCode}&api_key=${apiKey}`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📦 Resposta CepCerto (DEBUG):', data);
+          
+          // CepCerto retorna um array de eventos ou objeto com erro
+          if (data && !data.erro && Array.isArray(data.eventos)) {
+            console.log('✅ Rastreio encontrado via CepCerto API');
+            return {
+              status: data.eventos[0]?.status || 'Em trânsito',
+              history: data.eventos.map((e: any) => ({
+                date: `${e.data} ${e.hora}`,
+                location: e.local || 'Não informado',
+                description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
+              }))
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Erro ao buscar rastreio via CepCerto API:', e);
+      }
     }
 
     // Fallback para BrasilAPI
