@@ -1038,6 +1038,7 @@ export const shippingService = {
     // 2. Tenta o endpoint unificado do backend
     try {
       const endpoint = isUuid ? `/api/tracking/order/${trackingCode}` : `/api/tracking/code/${trackingCode}`;
+      console.log(`📡 [FRONTEND] Consultando API rastreamento: ${trackingCode}`);
       console.log(`🔄 Chamando Backend Unificado (${isUuid ? 'Order ID' : 'Code'}): ${endpoint}`);
       
       const response = await fetch(endpoint);
@@ -1045,7 +1046,7 @@ export const shippingService = {
       
       if (response.ok && data.success) {
         console.log('✅ Rastreio encontrado via Backend');
-        console.log("📊 [FRONTEND] Eventos encontrados:", data.history?.length || 0);
+        console.log("📊 [FRONTEND] Eventos API encontrados:", data.history?.length || 0);
         console.log("📋 [FRONTEND] Eventos completos:", data.history);
         return {
           status: data.status || 'Em trânsito',
@@ -1058,6 +1059,7 @@ export const shippingService = {
 
     // 3. Fallback: Busca direta no Supabase se o backend falhar
     try {
+      console.log("⚠️ [FRONTEND] Usando fallback manual/banco");
       let query = supabase.from('orders').select('id, status, tracking_code');
       
       if (isUuid) {
