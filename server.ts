@@ -94,7 +94,11 @@ async function startServer() {
     }
 
     try {
-      const response = await fetch(`https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${tracking_code}`);
+      const response = await fetch(`https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${tracking_code}`, {
+        headers: {
+          'User-Agent': 'Magnifique4Life (contato@magnifique4life.com.br)'
+        }
+      });
       const text = await response.text();
       try {
         const data = JSON.parse(text);
