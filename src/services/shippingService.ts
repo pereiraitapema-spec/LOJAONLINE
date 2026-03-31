@@ -1088,6 +1088,22 @@ export const shippingService = {
       return { status: 'Aguardando confirmação', history: [] };
     }
 
+    // Tenta o novo endpoint unificado do backend primeiro
+    try {
+      console.log('🔄 Chamando Backend Unificado para:', order.id);
+      const response = await fetch(`/api/tracking/${order.id}`);
+      const data = await response.json();
+      if (response.ok && data.success) {
+        console.log('✅ Rastreio encontrado via Backend');
+        return {
+          status: data.status || 'Em trânsito',
+          history: data.history || []
+        };
+      }
+    } catch (e) {
+      console.warn('⚠️ Backend Unificado falhou, usando fallbacks client-side...');
+    }
+
     // Normalização robusta do nome da transportadora
     const normalizeCarrierName = (name: string) => {
         if (!name) return 'CEPCERTO';

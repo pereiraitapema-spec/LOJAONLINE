@@ -77,13 +77,40 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
     setLoading(true);
     setRealTimeHistory([]);
     try {
+      const idToUse = searchId || orderId;
+      const codeToUse = searchCode || trackingCode;
+
+      // 1. Se tivermos um ID de pedido, usamos o novo endpoint unificado
+      if (idToUse) {
+        const response = await fetch(`/api/tracking/${idToUse}`);
+        const data = await response.json();
+
+        if (response.ok) {
+          // Busca dados complementares do pedido no Supabase para exibir no modal
+          const { data: order } = await supabase
+            .from('orders')
+            .select('id, status, tracking_code, created_at, total, order_items(product_name, price)')
+            .eq('id', idToUse)
+            .single();
+
+          if (order) {
+            setTrackingData(order);
+            if (data.history && data.history.length > 0) {
+              setRealTimeHistory(data.history);
+            }
+            setViewMode('detail');
+            return;
+          }
+        } else if (data.error) {
+          console.warn('Erro no endpoint unificado:', data.error);
+        }
+      }
+
+      // 2. Fallback ou busca por código direto (se não houver ID ou o endpoint falhar)
       const query = supabase
         .from('orders')
         .select('id, status, tracking_code, created_at, total, tracking_history(*), order_items(product_name, price)');
       
-      const codeToUse = searchCode || trackingCode;
-      const idToUse = searchId || orderId;
-
       if (codeToUse) {
         query.eq('tracking_code', codeToUse);
       } else if (idToUse) {
@@ -99,7 +126,6 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
       const order = orders && orders.length > 0 ? orders[0] : null;
 
       if (!order) {
-        // Se não encontrou o pedido no banco, tenta buscar o rastreio direto (flexibilidade)
         if (codeToUse) {
            const realTime = await shippingService.getTrackingStatus(codeToUse);
            if (realTime && realTime.history && realTime.history.length > 0) {
@@ -116,16 +142,12 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
            }
         }
         toast.error('Pedido ou código de rastreio não encontrado.');
-        if (viewMode === 'detail' && !trackingCode && !orderId) {
-          setViewMode('list');
-        }
         return;
       }
 
       setTrackingData(order);
       setViewMode('detail');
 
-      // Se houver código de rastreio, busca na API real através do shippingService
       if (order.tracking_code) {
         try {
           const realTime = await shippingService.getTrackingStatus(order.tracking_code);

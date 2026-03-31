@@ -87,15 +87,28 @@ export default function Tracking() {
     setSelectedOrder(order);
     setRealTimeHistory([]);
     
-    if (order.tracking_code) {
-      try {
+    try {
+      console.log('🔍 Buscando rastreio unificado para:', order.id);
+      
+      // Tenta o novo endpoint unificado do backend primeiro
+      const response = await fetch(`/api/tracking/${order.id}`);
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        console.log('✅ Status de rastreio recebido via Backend:', data);
+        if (data.history && data.history.length > 0) {
+          setRealTimeHistory(data.history);
+        }
+      } else if (order.tracking_code) {
+        // Fallback para o serviço client-side se o backend falhar ou não encontrar
+        console.warn('⚠️ Backend falhou ou não encontrou rastreio. Usando shippingService...');
         const realTime = await shippingService.getTrackingStatus(order.tracking_code);
         if (realTime && realTime.history && realTime.history.length > 0) {
           setRealTimeHistory(realTime.history);
         }
-      } catch (apiError) {
-        console.warn('Erro ao buscar rastreio na API:', apiError);
       }
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar rastreio:', error);
     }
   };
 
