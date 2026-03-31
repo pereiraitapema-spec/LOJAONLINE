@@ -1088,20 +1088,36 @@ export const shippingService = {
       return { status: 'Aguardando confirmação', history: [] };
     }
 
-    // Tenta o novo endpoint unificado do backend primeiro
+    // Tenta o novo endpoint unificado do backend primeiro (por ID do pedido)
     try {
-      console.log('🔄 Chamando Backend Unificado para:', order.id);
-      const response = await fetch(`/api/tracking/${order.id}`);
+      console.log('🔄 Chamando Backend Unificado (Order ID) para:', order.id);
+      const response = await fetch(`/api/tracking/order/${order.id}`);
       const data = await response.json();
       if (response.ok && data.success) {
-        console.log('✅ Rastreio encontrado via Backend');
+        console.log('✅ Rastreio encontrado via Backend (Order ID)');
         return {
           status: data.status || 'Em trânsito',
           history: data.history || []
         };
       }
     } catch (e) {
-      console.warn('⚠️ Backend Unificado falhou, usando fallbacks client-side...');
+      console.warn('⚠️ Backend Order ID falhou, tentando por código direto...');
+    }
+
+    // Tenta o endpoint por código direto
+    try {
+      console.log('🔄 Chamando Backend Unificado (Code) para:', order.tracking_code);
+      const response = await fetch(`/api/tracking/code/${order.tracking_code}`);
+      const data = await response.json();
+      if (response.ok && data.success) {
+        console.log('✅ Rastreio encontrado via Backend (Code)');
+        return {
+          status: data.status || 'Em trânsito',
+          history: data.history || []
+        };
+      }
+    } catch (e) {
+      console.warn('⚠️ Backend Code falhou, usando fallbacks client-side...');
     }
 
     // Normalização robusta do nome da transportadora

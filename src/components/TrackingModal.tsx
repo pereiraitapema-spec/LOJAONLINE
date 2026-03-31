@@ -80,12 +80,12 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
       const idToUse = searchId || orderId;
       const codeToUse = searchCode || trackingCode;
 
-      // 1. Se tivermos um ID de pedido, usamos o novo endpoint unificado
+      // 1. Se tivermos um ID de pedido, usamos o novo endpoint unificado (Order ID)
       if (idToUse) {
-        const response = await fetch(`/api/tracking/${idToUse}`);
+        const response = await fetch(`/api/tracking/order/${idToUse}`);
         const data = await response.json();
 
-        if (response.ok) {
+        if (response.ok && data.success) {
           // Busca dados complementares do pedido no Supabase para exibir no modal
           const { data: order } = await supabase
             .from('orders')
@@ -102,7 +102,25 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
             return;
           }
         } else if (data.error) {
-          console.warn('Erro no endpoint unificado:', data.error);
+          console.warn('Erro no endpoint unificado (Order ID):', data.error);
+        }
+      }
+
+      // 1.1 Se tivermos um código, tentamos o endpoint por código direto
+      if (codeToUse) {
+        const response = await fetch(`/api/tracking/code/${codeToUse}`);
+        const data = await response.json();
+        if (response.ok && data.success) {
+           setTrackingData({ 
+             id: codeToUse, 
+             tracking_code: codeToUse, 
+             status: data.status || 'Em trânsito', 
+             created_at: new Date().toISOString(),
+             shipping_method: 'Rastreio Externo'
+           });
+           setRealTimeHistory(data.history || []);
+           setViewMode('detail');
+           return;
         }
       }
 
