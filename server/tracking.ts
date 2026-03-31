@@ -15,9 +15,14 @@ export async function handleTracking(req: any, res: any) {
     // 1. TENTA SEURASTREIO (Melhor opção gratuita e estável atual)
     try {
       console.log(`📡 [SeuRastreio] Consultando ${code}...`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      
       const response = await fetch(`https://seurastreio.com.br/api/v1/track/${code}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+        signal: controller.signal
       });
+      clearTimeout(timeout);
       
       if (response.ok) {
         const data: any = await response.json();
@@ -36,16 +41,21 @@ export async function handleTracking(req: any, res: any) {
         }
       }
     } catch (e: any) {
-      console.warn(`⚠️ SeuRastreio falhou: ${e.message}`);
+      console.warn(`⚠️ SeuRastreio falhou ou timeout: ${e.message}`);
     }
 
     // 2. TENTA LINKETRACK (Fallback muito bom se o User-Agent for correto)
     try {
       console.log(`📡 [Linketrack] Consultando ${code}...`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      
       const linkeUrl = `https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${code}`;
       const linkeRes = await fetch(linkeUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+        signal: controller.signal
       });
+      clearTimeout(timeout);
       
       if (linkeRes.ok) {
         const data: any = await linkeRes.json();
@@ -64,15 +74,20 @@ export async function handleTracking(req: any, res: any) {
         }
       }
     } catch (e: any) {
-      console.warn(`⚠️ Linketrack falhou: ${e.message}`);
+      console.warn(`⚠️ Linketrack falhou ou timeout: ${e.message}`);
     }
 
     // 3. TENTA CEP CERTO (URL Corrigida e Profissional)
     if (apiKey) {
       try {
         console.log(`📡 [CepCerto] Consultando ${code}...`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        
         const cepUrl = `https://cepcerto.com/ws/encomenda-json/${code}/${apiKey}`;
-        const cepRes = await fetch(cepUrl);
+        const cepRes = await fetch(cepUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+        
         if (cepRes.ok) {
           const data: any = await cepRes.json();
           if (data && !data.erro && data.eventos) {
@@ -90,7 +105,7 @@ export async function handleTracking(req: any, res: any) {
           }
         }
       } catch (e: any) {
-        console.warn(`⚠️ CepCerto falhou: ${e.message}`);
+        console.warn(`⚠️ CepCerto falhou ou timeout: ${e.message}`);
       }
     }
 
