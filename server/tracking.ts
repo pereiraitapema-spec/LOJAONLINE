@@ -76,11 +76,18 @@ export async function handleOrderTracking(req: any, res: any) {
     }
 
     if (!order.tracking_code) {
+      console.log(`ℹ️ [API] Pedido ${orderId} sem código de rastreio. Retornando status padrão.`);
       return res.json({ 
         success: true, 
-        status: "preparing", 
-        message: "Pedido em preparação ou código não gerado",
-        history: []
+        status: "Confirmado", 
+        message: "Pedido confirmado e em preparação",
+        history: [
+          {
+            description: "Pedido confirmado e em preparação",
+            location: "Centro Logístico",
+            date: new Date().toLocaleString('pt-BR')
+          }
+        ]
       });
     }
 

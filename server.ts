@@ -28,7 +28,10 @@ async function startServer() {
   // 3. Rastreio por ID do Pedido (Busca no Supabase)
   app.get("/api/tracking/order/:orderId", handleOrderTracking);
 
-  // 4. Proxy para Rastreio CepCerto (CORS Fix)
+  // 4. Rota de Compatibilidade (Resolve o erro 404 do frontend)
+  app.get("/api/tracking/:orderId", handleOrderTracking);
+
+  // 5. Proxy para Rastreio CepCerto (CORS Fix)
   app.all("/api/tracking/cepcerto", async (req, res) => {
     const { tracking_code, api_key } = { ...req.query, ...req.body };
     if (!tracking_code || !api_key) return res.status(400).json({ error: 'Dados incompletos' });
