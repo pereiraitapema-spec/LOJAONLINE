@@ -82,7 +82,7 @@ function AppContent() {
           .select('role')
           .eq('id', userId)
           .maybeSingle(),
-        4000
+        15000
       );
 
       if (error) throw error;
@@ -216,10 +216,13 @@ function AppContent() {
 
     console.log('🚀 Redirecionando baseado no role:', role, 'Path atual:', path);
     
-    if (path === '/login' || path === '/register' || path === '/' || path === '/callback.html' || path === '/profile') {
+    // Lista de caminhos que NÃO devem sofrer redirecionamento automático se o usuário for 'user'
+    const isUserPage = path === '/profile' || path === '/success' || path.startsWith('/tracking');
+
+    if (path === '/login' || path === '/register' || path === '/' || path === '/callback.html') {
       if (role === 'admin') navigate('/dashboard');
       else if (role === 'affiliate') navigate('/affiliate-dashboard');
-      else if (path !== '/') navigate('/');
+      else if (path !== '/' && !isUserPage) navigate('/');
     }
     
     setLoading(false);

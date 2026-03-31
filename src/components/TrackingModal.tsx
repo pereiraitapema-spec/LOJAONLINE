@@ -132,7 +132,15 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
       // 2. Fallback ou busca por código direto (se não houver ID ou o endpoint falhar)
       const query = supabase
         .from('orders')
-        .select('id, status, tracking_code, created_at, total, tracking_history(*), order_items(product_name, price)');
+        .select(`
+          id, 
+          status, 
+          tracking_code, 
+          created_at, 
+          total, 
+          tracking_history(*), 
+          order_items(*)
+        `);
       
       if (codeToUse) {
         query.eq('tracking_code', codeToUse);
@@ -169,6 +177,7 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
       }
 
       setTrackingData(order);
+      console.log('📦 [FRONTEND] Dados do pedido carregados:', order);
       setViewMode('detail');
 
       if (order.tracking_code) {
@@ -346,10 +355,18 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                         </div>
                         
                         {trackingData.order_items && trackingData.order_items.length > 0 && (
-                          <div className="border-t border-slate-200 pt-4">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Produto</p>
-                            <p className="font-bold text-slate-900">{trackingData.order_items[0].product_name}</p>
-                            <p className="text-sm text-indigo-600 font-bold">R$ {trackingData.total.toFixed(2)}</p>
+                          <div className="border-t border-slate-200 pt-4 space-y-2">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Produtos no Pedido</p>
+                            {trackingData.order_items.map((item: any, idx: number) => (
+                              <div key={idx} className="flex justify-between items-center">
+                                <p className="font-bold text-slate-900 text-sm">{item.product_name}</p>
+                                <p className="text-xs text-slate-500">R$ {item.price.toFixed(2)}</p>
+                              </div>
+                            ))}
+                            <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                              <p className="text-xs font-bold text-slate-400">Total</p>
+                              <p className="text-sm text-indigo-600 font-black">R$ {trackingData.total.toFixed(2)}</p>
+                            </div>
                           </div>
                         )}
                         

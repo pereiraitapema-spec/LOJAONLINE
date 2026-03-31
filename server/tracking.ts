@@ -13,6 +13,41 @@ export async function handleTracking(req: any, res: any) {
   }
 
   try {
+    // 0. TENTA CEPCERTO (Se houver API KEY)
+    if (apiKey && apiKey !== 'undefined') {
+      try {
+        console.log(`📡 [TRACKING_LOG] Consultando CepCerto...`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        
+        const cepUrl = `https://cepcerto.com/ws/encomenda-json/${code}/${apiKey}`;
+        const response = await fetch(cepUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+        
+        console.log(`📊 [TRACKING_LOG] CepCerto Status: ${response.status}`);
+        
+        if (response.ok) {
+          const data: any = await response.json();
+          // CepCerto retorna um array de objetos no campo 'rastreio' ou similar
+          if (data && data.rastreio && data.rastreio.length > 0) {
+            console.log(`✅ [TRACKING_LOG] CepCerto retornou ${data.rastreio.length} eventos.`);
+            return res.json({
+              success: true,
+              provider: 'CepCerto',
+              status: data.status || 'Em trânsito',
+              history: data.rastreio.map((e: any) => ({
+                date: e.data + ' ' + e.hora,
+                location: e.local || 'Correios',
+                description: e.status
+              }))
+            });
+          }
+        }
+      } catch (e: any) {
+        console.error(`⚠️ [TRACKING_LOG] Falha no CepCerto: ${e.message}`);
+      }
+    }
+
     // 1. TENTA SEURASTREIO
     try {
       console.log(`📡 [TRACKING_LOG] Consultando SeuRastreio...`);
@@ -49,7 +84,40 @@ export async function handleTracking(req: any, res: any) {
       console.error(`⚠️ [TRACKING_LOG] Falha no SeuRastreio: ${e.message}`);
     }
 
-    // 2. TENTA LINKETRACK
+    // 2. TENTA BRASILAPI
+    try {
+      console.log(`📡 [TRACKING_LOG] Consultando BrasilAPI...`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      
+      const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${code}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      
+      console.log(`📊 [TRACKING_LOG] BrasilAPI Status: ${response.status}`);
+      
+      if (response.ok) {
+        const data: any = await response.json();
+        if (data && data.eventos && data.eventos.length > 0) {
+          console.log(`✅ [TRACKING_LOG] BrasilAPI retornou ${data.eventos.length} eventos.`);
+          return res.json({
+            success: true,
+            provider: 'BrasilAPI',
+            status: data.eventos[0].status || 'Em trânsito',
+            history: data.eventos.map((e: any) => ({
+              date: new Date(e.data).toLocaleString('pt-BR'),
+              location: e.local || 'Correios',
+              description: e.status
+            }))
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error(`⚠️ [TRACKING_LOG] Falha na BrasilAPI: ${e.message}`);
+    }
+
+    // 3. TENTA LINKETRACK
     try {
       console.log(`📡 [TRACKING_LOG] Consultando Linketrack...`);
       const controller = new AbortController();
