@@ -1117,28 +1117,22 @@ export default function Orders() {
   };
 
   const fetchTrackingStatus = async (orderId: string) => {
+    if (!orderId) return;
     try {
       setLoadingTracking(true);
-      console.log('🔍 Buscando rastreio unificado para:', orderId);
+      console.log('🔍 Iniciando rastreio para o pedido:', orderId);
       
-      // Tenta o novo endpoint unificado do backend primeiro
-      const response = await fetch(`/api/tracking/${orderId}`);
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        console.log('✅ Status de rastreio recebido via Backend:', data);
-        setTrackingStatus({
-          status: data.status || 'Em trânsito',
-          history: data.history || []
-        });
+      // Usa o serviço centralizado que já tem todos os logs e lógica de fallback
+      const result = await shippingService.getTrackingStatus(orderId);
+      
+      if (result) {
+        setTrackingStatus(result);
       } else {
-        // Fallback para o serviço client-side se o backend falhar ou não encontrar
-        console.warn('⚠️ Backend falhou ou não encontrou rastreio. Usando shippingService...');
-        const status = await shippingService.getTrackingStatus(orderId);
-        setTrackingStatus(status);
+        console.log('⚠️ Nenhum histórico encontrado para o pedido:', orderId);
+        setTrackingStatus({ status: 'Não encontrado', history: [] });
       }
     } catch (error: any) {
-      console.error('❌ Erro ao buscar rastreio:', error);
+      console.error('❌ Erro ao buscar rastreio na página:', error);
       setTrackingStatus({ status: 'Erro ao buscar rastreio', history: [] });
     } finally {
       setLoadingTracking(false);
