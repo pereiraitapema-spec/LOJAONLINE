@@ -372,12 +372,12 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                           <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
                             <Package size={40} className="mx-auto text-slate-300 mb-3" />
                             <p className="text-sm text-slate-500 font-bold">
-                              {trackingData.tracking_code === 'CLIENTE BUSCA NA EMPRESA'
+                              {trackingData.tracking_code === 'CLIENTE BUSCA NA EMPRESA' || trackingData.shipping_method === 'CLIENTE BUSCA NA EMPRESA'
                                 ? 'PRODUTO PRONTO PARA RETIRADA'
                                 : 'SEU PRODUTO ESTÁ SENDO PREPARADO'}
                             </p>
                             <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">
-                              {trackingData.tracking_code === 'CLIENTE BUSCA NA EMPRESA'
+                              {trackingData.tracking_code === 'CLIENTE BUSCA NA EMPRESA' || trackingData.shipping_method === 'CLIENTE BUSCA NA EMPRESA'
                                 ? 'É só ir buscar o produto na empresa e levar o comprovante de pagamento.'
                                 : trackingData.tracking_code 
                                   ? 'O código de rastreio já foi gerado e aguarda coleta.' 

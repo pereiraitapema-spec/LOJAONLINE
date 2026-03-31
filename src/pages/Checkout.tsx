@@ -1031,7 +1031,8 @@ export default function Checkout() {
         shipping_cost: shippingCost,
         payment_method: paymentMethod === 'pagarme' ? pagarmeMethod : paymentMethod,
         shipping_method: currentShipping?.name || 'Padrão',
-        shipping_address: shipping
+        shipping_address: shipping,
+        tracking_code: currentShipping?.id === 'balcao' ? 'CLIENTE BUSCA NA EMPRESA' : null
       };
 
       console.log('🚀 Tentando criar pedido no Supabase com os seguintes dados:', JSON.stringify(orderPayload, null, 2));

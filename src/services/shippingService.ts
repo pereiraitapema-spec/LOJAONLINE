@@ -1057,6 +1057,13 @@ export const shippingService = {
       } else {
         console.log("✅ Pedido encontrado:", order.id);
         trackingCode = order.tracking_code;
+        
+        if (order.shipping_method === 'CLIENTE BUSCA NA EMPRESA') {
+          return {
+            status: 'Pronto para retirada',
+            history: []
+          };
+        }
       }
     }
 
@@ -1064,11 +1071,7 @@ export const shippingService = {
       if (trackingCode.toUpperCase() === 'CLIENTE BUSCA NA EMPRESA') {
         return {
           status: 'Pronto para retirada',
-          history: [{
-            description: "É só ir buscar o produto na empresa e levar o comprovante de pagamento.",
-            location: "Empresa",
-            date: new Date().toLocaleString('pt-BR')
-          }]
+          history: []
         };
       }
       console.log("Normalizando código");
