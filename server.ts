@@ -68,21 +68,30 @@ async function startServer() {
     console.log(`🔍 Proxy CepCerto: Rastreando ${tracking_code}...`);
     
     try {
-      // CepCerto aceita tanto api.cepcerto.com quanto www.cepcerto.com
-      const apiUrl = `https://www.cepcerto.com/ws/json-rastreio/${tracking_code}/${api_key}`;
-      const response = await fetch(apiUrl);
+      // Tenta primeiro com HTTPS, se falhar tenta HTTP (algumas APIs antigas preferem HTTP)
+      let apiUrl = `https://www.cepcerto.com/ws/json-rastreio/${tracking_code}/${api_key}`;
+      let response = await fetch(apiUrl).catch(() => null);
+      
+      if (!response || !response.ok) {
+        apiUrl = `http://www.cepcerto.com/ws/json-rastreio/${tracking_code}/${api_key}`;
+        response = await fetch(apiUrl);
+      }
+
       const text = await response.text();
+      console.log(`📦 Resposta CepCerto (${response.status}):`, text.substring(0, 100));
       
       try {
         const data = JSON.parse(text);
         res.status(response.status).json(data);
       } catch (parseError) {
-        // Se não for JSON, retorna o texto (pode ser erro 404 ou 401 da própria CepCerto)
         res.status(response.status).send(text);
       }
     } catch (error) {
       console.error('❌ Erro no proxy CepCerto:', error);
-      res.status(500).json({ error: 'Erro ao contatar CepCerto', details: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ 
+        error: 'Erro ao contatar CepCerto', 
+        details: error instanceof Error ? error.message : String(error) 
+      });
     }
   });
 
@@ -96,7 +105,7 @@ async function startServer() {
     try {
       const response = await fetch(`https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${tracking_code}`, {
         headers: {
-          'User-Agent': 'Magnifique4Life (contato@magnifique4life.com.br)'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
       });
       const text = await response.text();
@@ -106,9 +115,9 @@ async function startServer() {
       } catch (e) {
         res.status(response.status).send(text);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erro no proxy Linketrack:', error);
-      res.status(500).json({ error: 'Erro ao contatar Linketrack' });
+      res.status(500).json({ error: 'Erro ao contatar Linketrack', details: error.message });
     }
   });
 

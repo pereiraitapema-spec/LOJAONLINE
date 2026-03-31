@@ -123,6 +123,25 @@ const melhorenvioProvider: ShippingProvider = {
       console.warn('⚠️ BrasilAPI fallback falhou.', e);
     }
 
+    // Fallback para Linketrack se tudo mais falhar
+    try {
+      const response = await fetch(`/api/tracking/linketrack?tracking_code=${trackingCode}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.eventos && data.eventos.length > 0) {
+          console.log('✅ Rastreio encontrado via Linketrack (Fallback Melhor Envio)');
+          return {
+            status: data.eventos[0].status || 'Em trânsito',
+            history: data.eventos.map((e: any) => ({
+              date: `${e.data} ${e.hora}`,
+              location: e.local || 'Não informado',
+              description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
+            }))
+          };
+        }
+      }
+    } catch (e) {}
+
     return { status: 'Não encontrado ou aguardando postagem', history: [] };
   }
 };
@@ -534,60 +553,103 @@ const cepcertoProvider: ShippingProvider = {
     const cleanTrackingCode = trackingCode.trim();
     const apiKey = config?.api_key || config?.api_key_postagem;
 
-    // Tenta via CepCerto API (Proxy do Servidor)
-    if (apiKey) {
+    // Função auxiliar para tentar CepCerto com fallbacks
+    const tryCepCerto = async (code: string, key: string) => {
+      // 1. Tenta Proxy do Servidor
       try {
         console.log('🔄 Chamando Proxy CepCerto...');
-        const response = await fetch(`/api/tracking/cepcerto?tracking_code=${cleanTrackingCode}&api_key=${apiKey}`);
-        
-        if (response.ok) {
-          const text = await response.text();
-          try {
-            const data = JSON.parse(text);
-            if (data && !data.erro && Array.isArray(data.eventos)) {
-              console.log('✅ Rastreio encontrado via CepCerto API (Proxy)');
-              return {
-                status: data.eventos[0]?.status || 'Em trânsito',
-                history: data.eventos.map((e: any) => ({
-                  date: `${e.data} ${e.hora}`,
-                  location: e.local || 'Não informado',
-                  description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
-                }))
-              };
+        const res = await fetch(`/api/tracking/cepcerto?tracking_code=${code}&api_key=${key}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && !data.erro && Array.isArray(data.eventos)) return data;
+        } else {
+          console.warn(`⚠️ Proxy CepCerto retornou status ${res.status}`);
+        }
+      } catch (e) {
+        console.warn('⚠️ Erro ao chamar Proxy CepCerto.');
+      }
+
+      // 2. Tenta AllOrigins (CORS Bypass Direto)
+      try {
+        console.log('🔄 Tentando fallback direto CepCerto (AllOrigins)...');
+        const target = encodeURIComponent(`https://www.cepcerto.com/ws/json-rastreio/${code}/${key}`);
+        const res = await fetch(`https://api.allorigins.win/get?url=${target}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.contents) {
+            try {
+              const data = JSON.parse(json.contents);
+              if (data && !data.erro && Array.isArray(data.eventos)) return data;
+            } catch (parseErr) {
+              console.warn('⚠️ Resposta AllOrigins CepCerto não é JSON válido.');
             }
-          } catch (e) {
-            console.warn('⚠️ Resposta do Proxy CepCerto não é JSON:', text);
-          }
-        } else if (response.status === 404 || response.status === 500) {
-          console.warn(`⚠️ Proxy CepCerto falhou (${response.status}). Tentando fallback direto...`);
-          // Fallback direto via AllOrigins (CORS Bypass)
-          try {
-            const targetUrl = encodeURIComponent(`https://www.cepcerto.com/ws/json-rastreio/${cleanTrackingCode}/${apiKey}`);
-            const directRes = await fetch(`https://api.allorigins.win/get?url=${targetUrl}`);
-            const directData = await directRes.json();
-            const cepData = JSON.parse(directData.contents);
-            
-            if (cepData && !cepData.erro && Array.isArray(cepData.eventos)) {
-              console.log('✅ Rastreio encontrado via CepCerto (AllOrigins Fallback)');
-              return {
-                status: cepData.eventos[0]?.status || 'Em trânsito',
-                history: cepData.eventos.map((e: any) => ({
-                  date: `${e.data} ${e.hora}`,
-                  location: e.local || 'Não informado',
-                  description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
-                }))
-              };
-            }
-          } catch (directErr) {
-            console.warn('⚠️ Fallback direto CepCerto falhou:', directErr);
           }
         }
       } catch (e) {
-        console.warn('⚠️ Erro ao buscar rastreio via CepCerto API:', e);
+        console.warn('⚠️ Fallback direto CepCerto falhou.');
+      }
+
+      return null;
+    };
+
+    // Função auxiliar para tentar Linketrack com fallbacks
+    const tryLinketrack = async (code: string) => {
+      // 1. Tenta Proxy do Servidor
+      try {
+        console.log('🔄 Tentando Linketrack Proxy...');
+        const res = await fetch(`/api/tracking/linketrack?tracking_code=${code}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.eventos && data.eventos.length > 0) return data;
+        } else {
+          console.warn(`⚠️ Linketrack Proxy retornou status ${res.status}`);
+        }
+      } catch (e) {
+        console.warn('⚠️ Erro ao chamar Linketrack Proxy.');
+      }
+
+      // 2. Tenta AllOrigins (CORS Bypass Direto)
+      try {
+        console.log('🔄 Tentando fallback direto Linketrack (AllOrigins)...');
+        const target = encodeURIComponent(`https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${code}`);
+        const res = await fetch(`https://api.allorigins.win/get?url=${target}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.contents) {
+            try {
+              const data = JSON.parse(json.contents);
+              if (data && data.eventos && data.eventos.length > 0) return data;
+            } catch (parseErr) {
+              console.warn('⚠️ Resposta AllOrigins Linketrack não é JSON válido.');
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Fallback direto Linketrack falhou.');
+      }
+
+      return null;
+    };
+
+    // EXECUÇÃO EM CASCATA
+
+    // 1. Tenta CepCerto (se houver chave)
+    if (apiKey) {
+      const cepData = await tryCepCerto(cleanTrackingCode, apiKey);
+      if (cepData) {
+        console.log('✅ Rastreio encontrado via CepCerto');
+        return {
+          status: cepData.eventos[0]?.status || 'Em trânsito',
+          history: cepData.eventos.map((e: any) => ({
+            date: `${e.data} ${e.hora}`,
+            location: e.local || 'Não informado',
+            description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
+          }))
+        };
       }
     }
 
-    // Fallback para BrasilAPI
+    // 2. Tenta BrasilAPI
     try {
       console.log('🔄 Tentando BrasilAPI...');
       const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${cleanTrackingCode}`);
@@ -606,52 +668,21 @@ const cepcertoProvider: ShippingProvider = {
         }
       }
     } catch (e) {
-      console.warn('⚠️ BrasilAPI falhou.', e);
+      console.warn('⚠️ BrasilAPI falhou.');
     }
 
-    // Fallback para Linketrack (Proxy do Servidor)
-    try {
-      console.log('🔄 Tentando Linketrack Proxy...');
-      const response = await fetch(`/api/tracking/linketrack?tracking_code=${cleanTrackingCode}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.eventos && data.eventos.length > 0) {
-          console.log('✅ Rastreio encontrado via Linketrack Proxy');
-          return {
-            status: data.eventos[0].status || 'Em trânsito',
-            history: data.eventos.map((e: any) => ({
-              date: `${e.data} ${e.hora}`,
-              location: e.local || 'Não informado',
-              description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
-            }))
-          };
-        }
-      } else {
-        console.warn(`⚠️ Linketrack Proxy falhou (${response.status}). Tentando fallback direto...`);
-        // Fallback direto via AllOrigins (CORS Bypass)
-        try {
-          const targetUrl = encodeURIComponent(`https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${cleanTrackingCode}`);
-          const directRes = await fetch(`https://api.allorigins.win/get?url=${targetUrl}`);
-          const directData = await directRes.json();
-          const linkeData = JSON.parse(directData.contents);
-          
-          if (linkeData && linkeData.eventos && linkeData.eventos.length > 0) {
-            console.log('✅ Rastreio encontrado via Linketrack (AllOrigins Fallback)');
-            return {
-              status: linkeData.eventos[0].status || 'Em trânsito',
-              history: linkeData.eventos.map((e: any) => ({
-                date: `${e.data} ${e.hora}`,
-                location: e.local || 'Não informado',
-                description: linkeData.eventos[0].status + (linkeData.eventos[0].subStatus ? ` - ${linkeData.eventos[0].subStatus[0]}` : '')
-              }))
-            };
-          }
-        } catch (directErr) {
-          console.warn('⚠️ Fallback direto Linketrack falhou:', directErr);
-        }
-      }
-    } catch (e) {
-      console.warn('⚠️ Linketrack falhou.', e);
+    // 3. Tenta Linketrack
+    const linkeData = await tryLinketrack(cleanTrackingCode);
+    if (linkeData) {
+      console.log('✅ Rastreio encontrado via Linketrack');
+      return {
+        status: linkeData.eventos[0].status || 'Em trânsito',
+        history: linkeData.eventos.map((e: any) => ({
+          date: `${e.data} ${e.hora}`,
+          location: e.local || 'Não informado',
+          description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
+        }))
+      };
     }
 
     return { status: 'Não encontrado ou aguardando postagem', history: [] };
@@ -730,6 +761,25 @@ const frenetProvider: ShippingProvider = {
     } catch (e) {
       console.warn('⚠️ BrasilAPI fallback falhou para Frenet.', e);
     }
+
+    // Fallback para Linketrack
+    try {
+      const response = await fetch(`/api/tracking/linketrack?tracking_code=${trackingCode}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.eventos && data.eventos.length > 0) {
+          console.log('✅ Rastreio encontrado via Linketrack (Frenet)');
+          return {
+            status: data.eventos[0].status || 'Em trânsito',
+            history: data.eventos.map((e: any) => ({
+              date: `${e.data} ${e.hora}`,
+              location: e.local || 'Não informado',
+              description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
+            }))
+          };
+        }
+      }
+    } catch (e) {}
 
     return { status: 'Não encontrado ou aguardando postagem', history: [] };
   }
