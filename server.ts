@@ -37,7 +37,7 @@ async function startServer() {
     if (!tracking_code || !api_key) return res.status(400).json({ error: 'Dados incompletos' });
 
     try {
-      const response = await fetch(`https://www.cepcerto.com/ws/json-rastreio/${tracking_code}/${api_key}`);
+      const response = await fetch(`https://cepcerto.com/ws/encomenda-json/${tracking_code}/${api_key}`);
       const text = await response.text();
       try {
         res.json(JSON.parse(text));
