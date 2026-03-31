@@ -71,22 +71,25 @@ const melhorenvioProvider: ShippingProvider = {
     }
 
     try {
-      const response = await fetch('https://www.melhorenvio.com.br/api/v2/me/shipment/tracking', {
+      // Usar o proxy do servidor para evitar problemas de CORS
+      const response = await fetch('/api/tracking/melhorenvio', {
         method: 'POST',
         headers: {
-          'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.api_key}`,
-          'User-Agent': 'Magnifique4Life (contato@magnifique4life.com.br)'
         },
-        body: JSON.stringify({ orders: [trackingCode] })
+        body: JSON.stringify({ 
+          tracking_code: trackingCode,
+          api_key: config.api_key
+        })
       });
 
       if (response.ok) {
         const data = await response.json();
+        // O Melhor Envio v2 retorna um objeto onde a chave é o código de rastreio ou ID
         const tracking = data[trackingCode];
         
         if (tracking) {
+          console.log('✅ Rastreio encontrado via Melhor Envio Proxy');
           return {
             status: tracking.status || 'Em trânsito',
             history: (tracking.events || []).map((e: any) => ({
@@ -98,7 +101,7 @@ const melhorenvioProvider: ShippingProvider = {
         }
       }
     } catch (err) {
-      console.error('❌ Erro no rastreio Melhor Envio:', err);
+      console.error('❌ Erro no rastreio Melhor Envio via Proxy:', err);
     }
 
     // Fallback para BrasilAPI se Melhor Envio falhar
@@ -106,6 +109,7 @@ const melhorenvioProvider: ShippingProvider = {
       const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${trackingCode}`);
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Rastreio encontrado via BrasilAPI (Fallback Melhor Envio)');
         return {
           status: data.status || 'Em trânsito',
           history: (data.historico || []).map((e: any) => ({
@@ -254,12 +258,31 @@ const correiosProvider: ShippingProvider = {
     return { success: true };
   },
   async getTrackingStatus(trackingCode: string, config: any) {
-    return {
-      status: 'Em trânsito',
-      history: [
-        { date: new Date().toISOString(), location: 'CTE Cajamar, SP', description: 'Objeto em trânsito' }
-      ]
-    };
+    // Se o usuário tiver configuração de Melhor Envio no Correios, podemos usar o provedor do Melhor Envio
+    if (config?.api_key && config.api_key.length > 20) {
+       return melhorenvioProvider.getTrackingStatus(trackingCode, config);
+    }
+
+    // Fallback para BrasilAPI
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${trackingCode}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Rastreio encontrado via BrasilAPI (Correios)');
+        return {
+          status: data.status || 'Em trânsito',
+          history: (data.historico || []).map((e: any) => ({
+            date: e.data,
+            location: `${e.unidade} - ${e.cidade}/${e.uf}`,
+            description: e.descricao
+          }))
+        };
+      }
+    } catch (e) {
+      console.warn('⚠️ BrasilAPI fallback falhou para Correios.', e);
+    }
+
+    return { status: 'Não encontrado ou aguardando postagem', history: [] };
   }
 };
 
@@ -544,12 +567,26 @@ const frenetProvider: ShippingProvider = {
     return { success: true };
   },
   async getTrackingStatus(trackingCode: string, config: any) {
-    return {
-      status: 'Em trânsito',
-      history: [
-        { date: new Date().toISOString(), location: 'Centro de Distribuição', description: 'Objeto em trânsito' }
-      ]
-    };
+    // Fallback para BrasilAPI
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${trackingCode}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Rastreio encontrado via BrasilAPI (Frenet)');
+        return {
+          status: data.status || 'Em trânsito',
+          history: (data.historico || []).map((e: any) => ({
+            date: e.data,
+            location: `${e.unidade} - ${e.cidade}/${e.uf}`,
+            description: e.descricao
+          }))
+        };
+      }
+    } catch (e) {
+      console.warn('⚠️ BrasilAPI fallback falhou para Frenet.', e);
+    }
+
+    return { status: 'Não encontrado ou aguardando postagem', history: [] };
   }
 };
 
@@ -602,12 +639,26 @@ const jadlogProvider: ShippingProvider = {
     return { success: true };
   },
   async getTrackingStatus(trackingCode: string, config: any) {
-    return {
-      status: 'Em trânsito',
-      history: [
-        { date: new Date().toISOString(), location: 'CO São Paulo', description: 'Objeto em trânsito' }
-      ]
-    };
+    // Fallback para BrasilAPI
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${trackingCode}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Rastreio encontrado via BrasilAPI (Jadlog)');
+        return {
+          status: data.status || 'Em trânsito',
+          history: (data.historico || []).map((e: any) => ({
+            date: e.data,
+            location: `${e.unidade} - ${e.cidade}/${e.uf}`,
+            description: e.descricao
+          }))
+        };
+      }
+    } catch (e) {
+      console.warn('⚠️ BrasilAPI fallback falhou para Jadlog.', e);
+    }
+
+    return { status: 'Não encontrado ou aguardando postagem', history: [] };
   }
 };
 
@@ -789,13 +840,14 @@ export const shippingService = {
     let { data: orders, error: orderError } = await supabase
       .from('orders')
       .select('id, shipping_method, status, tracking_code')
-      .or(`tracking_code.eq.${trackingCode}`);
+      .eq('tracking_code', trackingCode);
 
     // Se não encontrar pelo código de rastreio, tenta pelo ID (UUID)
     if (!orders || orders.length === 0) {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trackingCode);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trackingCode) || 
+                     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trackingCode);
       if (isUuid) {
-        const { data: ordersById, error: orderErrorById } = await supabase
+        const { data: ordersById } = await supabase
           .from('orders')
           .select('id, shipping_method, status, tracking_code')
           .eq('id', trackingCode);
@@ -808,11 +860,27 @@ export const shippingService = {
 
     if (orderError) {
       console.error('❌ Erro ao buscar pedido:', orderError);
-      // Não lançar erro aqui para permitir que o fluxo continue
     }
     
     if (!orders || orders.length === 0) {
-      console.warn('⚠️ Pedido não encontrado para:', trackingCode);
+      console.warn('⚠️ Pedido não encontrado no banco para:', trackingCode, '. Tentando rastreio direto via BrasilAPI.');
+      // Se não encontrou o pedido, tenta um rastreio genérico via BrasilAPI
+      try {
+        const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${trackingCode}`);
+        if (response.ok) {
+          const data = await response.json();
+          return {
+            status: data.status || 'Em trânsito',
+            history: (data.historico || []).map((e: any) => ({
+              date: e.data,
+              location: `${e.unidade} - ${e.cidade}/${e.uf}`,
+              description: e.descricao
+            }))
+          };
+        }
+      } catch (e) {
+        console.error('❌ Erro no rastreio direto BrasilAPI:', e);
+      }
       return { status: 'Não encontrado', history: [] };
     }
     
@@ -825,64 +893,81 @@ export const shippingService = {
       return { status: 'Aguardando confirmação', history: [] };
     }
 
-    // Normalização profissional do nome da transportadora
+    // Normalização robusta do nome da transportadora
     const normalizeCarrierName = (name: string) => {
+        if (!name) return 'CEPCERTO';
         const normalized = name.toUpperCase().trim();
         console.log('⚙️ Normalizando carrier:', name, '->', normalized);
-        if (['SEDEX', 'PAC', 'JADLOG'].includes(normalized)) return 'CEPCERTO';
+        
+        if (normalized.includes('MELHOR ENVIO')) return 'MELHOR ENVIO';
+        if (normalized.includes('CORREIOS')) return 'CORREIOS';
+        if (normalized.includes('JADLOG')) return 'JADLOG';
+        if (normalized.includes('CEPCERTO')) return 'CEPCERTO';
+        if (normalized.includes('FRENET')) return 'FRENET';
+        
+        // Fallback para métodos comuns que sabemos que o CepCerto atende nesta loja
+        if (['SEDEX', 'PAC'].some(m => normalized.includes(m))) return 'CEPCERTO';
+        
         return normalized;
     };
 
     const carrierName = normalizeCarrierName(order.shipping_method);
-    console.log('🔍 Buscando carrier:', carrierName);
+    console.log('🔍 Buscando carrier no banco:', carrierName);
 
-    const { data: carrier, error: carrierError } = await supabase
+    // Busca pela transportadora ativa
+    const { data: carrier } = await supabase
       .from('shipping_carriers')
       .select('*')
-      .ilike('name', carrierName)
+      .ilike('name', `%${carrierName}%`)
+      .eq('active', true)
       .maybeSingle();
 
-    if (carrierError) {
-      console.error('❌ Erro ao buscar carrier em getTrackingStatus:', carrierError);
-    }
     if (!carrier) {
-      console.warn('⚠️ Transportadora não encontrada:', carrierName);
-      return { status: 'Transportadora não encontrada', history: [] };
-    }
-    
-    console.log('✅ Transportadora encontrada:', carrier);
-
-    // Garante que o config seja um objeto, parseando se necessário
-    const config = typeof carrier.config === 'string' ? JSON.parse(carrier.config) : carrier.config;
-
-    const provider = providers[carrier.provider];
-    if (!provider) {
-      console.warn('⚠️ Provedor não encontrado:', carrier.provider);
-      return { status: 'Provedor não encontrado', history: [] };
-    }
-
-    if (provider.getTrackingStatus) {
-      return provider.getTrackingStatus(order.tracking_code, config);
-    } else {
-      console.warn('⚠️ Provedor não possui getTrackingStatus, usando fallback BrasilAPI.');
+      console.warn('⚠️ Transportadora não encontrada ou inativa:', carrierName, '. Usando fallback BrasilAPI.');
       // Fallback para BrasilAPI
       try {
         const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${order.tracking_code}`);
         if (response.ok) {
           const data = await response.json();
-          if (data.historico && data.historico.length > 0) {
-            return {
-              status: data.status || 'Em trânsito',
-              history: data.historico.map((e: any) => ({
-                date: e.data,
-                location: `${e.unidade} - ${e.cidade}/${e.uf}`,
-                description: e.descricao
-              }))
-            };
-          }
+          return {
+            status: data.status || 'Em trânsito',
+            history: (data.historico || []).map((e: any) => ({
+              date: e.data,
+              location: `${e.unidade} - ${e.cidade}/${e.uf}`,
+              description: e.descricao
+            }))
+          };
         }
       } catch (e) {
-        console.warn('⚠️ BrasilAPI falhou.');
+        console.warn('⚠️ BrasilAPI fallback falhou.');
+      }
+      return { status: 'Transportadora não configurada', history: [] };
+    }
+    
+    console.log('✅ Transportadora encontrada:', carrier.name);
+
+    const config = typeof carrier.config === 'string' ? JSON.parse(carrier.config) : carrier.config;
+    const provider = providers[carrier.provider];
+
+    if (provider && provider.getTrackingStatus) {
+      return provider.getTrackingStatus(order.tracking_code, config);
+    } else {
+      // Fallback final para BrasilAPI
+      try {
+        const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${order.tracking_code}`);
+        if (response.ok) {
+          const data = await response.json();
+          return {
+            status: data.status || 'Em trânsito',
+            history: (data.historico || []).map((e: any) => ({
+              date: e.data,
+              location: `${e.unidade} - ${e.cidade}/${e.uf}`,
+              description: e.descricao
+            }))
+          };
+        }
+      } catch (e) {
+        console.warn('⚠️ BrasilAPI fallback final falhou.');
       }
       return { status: 'Não encontrado ou aguardando postagem', history: [] };
     }

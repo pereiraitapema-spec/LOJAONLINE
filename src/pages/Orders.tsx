@@ -175,16 +175,9 @@ export default function Orders() {
     if (!code) return;
     setLoadingRealTime(true);
     try {
-      const { data: carrier } = await supabase
-        .from('shipping_carriers')
-        .select('*')
-        .eq('provider', 'cepcerto')
-        .single();
-      
-      if (carrier?.config) {
-        const status = await shippingService.getTrackingStatus(code);
-        setRealTimeTracking(status);
-      }
+      // O shippingService.getTrackingStatus já cuida de buscar a transportadora e o status real
+      const status = await shippingService.getTrackingStatus(code);
+      setRealTimeTracking(status);
     } catch (err) {
       console.error('Erro ao buscar rastreio real:', err);
     } finally {

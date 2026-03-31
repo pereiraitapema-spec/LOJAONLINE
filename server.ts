@@ -40,9 +40,10 @@ async function startServer() {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${api_key}`
+          'Authorization': `Bearer ${api_key}`,
+          'User-Agent': 'Magnifique4Life (contato@magnifique4life.com.br)'
         },
-        body: JSON.stringify({ tracking_code })
+        body: JSON.stringify({ orders: [tracking_code] }) // v2 espera array de IDs ou códigos
       });
       const data = await response.json();
       res.status(response.status).json(data);

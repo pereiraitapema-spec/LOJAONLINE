@@ -99,6 +99,22 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
       const order = orders && orders.length > 0 ? orders[0] : null;
 
       if (!order) {
+        // Se não encontrou o pedido no banco, tenta buscar o rastreio direto (flexibilidade)
+        if (codeToUse) {
+           const realTime = await shippingService.getTrackingStatus(codeToUse);
+           if (realTime && realTime.history && realTime.history.length > 0) {
+              setTrackingData({ 
+                id: codeToUse, 
+                tracking_code: codeToUse, 
+                status: realTime.status, 
+                created_at: new Date().toISOString(),
+                shipping_method: 'Rastreio Externo'
+              });
+              setRealTimeHistory(realTime.history);
+              setViewMode('detail');
+              return;
+           }
+        }
         toast.error('Pedido ou código de rastreio não encontrado.');
         if (viewMode === 'detail' && !trackingCode && !orderId) {
           setViewMode('list');
@@ -109,15 +125,12 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
       setTrackingData(order);
       setViewMode('detail');
 
-      // Se houver código de rastreio, busca na API do CepCerto
+      // Se houver código de rastreio, busca na API real através do shippingService
       if (order.tracking_code) {
         try {
           const realTime = await shippingService.getTrackingStatus(order.tracking_code);
           if (realTime && realTime.history && realTime.history.length > 0) {
             setRealTimeHistory(realTime.history);
-          } else {
-            // Se a API não retornou histórico, podemos forçar uma mensagem de "Em preparação"
-            // ou buscar novamente se necessário.
           }
         } catch (apiError) {
           console.warn('Erro ao buscar rastreio na API:', apiError);
