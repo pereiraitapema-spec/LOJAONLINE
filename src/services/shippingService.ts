@@ -65,13 +65,61 @@ const melhorenvioProvider: ShippingProvider = {
     return { success: true };
   },
   async getTrackingStatus(trackingCode: string, config: any) {
-    return {
-      status: 'Em trânsito',
-      history: [
-        { date: new Date().toISOString(), location: 'São Paulo, SP', description: 'Objeto postado' },
-        { date: new Date(Date.now() - 86400000).toISOString(), location: 'São Paulo, SP', description: 'Encaminhado para unidade de tratamento' }
-      ]
-    };
+    if (!config?.api_key) {
+      console.warn('⚠️ Melhor Envio API Key missing for tracking!');
+      return { status: 'Não disponível', history: [] };
+    }
+
+    try {
+      const response = await fetch('https://www.melhorenvio.com.br/api/v2/me/shipment/tracking', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.api_key}`,
+          'User-Agent': 'Magnifique4Life (contato@magnifique4life.com.br)'
+        },
+        body: JSON.stringify({ orders: [trackingCode] })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const tracking = data[trackingCode];
+        
+        if (tracking) {
+          return {
+            status: tracking.status || 'Em trânsito',
+            history: (tracking.events || []).map((e: any) => ({
+              date: e.created_at,
+              location: e.location || 'Não informado',
+              description: e.description
+            }))
+          };
+        }
+      }
+    } catch (err) {
+      console.error('❌ Erro no rastreio Melhor Envio:', err);
+    }
+
+    // Fallback para BrasilAPI se Melhor Envio falhar
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${trackingCode}`);
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          status: data.status || 'Em trânsito',
+          history: (data.historico || []).map((e: any) => ({
+            date: e.data,
+            location: `${e.unidade} - ${e.cidade}/${e.uf}`,
+            description: e.descricao
+          }))
+        };
+      }
+    } catch (e) {
+      console.warn('⚠️ BrasilAPI fallback falhou.', e);
+    }
+
+    return { status: 'Não encontrado ou aguardando postagem', history: [] };
   }
 };
 
@@ -124,12 +172,30 @@ const mockProvider: ShippingProvider = {
     return { success: true };
   },
   async getTrackingStatus(trackingCode: string, config: any) {
-    return {
-      status: 'Aguardando postagem',
-      history: [
-        { date: new Date().toISOString(), location: 'Loja', description: 'Pedido em separação' }
-      ]
-    };
+    // Se o usuário tiver configuração de Melhor Envio no Correios, podemos usar o provedor do Melhor Envio
+    if (config?.api_key && config.api_key.length > 20) {
+       return melhorenvioProvider.getTrackingStatus(trackingCode, config);
+    }
+
+    // Fallback para BrasilAPI
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${trackingCode}`);
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          status: data.status || 'Em trânsito',
+          history: (data.historico || []).map((e: any) => ({
+            date: e.data,
+            location: `${e.unidade} - ${e.cidade}/${e.uf}`,
+            description: e.descricao
+          }))
+        };
+      }
+    } catch (e) {
+      console.warn('⚠️ BrasilAPI fallback falhou.', e);
+    }
+
+    return { status: 'Não encontrado ou aguardando postagem', history: [] };
   }
 };
 
@@ -397,10 +463,9 @@ const cepcertoProvider: ShippingProvider = {
     return { success: true };
   },
   async getTrackingStatus(trackingCode: string, config: any) {
-    console.log('🔍 Buscando rastreio para:', trackingCode);
+    console.log('🔍 Buscando rastreio para:', trackingCode, 'Config:', JSON.stringify(config));
     const cleanTrackingCode = trackingCode.trim();
 
-    // 1. Tentar BrasilAPI (Única que resolve DNS neste ambiente)
     try {
       const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${cleanTrackingCode}`);
       if (response.ok) {
@@ -418,37 +483,7 @@ const cepcertoProvider: ShippingProvider = {
         }
       }
     } catch (e) {
-      console.warn('⚠️ BrasilAPI falhou ou não encontrou dados.');
-    }
-
-    // 2. Fallback Profissional: Melhor Envio (Se houver API Key configurada)
-    if (config?.api_key) {
-      try {
-        console.log('🔄 Tentando fallback via Proxy Melhor Envio...');
-        const response = await fetch('/api/tracking/melhorenvio', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ tracking_code: cleanTrackingCode, api_key: config.api_key })
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('✅ Rastreio encontrado via Proxy Melhor Envio');
-          return {
-            status: 'Em trânsito',
-            history: data.map((e: any) => ({
-              date: e.created_at,
-              location: e.location || 'N/A',
-              description: e.status
-            }))
-          };
-        }
-      } catch (e) {
-        console.error('❌ Melhor Envio também falhou:', e);
-      }
+      console.warn('⚠️ BrasilAPI falhou ou não encontrou dados.', e);
     }
 
     return { status: 'Não encontrado ou aguardando postagem', history: [] };
@@ -826,7 +861,31 @@ export const shippingService = {
       return { status: 'Provedor não encontrado', history: [] };
     }
 
-    return provider.getTrackingStatus(order.tracking_code, config);
+    if (provider.getTrackingStatus) {
+      return provider.getTrackingStatus(order.tracking_code, config);
+    } else {
+      console.warn('⚠️ Provedor não possui getTrackingStatus, usando fallback BrasilAPI.');
+      // Fallback para BrasilAPI
+      try {
+        const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${order.tracking_code}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.historico && data.historico.length > 0) {
+            return {
+              status: data.status || 'Em trânsito',
+              history: data.historico.map((e: any) => ({
+                date: e.data,
+                location: `${e.unidade} - ${e.cidade}/${e.uf}`,
+                description: e.descricao
+              }))
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ BrasilAPI falhou.');
+      }
+      return { status: 'Não encontrado ou aguardando postagem', history: [] };
+    }
   },
 
   /**
