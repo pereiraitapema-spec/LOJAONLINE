@@ -263,7 +263,7 @@ const correiosProvider: ShippingProvider = {
        return melhorenvioProvider.getTrackingStatus(trackingCode, config);
     }
 
-    // Fallback para BrasilAPI
+    // Fallback para BrasilAPI (via Proxy se possível ou direto)
     try {
       const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${trackingCode}`);
       if (response.ok) {
@@ -282,7 +282,7 @@ const correiosProvider: ShippingProvider = {
       console.warn('⚠️ BrasilAPI fallback falhou para Correios.', e);
     }
 
-    // Fallback para Linketrack (Muito estável para Correios)
+    // Fallback para Linketrack (via Proxy)
     try {
       const response = await fetch(`/api/tracking/linketrack?tracking_code=${trackingCode}`);
       if (response.ok) {
@@ -1000,8 +1000,29 @@ export const shippingService = {
       .maybeSingle();
 
     if (!carrier) {
-      console.warn('⚠️ Transportadora não encontrada ou inativa:', carrierName, '. Usando fallback BrasilAPI.');
-      // Fallback para BrasilAPI
+      console.warn('⚠️ Transportadora não encontrada ou inativa:', carrierName, '. Usando fallbacks.');
+      
+      // Fallback 1: Linketrack (via Proxy)
+      try {
+        const response = await fetch(`/api/tracking/linketrack?tracking_code=${order.tracking_code}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.eventos && data.eventos.length > 0) {
+            return {
+              status: data.eventos[0].status || 'Em trânsito',
+              history: data.eventos.map((e: any) => ({
+                date: `${e.data} ${e.hora}`,
+                location: e.local || 'Não informado',
+                description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
+              }))
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Linketrack fallback falhou.');
+      }
+
+      // Fallback 2: BrasilAPI
       try {
         const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${order.tracking_code}`);
         if (response.ok) {
@@ -1029,7 +1050,27 @@ export const shippingService = {
     if (provider && provider.getTrackingStatus) {
       return provider.getTrackingStatus(order.tracking_code, config);
     } else {
-      // Fallback final para BrasilAPI
+      // Fallback final: Linketrack (via Proxy)
+      try {
+        const response = await fetch(`/api/tracking/linketrack?tracking_code=${order.tracking_code}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.eventos && data.eventos.length > 0) {
+            return {
+              status: data.eventos[0].status || 'Em trânsito',
+              history: data.eventos.map((e: any) => ({
+                date: `${e.data} ${e.hora}`,
+                location: e.local || 'Não informado',
+                description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
+              }))
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Linketrack fallback final falhou.');
+      }
+
+      // Fallback final: BrasilAPI
       try {
         const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${order.tracking_code}`);
         if (response.ok) {
