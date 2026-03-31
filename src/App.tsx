@@ -99,7 +99,7 @@ function AppContent() {
           .select('role, full_name')
           .eq('id', userId)
           .maybeSingle(),
-        5000
+        2000
       );
       
       if (error) {
@@ -133,7 +133,7 @@ function AppContent() {
       const timer = setTimeout(() => {
         console.warn('⚠️ Loading timeout reached in App.tsx, forcing loading to false');
         setLoading(false);
-      }, 5000);
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [loading]);

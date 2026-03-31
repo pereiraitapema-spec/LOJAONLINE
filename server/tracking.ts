@@ -14,11 +14,15 @@ export async function handleTracking(req: any, res: any) {
   try {
     // 1. TENTA SEURASTREIO (Melhor opção gratuita e estável atual)
     try {
-      const response = await fetch(`https://seurastreio.com.br/api/v1/track/${code}`);
+      console.log(`📡 [SeuRastreio] Consultando ${code}...`);
+      const response = await fetch(`https://seurastreio.com.br/api/v1/track/${code}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+      });
+      
       if (response.ok) {
         const data: any = await response.json();
         if (data && data.events && data.events.length > 0) {
-          console.log(`✅ [SeuRastreio] Sucesso para ${code}`);
+          console.log(`✅ [SeuRastreio] Sucesso! ${data.events.length} eventos encontrados.`);
           return res.json({
             success: true,
             provider: 'SeuRastreio',
@@ -31,19 +35,48 @@ export async function handleTracking(req: any, res: any) {
           });
         }
       }
-    } catch (e) {
-      console.warn('⚠️ SeuRastreio falhou, tentando CepCerto...');
+    } catch (e: any) {
+      console.warn(`⚠️ SeuRastreio falhou: ${e.message}`);
     }
 
-    // 2. TENTA CEP CERTO (URL Corrigida e Profissional)
+    // 2. TENTA LINKETRACK (Fallback muito bom se o User-Agent for correto)
+    try {
+      console.log(`📡 [Linketrack] Consultando ${code}...`);
+      const linkeUrl = `https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${code}`;
+      const linkeRes = await fetch(linkeUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+      });
+      
+      if (linkeRes.ok) {
+        const data: any = await linkeRes.json();
+        if (data && data.eventos && data.eventos.length > 0) {
+          console.log(`✅ [Linketrack] Sucesso! ${data.eventos.length} eventos encontrados.`);
+          return res.json({
+            success: true,
+            provider: 'Linketrack',
+            status: data.eventos[0].status,
+            history: data.eventos.map((e: any) => ({
+              date: `${e.data} ${e.hora}`,
+              location: e.local || 'Não informado',
+              description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
+            }))
+          });
+        }
+      }
+    } catch (e: any) {
+      console.warn(`⚠️ Linketrack falhou: ${e.message}`);
+    }
+
+    // 3. TENTA CEP CERTO (URL Corrigida e Profissional)
     if (apiKey) {
       try {
+        console.log(`📡 [CepCerto] Consultando ${code}...`);
         const cepUrl = `https://cepcerto.com/ws/encomenda-json/${code}/${apiKey}`;
         const cepRes = await fetch(cepUrl);
         if (cepRes.ok) {
           const data: any = await cepRes.json();
           if (data && !data.erro && data.eventos) {
-            console.log(`✅ [CepCerto] Sucesso para ${code}`);
+            console.log(`✅ [CepCerto] Sucesso! ${data.eventos.length} eventos encontrados.`);
             return res.json({
               success: true,
               provider: 'CepCerto',
@@ -56,8 +89,8 @@ export async function handleTracking(req: any, res: any) {
             });
           }
         }
-      } catch (e) {
-        console.warn('⚠️ CepCerto falhou, tentando BrasilAPI...');
+      } catch (e: any) {
+        console.warn(`⚠️ CepCerto falhou: ${e.message}`);
       }
     }
 
