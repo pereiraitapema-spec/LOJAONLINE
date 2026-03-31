@@ -1030,7 +1030,7 @@ export const shippingService = {
 
   async getTrackingStatus(idOrCode: string) {
     console.log("================================");
-    console.log("INICIANDO CONSULTA CORREIOS");
+    console.log("INICIANDO RASTREAMENTO");
     console.log("Input:", idOrCode);
     console.log("================================");
 
@@ -1058,6 +1058,11 @@ export const shippingService = {
         console.log("✅ Pedido encontrado:", order.id);
         trackingCode = order.tracking_code;
       }
+    }
+
+    if (trackingCode) {
+      console.log("Normalizando código");
+      trackingCode = trackingCode.replace(/\s/g, "").trim().toUpperCase();
     }
 
     console.log("Tracking Code:", trackingCode);

@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import fetch from "node-fetch";
 
 export async function handleTracking(req: any, res: any) {
-  const { code } = req.params;
+  let { code } = req.params;
   const apiKey = req.query.api_key || process.env.CEPCERTO_API;
   
   console.log(`🚀 [TRACKING_LOG] Iniciando busca para o código: ${code}`);
@@ -11,6 +11,10 @@ export async function handleTracking(req: any, res: any) {
     console.error(`❌ [TRACKING_LOG] Código inválido recebido: ${code}`);
     return res.status(400).json({ success: false, error: "Código de rastreio inválido" });
   }
+
+  console.log("Normalizando código");
+  code = code.replace(/\s/g, "").trim().toUpperCase();
+  console.log("Tracking Code:", code);
 
   try {
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -135,9 +139,19 @@ export async function handleTracking(req: any, res: any) {
     // 2. TENTA CEPCERTO (URL Sugerida pelo Usuário)
     try {
       console.log(`📡 [TRACKING_LOG] Consultando CepCerto (API v1)...`);
-      const response = await fetch(`https://api.cepcerto.com/track/${code}`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      
+      const response = await fetch(`https://api.cepcerto.com/track/${code}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      
+      console.log(`📊 [TRACKING_LOG] CepCerto (v1) Status: ${response.status}`);
+      
       if (response.ok) {
         const data: any = await response.json();
+        console.log(`📊 [TRACKING_LOG] Resposta CepCerto (v1):`, data);
         if (data && data.success && data.history && data.history.length > 0) {
           console.log(`✅ [TRACKING_LOG] CepCerto (v1) retornou ${data.history.length} eventos.`);
           console.log("📊 [TRACKING_LOG] Eventos API encontrados:", data.history.length);
@@ -202,12 +216,21 @@ export async function handleTracking(req: any, res: any) {
     // 0.2 TENTA CORREIOS (Se houver endpoint configurado ou via proxy)
     try {
       console.log(`📡 [TRACKING_LOG] Consultando API Correios...`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+
       // Tentativa via endpoint público/comum se existir
       const response = await fetch(`https://api.correios.com.br/rastreamento/v1/objetos/${code}`, {
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal
       });
+      clearTimeout(timeout);
+
+      console.log(`📊 [TRACKING_LOG] Correios Status: ${response.status}`);
+
       if (response.ok) {
         const data: any = await response.json();
+        console.log(`📊 [TRACKING_LOG] Resposta Correios:`, data);
         if (data && data.objetos && data.objetos[0].eventos) {
           const eventos = data.objetos[0].eventos;
           console.log(`✅ [TRACKING_LOG] Correios retornou ${eventos.length} eventos.`);
