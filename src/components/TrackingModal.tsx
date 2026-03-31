@@ -89,11 +89,13 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
         if (response.ok && data.success) {
           console.log(`✅ [FRONTEND] Resposta recebida do servidor via ${data.provider || 'Fallback'}`);
           // Busca dados complementares do pedido no Supabase para exibir no modal
-          const { data: order } = await supabase
+          const { data: orders } = await supabase
             .from('orders')
             .select('id, status, tracking_code, created_at, total, order_items(product_name, price)')
             .eq('id', idToUse)
-            .single();
+            .limit(1);
+
+          const order = orders?.[0];
 
           if (order) {
             setTrackingData(order);

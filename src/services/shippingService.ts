@@ -1029,10 +1029,10 @@ export const shippingService = {
   },
 
   async getTrackingStatus(idOrCode: string) {
-    console.log("====================================");
-    console.log("INICIANDO BUSCA DE RASTREAMENTO");
+    console.log("================================");
+    console.log("INICIANDO CONSULTA CORREIOS");
     console.log("Input:", idOrCode);
-    console.log("====================================");
+    console.log("================================");
 
     // 1. Tenta identificar se é um UUID (Order ID) ou Código de Rastreio
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrCode) || 
@@ -1043,26 +1043,28 @@ export const shippingService = {
 
     // Se for UUID, precisamos buscar o pedido para pegar o tracking_code
     if (isUuid) {
-      console.log("Buscando pedido no banco...");
-      const { data: order, error: orderError } = await supabase
+      console.log("Buscando pedido no banco para obter código de rastreio...");
+      const { data: orders, error: orderError } = await supabase
         .from('orders')
         .select('*')
         .eq('id', idOrCode)
-        .single();
+        .limit(1);
+
+      const order = orders?.[0];
 
       if (orderError || !order) {
-        console.log("Pedido não encontrado no banco.");
+        console.log("❌ Pedido não encontrado no banco.");
       } else {
-        console.log("Pedido encontrado:", order);
+        console.log("✅ Pedido encontrado:", order.id);
         trackingCode = order.tracking_code;
       }
     }
 
-    console.log("Tracking Code encontrado:", trackingCode);
+    console.log("Tracking Code:", trackingCode);
 
-    // Se tivermos um código de rastreio, tentamos a API
+    // Se tivermos um código de rastreio, tentamos a API obrigatoriamente
     if (trackingCode) {
-      console.log("Chamando API de rastreamento...");
+      console.log("Consultando API de rastreamento...");
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -1072,55 +1074,48 @@ export const shippingService = {
         const response = await fetch(endpoint, { signal: controller.signal });
         clearTimeout(timeoutId);
 
-        console.log("Resposta API recebida:", response);
+        console.log("Response status:", response.status);
         const data = await response.json();
-        console.log("Dados API:", data);
+        console.log("Resposta API Rastreamento:", data);
 
-        if (data && data.success) {
-          console.log("Verificando eventos da API...");
-          if (data.history && data.history.length > 0) {
-            console.log("Eventos reais encontrados:", data.history.length);
-            console.log("====================================");
-            console.log("FINALIZANDO RASTREAMENTO");
-            console.log("====================================");
-            return {
-              status: data.status || 'Em trânsito',
-              history: data.history
-            };
-          } else {
-            console.log("API respondeu mas não há eventos");
-          }
+        if (data && data.success && data.history && data.history.length > 0) {
+          console.log("✅ Eventos encontrados API:", data.history.length);
+          console.log("FINALIZANDO RASTREAMENTO");
+          return {
+            status: data.status || 'Em trânsito',
+            history: data.history
+          };
         } else {
-          console.log("API não respondeu corretamente ou retornou erro");
+          console.log("⚠️ Nenhum evento retornado pela API ou falha na resposta.");
         }
       } catch (error: any) {
         if (error.name === 'AbortError') {
-          console.log("Erro: Timeout de 15 segundos atingido na chamada da API");
+          console.log("❌ Erro: Timeout de 15 segundos atingido na chamada da API");
         } else {
-          console.log("Erro ao chamar API:", error);
+          console.log("❌ Erro ao consultar API:", error);
         }
       } finally {
         clearTimeout(timeoutId);
       }
     } else {
-      console.log("Tracking code não encontrado - usando fallback");
+      console.log("⚠️ Código de rastreio não disponível para consulta API.");
     }
 
-    // Fallback: Busca no banco de dados (tracking_history)
-    console.log("Ativando fallback manual/banco");
+    // Fallback: Somente se a API falhar ou não houver código
+    console.log("Nenhum evento API, ativando fallback");
     
-    // Se não tivermos orderId mas tivermos trackingCode, tentamos achar o orderId
+    // Se não tivermos orderId mas tivermos trackingCode, tentamos achar o orderId para o histórico do banco
     if (!orderId && trackingCode) {
       const { data: orderData } = await supabase
         .from('orders')
         .select('id')
         .eq('tracking_code', trackingCode)
-        .maybeSingle();
-      if (orderData) orderId = orderData.id;
+        .limit(1);
+      if (orderData && orderData.length > 0) orderId = orderData[0].id;
     }
 
     if (orderId) {
-      console.log("Buscando histórico no banco para o pedido:", orderId);
+      console.log("Buscando histórico no banco de dados (tracking_history)...");
       const { data: history } = await supabase
         .from('tracking_history')
         .select('*')
@@ -1128,10 +1123,8 @@ export const shippingService = {
         .order('date', { ascending: true });
 
       if (history && history.length > 0) {
-        console.log("Eventos fallback encontrados no banco:", history.length);
-        console.log("====================================");
+        console.log("✅ Eventos encontrados no banco (Fallback):", history.length);
         console.log("FINALIZANDO RASTREAMENTO");
-        console.log("====================================");
         return {
           status: 'Em trânsito',
           history: history.map(h => ({
@@ -1144,7 +1137,7 @@ export const shippingService = {
     }
 
     // Fallback Manual Final
-    console.log("Usando fallback manual final");
+    console.log("Usando fallback manual padrão");
     const manualResult = {
       status: 'Enviado',
       history: [{
@@ -1153,10 +1146,8 @@ export const shippingService = {
         date: new Date().toLocaleString('pt-BR')
       }]
     };
-    console.log("Eventos fallback:", manualResult.history);
-    console.log("====================================");
+    console.log("Exibindo 1 eventos (Fallback Manual)");
     console.log("FINALIZANDO RASTREAMENTO");
-    console.log("====================================");
     return manualResult;
   },
 

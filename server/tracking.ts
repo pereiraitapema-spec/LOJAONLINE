@@ -20,25 +20,119 @@ export async function handleTracking(req: any, res: any) {
     console.log(`🔍 [TRACKING_CODE] Buscando código: ${code}`);
 
     // 1. Busca o ID do pedido para sincronização posterior
-    const { data: order, error: orderError } = await supabase
+    const { data: orders, error: orderError } = await supabase
       .from('orders')
       .select('id, status')
       .eq('tracking_code', code)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
 
     if (orderError) {
       console.error(`❌ [TRACKING_CODE] Erro ao buscar pedido:`, orderError);
     }
 
+    const order = orders?.[0];
     const orderId = order?.id;
 
-    console.log(`📡 [TRACKING_LOG] Consultando API rastreamento: ${code}`);
+    console.log("================================");
+    console.log("INICIANDO CONSULTA RASTREAMENTO");
+    console.log("Tracking Code:", code);
+    console.log("================================");
 
     // 2. TENTA APIs EXTERNAS (Prioridade Máxima)
     
-    // 0. TENTA CEPCERTO (URL Sugerida pelo Usuário)
+    // 0. TENTA LINKETRACK (Prioridade Sugerida pelo Usuário)
+    try {
+      const linkeUser = process.env.LINKETRACK_USER || 'teste';
+      const linkeToken = process.env.LINKETRACK_TOKEN || '1abcd1234567890';
+      
+      console.log(`📡 [TRACKING_LOG] Consultando Linketrack (User: ${linkeUser})...`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      
+      const linkeUrl = `https://api.linketrack.com/track/json?user=${linkeUser}&token=${linkeToken}&codigo=${code}`;
+      const linkeRes = await fetch(linkeUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      
+      console.log(`📊 [TRACKING_LOG] Linketrack Status: ${linkeRes.status}`);
+      
+      if (linkeRes.ok) {
+        const data: any = await linkeRes.json();
+        if (data && data.eventos && data.eventos.length > 0) {
+          console.log(`✅ [TRACKING_LOG] Linketrack retornou ${data.eventos.length} eventos.`);
+          console.log("📊 [TRACKING_LOG] Eventos API encontrados:", data.eventos.length);
+          
+          const history = data.eventos.map((e: any) => ({
+            date: `${e.data} ${e.hora}`,
+            location: e.local || 'Não informado',
+            description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
+          }));
+
+          if (orderId) {
+            await syncTrackingHistory(supabase, orderId, history);
+          }
+
+          console.log("🏁 [TRACKING_LOG] FINALIZANDO RASTREAMENTO COM SUCESSO (Linketrack)");
+          return res.json({
+            success: true,
+            provider: 'Linketrack',
+            status: data.eventos[0].status,
+            history: history
+          });
+        } else {
+          console.log("⚠️ [TRACKING_LOG] Linketrack não retornou eventos para este código.");
+        }
+      }
+    } catch (e: any) {
+      console.error(`⚠️ [TRACKING_LOG] Falha no Linketrack: ${e.message}`);
+    }
+
+    // 1. TENTA BRASILAPI
+    try {
+      console.log(`📡 [TRACKING_LOG] Consultando BrasilAPI...`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      
+      const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${code}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      
+      console.log(`📊 [TRACKING_LOG] BrasilAPI Status: ${response.status}`);
+      
+      if (response.ok) {
+        const data: any = await response.json();
+        if (data && data.eventos && data.eventos.length > 0) {
+          console.log(`✅ [TRACKING_LOG] BrasilAPI retornou ${data.eventos.length} eventos.`);
+          console.log("📊 [TRACKING_LOG] Eventos API encontrados:", data.eventos.length);
+          
+          const history = data.eventos.map((e: any) => ({
+            date: new Date(e.data).toLocaleString('pt-BR'),
+            location: e.local || 'Correios',
+            description: e.status
+          }));
+
+          if (orderId) {
+            await syncTrackingHistory(supabase, orderId, history);
+          }
+
+          console.log("🏁 [TRACKING_LOG] FINALIZANDO RASTREAMENTO COM SUCESSO (BrasilAPI)");
+          return res.json({
+            success: true,
+            provider: 'BrasilAPI',
+            status: data.eventos[0].status || 'Em trânsito',
+            history: history
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error(`⚠️ [TRACKING_LOG] Falha na BrasilAPI: ${e.message}`);
+    }
+
+    // 2. TENTA CEPCERTO (URL Sugerida pelo Usuário)
     try {
       console.log(`📡 [TRACKING_LOG] Consultando CepCerto (API v1)...`);
       const response = await fetch(`https://api.cepcerto.com/track/${code}`);
@@ -142,7 +236,7 @@ export async function handleTracking(req: any, res: any) {
       console.warn(`⚠️ [TRACKING_LOG] Falha na API Correios: ${e.message}`);
     }
 
-    // 1. TENTA SEURASTREIO
+    // 5. TENTA SEURASTREIO
     try {
       console.log(`📡 [TRACKING_LOG] Consultando SeuRastreio...`);
       const controller = new AbortController();
@@ -172,102 +266,17 @@ export async function handleTracking(req: any, res: any) {
             await syncTrackingHistory(supabase, orderId, history);
           }
 
+          console.log("🏁 [TRACKING_LOG] FINALIZANDO RASTREAMENTO COM SUCESSO (SeuRastreio)");
           return res.json({
             success: true,
             provider: 'SeuRastreio',
             status: data.status || 'Em trânsito',
             history: history
           });
-        } else {
-          console.warn(`⚠️ [TRACKING_LOG] SeuRastreio respondeu mas sem eventos.`);
         }
       }
     } catch (e: any) {
       console.error(`⚠️ [TRACKING_LOG] Falha no SeuRastreio: ${e.message}`);
-    }
-
-    // 2. TENTA BRASILAPI
-    try {
-      console.log(`📡 [TRACKING_LOG] Consultando BrasilAPI...`);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      
-      const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${code}`, {
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
-      
-      console.log(`📊 [TRACKING_LOG] BrasilAPI Status: ${response.status}`);
-      
-      if (response.ok) {
-        const data: any = await response.json();
-        if (data && data.eventos && data.eventos.length > 0) {
-          console.log(`✅ [TRACKING_LOG] BrasilAPI retornou ${data.eventos.length} eventos.`);
-          console.log("📊 [TRACKING_LOG] Eventos API encontrados:", data.eventos.length);
-          
-          const history = data.eventos.map((e: any) => ({
-            date: new Date(e.data).toLocaleString('pt-BR'),
-            location: e.local || 'Correios',
-            description: e.status
-          }));
-
-          if (orderId) {
-            await syncTrackingHistory(supabase, orderId, history);
-          }
-
-          return res.json({
-            success: true,
-            provider: 'BrasilAPI',
-            status: data.eventos[0].status || 'Em trânsito',
-            history: history
-          });
-        }
-      }
-    } catch (e: any) {
-      console.error(`⚠️ [TRACKING_LOG] Falha na BrasilAPI: ${e.message}`);
-    }
-
-    // 3. TENTA LINKETRACK
-    try {
-      console.log(`📡 [TRACKING_LOG] Consultando Linketrack...`);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-      
-      const linkeUrl = `https://api.linketrack.com/track/json?user=teste&token=1abcd1234567890&codigo=${code}`;
-      const linkeRes = await fetch(linkeUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
-      
-      console.log(`📊 [TRACKING_LOG] Linketrack Status: ${linkeRes.status}`);
-      
-      if (linkeRes.ok) {
-        const data: any = await linkeRes.json();
-        if (data && data.eventos && data.eventos.length > 0) {
-          console.log(`✅ [TRACKING_LOG] Linketrack retornou ${data.eventos.length} eventos.`);
-          console.log("📊 [TRACKING_LOG] Eventos API encontrados:", data.eventos.length);
-          
-          const history = data.eventos.map((e: any) => ({
-            date: `${e.data} ${e.hora}`,
-            location: e.local || 'Não informado',
-            description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
-          }));
-
-          if (orderId) {
-            await syncTrackingHistory(supabase, orderId, history);
-          }
-
-          return res.json({
-            success: true,
-            provider: 'Linketrack',
-            status: data.eventos[0].status,
-            history: history
-          });
-        }
-      }
-    } catch (e: any) {
-      console.error(`⚠️ [TRACKING_LOG] Falha no Linketrack: ${e.message}`);
     }
 
     // 3. FALLBACK: BANCO DE DADOS OU MANUAL
@@ -407,11 +416,13 @@ export async function handleOrderTracking(req: any, res: any) {
     console.log(`📡 [ORDER_TRACKING] Buscando histórico para o pedido: ${orderId}`);
 
     // 1. Busca o pedido no banco de dados
-    const { data: order, error: orderError } = await supabase
+    const { data: orders, error: orderError } = await supabase
       .from('orders')
       .select('status, tracking_code')
       .eq('id', orderId)
-      .maybeSingle();
+      .limit(1);
+
+    const order = orders?.[0];
 
     if (orderError || !order) {
       console.error(`❌ [ORDER_TRACKING] Pedido não encontrado: ${orderId}`, orderError);
@@ -422,12 +433,14 @@ export async function handleOrderTracking(req: any, res: any) {
     if (order.tracking_code) {
       console.log(`🔍 [ORDER_TRACKING] Código encontrado: ${order.tracking_code}. Consultando APIs externas...`);
       
-      const { data: carrier } = await supabase
+      const { data: carriers } = await supabase
         .from('shipping_carriers')
         .select('config')
         .ilike('name', '%CEPCERTO%')
         .eq('active', true)
-        .maybeSingle();
+        .limit(1);
+
+      const carrier = carriers?.[0];
 
       const config = typeof carrier?.config === 'string' ? JSON.parse(carrier.config) : carrier?.config;
       const apiKey = config?.api_key;

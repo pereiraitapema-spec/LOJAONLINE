@@ -970,19 +970,6 @@ export default function Store() {
             {session ? (
               <div className="flex items-center gap-2 lg:gap-4">
                 <button 
-                  onClick={() => setIsTrackingModalOpen(true)}
-                  className="hidden sm:flex items-center gap-2 text-slate-600 hover:text-emerald-600 transition-colors group"
-                >
-                  <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center group-hover:bg-emerald-50 transition-colors">
-                    <Package size={20} />
-                  </div>
-                  <div className="hidden lg:flex flex-col items-start">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Acompanhar</span>
-                    <span className="text-sm font-bold text-slate-800">Meus Pedidos</span>
-                  </div>
-                </button>
-
-                <button 
                   onClick={() => navigate('/profile')}
                   className="flex items-center gap-2 text-slate-600 hover:text-emerald-600 transition-colors group"
                 >
