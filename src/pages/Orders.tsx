@@ -512,7 +512,11 @@ export default function Orders() {
       const result = await shippingService.generateLabel(orderId);
       console.log('🔍 Resultado da geração de etiqueta:', result);
       if (result.success) {
-        await updateTrackingCode(orderId, result.tracking_code || '', result.shipping_label_url, currentStatus);
+        // Garantir que tracking_code e shipping_label_url não sejam nulos ou indefinidos
+        const trackingCode = result.tracking_code || '';
+        const labelUrl = result.shipping_label_url || '';
+        
+        await updateTrackingCode(orderId, trackingCode, labelUrl, currentStatus);
         await fetchTrackingStatus(orderId);
         toast.success('Etiqueta gerada com sucesso!');
       } else {

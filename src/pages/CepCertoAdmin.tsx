@@ -43,15 +43,34 @@ export default function CepCertoAdmin() {
   const [showTrackingInfoModal, setShowTrackingInfoModal] = useState(false);
   const [loadingTrackingInfo, setLoadingTrackingInfo] = useState(false);
   
-  const [quoteData, setQuoteData] = useState({
-    cep_origem: '',
+  const [manualLabelData, setManualLabelData] = useState({
+    tipo_entrega: 'sedex',
+    logistica_reversa: '',
     cep_remetente: '',
-    cep_destino: '',
+    cep_destinatario: '',
     peso: '1',
-    comprimento: '20',
-    largura: '20',
     altura: '20',
-    valor_encomenda: '50.00'
+    largura: '20',
+    comprimento: '20',
+    valor_encomenda: '50',
+    nome_remetente: '',
+    cpf_cnpj_remetente: '',
+    whatsapp_remetente: '',
+    email_remetente: '',
+    logradouro_remetente: '',
+    bairro_remetente: '',
+    numero_endereco_remetente: '',
+    complemento_remetente: '',
+    nome_destinatario: '',
+    cpf_cnpj_destinatario: '',
+    whatsapp_destinatario: '',
+    email_destinatario: '',
+    logradouro_destinatario: '',
+    bairro_destinatario: '',
+    numero_endereco_destinatario: '',
+    complemento_destinatario: '',
+    tipo_doc_fiscal: 'declaracao',
+    chave_danfe: ''
   });
   const [quotes, setQuotes] = useState<any[]>([]);
   const [calculating, setCalculating] = useState(false);
@@ -207,6 +226,24 @@ export default function CepCertoAdmin() {
       toast.error('Erro ao gerar PIX: ' + error.message);
     } finally {
       setIsGeneratingPix(false);
+    }
+  };
+
+  const handleGenerateManualLabel = async () => {
+    if (!carrier) return;
+    try {
+      toast.loading('Gerando etiqueta manual...', { id: 'gen-label-manual' });
+      const result = await shippingService.generateLabel('manual', carrier.settings, manualLabelData);
+      
+      if (result.success) {
+        toast.success('Etiqueta gerada com sucesso!', { id: 'gen-label-manual' });
+        console.log('✅ Etiqueta manual gerada:', result);
+        // Aqui você pode adicionar lógica para exibir a etiqueta ou salvar no banco
+      } else {
+        throw new Error(result.error || 'Erro desconhecido');
+      }
+    } catch (err: any) {
+      toast.error(`Erro: ${err.message}`, { id: 'gen-label-manual' });
     }
   };
 
@@ -753,6 +790,7 @@ export default function CepCertoAdmin() {
           {activeTab === 'logistica' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Cotação Rápida */}
+              {/* TESTE */}
               <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
                 <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
                   <Calculator className="text-indigo-600" size={24} />

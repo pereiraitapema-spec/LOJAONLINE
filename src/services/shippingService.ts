@@ -600,91 +600,100 @@ const cepcertoProvider: ShippingProvider = {
     }
   },
 
-  async generateLabel(orderId: string, config: any) {
+  async generateLabel(orderId: string, config: any, manualData?: any) {
     if (!config?.api_key_postagem && !config?.api_key) {
       throw new Error('Token do CepCerto não configurado.');
     }
     const key = config.api_key_postagem || config.api_key;
-    console.log('📦 Gerando etiqueta real CepCerto para o pedido:', orderId);
+    console.log('📦 Gerando etiqueta real CepCerto para o pedido:', orderId, manualData ? 'Manual' : 'Automático');
     
     try {
-      // 1. Buscar dados completos do pedido e itens
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .select('*, order_items(*)')
-        .eq('id', orderId)
-        .maybeSingle();
+      let payload: any;
 
-      if (orderError || !order) throw new Error('Pedido não encontrado');
+      if (manualData) {
+        payload = {
+          token_cliente_postagem: key,
+          ...manualData
+        };
+      } else {
+        // 1. Buscar dados completos do pedido e itens
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .select('*, order_items(*)')
+          .eq('id', orderId)
+          .maybeSingle();
 
-      // 2. Buscar dados da loja (remetente)
-      const { data: settings } = await supabase
-        .from('store_settings')
-        .select('*')
-        .limit(1)
-        .maybeSingle();
+        if (orderError || !order) throw new Error('Pedido não encontrado');
 
-      if (!settings) throw new Error('Configurações da loja não encontradas');
+        // 2. Buscar dados da loja (remetente)
+        const { data: settings } = await supabase
+          .from('store_settings')
+          .select('*')
+          .limit(1)
+          .maybeSingle();
 
-      // 3. Mapear tipo de entrega
-      const method = (order.shipping_method || '').toLowerCase();
-      let tipoEntrega = 'sedex';
-      if (method.includes('pac')) tipoEntrega = 'pac';
-      else if (method.includes('jadlog-package')) tipoEntrega = 'jadlog-package';
-      else if (method.includes('jadlog-dotcom')) tipoEntrega = 'jadlog-dotcom';
+        if (!settings) throw new Error('Configurações da loja não encontradas');
 
-      // 4. Preparar dados do remetente (parsing do endereço se necessário)
-      const senderAddress = settings.address || '';
-      const senderParts = senderAddress.split(',').map((s: string) => s.trim());
-      const senderLogradouro = senderParts[0] || 'Endereço não informado';
-      const senderRest = (senderParts[1] || '').split('-').map((s: string) => s.trim());
-      const senderNumero = senderRest[0] || 'SN';
-      const senderBairro = senderRest[1] || 'Centro';
+        // 3. Mapear tipo de entrega
+        const method = (order.shipping_method || '').toLowerCase();
+        let tipoEntrega = 'sedex';
+        if (method.includes('pac')) tipoEntrega = 'pac';
+        else if (method.includes('jadlog-package')) tipoEntrega = 'jadlog-package';
+        else if (method.includes('jadlog-dotcom')) tipoEntrega = 'jadlog-dotcom';
 
-      // 5. Preparar dados do destinatário
-      const dest = order.shipping_address || {};
-      
-      // 6. Montar o payload conforme solicitado
-      const payload = {
-        token_cliente_postagem: key,
-        tipo_entrega: tipoEntrega,
-        logistica_reversa: "",
-        cep_remetente: (settings.origin_zip_code || settings.cep || '').replace(/\D/g, ''),
-        cep_destinatario: (dest.cep || '').replace(/\D/g, ''),
-        peso: (order.weight_kg || 1).toString(),
-        altura: (order.height_cm || 20).toString(),
-        largura: (order.width_cm || 20).toString(),
-        comprimento: (order.length_cm || 20).toString(),
-        valor_encomenda: Math.max(50, order.total).toFixed(2),
+        // 4. Preparar dados do remetente (parsing do endereço se necessário)
+        const senderAddress = settings.address || '';
+        const senderParts = senderAddress.split(',').map((s: string) => s.trim());
+        const senderLogradouro = senderParts[0] || 'Endereço não informado';
+        const senderRest = (senderParts[1] || '').split('-').map((s: string) => s.trim());
+        const senderNumero = senderRest[0] || 'SN';
+        const senderBairro = senderRest[1] || 'Centro';
+
+        // 5. Preparar dados do destinatário
+        const dest = order.shipping_address || {};
         
-        // Remetente
-        nome_remetente: settings.company_name.substring(0, 50),
-        cpf_cnpj_remetente: settings.cnpj.replace(/\D/g, ''),
-        whatsapp_remetente: (settings.whatsapp || settings.phone || '').replace(/\D/g, '').substring(0, 11),
-        email_remetente: settings.email.substring(0, 50),
-        logradouro_remetente: senderLogradouro.substring(0, 50),
-        bairro_remetente: senderBairro.substring(0, 40),
-        numero_endereco_remetente: senderNumero.substring(0, 10),
-        complemento_remetente: "",
-        
-        // Destinatário
-        nome_destinatario: (order.customer_name || dest.nome || 'Cliente').substring(0, 50),
-        cpf_cnpj_destinatario: (order.customer_document || '').replace(/\D/g, ''),
-        whatsapp_destinatario: (order.customer_phone || '').replace(/\D/g, '').substring(0, 11),
-        email_destinatario: (order.customer_email || '').substring(0, 50),
-        logradouro_destinatario: (dest.logradouro || '').substring(0, 50),
-        bairro_destinatario: (dest.bairro || '').substring(0, 40),
-        numero_endereco_destinatario: (dest.numero || 'SN').toString().substring(0, 10),
-        complemento_destinatario: (dest.complemento || '').substring(0, 20),
-        
-        tipo_doc_fiscal: "declaracao",
-        produtos: (order.order_items || []).map((item: any) => ({
-          descricao: item.product_name.substring(0, 50),
-          valor: item.price.toFixed(2),
-          quantidade: item.quantity.toString()
-        })),
-        chave_danfe: ""
-      };
+        // 6. Montar o payload conforme solicitado
+        payload = {
+          token_cliente_postagem: key,
+          tipo_entrega: tipoEntrega,
+          logistica_reversa: "",
+          cep_remetente: (settings.origin_zip_code || settings.cep || '').replace(/\D/g, ''),
+          cep_destinatario: (dest.cep || '').replace(/\D/g, ''),
+          peso: (order.weight_kg || 1).toString(),
+          altura: (order.height_cm || 20).toString(),
+          largura: (order.width_cm || 20).toString(),
+          comprimento: (order.length_cm || 20).toString(),
+          valor_encomenda: Math.max(50, order.total).toFixed(2),
+          
+          // Remetente
+          nome_remetente: settings.company_name.substring(0, 50),
+          cpf_cnpj_remetente: settings.cnpj.replace(/\D/g, ''),
+          whatsapp_remetente: (settings.whatsapp || settings.phone || '').replace(/\D/g, '').substring(0, 11),
+          email_remetente: settings.email.substring(0, 50),
+          logradouro_remetente: senderLogradouro.substring(0, 50),
+          bairro_remetente: senderBairro.substring(0, 40),
+          numero_endereco_remetente: senderNumero.substring(0, 10),
+          complemento_remetente: "",
+          
+          // Destinatário
+          nome_destinatario: (order.customer_name || dest.nome || 'Cliente').substring(0, 50),
+          cpf_cnpj_destinatario: (order.customer_document || '').replace(/\D/g, ''),
+          whatsapp_destinatario: (order.customer_phone || '').replace(/\D/g, '').substring(0, 11),
+          email_destinatario: (order.customer_email || '').substring(0, 50),
+          logradouro_destinatario: (dest.logradouro || '').substring(0, 50),
+          bairro_destinatario: (dest.bairro || '').substring(0, 40),
+          numero_endereco_destinatario: (dest.numero || 'SN').toString().substring(0, 10),
+          complemento_destinatario: (dest.complemento || '').substring(0, 20),
+          
+          tipo_doc_fiscal: "declaracao",
+          produtos: (order.order_items || []).map((item: any) => ({
+            descricao: item.product_name.substring(0, 50),
+            valor: item.price.toFixed(2),
+            quantidade: item.quantity.toString()
+          })),
+          chave_danfe: ""
+        };
+      }
 
       console.log('🚀 Enviando payload para CepCerto:', payload);
 
