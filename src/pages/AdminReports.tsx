@@ -8,6 +8,9 @@ import {
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { checkPermission } from '../lib/rbac';
+import { formatCurrency, formatDate } from '../lib/utils';
+import { productService } from '../services/productService';
+import { orderService } from '../services/orderService';
 
 export default function AdminReports() {
   const navigate = useNavigate();
@@ -38,13 +41,13 @@ export default function AdminReports() {
         const [ordersRes, gatewaysRes, productsRes] = await Promise.all([
           supabase.from('orders').select('*, order_items(*), profiles(full_name, email)'),
           supabase.from('payment_gateways').select('*'),
-          supabase.from('products').select('*')
+          productService.getAllProducts()
         ]);
 
         setData({
           orders: ordersRes.data || [],
           gateways: gatewaysRes.data || [],
-          products: productsRes.data || []
+          products: productsRes || []
         });
       } catch (error) {
         toast.error('Erro ao carregar dados');
@@ -105,7 +108,7 @@ export default function AdminReports() {
                 <div className="text-right">
                   <p className="text-sm text-slate-500">Total Faturado</p>
                   <p className="text-2xl font-black text-emerald-600">
-                    R$ {filteredOrders.reduce((acc: number, o: any) => acc + o.total, 0).toFixed(2)}
+                    {formatCurrency(filteredOrders.reduce((acc: number, o: any) => acc + o.total, 0))}
                   </p>
                 </div>
               </div>
@@ -127,13 +130,13 @@ export default function AdminReports() {
                           <p className="text-xs text-slate-500">{o.profiles?.email}</p>
                         </td>
                         <td className="py-4 text-sm text-slate-600">
-                          {new Date(o.created_at).toLocaleDateString('pt-BR')}
+                          {formatDate(o.created_at)}
                         </td>
                         <td className="py-4 text-sm text-slate-600 max-w-xs truncate">
                           {o.order_items.map((i: any) => i.product_name).join(', ')}
                         </td>
                         <td className="py-4 text-right font-bold text-slate-900">
-                          R$ {o.total.toFixed(2)}
+                          {formatCurrency(o.total)}
                         </td>
                       </tr>
                     ))}
@@ -153,7 +156,7 @@ export default function AdminReports() {
                   return (
                     <div key={method} className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{method.replace('_', ' ')}</p>
-                      <p className="text-2xl font-black text-slate-900">R$ {total.toFixed(2)}</p>
+                      <p className="text-2xl font-black text-slate-900">{formatCurrency(total)}</p>
                       <p className="text-xs text-slate-500 mt-1">{count} pedidos realizados</p>
                     </div>
                   );
@@ -184,7 +187,7 @@ export default function AdminReports() {
                           {o.status}
                         </span>
                       </td>
-                      <td className="py-4 text-right font-bold text-slate-900">R$ {o.total.toFixed(2)}</td>
+                      <td className="py-4 text-right font-bold text-slate-900">{formatCurrency(o.total)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -201,7 +204,7 @@ export default function AdminReports() {
                     <div>
                       <div className="flex items-center gap-3 mb-2">
                         <span className="text-sm font-mono font-bold text-indigo-600">#{o.id.substring(0, 8).toUpperCase()}</span>
-                        <span className="text-xs text-slate-400">{new Date(o.created_at).toLocaleString('pt-BR')}</span>
+                        <span className="text-xs text-slate-400">{formatDate(o.created_at)}</span>
                       </div>
                       <p className="font-bold text-slate-900 mb-1">{o.profiles?.full_name}</p>
                       <div className="flex flex-wrap gap-2">

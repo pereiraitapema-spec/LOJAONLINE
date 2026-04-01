@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { formatCurrency } from '../lib/utils';
+import { productService } from '../services/productService';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Package, 
@@ -78,17 +80,16 @@ export default function Inventory() {
     try {
       setLoading(true);
       const [productsRes, logsRes] = await Promise.all([
-        supabase.from('products').select('*').order('name'),
+        productService.getAllProducts(),
         supabase.from('inventory_logs')
           .select('*, product:products(name)')
           .order('created_at', { ascending: false })
           .limit(50)
       ]);
 
-      if (productsRes.error) throw productsRes.error;
       if (logsRes.error) throw logsRes.error;
 
-      setProducts(productsRes.data || []);
+      setProducts(productsRes || []);
       setLogs(logsRes.data || []);
     } catch (error: any) {
       toast.error('Erro ao carregar dados: ' + error.message);
@@ -106,12 +107,7 @@ export default function Inventory() {
       const newStock = selectedProduct.stock + amount;
 
       // 1. Update product stock
-      const { error: productError } = await supabase
-        .from('products')
-        .update({ stock: newStock })
-        .eq('id', selectedProduct.id);
-
-      if (productError) throw productError;
+      await productService.updateStock(selectedProduct.id, newStock);
 
       // 2. Create log
       const { error: logError } = await supabase
@@ -174,7 +170,7 @@ export default function Inventory() {
             </div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Valor em Custo</span>
           </div>
-          <p className="text-2xl font-black text-slate-900">R$ {totalCostValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-2xl font-black text-slate-900">{formatCurrency(totalCostValue)}</p>
         </div>
 
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
@@ -184,7 +180,7 @@ export default function Inventory() {
             </div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Valor em Venda</span>
           </div>
-          <p className="text-2xl font-black text-slate-900">R$ {totalRetailValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-2xl font-black text-slate-900">{formatCurrency(totalRetailValue)}</p>
         </div>
 
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
@@ -204,7 +200,7 @@ export default function Inventory() {
             </div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Lucro Previsto</span>
           </div>
-          <p className="text-2xl font-black text-emerald-600">R$ {projectedProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-2xl font-black text-emerald-600">{formatCurrency(projectedProfit)}</p>
         </div>
 
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
@@ -270,10 +266,10 @@ export default function Inventory() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right text-sm font-medium text-slate-600">
-                        R$ {product.cost_price?.toFixed(2) || '0.00'}
+                        {formatCurrency(product.cost_price || 0)}
                       </td>
                       <td className="px-6 py-4 text-right text-sm font-black text-slate-900">
-                        R$ {product.price.toFixed(2)}
+                        {formatCurrency(product.price)}
                       </td>
                       <td className="px-6 py-4 text-right text-sm font-bold text-emerald-600">
                         {product.price > 0 ? (((product.price - (product.cost_price || 0)) / product.price) * 100).toFixed(0) : 0}%

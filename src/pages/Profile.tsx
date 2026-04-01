@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { User, Camera, Save, ArrowLeft, Shield, LayoutDashboard, Package, Truck, Printer, Search } from 'lucide-react';
+import { User, Camera, Save, ArrowLeft, Shield, LayoutDashboard, Package, Truck, Printer, Search, Store } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { TrackingModal } from '../components/TrackingModal';
@@ -218,6 +218,23 @@ export default function Profile() {
                   </div>
                 </>
               )}
+              {profile.role === 'affiliate' && (
+                <>
+                  <div className="mt-2 inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold uppercase tracking-wider">
+                    <User size={12} />
+                    Afiliado
+                  </div>
+                  <div className="mt-6">
+                    <button
+                      onClick={() => navigate('/affiliate-dashboard')}
+                      className="w-full bg-indigo-500 text-white py-4 rounded-2xl font-bold hover:bg-indigo-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
+                    >
+                      <LayoutDashboard size={20} />
+                      Acessar Painel de Afiliado
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             <form onSubmit={handleSave} className="space-y-6">
@@ -237,11 +254,11 @@ export default function Profile() {
               <div className="pt-4">
                 <button
                   type="button"
-                  onClick={() => navigate('/profile')}
+                  onClick={() => navigate('/')}
                   className="w-full bg-slate-100 text-slate-700 py-4 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2 mb-4"
                 >
-                  <User size={20} />
-                  ENTRAR NO PERFIL
+                  <Store size={20} />
+                  ENTRAR NA LOJA DE VENDAS
                 </button>
                 <button
                   type="submit"

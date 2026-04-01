@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { formatCurrency } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -791,12 +792,12 @@ export default function Store() {
                 {cartTotal >= (settings?.free_shipping_threshold || 0) && (settings?.free_shipping_threshold || 0) > 0
                   ? "🎉 PARABÉNS! VOCÊ GANHOU FRETE GRÁTIS!" 
                   : (settings?.free_shipping_threshold || 0) > 0 
-                    ? `FALTAM R$ ${((settings?.free_shipping_threshold || 0) - cartTotal).toFixed(2)} PARA FRETE GRÁTIS`
+                    ? `FALTAM ${formatCurrency(((settings?.free_shipping_threshold || 0) - cartTotal))} PARA FRETE GRÁTIS`
                     : "FRETE GRÁTIS EM TODAS AS COMPRAS!"
                 }
               </span>
               {(settings?.free_shipping_threshold || 0) > 0 && (
-                <span className="text-[10px] font-black text-emerald-600">R$ {(settings?.free_shipping_threshold || 0).toFixed(2)}</span>
+                <span className="text-[10px] font-black text-emerald-600">{formatCurrency(settings?.free_shipping_threshold || 0)}</span>
               )}
             </div>
             <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -886,7 +887,7 @@ export default function Store() {
                           <div>
                             <div className="font-bold text-slate-900 text-sm">{product.name}</div>
                             <div className="text-xs text-emerald-600 font-bold">
-                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.discount_price || product.price)}
+                              {formatCurrency(product.discount_price || product.price)}
                             </div>
                           </div>
                         </button>
@@ -1026,7 +1027,7 @@ export default function Store() {
               </div>
               <div className="hidden lg:flex flex-col items-start">
                 <span className="text-[10px] uppercase font-bold text-slate-400">Minhas Compras</span>
-                <span className="text-sm font-black text-slate-800">R$ {cartTotal.toFixed(2)}</span>
+                <span className="text-sm font-black text-slate-800">{formatCurrency(cartTotal)}</span>
               </div>
               {affiliateCoupon && (
                 <div className="absolute -top-2 -left-2 bg-emerald-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase shadow-sm animate-bounce">
@@ -1442,16 +1443,16 @@ export default function Store() {
               <div className="mt-1 flex items-baseline gap-2">
                 {product.discount_price !== null && product.discount_price !== undefined && product.discount_price > 0 ? (
                   <>
-                    <span className="text-emerald-600 font-black">R$ {product.discount_price.toFixed(2)}</span>
-                    <span className="text-xs text-slate-400 line-through">R$ {product.price.toFixed(2)}</span>
+                    <span className="text-emerald-600 font-black">{formatCurrency(product.discount_price)}</span>
+                    <span className="text-xs text-slate-400 line-through">{formatCurrency(product.price)}</span>
                   </>
                 ) : (
-                  <span className="text-slate-900 font-black">R$ {product.price.toFixed(2)}</span>
+                  <span className="text-slate-900 font-black">{formatCurrency(product.price)}</span>
                 )}
               </div>
               <div className="mt-0.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <CreditCard size={10} className="text-emerald-500" />
-                ou {calculateInstallments(product.discount_price || product.price, product.min_installment_value).count}x de R$ {calculateInstallments(product.discount_price || product.price, product.min_installment_value).value.toFixed(2)}
+                ou {calculateInstallments(product.discount_price || product.price, product.min_installment_value).count}x de {formatCurrency(calculateInstallments(product.discount_price || product.price, product.min_installment_value).value)}
               </div>
 
               {affiliateData && (
@@ -1459,7 +1460,7 @@ export default function Store() {
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-[10px] font-bold text-indigo-600 uppercase">Sua Comissão</span>
                     <span className="text-xs font-black text-indigo-700">
-                      R$ {((product.discount_price || product.price) * (product.affiliate_commission || affiliateData.commission_rate) / 100).toFixed(2)}
+                      {formatCurrency(((product.discount_price || product.price) * (product.affiliate_commission || affiliateData.commission_rate) / 100))}
                     </span>
                   </div>
                   <button 
@@ -1768,19 +1769,19 @@ export default function Store() {
                       <div className="flex flex-col mb-6">
                         {selectedProduct.discount_price !== null && selectedProduct.discount_price !== undefined && selectedProduct.discount_price > 0 ? (
                           <>
-                            <span className="text-xl text-slate-400 line-through tracking-tighter">de R$ {selectedProduct.price.toFixed(2)} por</span>
-                            <span className="text-4xl font-black text-pink-600 tracking-tighter">R$ {selectedProduct.discount_price.toFixed(2)}</span>
+                            <span className="text-xl text-slate-400 line-through tracking-tighter">de {formatCurrency(selectedProduct.price)} por</span>
+                            <span className="text-4xl font-black text-pink-600 tracking-tighter">{formatCurrency(selectedProduct.discount_price)}</span>
                             <span className="text-sm font-bold text-emerald-600 mt-1">no PIX (5% de desconto)</span>
                             <span className="text-sm text-slate-500 mt-1">
-                              ou em até {calculateInstallments(selectedProduct.discount_price, selectedProduct.min_installment_value).count}x de R$ {calculateInstallments(selectedProduct.discount_price, selectedProduct.min_installment_value).value.toFixed(2)} sem juros
+                              ou em até {calculateInstallments(selectedProduct.discount_price, selectedProduct.min_installment_value).count}x de {formatCurrency(calculateInstallments(selectedProduct.discount_price, selectedProduct.min_installment_value).value)} sem juros
                             </span>
                           </>
                         ) : (
                           <>
-                            <span className="text-4xl font-black text-slate-900 tracking-tighter">R$ {selectedProduct.price.toFixed(2)}</span>
+                            <span className="text-4xl font-black text-slate-900 tracking-tighter">{formatCurrency(selectedProduct.price)}</span>
                             <span className="text-sm font-bold text-emerald-600 mt-1">no PIX (5% de desconto)</span>
                             <span className="text-sm text-slate-500 mt-1">
-                              ou em até {calculateInstallments(selectedProduct.price, selectedProduct.min_installment_value).count}x de R$ {calculateInstallments(selectedProduct.price, selectedProduct.min_installment_value).value.toFixed(2)} sem juros
+                              ou em até {calculateInstallments(selectedProduct.price, selectedProduct.min_installment_value).count}x de {formatCurrency(calculateInstallments(selectedProduct.price, selectedProduct.min_installment_value).value)} sem juros
                             </span>
                           </>
                         )}
@@ -1808,8 +1809,8 @@ export default function Store() {
                                     <span className="text-xs font-bold text-emerald-600">Economize {tier.discount_percentage}%</span>
                                   </div>
                                   <div className="text-right">
-                                    <span className="block font-black text-slate-900">R$ {total.toFixed(2)}</span>
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase">R$ {unitPrice.toFixed(2)} / un</span>
+                                    <span className="block font-black text-slate-900">{formatCurrency(total)}</span>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase">{formatCurrency(unitPrice)} / un</span>
                                   </div>
                                 </button>
                               );
@@ -1870,7 +1871,7 @@ export default function Store() {
                                           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Prazo: {quote.deadline}</span>
                                         </div>
                                         <span className="font-black text-emerald-600 text-base">
-                                          {quote.price === 0 ? 'Frete Grátis' : `R$ ${quote.price.toFixed(2)}`}
+                                          {quote.price === 0 ? 'Frete Grátis' : `${formatCurrency(quote.price)}`}
                                         </span>
                                       </div>
                                     ))}
@@ -2030,11 +2031,11 @@ export default function Store() {
                         <div className="mt-auto">
                           {related.discount_price && related.discount_price > 0 ? (
                             <div className="flex flex-col">
-                              <span className="text-[10px] text-slate-400 line-through">R$ {related.price.toFixed(2)}</span>
-                              <span className="text-sm font-black text-pink-600">R$ {related.discount_price.toFixed(2)}</span>
+                              <span className="text-[10px] text-slate-400 line-through">{formatCurrency(related.price)}</span>
+                              <span className="text-sm font-black text-pink-600">{formatCurrency(related.discount_price)}</span>
                             </div>
                           ) : (
-                            <span className="text-sm font-black text-slate-900">R$ {related.price.toFixed(2)}</span>
+                            <span className="text-sm font-black text-slate-900">{formatCurrency(related.price)}</span>
                           )}
                         </div>
                       </div>
@@ -2093,7 +2094,7 @@ export default function Store() {
                         </div>
                         <div className="flex-1 flex flex-col justify-center">
                           <h4 className="font-bold text-slate-900 text-sm line-clamp-1">{product.name}</h4>
-                          <p className="text-emerald-600 font-black text-sm">R$ {(product.discount_price || product.price).toFixed(2)}</p>
+                          <p className="text-emerald-600 font-black text-sm">{formatCurrency(product.discount_price || product.price)}</p>
                           <button 
                             onClick={(e) => { e.stopPropagation(); toggleFavorite(favId); }}
                             className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mt-1 hover:underline"
@@ -2155,7 +2156,7 @@ export default function Store() {
                       <p className="text-[8px] font-bold text-emerald-800 uppercase tracking-wider">
                         {cartTotal >= Number(settings?.free_shipping_threshold) 
                           ? "🎉 Frete Grátis!" 
-                          : `Faltam R$ ${(Number(settings?.free_shipping_threshold) - cartTotal).toFixed(2)}`}
+                          : `Faltam ${formatCurrency((Number(settings?.free_shipping_threshold) - cartTotal))}`}
                       </p>
                       <Truck size={10} className={cartTotal >= Number(settings?.free_shipping_threshold) ? 'text-emerald-600' : 'text-slate-400'} />
                     </div>
@@ -2196,7 +2197,7 @@ export default function Store() {
                           <div className="flex-1 min-w-0 flex flex-col justify-between">
                             <div>
                               <h4 className="font-bold text-slate-900 truncate text-[10px] uppercase italic">{item.product.name}</h4>
-                              <p className="text-[8px] text-slate-500">R$ {unitPrice.toFixed(2)} cada</p>
+                              <p className="text-[8px] text-slate-500">{formatCurrency(unitPrice)} cada</p>
                             </div>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center bg-slate-100 rounded-full px-1 py-0.5">
@@ -2215,7 +2216,7 @@ export default function Store() {
                                 </button>
                               </div>
                               <div className="flex flex-col items-end">
-                                <span className="font-black text-emerald-600 text-xs tracking-tighter">R$ {total.toFixed(2)}</span>
+                                <span className="font-black text-emerald-600 text-xs tracking-tighter">{formatCurrency(total)}</span>
                                 <button 
                                   onClick={() => removeFromCart(item.product.id)}
                                   className="text-slate-400 hover:text-rose-500 text-[8px] font-bold transition-colors uppercase"
@@ -2293,7 +2294,7 @@ export default function Store() {
                             )}
                           </div>
                           <h5 className="font-bold text-slate-900 truncate text-[10px] mb-0.5">{related.name}</h5>
-                          <span className="text-emerald-600 font-black text-xs mb-1.5 tracking-tighter">R$ {(related.discount_price || related.price).toFixed(2)}</span>
+                          <span className="text-emerald-600 font-black text-xs mb-1.5 tracking-tighter">{formatCurrency(related.discount_price || related.price)}</span>
                           <button 
                             onClick={() => addToCart(related, 1)}
                             className="mt-auto w-full bg-slate-900 text-white font-bold py-1 rounded-lg hover:bg-slate-800 transition-colors uppercase text-[9px] tracking-wider"
@@ -2357,7 +2358,7 @@ export default function Store() {
                                   <span className="text-[7px] text-slate-400 font-bold uppercase tracking-widest">Prazo: {quote.deadline}</span>
                                 </div>
                                 <span className="font-black text-emerald-600">
-                                  {quote.price === 0 ? 'Grátis' : `R$ ${quote.price.toFixed(2)}`}
+                                  {quote.price === 0 ? 'Grátis' : `${formatCurrency(quote.price)}`}
                                 </span>
                               </button>
                             ))}
@@ -2375,7 +2376,7 @@ export default function Store() {
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-slate-500 font-bold text-[8px] uppercase tracking-wider">Subtotal</span>
                       <span className={`font-black text-slate-900 tracking-tighter ${discountValue > 0 ? 'text-[10px] line-through opacity-50' : 'text-xs'}`}>
-                        R$ {cartTotal.toFixed(2)}
+                        {formatCurrency(cartTotal)}
                       </span>
                     </div>
 
@@ -2386,7 +2387,7 @@ export default function Store() {
                           <span className="text-[8px] font-bold uppercase tracking-wider">Frete ({selectedShippingQuote.name})</span>
                         </div>
                         <span className="text-[10px] font-black tracking-tighter">
-                          {isFreeShipping ? 'GRÁTIS' : `R$ ${selectedShippingQuote.price.toFixed(2)}`}
+                          {isFreeShipping ? 'GRÁTIS' : `${formatCurrency(selectedShippingQuote.price)}`}
                         </span>
                       </div>
                     )}
@@ -2397,13 +2398,13 @@ export default function Store() {
                           <Tag size={8} />
                           <span className="text-[8px] font-bold uppercase tracking-wider">Cupom {affiliateCoupon.code}</span>
                         </div>
-                        <span className="text-[10px] font-black tracking-tighter">- R$ {discountValue.toFixed(2)}</span>
+                        <span className="text-[10px] font-black tracking-tighter">- {formatCurrency(discountValue)}</span>
                       </div>
                     )}
 
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-slate-900 font-black uppercase text-[8px] tracking-wider">Total</span>
-                      <span className="text-sm font-black text-slate-900 tracking-tighter">R$ {finalTotal.toFixed(2)}</span>
+                      <span className="text-sm font-black text-slate-900 tracking-tighter">{formatCurrency(finalTotal)}</span>
                     </div>
 
                     <div className="flex flex-col items-end">

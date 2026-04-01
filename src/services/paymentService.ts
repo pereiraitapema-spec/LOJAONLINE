@@ -47,10 +47,10 @@ const pagarmeProvider: PaymentProvider = {
                 }
               },
               address: {
-                line_1: `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}`,
-                zip_code: orderData.shipping_address.cep.replace(/\D/g, ''),
-                city: orderData.shipping_address.city,
-                state: orderData.shipping_address.state,
+                line_1: orderData.shipping_address.street ? `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}` : 'Rua Fictícia, 123, Centro',
+                zip_code: orderData.shipping_address.cep && orderData.shipping_address.cep.toUpperCase() !== 'BALCAO' ? orderData.shipping_address.cep.replace(/\D/g, '') : '01001000',
+                city: orderData.shipping_address.city || 'São Paulo',
+                state: orderData.shipping_address.state || 'SP',
                 country: 'BR'
               }
             },
@@ -60,10 +60,10 @@ const pagarmeProvider: PaymentProvider = {
               recipient_name: orderData.customer_name,
               recipient_phone: orderData.customer_phone,
               address: {
-                line_1: `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}`,
-                zip_code: orderData.shipping_address.cep.replace(/\D/g, ''),
-                city: orderData.shipping_address.city,
-                state: orderData.shipping_address.state,
+                line_1: orderData.shipping_address.street ? `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}` : 'Rua Fictícia, 123, Centro',
+                zip_code: orderData.shipping_address.cep && orderData.shipping_address.cep.toUpperCase() !== 'BALCAO' ? orderData.shipping_address.cep.replace(/\D/g, '') : '01001000',
+                city: orderData.shipping_address.city || 'São Paulo',
+                state: orderData.shipping_address.state || 'SP',
                 country: 'BR'
               }
             },
@@ -83,7 +83,7 @@ const pagarmeProvider: PaymentProvider = {
                     cvv: orderData.cvv,
                     billing_address: {
                       line_1: orderData.shipping_address.street ? `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}` : 'Rua Fictícia, 123, Centro',
-                      zip_code: orderData.shipping_address.cep ? orderData.shipping_address.cep.replace(/\D/g, '') : '01001000',
+                      zip_code: orderData.shipping_address.cep && orderData.shipping_address.cep.toUpperCase() !== 'BALCAO' ? orderData.shipping_address.cep.replace(/\D/g, '') : '01001000',
                       city: orderData.shipping_address.city || 'São Paulo',
                       state: orderData.shipping_address.state || 'SP',
                       country: 'BR'
@@ -101,7 +101,7 @@ const pagarmeProvider: PaymentProvider = {
                     cvv: orderData.cvv,
                     billing_address: {
                       line_1: orderData.shipping_address.street ? `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}` : 'Rua Fictícia, 123, Centro',
-                      zip_code: orderData.shipping_address.cep ? orderData.shipping_address.cep.replace(/\D/g, '') : '01001000',
+                      zip_code: orderData.shipping_address.cep && orderData.shipping_address.cep.toUpperCase() !== 'BALCAO' ? orderData.shipping_address.cep.replace(/\D/g, '') : '01001000',
                       city: orderData.shipping_address.city || 'São Paulo',
                       state: orderData.shipping_address.state || 'SP',
                       country: 'BR'

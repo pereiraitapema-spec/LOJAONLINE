@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { formatCurrency } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { 
@@ -448,7 +449,7 @@ export default function Checkout() {
     const savedCity = localStorage.getItem('last_city');
     const savedState = localStorage.getItem('last_state');
     
-    if (savedCep && savedCep.length === 8 && !shipping.cep) {
+    if (savedCep && (savedCep.length === 8 || savedCep.toUpperCase() === 'BALCAO') && !shipping.cep) {
       console.log('📦 Carregando CEP salvo do Store:', savedCep);
       setShipping(prev => ({ 
         ...prev, 
@@ -518,8 +519,8 @@ export default function Checkout() {
 
   // Recalcular frete quando o carrinho ou cupom mudar
   useEffect(() => {
-    if (shipping.cep && shipping.cep.length === 8) {
-      if (couponCode.trim().toUpperCase() === 'BALCAO') {
+    if (shipping.cep && (shipping.cep.length === 8 || shipping.cep.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === 'BALCAO')) {
+      if (shipping.cep.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === 'BALCAO') {
         setShippingMethods([{
           id: 'balcao',
           name: 'CLIENTE BUSCA NA EMPRESA',
@@ -620,7 +621,7 @@ export default function Checkout() {
   }, [cartTotal, discountRules, campaigns, paymentMethod, isFirstPurchase, couponCode, affiliateCoupon]);
 
   const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
-  const isBalcao = couponCode.trim().toUpperCase() === 'BALCAO';
+  const isBalcao = shipping.cep.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === 'BALCAO';
   const displayShippingMethods = isBalcao ? [{
     id: 'balcao',
     name: 'CLIENTE BUSCA NA EMPRESA',
@@ -716,6 +717,27 @@ export default function Checkout() {
 
   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
+    
+    // Check if the user is typing "balcao" or "balcão"
+    const normalizedRawValue = rawValue.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const isTypingBalcao = 'balcao'.startsWith(normalizedRawValue);
+    if (isTypingBalcao && rawValue.length > 0) {
+      setShipping(prev => ({ ...prev, cep: rawValue.toUpperCase() }));
+      
+      if (normalizedRawValue === 'balcao') {
+        setShippingMethods([{
+          id: 'balcao',
+          name: 'CLIENTE BUSCA NA EMPRESA',
+          price: 0,
+          deadline: '0 dias',
+          provider: 'Balcão',
+          carrierName: 'Balcão'
+        }]);
+        setSelectedShipping(0);
+      }
+      return;
+    }
+
     const value = rawValue.replace(/\D/g, '').slice(0, 8);
     console.log('⌨️ CEP Input Change:', { raw: rawValue, clean: value, length: value.length });
     setShipping(prev => ({ ...prev, cep: value }));
@@ -779,8 +801,8 @@ export default function Checkout() {
         let allQuotes: ShippingQuote[] = [];
         let apiErrors: string[] = [];
 
-        if (couponCode.trim().toUpperCase() === 'BALCAO') {
-          console.log('🏷️ Cupom BALCAO aplicado, pulando cálculo de frete.');
+        if (shipping.cep.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === 'BALCAO') {
+          console.log('🏷️ CEP BALCAO aplicado, pulando cálculo de frete.');
           allQuotes = [{
             id: 'balcao',
             name: 'CLIENTE BUSCA NA EMPRESA',
@@ -833,6 +855,7 @@ export default function Checkout() {
   };
 
   const handleCepBlur = async () => {
+    if (shipping.cep.toUpperCase() === 'BALCAO') return;
     if (isBalcao) return;
     const cep = shipping.cep.replace(/\D/g, '');
     if (cep.length === 8 && cep !== lastCalculatedCep.current) {
@@ -1572,41 +1595,51 @@ export default function Checkout() {
             </section>
 
             {/* Endereço de Entrega */}
-            {!isBalcao && (
-              <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
-                    <MapPin size={20} />
-                  </div>
-                  <h2 className="text-xl font-bold text-slate-900">Endereço de Entrega</h2>
+            <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
+                  <MapPin size={20} />
                 </div>
+                <h2 className="text-xl font-bold text-slate-900">Endereço de Entrega</h2>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold text-slate-700 mb-1">CEP *</label>
-                    <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        value={shipping.cep}
-                        onChange={handleCepChange}
-                        maxLength={8}
-                        onBlur={handleCepBlur}
-                        placeholder="00000-000"
-                        className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Rua / Avenida *</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">CEP *</label>
+                  <div className="flex gap-2">
                     <input 
                       type="text" 
-                      value={shipping.street}
-                      onChange={e => setShipping({...shipping, street: e.target.value})}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      value={shipping.cep}
+                      onChange={handleCepChange}
+                      maxLength={8}
+                      onBlur={handleCepBlur}
+                      placeholder="00000-000 (ou digite 'balcao')"
+                      className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       required
                     />
                   </div>
+                </div>
+                
+                {isBalcao ? (
+                  <div className="md:col-span-2 bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex items-center gap-3">
+                    <CheckCircle2 className="text-emerald-600 shrink-0" size={24} />
+                    <div>
+                      <p className="text-emerald-900 font-bold">Retirada no Balcão</p>
+                      <p className="text-emerald-700 text-sm">Você optou por buscar o pedido na empresa. Não é necessário preencher o endereço.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold text-slate-700 mb-1">Rua / Avenida *</label>
+                      <input 
+                        type="text" 
+                        value={shipping.street}
+                        onChange={e => setShipping({...shipping, street: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                        required
+                      />
+                    </div>
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1">Número *</label>
                     <input 
@@ -1659,9 +1692,10 @@ export default function Checkout() {
                       />
                     </div>
                   </div>
-                </div>
-              </section>
-            )}
+                </>
+              )}
+              </div>
+            </section>
 
             {/* Entrega */}
             <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
@@ -1691,7 +1725,7 @@ export default function Checkout() {
                         </div>
                       </div>
                       <p className="font-bold text-slate-900">
-                        {method.price === 0 ? 'Grátis' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(method.price)}
+                        {method.price === 0 ? 'Grátis' : formatCurrency(method.price)}
                       </p>
                     </button>
                   ))
@@ -1712,7 +1746,7 @@ export default function Checkout() {
                     </div>
                     <div>
                       <p className="text-sm font-bold">Frete Grátis Ativado!</p>
-                      <p className="text-xs opacity-80">Você economizou no frete por comprar acima de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(threshold)}</p>
+                      <p className="text-xs opacity-80">Você economizou no frete por comprar acima de {formatCurrency(threshold)}</p>
                     </div>
                   </div>
                 )}
@@ -1876,7 +1910,7 @@ export default function Checkout() {
                         for (let i = 1; i <= possibleInstallments; i++) {
                           options.push(
                             <option key={i} value={i.toString()}>
-                              {i}x de R$ {(finalTotal / i).toFixed(2)} sem juros
+                              {i}x de {formatCurrency(finalTotal / i)} sem juros
                             </option>
                           );
                         }
@@ -1897,7 +1931,7 @@ export default function Checkout() {
                   <h3 className="font-bold text-emerald-800 mb-2">Pagamento Rápido e Seguro</h3>
                   <p className="text-sm text-emerald-600 mb-4">O código PIX será gerado na próxima etapa. A aprovação é imediata!</p>
                   <div className="inline-block bg-emerald-200 text-emerald-800 px-4 py-2 rounded-full text-sm font-bold">
-                    Desconto de 5% aplicado: R$ {(finalTotal * 0.05).toFixed(2)}
+                    Desconto de 5% aplicado: {formatCurrency(finalTotal * 0.05)}
                   </div>
                 </motion.div>
               )}
@@ -1960,7 +1994,7 @@ export default function Checkout() {
                       <div className="flex justify-between items-center mt-1">
                         <span className="text-xs text-slate-500">Qtd: {item.quantity}</span>
                         <span className="text-sm font-black text-indigo-600">
-                          R$ {calculatePrice(item.product, item.quantity).total.toFixed(2)}
+                          {formatCurrency(calculatePrice(item.product, item.quantity).total)}
                         </span>
                       </div>
                     </div>
@@ -1990,7 +2024,7 @@ export default function Checkout() {
               <div className="space-y-3 pt-6 border-t border-slate-100 mb-6">
                 <div className="flex justify-between text-slate-500">
                   <span>Subtotal</span>
-                  <span className="font-medium">R$ {cartTotal.toFixed(2)}</span>
+                  <span className="font-medium">{formatCurrency(cartTotal)}</span>
                 </div>
                 <div className="flex justify-between text-slate-500">
                   <span className="flex items-center gap-1"><Truck size={16} /> Frete</span>
@@ -2002,14 +2036,14 @@ export default function Checkout() {
                     ) : shippingCost === 0 ? (
                       <span className="text-emerald-500 font-bold uppercase text-xs">Grátis</span>
                     ) : (
-                      `R$ ${shippingCost.toFixed(2)}`
+                      `${formatCurrency(shippingCost)}`
                     )}
                   </span>
                 </div>
                 {appliedDiscounts.map((discount, idx) => (
                   <div key={idx} className="flex justify-between text-emerald-600 font-medium">
                     <span>{discount.name}</span>
-                    <span>- R$ {discount.value.toFixed(2)}</span>
+                    <span>- {formatCurrency(discount.value)}</span>
                   </div>
                 ))}
               </div>
@@ -2018,7 +2052,7 @@ export default function Checkout() {
                 <span className="text-slate-900 font-bold">Total</span>
                 <div className="text-right">
                   <span className="text-3xl font-black text-slate-900 tracking-tighter">
-                    R$ {finalTotal.toFixed(2)}
+                    {formatCurrency(finalTotal)}
                   </span>
                 </div>
               </div>

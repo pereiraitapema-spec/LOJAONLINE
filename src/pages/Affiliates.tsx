@@ -23,6 +23,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { formatCurrency, formatDate } from '../lib/utils';
 
 interface AffiliateData {
   id: string;
@@ -523,7 +524,7 @@ export default function Affiliates() {
     setConfirmModal({
       isOpen: true,
       title: 'Solicitar Saque',
-      message: `Deseja solicitar o saque de R$ ${affiliateData.balance.toFixed(2)}?`,
+      message: `Deseja solicitar o saque de ${formatCurrency(affiliateData.balance)}?`,
       onConfirm: async () => {
         setSaving(true);
         try {
@@ -683,8 +684,8 @@ export default function Affiliates() {
                             </div>
                           )}
                         </td>
-                        <td className="p-4 font-mono text-sm text-indigo-600 font-bold">R$ {aff.balance.toFixed(2)}</td>
-                        <td className="p-4 font-mono text-sm text-slate-500">R$ {(aff.total_paid || 0).toFixed(2)}</td>
+                        <td className="p-4 font-mono text-sm text-indigo-600 font-bold">{formatCurrency(aff.balance)}</td>
+                        <td className="p-4 font-mono text-sm text-slate-500">{formatCurrency(aff.total_paid || 0)}</td>
                         <td className="p-4">
                           <div className="flex items-center gap-2">
                             {aff.status === 'pending' && (
@@ -768,13 +769,13 @@ export default function Affiliates() {
                       paymentsList.map(payment => (
                         <tr key={payment.id} className="hover:bg-slate-50">
                           <td className="p-4 text-sm text-slate-600">
-                            {new Date(payment.created_at).toLocaleDateString()}
+                            {formatDate(payment.created_at)}
                           </td>
                           <td className="p-4 font-bold text-slate-900">
                             {payment.affiliate_name}
                           </td>
                           <td className="p-4 font-bold text-indigo-600">
-                            R$ {payment.amount.toFixed(2)}
+                            {formatCurrency(payment.amount)}
                           </td>
                           <td className="p-4">
                             <div className="text-sm font-bold text-slate-900">{payment.pix_key || 'Não informada'}</div>
@@ -842,7 +843,7 @@ export default function Affiliates() {
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="bg-white px-4 py-2 rounded-xl border border-indigo-100 shadow-sm">
                     <span className="text-[10px] font-black text-slate-400 uppercase block">Ticket Médio</span>
-                    <span className="text-lg font-black text-indigo-600">R$ {calculateAverageTicket(affiliateSales).toFixed(2)}</span>
+                    <span className="text-lg font-black text-indigo-600">{formatCurrency(calculateAverageTicket(affiliateSales))}</span>
                   </div>
                   
                   <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-indigo-100">
@@ -919,7 +920,7 @@ export default function Affiliates() {
                       affiliateSales.map(sale => (
                         <tr key={sale.id} className="hover:bg-slate-50">
                           <td className="p-4 text-sm text-slate-600">
-                            {new Date(sale.created_at).toLocaleDateString()}
+                            {formatDate(sale.created_at)}
                           </td>
                           <td className="p-4 font-bold text-slate-900">
                             {sale.customer_name}
@@ -935,10 +936,10 @@ export default function Affiliates() {
                             </div>
                           </td>
                           <td className="p-4 text-sm text-slate-600">
-                            R$ {sale.total.toFixed(2)}
+                            {formatCurrency(sale.total)}
                           </td>
                           <td className="p-4 font-bold text-emerald-600">
-                            R$ {(sale.commission_value || 0).toFixed(2)}
+                            {formatCurrency(sale.commission_value || 0)}
                           </td>
                           <td className="p-4">
                             <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${
@@ -1030,7 +1031,7 @@ export default function Affiliates() {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Saldo Disponível</p>
-                    <h3 className="text-2xl font-black text-slate-900">R$ {affiliateData.balance.toFixed(2)}</h3>
+                    <h3 className="text-2xl font-black text-slate-900">{formatCurrency(affiliateData.balance)}</h3>
                   </div>
                 </div>
                 <button 
@@ -1193,7 +1194,7 @@ export default function Affiliates() {
                   <ul className="space-y-2 mt-2">
                     {leadOrders.map(order => (
                       <li key={order.id} className="text-sm border-b pb-2">
-                        <span className="font-bold">R$ {order.total.toFixed(2)}</span> - {order.status} - {new Date(order.created_at).toLocaleDateString()}
+                        <span className="font-bold">{formatCurrency(order.total)}</span> - {order.status} - {formatDate(order.created_at)}
                       </li>
                     ))}
                   </ul>

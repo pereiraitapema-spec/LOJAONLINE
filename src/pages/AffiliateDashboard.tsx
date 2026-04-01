@@ -11,6 +11,7 @@ import { Loading } from '../components/Loading';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { motion, AnimatePresence } from 'motion/react';
 import SmartChat from '../components/SmartChat';
+import { formatCurrency, formatDate } from '../lib/utils';
 
 interface Product {
   id: string;
@@ -818,9 +819,9 @@ export default function AffiliateDashboard() {
                         <div className="flex-1">
                           <h3 className="font-bold text-slate-900 text-sm line-clamp-2 mb-1">{product.name}</h3>
                           <div className="flex flex-col gap-1 mb-3">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase">Preço: R$ {price.toFixed(2)}</span>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">Preço: {formatCurrency(price)}</span>
                             <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg inline-block w-fit">
-                              Comissão: {rate}% (R$ {commission.toFixed(2)})
+                              Comissão: {rate}% ({formatCurrency(commission)})
                             </span>
                           </div>
                           <button 
@@ -1024,16 +1025,16 @@ export default function AffiliateDashboard() {
                       orders.map(order => (
                         <tr key={order.id} className="border-b border-slate-100 hover:bg-slate-50">
                           <td className="py-4 px-4 text-sm text-slate-600">
-                            {new Date(order.created_at).toLocaleDateString()}
+                            {formatDate(order.created_at)}
                           </td>
                           <td className="py-4 px-4 text-sm font-bold text-slate-900">
                             {order.customer_name}
                           </td>
                           <td className="py-4 px-4 text-sm text-slate-600">
-                            R$ {order.total.toFixed(2)}
+                            {formatCurrency(order.total)}
                           </td>
                           <td className="py-4 px-4 text-sm font-bold text-emerald-600">
-                            R$ {order.commission_value.toFixed(2)}
+                            {formatCurrency(order.commission_value)}
                           </td>
                           <td className="py-4 px-4">
                             <span className={`text-xs font-bold px-2 py-1 rounded-full uppercase ${
@@ -1082,7 +1083,7 @@ export default function AffiliateDashboard() {
                       leads.map(lead => (
                         <tr key={lead.id} className="border-b border-slate-100 hover:bg-slate-50">
                           <td className="py-4 px-4 text-sm text-slate-600">
-                            {new Date(lead.created_at).toLocaleDateString()}
+                            {formatDate(lead.created_at)}
                           </td>
                           <td className="py-4 px-4 text-sm font-bold text-slate-900">
                             {lead.nome}
@@ -1230,10 +1231,10 @@ export default function AffiliateDashboard() {
                       payments.map(payment => (
                         <tr key={payment.id} className="border-b border-slate-100 hover:bg-slate-50">
                           <td className="py-4 px-4 text-sm text-slate-600">
-                            {new Date(payment.created_at).toLocaleDateString()}
+                            {formatDate(payment.created_at)}
                           </td>
                           <td className="py-4 px-4 text-sm font-bold text-slate-900">
-                            R$ {payment.amount.toFixed(2)}
+                            {formatCurrency(payment.amount)}
                           </td>
                           <td className="py-4 px-4">
                             <span className={`text-xs font-bold px-2 py-1 rounded-full uppercase ${
@@ -1244,7 +1245,7 @@ export default function AffiliateDashboard() {
                             </span>
                           </td>
                           <td className="py-4 px-4 text-sm text-slate-600">
-                            {payment.paid_at ? new Date(payment.paid_at).toLocaleDateString() : '-'}
+                            {payment.paid_at ? formatDate(payment.paid_at) : '-'}
                           </td>
                           <td className="py-4 px-4">
                             {payment.receipt_url ? (
@@ -1325,7 +1326,7 @@ export default function AffiliateDashboard() {
                       <div key={stat.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
                         <div className="col-span-2 flex-1">
                           <p className="font-bold text-slate-900 text-sm">{stat.name}</p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase">Venda Total: R$ {stat.total_value.toFixed(2)}</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">Venda Total: {formatCurrency(stat.total_value)}</p>
                         </div>
                         <div className="w-16 text-center">
                           <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg text-xs font-black">
@@ -1333,7 +1334,7 @@ export default function AffiliateDashboard() {
                           </span>
                         </div>
                         <div className="w-32 text-right">
-                          <p className="font-black text-emerald-600">R$ {stat.total_commission.toFixed(2)}</p>
+                          <p className="font-black text-emerald-600">{formatCurrency(stat.total_commission)}</p>
                         </div>
                       </div>
                     ))}
@@ -1345,7 +1346,7 @@ export default function AffiliateDashboard() {
                 <div>
                   <span className="block text-[10px] text-slate-400 font-black uppercase tracking-widest">Total Acumulado</span>
                   <span className="text-2xl font-black text-slate-900">
-                    R$ {productStats.reduce((acc, s) => acc + s.total_commission, 0).toFixed(2)}
+                    {formatCurrency(productStats.reduce((acc, s) => acc + s.total_commission, 0))}
                   </span>
                 </div>
                 <button

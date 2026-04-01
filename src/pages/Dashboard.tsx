@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { PurchaseSimulator } from '../components/PurchaseSimulator';
 import { checkPermission } from '../lib/rbac';
+import { formatCurrency } from '../lib/utils';
 
 
 export default function Dashboard() {
@@ -369,7 +370,7 @@ export default function Dashboard() {
               </div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Faturamento Total</span>
             </div>
-            <p className="text-2xl font-black text-slate-900">R$ {stats.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.revenue)}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">VENDAS PAGAS</p>
           </motion.div>
 
@@ -384,7 +385,7 @@ export default function Dashboard() {
               </div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Lucro Líquido</span>
             </div>
-            <p className="text-2xl font-black text-indigo-600">R$ {stats.profit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-2xl font-black text-indigo-600">{formatCurrency(stats.profit)}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">RECEITA - TODOS OS CUSTOS</p>
           </motion.div>
           
@@ -399,7 +400,7 @@ export default function Dashboard() {
               </div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Custo de Produtos</span>
             </div>
-            <p className="text-2xl font-black text-slate-900">R$ {stats.cogs.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.cogs)}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">VALOR DE CUSTO (COGS)</p>
           </motion.div>
 
@@ -414,7 +415,7 @@ export default function Dashboard() {
               </div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Comissões (Afiliados)</span>
             </div>
-            <p className="text-2xl font-black text-slate-900">R$ {stats.totalCommissions.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.totalCommissions)}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">TOTAL PAGO AOS AFILIADOS</p>
           </motion.div>
 
@@ -429,7 +430,7 @@ export default function Dashboard() {
               </div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Impostos (NF)</span>
             </div>
-            <p className="text-2xl font-black text-slate-900">R$ {stats.totalTaxes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.totalTaxes)}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">ESTIMATIVA DE IMPOSTOS</p>
           </motion.div>
 
@@ -444,7 +445,7 @@ export default function Dashboard() {
               </div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Marketing (Ads)</span>
             </div>
-            <p className="text-2xl font-black text-slate-900">R$ {stats.totalMarketing.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.totalMarketing)}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">CUSTO DE AQUISIÇÃO (CAC)</p>
           </motion.div>
 
@@ -459,7 +460,7 @@ export default function Dashboard() {
               </div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Custo Operacional</span>
             </div>
-            <p className="text-2xl font-black text-slate-900">R$ {stats.totalOperational.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.totalOperational)}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">EMBALAGEM, MANUSEIO, ETC</p>
           </motion.div>
 
@@ -474,7 +475,7 @@ export default function Dashboard() {
               </div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Custo de Frete</span>
             </div>
-            <p className="text-2xl font-black text-slate-900">R$ {stats.totalShipping.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.totalShipping)}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">PAGO ÀS TRANSPORTADORAS</p>
           </motion.div>
 
@@ -489,7 +490,7 @@ export default function Dashboard() {
               </div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Estoque (Custo)</span>
             </div>
-            <p className="text-2xl font-black text-slate-900">R$ {stats.stockValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.stockValue)}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">VALOR DE CUSTO TOTAL</p>
           </motion.div>
         </div>
@@ -500,15 +501,15 @@ export default function Dashboard() {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-600">Geral</span>
-                <span className="font-bold text-slate-900">R$ {stats.avgTicket.toFixed(2)}</span>
+                <span className="font-bold text-slate-900">{formatCurrency(stats.avgTicket)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-600">Direto</span>
-                <span className="font-bold text-slate-900">R$ {stats.avgTicketDirect.toFixed(2)}</span>
+                <span className="font-bold text-slate-900">{formatCurrency(stats.avgTicketDirect)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-600">Afiliados</span>
-                <span className="font-bold text-indigo-600">R$ {stats.avgTicketAffiliate.toFixed(2)}</span>
+                <span className="font-bold text-indigo-600">{formatCurrency(stats.avgTicketAffiliate)}</span>
               </div>
             </div>
           </div>

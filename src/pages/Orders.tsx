@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { formatCurrency } from '../lib/utils';
 import { motion } from 'motion/react';
 import { 
   ShoppingBag, 
@@ -1529,7 +1530,7 @@ export default function Orders() {
                     )}
                     <td className="px-6 py-4">
                       <span className="text-sm font-black text-slate-900">
-                        R$ {order.total.toFixed(2)}
+                        {formatCurrency(order.total)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -1603,7 +1604,7 @@ export default function Orders() {
                         <div className="flex flex-wrap gap-4 mt-2 text-sm text-slate-500 font-medium">
                           <span className="flex items-center gap-1"><Eye size={14} /> {cart.customer_email}</span>
                           <span className="flex items-center gap-1"><Package size={14} /> {cart.cart_items.length} itens</span>
-                          <span className="font-black text-indigo-600">Total: R$ {cart.total.toFixed(2)}</span>
+                          <span className="font-black text-indigo-600">Total: {formatCurrency(cart.total)}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1691,7 +1692,7 @@ export default function Orders() {
                         <img src={product.image_url} alt="" className="w-10 h-10 object-contain bg-white rounded-lg border border-slate-200" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-bold text-slate-900 truncate">{product.name}</p>
-                          <p className="text-xs text-slate-500">Estoque: {product.stock} | R$ {(product.discount_price || product.price).toFixed(2)}</p>
+                          <p className="text-xs text-slate-500">Estoque: {product.stock} | {formatCurrency(product.discount_price || product.price)}</p>
                         </div>
                         <Plus size={16} className="text-slate-400 group-hover:text-emerald-600" />
                       </button>
@@ -1709,7 +1710,7 @@ export default function Orders() {
                       <div key={item.id} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-bold text-slate-900 truncate">{item.name}</p>
-                          <p className="text-xs text-slate-500">{item.quantity}x R$ {item.price.toFixed(2)}</p>
+                          <p className="text-xs text-slate-500">{item.quantity}x {formatCurrency(item.price)}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <button 
@@ -1847,19 +1848,19 @@ export default function Orders() {
                 <div className="p-6 bg-slate-900 text-white rounded-3xl space-y-4">
                   <div className="flex justify-between items-center text-sm opacity-70">
                     <span>Subtotal</span>
-                    <span>R$ {selectedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0).toFixed(2)}</span>
+                    <span>{formatCurrency(selectedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0))}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm text-rose-400">
                     <span>Desconto</span>
-                    <span>- R$ {manualOrderData.discount.toFixed(2)}</span>
+                    <span>- {formatCurrency(manualOrderData.discount)}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm text-emerald-400">
                     <span>Frete</span>
-                    <span>+ R$ {manualOrderData.shipping_cost.toFixed(2)}</span>
+                    <span>+ {formatCurrency(manualOrderData.shipping_cost)}</span>
                   </div>
                   <div className="pt-4 border-t border-white/10 flex justify-between items-center">
                     <span className="font-bold uppercase tracking-widest text-xs">Total Final</span>
-                    <span className="text-3xl font-black">R$ {calculateManualTotal().toFixed(2)}</span>
+                    <span className="text-3xl font-black">{formatCurrency(calculateManualTotal())}</span>
                   </div>
                 </div>
               </div>
@@ -2300,7 +2301,7 @@ export default function Orders() {
                   <div className="space-y-2">
                     <p className="text-sm text-slate-600"><span className="font-bold text-slate-900">Método Pag.:</span> {selectedOrder.payment_method.toUpperCase()}</p>
                     <p className="text-sm text-slate-600"><span className="font-bold text-slate-900">Método Envio:</span> {selectedOrder.shipping_method || 'Padrão'}</p>
-                    <p className="text-sm text-slate-600"><span className="font-bold text-slate-900">Total:</span> R$ {selectedOrder.total.toFixed(2)}</p>
+                    <p className="text-sm text-slate-600"><span className="font-bold text-slate-900">Total:</span> {formatCurrency(selectedOrder.total)}</p>
                     <p className="text-sm text-slate-600"><span className="font-bold text-slate-900">Endereço:</span> {selectedOrder.shipping_address?.street}, {selectedOrder.shipping_address?.number}</p>
                     <p className="text-sm text-slate-500 text-xs">
                       {selectedOrder.shipping_address?.city} - {selectedOrder.shipping_address?.state}, 
@@ -2334,7 +2335,7 @@ export default function Orders() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Total do Pedido</p>
-                    <p className="text-sm font-bold text-slate-900">R$ {selectedOrder.total.toFixed(2)}</p>
+                    <p className="text-sm font-bold text-slate-900">{formatCurrency(selectedOrder.total)}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Peso Total (Est.)</p>
@@ -2350,7 +2351,7 @@ export default function Orders() {
                 <div className="flex gap-2">
                   <button 
                     onClick={() => {
-                      const text = `Nome: ${selectedOrder.customer_name}\nDoc: ${selectedOrder.customer_document}\nEndereço: ${selectedOrder.shipping_address?.street}, ${selectedOrder.shipping_address?.number}, ${selectedOrder.shipping_address?.neighborhood}, ${selectedOrder.shipping_address?.city}-${selectedOrder.shipping_address?.state}, CEP: ${selectedOrder.shipping_address?.zipCode}\nTotal: R$ ${selectedOrder.total.toFixed(2)}`;
+                      const text = `Nome: ${selectedOrder.customer_name}\nDoc: ${selectedOrder.customer_document}\nEndereço: ${selectedOrder.shipping_address?.street}, ${selectedOrder.shipping_address?.number}, ${selectedOrder.shipping_address?.neighborhood}, ${selectedOrder.shipping_address?.city}-${selectedOrder.shipping_address?.state}, CEP: ${selectedOrder.shipping_address?.zipCode}\nTotal: ${formatCurrency(selectedOrder.total)}`;
                       navigator.clipboard.writeText(text);
                       toast.success('Dados copiados para a área de transferência!');
                     }}
@@ -2487,16 +2488,16 @@ export default function Orders() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-bold text-slate-900 truncate">{item.product_name}</p>
-                          <p className="text-xs text-slate-500">{item.quantity}x R$ {item.price.toFixed(2)}</p>
+                          <p className="text-xs text-slate-500">{item.quantity}x {formatCurrency(item.price)}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-black text-slate-900">R$ {(item.quantity * item.price).toFixed(2)}</p>
+                          <p className="text-sm font-black text-slate-900">{formatCurrency(item.quantity * item.price)}</p>
                         </div>
                       </div>
                     ))}
                     <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Subtotal dos Itens</span>
-                      <span className="font-bold text-slate-900">R$ {orderItems.reduce((acc, item) => acc + (item.quantity * item.price), 0).toFixed(2)}</span>
+                      <span className="font-bold text-slate-900">{formatCurrency(orderItems.reduce((acc, item) => acc + (item.quantity * item.price), 0))}</span>
                     </div>
                   </div>
                 )}

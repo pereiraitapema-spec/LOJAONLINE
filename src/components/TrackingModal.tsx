@@ -48,7 +48,7 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
 
       const { data: orders, error } = await supabase
         .from('orders')
-        .select('id, status, tracking_code, created_at, total')
+        .select('id, status, tracking_code, shipping_method, created_at, total')
         .eq('customer_email', user.email)
         .order('created_at', { ascending: false });
 
@@ -87,6 +87,7 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
           id, 
           status, 
           tracking_code, 
+          shipping_method,
           created_at, 
           total, 
           tracking_history(*), 
@@ -373,12 +374,12 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                             <Package size={40} className="mx-auto text-slate-300 mb-3" />
                             <p className="text-sm text-slate-500 font-bold">
                               {trackingData.tracking_code === 'CLIENTE BUSCA NA EMPRESA' || trackingData.shipping_method === 'CLIENTE BUSCA NA EMPRESA'
-                                ? 'PRODUTO PRONTO PARA RETIRADA'
+                                ? 'CLIENTE BUSCA NA EMPRESA'
                                 : 'SEU PRODUTO ESTÁ SENDO PREPARADO'}
                             </p>
                             <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">
                               {trackingData.tracking_code === 'CLIENTE BUSCA NA EMPRESA' || trackingData.shipping_method === 'CLIENTE BUSCA NA EMPRESA'
-                                ? 'É só ir buscar o produto na empresa e levar o comprovante de pagamento.'
+                                ? 'Seu pedido está sendo preparado para ir buscar.'
                                 : trackingData.tracking_code 
                                   ? 'O código de rastreio já foi gerado e aguarda coleta.' 
                                   : 'Aguardando postagem'}

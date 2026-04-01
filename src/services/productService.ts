@@ -33,6 +33,17 @@ export const productService = {
     return data;
   },
 
+  async getProductsByIds(ids: string[]) {
+    if (!ids || ids.length === 0) return [];
+    const { data, error } = await supabase
+      .from('products')
+      .select('*, category:categories(name), tiers:product_tiers(*)')
+      .in('id', ids);
+      
+    if (error) throw error;
+    return data;
+  },
+
   async updateStock(id: string, newStock: number) {
     const { error } = await supabase
       .from('products')
