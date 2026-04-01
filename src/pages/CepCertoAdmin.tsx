@@ -371,7 +371,7 @@ export default function CepCertoAdmin() {
           length: compNum,
           price: parseFloat(quoteData.valor_encomenda)
         }],
-        carrier.id
+        carrier.settings
       );
       setQuotes(result);
     } catch (error: any) {
@@ -562,6 +562,7 @@ export default function CepCertoAdmin() {
             {[
               { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
               { id: 'logistica', label: 'Logística', icon: Truck },
+              { id: 'etiquetas', label: 'Etiquetas', icon: ShoppingBag },
               { id: 'financeiro', label: 'Financeiro', icon: CreditCard },
               { id: 'ferramentas', label: 'Ferramentas', icon: Zap },
             ].map((tab) => (
@@ -909,6 +910,41 @@ export default function CepCertoAdmin() {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'etiquetas' && (
+            <div className="space-y-8">
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
+                  <ShoppingBag className="text-indigo-600" size={24} />
+                  Gerar Etiqueta
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Remetente */}
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-slate-700">Remetente</h4>
+                    <input placeholder="Nome" value={manualLabelData.nome_remetente} onChange={e => setManualLabelData({...manualLabelData, nome_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="CPF/CNPJ" value={manualLabelData.cpf_cnpj_remetente} onChange={e => setManualLabelData({...manualLabelData, cpf_cnpj_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="CEP" value={manualLabelData.cep_remetente} onChange={e => setManualLabelData({...manualLabelData, cep_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="Logradouro" value={manualLabelData.logradouro_remetente} onChange={e => setManualLabelData({...manualLabelData, logradouro_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  </div>
+                  {/* Destinatário */}
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-slate-700">Destinatário</h4>
+                    <input placeholder="Nome" value={manualLabelData.nome_destinatario} onChange={e => setManualLabelData({...manualLabelData, nome_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="CPF/CNPJ" value={manualLabelData.cpf_cnpj_destinatario} onChange={e => setManualLabelData({...manualLabelData, cpf_cnpj_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="CEP" value={manualLabelData.cep_destinatario} onChange={e => setManualLabelData({...manualLabelData, cep_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="Logradouro" value={manualLabelData.logradouro_destinatario} onChange={e => setManualLabelData({...manualLabelData, logradouro_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  </div>
+                </div>
+                <button 
+                  onClick={handleGenerateManualLabel}
+                  className="w-full mt-8 py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+                >
+                  Gerar Etiqueta
+                </button>
               </div>
             </div>
           )}
