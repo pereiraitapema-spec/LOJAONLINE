@@ -2128,7 +2128,7 @@ export default function Orders() {
                           Rastrear
                         </button>
                         <button 
-                          onClick={() => handleGenerateLabel(selectedOrder.id)}
+                          onClick={(e) => { e.stopPropagation(); handleGenerateLabel(selectedOrder.id); }}
                           disabled={processingShipping || !!selectedOrder.tracking_code}
                           className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
                           title="Gera etiqueta usando seus créditos CepCerto"
@@ -2138,7 +2138,7 @@ export default function Orders() {
                         </button>
                         {selectedOrder.tracking_code && (
                           <button 
-                            onClick={() => handleCancelLabel(selectedOrder.id)}
+                            onClick={(e) => { e.stopPropagation(); handleCancelLabel(selectedOrder.id); }}
                             disabled={processingShipping}
                             className="flex items-center justify-center p-2 bg-rose-100 text-rose-600 rounded-xl hover:bg-rose-200 transition-all"
                             title="Excluir Postagem (Cancelar Etiqueta)"
