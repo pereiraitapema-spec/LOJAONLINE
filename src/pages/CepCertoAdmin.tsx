@@ -5,13 +5,17 @@ import { motion } from 'motion/react';
 import { 
   Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, 
   ShoppingBag, Megaphone, Users, Truck, CreditCard, Zap,
-  Search, ChevronRight, Check, Copy, RefreshCw, X, AlertCircle, Wallet, QrCode, Trash2
+  Search, ChevronRight, Check, Copy, RefreshCw, X, AlertCircle, Wallet, QrCode, Trash2,
+  MapPin, Calculator, FileText, ArrowRight, ExternalLink
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { shippingService } from '../services/shippingService';
+import { QRCodeSVG } from 'qrcode.react';
+import { TrackingModal } from '../components/TrackingModal';
 
 export default function CepCertoAdmin() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState<any>(null);
   const [pixAmount, setPixAmount] = useState('50');
@@ -19,7 +23,23 @@ export default function CepCertoAdmin() {
   const [carrier, setCarrier] = useState<any>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
-  const navigate = useNavigate();
+  
+  // Ferramentas
+  const [cepSearch, setCepSearch] = useState('');
+  const [cepResult, setCepResult] = useState<any>(null);
+  const [searchingCep, setSearchingCep] = useState(false);
+  
+  const [quoteData, setQuoteData] = useState({
+    cep_origem: '',
+    cep_destino: '',
+    peso: '1',
+    comprimento: '20',
+    largura: '20',
+    altura: '20'
+  });
+  const [quotes, setQuotes] = useState<any[]>([]);
+  const [calculating, setCalculating] = useState(false);
+  const [trackingModal, setTrackingModal] = useState<{ isOpen: boolean, code: string }>({ isOpen: false, code: '' });
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -63,6 +83,11 @@ export default function CepCertoAdmin() {
       }
 
       setCarrier(carriers);
+      
+      // Configurar CEP de origem padrão se disponível
+      if (carriers.config?.origin_zip) {
+        setQuoteData(prev => ({ ...prev, cep_origem: carriers.config.origin_zip }));
+      }
 
       // Buscar saldo
       try {
@@ -93,7 +118,6 @@ export default function CepCertoAdmin() {
     if (!carrier) return;
     try {
       setIsGeneratingPix(true);
-      const { data: { user } } = await supabase.auth.getUser();
       const amount = parseFloat(pixAmount);
       if (isNaN(amount) || amount < 10) {
         toast.error('Valor mínimo de R$ 10,00');
@@ -103,13 +127,9 @@ export default function CepCertoAdmin() {
       const data = await shippingService.generatePix(
         carrier.id,
         amount,
-        user?.email || 'contato@magnifique4life.com.br',
-        '11999999999' // Telefone genérico ou do perfil
+        'pereira.itapema@gmail.com', 
+        '47999999999'
       );
-
-      if (data.msg && data.msg !== 'OK') {
-        throw new Error(data.msg);
-      }
 
       setPixData(data);
       toast.success('PIX gerado com sucesso!');
@@ -120,17 +140,84 @@ export default function CepCertoAdmin() {
     }
   };
 
+  const handleGenerateLabel = async (orderId: string) => {
+    if (!carrier) return;
+    try {
+      toast.loading('Gerando etiqueta...', { id: 'gen-label' });
+      const result = await shippingService.generateLabel(orderId);
+      
+      if (result.success) {
+        // Atualizar pedido no banco
+        const { error } = await supabase
+          .from('orders')
+          .update({
+            tracking_code: result.tracking_code,
+            shipping_label_url: result.shipping_label_url,
+            status: 'shipped'
+          })
+          .eq('id', orderId);
+
+        if (error) throw error;
+        
+        toast.success('Etiqueta gerada com sucesso!', { id: 'gen-label' });
+        fetchData(); // Atualizar lista
+      } else {
+        throw new Error(result.error || 'Erro desconhecido');
+      }
+    } catch (err: any) {
+      toast.error(`Erro: ${err.message}`, { id: 'gen-label' });
+    }
+  };
+
+  const handleSearchCep = async () => {
+    if (cepSearch.length < 8) return;
+    try {
+      setSearchingCep(true);
+      const res = await fetch(`https://viacep.com.br/ws/${cepSearch.replace(/\D/g, '')}/json/`);
+      const data = await res.json();
+      if (data.erro) throw new Error('CEP não encontrado');
+      setCepResult(data);
+    } catch (error: any) {
+      toast.error(error.message);
+      setCepResult(null);
+    } finally {
+      setSearchingCep(false);
+    }
+  };
+
+  const handleCalculate = async () => {
+    if (!carrier) return;
+    try {
+      setCalculating(true);
+      const result = await shippingService.calculateShipping(
+        quoteData.cep_destino,
+        [{
+          weight: parseFloat(quoteData.peso),
+          width: parseFloat(quoteData.largura),
+          height: parseFloat(quoteData.altura),
+          length: parseFloat(quoteData.comprimento)
+        }],
+        carrier.id
+      );
+      setQuotes(result);
+    } catch (error: any) {
+      toast.error('Erro no cálculo: ' + error.message);
+    } finally {
+      setCalculating(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success('Copiado para a área de transferência!');
   };
 
-  const handleCancelLabel = async (trackingCode: string) => {
-    if (!window.confirm(`Deseja realmente cancelar a etiqueta ${trackingCode}?`)) return;
+  const handleCancelLabel = async (orderId: string) => {
+    if (!window.confirm(`Deseja realmente cancelar a etiqueta deste pedido?`)) return;
     
     try {
       toast.loading('Cancelando etiqueta...', { id: 'cancel-label' });
-      const result = await shippingService.cancelLabel(trackingCode);
+      const result = await shippingService.cancelLabel(orderId);
       if (!result.success) {
         throw new Error(result.error || 'Erro ao cancelar etiqueta');
       }
@@ -215,7 +302,7 @@ export default function CepCertoAdmin() {
                 <div className="relative z-10">
                   <p className="text-indigo-100 font-bold uppercase tracking-widest text-xs mb-2">Saldo Disponível</p>
                   <h2 className="text-5xl font-black italic tracking-tighter mb-6">
-                    {balance?.saldo || 'R$ 0,00'}
+                    {balance?.saldo ? `R$ ${balance.saldo}` : 'R$ 0,00'}
                   </h2>
                   <div className="flex items-center gap-2 text-indigo-100 text-sm font-medium">
                     <Check size={16} />
@@ -263,6 +350,72 @@ export default function CepCertoAdmin() {
 
             {/* Listagem e PIX */}
             <div className="lg:col-span-2 space-y-8">
+              {/* Seção de Ferramentas */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Busca de CEP */}
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
+                  <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2 italic uppercase tracking-tighter">
+                    <MapPin className="text-indigo-600" size={20} />
+                    Busca de CEP
+                  </h3>
+                  <div className="flex gap-2 mb-4">
+                    <input 
+                      type="text"
+                      value={cepSearch}
+                      onChange={(e) => setCepSearch(e.target.value)}
+                      placeholder="Digite o CEP..."
+                      className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                    />
+                    <button 
+                      onClick={handleSearchCep}
+                      disabled={searchingCep}
+                      className="p-3 bg-slate-900 text-white rounded-xl hover:bg-black transition-all"
+                    >
+                      {searchingCep ? <RefreshCw className="animate-spin" size={20} /> : <Search size={20} />}
+                    </button>
+                  </div>
+                  {cepResult && (
+                    <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                      <p className="text-sm font-bold text-indigo-900">{cepResult.logradouro}</p>
+                      <p className="text-xs text-indigo-600">{cepResult.bairro} - {cepResult.localidade}/{cepResult.uf}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cotação Rápida */}
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
+                  <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2 italic uppercase tracking-tighter">
+                    <Calculator className="text-indigo-600" size={20} />
+                    Cotação Rápida
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    <input 
+                      placeholder="CEP Destino"
+                      value={quoteData.cep_destino}
+                      onChange={(e) => setQuoteData({...quoteData, cep_destino: e.target.value})}
+                      className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+                    />
+                    <button 
+                      onClick={handleCalculate}
+                      disabled={calculating}
+                      className="bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                    >
+                      {calculating ? <RefreshCw className="animate-spin" size={16} /> : 'Calcular'}
+                    </button>
+                  </div>
+                  {quotes.length > 0 && (
+                    <div className="space-y-2">
+                      {quotes.map((q, i) => (
+                        <div key={i} className="flex justify-between items-center p-2 bg-slate-50 rounded-lg border border-slate-100">
+                          <span className="text-[10px] font-black text-slate-600 uppercase">{q.name}</span>
+                          <span className="text-xs font-black text-indigo-600">R$ {q.price.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {pixData && (
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
@@ -281,24 +434,17 @@ export default function CepCertoAdmin() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                     <div className="bg-white p-4 rounded-3xl shadow-inner flex items-center justify-center aspect-square">
-                      {pixData.qrcode ? (
-                        <img src={pixData.qrcode} alt="QR Code PIX" className="w-full h-full object-contain" />
-                      ) : (
-                        <div className="text-center text-slate-400">
-                          <QrCode size={64} className="mx-auto mb-2 opacity-20" />
-                          <p className="text-xs font-bold uppercase">QR Code Indisponível</p>
-                        </div>
-                      )}
+                      <QRCodeSVG value={pixData.copia_cola || pixData.copia_e_cola} size={200} />
                     </div>
 
                     <div className="space-y-4">
                       <div className="p-4 bg-white rounded-2xl border border-emerald-100">
                         <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-2">Código PIX (Copia e Cola)</p>
                         <p className="text-xs font-mono break-all text-slate-600 line-clamp-3 mb-3">
-                          {pixData.copia_e_cola || pixData.pix_code || 'Código não retornado'}
+                          {pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code || 'Código não retornado'}
                         </p>
                         <button 
-                          onClick={() => copyToClipboard(pixData.copia_e_cola || pixData.pix_code)}
+                          onClick={() => copyToClipboard(pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code)}
                           className="w-full py-2 bg-emerald-600 text-white rounded-xl font-bold text-xs hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
                         >
                           <Copy size={14} /> Copiar Código
@@ -360,6 +506,15 @@ export default function CepCertoAdmin() {
                           </td>
                           <td className="py-4 text-right">
                             <div className="flex justify-end gap-2">
+                              {!order.tracking_code && (
+                                <button 
+                                  onClick={() => handleGenerateLabel(order.id)}
+                                  className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors"
+                                  title="Gerar Etiqueta"
+                                >
+                                  <Zap size={16} />
+                                </button>
+                              )}
                               {order.shipping_label_url && (
                                 <a 
                                   href={order.shipping_label_url} 
@@ -368,20 +523,29 @@ export default function CepCertoAdmin() {
                                   className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors"
                                   title="Imprimir Etiqueta"
                                 >
-                                  <ImageIcon size={16} />
+                                  <ExternalLink size={16} />
                                 </a>
                               )}
                               {order.tracking_code && (
-                                <button 
-                                  onClick={() => handleCancelLabel(order.tracking_code)}
-                                  className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
-                                  title="Cancelar Etiqueta"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                                <>
+                                  <button 
+                                    onClick={() => setTrackingModal({ isOpen: true, code: order.tracking_code })}
+                                    className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors"
+                                    title="Rastrear"
+                                  >
+                                    <Truck size={16} />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleCancelLabel(order.id)}
+                                    className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
+                                    title="Cancelar Etiqueta"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </>
                               )}
                               <button 
-                                onClick={() => navigate(`/orders?id=${order.id}`)}
+                                onClick={() => navigate(`/orders?id=${order.id}&from=cepcerto`)}
                                 className="p-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors"
                               >
                                 <ChevronRight size={16} />
@@ -406,6 +570,12 @@ export default function CepCertoAdmin() {
           </div>
         </div>
       </main>
+
+      <TrackingModal 
+        isOpen={trackingModal.isOpen}
+        onClose={() => setTrackingModal({ isOpen: false, code: '' })}
+        trackingCode={trackingModal.code}
+      />
     </div>
   );
 }

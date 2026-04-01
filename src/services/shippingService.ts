@@ -475,9 +475,13 @@ const cepcertoProvider: ShippingProvider = {
     if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
     const key = config.api_key_postagem || config.api_key;
     try {
-      const response = await fetch(`https://www.cepcerto.com/ws/json-saldo/${key}`);
+      const targetUrl = `https://www.cepcerto.com/ws/json-saldo/${key}`;
+      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&timestamp=${Date.now()}`);
+      
       if (response.ok) {
-        return await response.json();
+        const data = await response.json();
+        const contents = JSON.parse(data.contents);
+        return contents;
       }
       throw new Error('Erro ao consultar saldo');
     } catch (err) {
@@ -490,9 +494,14 @@ const cepcertoProvider: ShippingProvider = {
     if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
     const key = config.api_key_postagem || config.api_key;
     try {
-      const response = await fetch(`https://www.cepcerto.com/ws/json-pix/${amount}/${email}/${phone.replace(/\D/g, '')}/${key}`);
+      const targetUrl = `https://www.cepcerto.com/ws/json-pix/${amount}/${email}/${phone.replace(/\D/g, '')}/${key}`;
+      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&timestamp=${Date.now()}`);
+      
       if (response.ok) {
-        return await response.json();
+        const data = await response.json();
+        const contents = JSON.parse(data.contents);
+        if (contents.msg && contents.msg !== 'OK') throw new Error(contents.msg);
+        return contents;
       }
       throw new Error('Erro ao gerar PIX');
     } catch (err) {

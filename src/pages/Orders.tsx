@@ -1365,11 +1365,18 @@ export default function Orders() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <button 
-              onClick={() => navigate('/dashboard')}
+              onClick={() => {
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('from') === 'cepcerto') {
+                  navigate('/shipping/cepcerto');
+                } else {
+                  navigate('/dashboard');
+                }
+              }}
               className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 mb-2 transition-colors"
             >
               <ArrowLeft size={18} />
-              Voltar ao Painel
+              {new URLSearchParams(window.location.search).get('from') === 'cepcerto' ? 'Voltar para Logística CepCerto' : 'Voltar ao Painel'}
             </button>
             <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
               <ShoppingBag className="text-indigo-600" />
