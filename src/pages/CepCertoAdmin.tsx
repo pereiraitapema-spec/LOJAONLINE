@@ -629,38 +629,18 @@ export default function CepCertoAdmin() {
                   <Zap className="text-indigo-600" size={20} />
                   Ações Rápidas
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <button onClick={() => setActiveTab('financeiro')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
                     <QrCode className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
-                    <p className="text-[9px] font-black uppercase text-slate-600">Recarga PIX</p>
+                    <p className="text-[9px] font-black uppercase text-slate-600">Inserir crédito via pix</p>
                   </button>
                   <button onClick={handleRefreshBalance} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
                     <Wallet className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
-                    <p className="text-[9px] font-black uppercase text-slate-600">Saldo</p>
+                    <p className="text-[9px] font-black uppercase text-slate-600">Consulta de saldo</p>
                   </button>
                   <button onClick={() => setActiveTab('logistica')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
                     <Calculator className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
-                    <p className="text-[9px] font-black uppercase text-slate-600">Cotação</p>
-                  </button>
-                  <button onClick={() => navigate('/orders')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
-                    <Package className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
-                    <p className="text-[9px] font-black uppercase text-slate-600">Postagem</p>
-                  </button>
-                  <button onClick={() => setActiveTab('logistica')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
-                    <Search className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
-                    <p className="text-[9px] font-black uppercase text-slate-600">Consulta</p>
-                  </button>
-                  <button onClick={handleGetFinancialStatement} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
-                    <FileText className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
-                    <p className="text-[9px] font-black uppercase text-slate-600">Extrato</p>
-                  </button>
-                  <button onClick={() => setActiveTab('logistica')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
-                    <Truck className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
-                    <p className="text-[9px] font-black uppercase text-slate-600">Rastreio</p>
-                  </button>
-                  <button onClick={() => navigate('/orders')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
-                    <Trash2 className="text-slate-400 group-hover:text-rose-600 mx-auto mb-2" size={24} />
-                    <p className="text-[9px] font-black uppercase text-slate-600">Cancelar</p>
+                    <p className="text-[9px] font-black uppercase text-slate-600">Cotação de frete</p>
                   </button>
                 </div>
               </div>
