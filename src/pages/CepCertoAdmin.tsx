@@ -140,7 +140,7 @@ export default function CepCertoAdmin() {
     if (!carrier) return;
     setRefreshingBalance(true);
     try {
-      const balanceData = await shippingService.getBalance(carrier.id);
+      const balanceData = await shippingService.getBalance(carrier.settings);
       setBalance(balanceData);
       toast.success('Saldo atualizado!');
     } catch (e) {
