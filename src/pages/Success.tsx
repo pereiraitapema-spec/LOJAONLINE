@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { motion } from 'motion/react';
 import { CheckCircle2, ShoppingBag, ArrowRight, Home, Download, Share2, QrCode, Barcode, Landmark, Clock, Truck, LayoutDashboard } from 'lucide-react';
+import { formatCurrency } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { Loading } from '../components/Loading';
 import { TrackingModal } from '../components/TrackingModal';
@@ -234,7 +235,7 @@ export default function Success() {
                         <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                           <p className="text-[10px] font-bold text-slate-400 uppercase">Valor Exato</p>
                           <p className="text-lg font-black text-indigo-600">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total)}
+                            {formatCurrency(order.total)}
                           </p>
                         </div>
                       </div>
@@ -273,7 +274,7 @@ export default function Success() {
                       </div>
                     </div>
                     <p className="text-sm font-bold text-slate-900">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price * item.quantity)}
+                      {formatCurrency(item.price * item.quantity)}
                     </p>
                   </div>
                 ))}
@@ -282,7 +283,7 @@ export default function Success() {
               <div className="mt-6 pt-6 border-t border-slate-200 flex justify-between items-center">
                 <p className="text-slate-500 font-bold">Total Pago</p>
                 <p className="text-2xl font-black text-indigo-600 tracking-tighter">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total)}
+                  {formatCurrency(order.total)}
                 </p>
               </div>
             </div>

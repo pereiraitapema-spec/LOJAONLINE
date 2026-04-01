@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatCurrency, formatDate } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { 
   ShoppingCart, 
@@ -89,13 +90,6 @@ export default function AbandonedCarts() {
     } catch (error: any) {
       toast.error('Erro ao excluir carrinho: ' + error.message);
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
   };
 
   if (loading) return <Loading message="Carregando Carrinhos Abandonados..." />;
