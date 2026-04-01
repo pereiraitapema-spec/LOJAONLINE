@@ -43,17 +43,20 @@ export default function CepCertoAdmin() {
   const [trackingInfo, setTrackingInfo] = useState<any>(null);
   const [showTrackingInfoModal, setShowTrackingInfoModal] = useState(false);
   const [loadingTrackingInfo, setLoadingTrackingInfo] = useState(false);
-  
-  const [manualLabelData, setManualLabelData] = useState({
+  const [quotes, setQuotes] = useState<any[]>([]);
+  const [calculating, setCalculating] = useState(false);
+  const [trackingModal, setTrackingModal] = useState<{ isOpen: boolean, code: string }>({ isOpen: false, code: '' });
+  const [manualLabelData, setManualLabelData] = useState<any>({
+    token_cliente_postagem: '',
     tipo_entrega: 'sedex',
     logistica_reversa: '',
     cep_remetente: '',
     cep_destinatario: '',
-    peso: '1',
-    altura: '20',
-    largura: '20',
-    comprimento: '20',
-    valor_encomenda: '50',
+    peso: '',
+    altura: '',
+    largura: '',
+    comprimento: '',
+    valor_encomenda: '',
     nome_remetente: '',
     cpf_cnpj_remetente: '',
     whatsapp_remetente: '',
@@ -71,11 +74,9 @@ export default function CepCertoAdmin() {
     numero_endereco_destinatario: '',
     complemento_destinatario: '',
     tipo_doc_fiscal: 'declaracao',
+    produtos: [{ descricao: '', valor: '', quantidade: '' }],
     chave_danfe: ''
   });
-  const [quotes, setQuotes] = useState<any[]>([]);
-  const [calculating, setCalculating] = useState(false);
-  const [trackingModal, setTrackingModal] = useState<{ isOpen: boolean, code: string }>({ isOpen: false, code: '' });
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -1040,83 +1041,43 @@ export default function CepCertoAdmin() {
           )}
 
           {activeTab === 'ferramentas' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
-                <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
-                  <Package className="text-indigo-600" size={24} />
-                  Gerar Etiqueta Manual
-                </h3>
-                <div className="space-y-4">
-                  <input placeholder="Nome Destinatário" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
-                  <input placeholder="CEP Destino" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <input placeholder="Peso (kg)" type="number" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
-                    <input placeholder="Valor (R$)" type="number" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
-                  </div>
-                  <input placeholder="Logradouro" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
-                  <button className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all">Gerar Etiqueta</button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <button 
+                onClick={handleGeneratePix}
+                className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 hover:border-indigo-500 transition-all text-center"
+              >
+                <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CreditCard size={32} />
                 </div>
-              </div>
-              
-              {/* Other tools... */}
-              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
-                <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
-                  <MapPin className="text-indigo-600" size={24} />
-                  Busca de CEP Profissional
-                </h3>
-                <div className="flex gap-3 mb-6">
-                  <input 
-                    type="text"
-                    value={cepSearch}
-                    onChange={(e) => setCepSearch(e.target.value)}
-                    placeholder="Digite o CEP (ex: 01001-000)"
-                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
-                  />
-                  <button 
-                    onClick={handleSearchCep}
-                    disabled={searchingCep}
-                    className="p-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
-                  >
-                    {searchingCep ? <RefreshCw className="animate-spin" size={20} /> : <Search size={20} />}
-                  </button>
+                <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter">Inserir crédito via pix</h3>
+              </button>
+
+              <button 
+                onClick={async () => {
+                  try {
+                    const balance = await shippingService.getBalance(carrier.settings);
+                    toast.success(`Saldo atual: ${balance.saldo}`);
+                  } catch (e: any) {
+                    toast.error('Erro ao consultar saldo: ' + e.message);
+                  }
+                }}
+                className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 hover:border-indigo-500 transition-all text-center"
+              >
+                <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Wallet size={32} />
                 </div>
+                <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter">Consulta de saldo</h3>
+              </button>
 
-                {cepResult && (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100 space-y-4"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">Endereço Encontrado</p>
-                        <h4 className="text-xl font-black text-indigo-900 italic tracking-tight">{cepResult.logradouro}</h4>
-                      </div>
-                      <button onClick={() => setCepResult(null)} className="text-indigo-400 hover:text-indigo-600">
-                        <X size={20} />
-                      </button>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 bg-white rounded-2xl border border-indigo-50">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Bairro</p>
-                        <p className="text-sm font-black text-slate-900">{cepResult.bairro}</p>
-                      </div>
-                      <div className="p-4 bg-white rounded-2xl border border-indigo-50">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Cidade/UF</p>
-                        <p className="text-sm font-black text-slate-900">{cepResult.localidade} - {cepResult.uf}</p>
-                      </div>
-                    </div>
-
-                    <button 
-                      onClick={() => copyToClipboard(`${cepResult.logradouro}, ${cepResult.bairro}, ${cepResult.localidade}-${cepResult.uf}`)}
-                      className="w-full py-3 bg-white text-indigo-600 rounded-xl font-bold text-sm border border-indigo-200 hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
-                    >
-                      <Copy size={16} /> Copiar Endereço Completo
-                    </button>
-                  </motion.div>
-                )}
-              </div>
+              <button 
+                onClick={() => setActiveTab('cotacao')}
+                className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 hover:border-indigo-500 transition-all text-center"
+              >
+                <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Truck size={32} />
+                </div>
+                <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter">Cotação de frete</h3>
+              </button>
             </div>
           )}
         </div>
