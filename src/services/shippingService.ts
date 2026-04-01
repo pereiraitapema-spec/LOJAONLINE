@@ -475,11 +475,35 @@ const cepcertoProvider: ShippingProvider = {
     if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
     const key = config.api_key_postagem || config.api_key;
     try {
-      const targetUrl = `https://www.cepcerto.com/ws/json-saldo/${key}`;
-      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&timestamp=${Date.now()}`);
+      // Tentar a nova API via POST primeiro
+      const response = await fetch('https://cepcerto.com/api-saldo/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          token_cliente_postagem: key
+        })
+      });
       
       if (response.ok) {
         const data = await response.json();
+        // A nova API retorna saldo_atual no formato "R$1000,00"
+        // Vamos normalizar para o formato que o app espera (número ou string limpa)
+        if (data.saldo_atual) {
+          const cleanSaldo = data.saldo_atual.replace('R$', '').replace('.', '').replace(',', '.').trim();
+          return { ...data, saldo: cleanSaldo };
+        }
+        return data;
+      }
+      
+      // Fallback para a API antiga via proxy se a nova falhar (ex: CORS)
+      console.warn('Nova API de saldo falhou, tentando fallback...');
+      const targetUrl = `https://www.cepcerto.com/ws/json-saldo/${key}`;
+      const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&timestamp=${Date.now()}`);
+      
+      if (proxyRes.ok) {
+        const data = await proxyRes.json();
         const contents = JSON.parse(data.contents);
         return contents;
       }

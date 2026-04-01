@@ -13,10 +13,12 @@ import { Loading } from '../components/Loading';
 import { shippingService } from '../services/shippingService';
 import { QRCodeSVG } from 'qrcode.react';
 import { TrackingModal } from '../components/TrackingModal';
+import { formatCurrency } from '../lib/utils';
 
 export default function CepCertoAdmin() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [refreshingBalance, setRefreshingBalance] = useState(false);
   const [balance, setBalance] = useState<any>(null);
   const [pixAmount, setPixAmount] = useState('50');
   const [pixData, setPixData] = useState<any>(null);
@@ -64,6 +66,21 @@ export default function CepCertoAdmin() {
     };
     checkAdmin();
   }, [navigate]);
+
+  const handleRefreshBalance = async () => {
+    if (!carrier) return;
+    setRefreshingBalance(true);
+    try {
+      const balanceData = await shippingService.getBalance(carrier.id);
+      setBalance(balanceData);
+      toast.success('Saldo atualizado!');
+    } catch (e) {
+      console.error('Erro ao buscar saldo:', e);
+      toast.error('Erro ao atualizar saldo.');
+    } finally {
+      setRefreshingBalance(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -307,12 +324,25 @@ export default function CepCertoAdmin() {
                 <div className="relative z-10">
                   <p className="text-indigo-100 font-bold uppercase tracking-widest text-xs mb-2">Saldo Disponível</p>
                   <h2 className="text-5xl font-black italic tracking-tighter mb-6">
-                    {balance?.saldo ? `R$ ${balance.saldo}` : 'R$ 0,00'}
+                    {balance?.saldo ? formatCurrency(parseFloat(balance.saldo)) : 'R$ 0,00'}
                   </h2>
-                  <div className="flex items-center gap-2 text-indigo-100 text-sm font-medium">
+                  <div className="flex items-center gap-2 text-indigo-100 text-sm font-medium mb-2">
                     <Check size={16} />
                     Sincronizado com CepCerto
                   </div>
+                  {balance?.data_requisicao && (
+                    <p className="text-indigo-100/60 text-[10px] mb-6">
+                      Última consulta: {balance.data_requisicao}
+                    </p>
+                  )}
+                  <button 
+                    onClick={handleRefreshBalance}
+                    disabled={refreshingBalance}
+                    className="w-full py-3 bg-white/20 hover:bg-white/30 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 border border-white/30 disabled:opacity-50"
+                  >
+                    <RefreshCw size={18} className={refreshingBalance ? 'animate-spin' : ''} />
+                    {refreshingBalance ? 'Consultando...' : 'Consultar Saldo'}
+                  </button>
                 </div>
               </div>
 
