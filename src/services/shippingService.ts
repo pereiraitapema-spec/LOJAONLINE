@@ -352,119 +352,126 @@ const correiosProvider: ShippingProvider = {
 const cepcertoProvider: ShippingProvider = {
   async calculateShipping(destZipCode: string, packages: ShippingPackage[], config: any): Promise<ShippingQuote[]> {
     console.log('📦 Usando Provedor CepCerto para:', destZipCode);
-    if (!config?.api_key) {
-      console.warn('⚠️ CepCerto API Key missing!');
-      throw new Error('Token de Consulta do CepCerto não configurado.');
+    const token = config.api_key_postagem || config.api_key;
+    if (!token) {
+      throw new Error('Token CepCerto não configurado.');
     }
     
     const startTime = Date.now();
     try {
-      const totalWeightInGrams = Math.max(300, Math.ceil(packages.reduce((acc, p) => acc + p.weight, 0) * 1000));
+      const totalWeight = packages.reduce((acc, p) => acc + p.weight, 0);
       const totalDim = packages.reduce((acc, p) => ({
         h: Math.max(acc.h, p.height || 2),
         w: Math.max(acc.w, p.width || 11),
         l: Math.max(acc.l, p.length || 16)
       }), { h: 0, w: 0, l: 0 });
 
-      // Ensure minimums
       const finalH = Math.max(totalDim.h, 2);
       const finalW = Math.max(totalDim.w, 11);
       const finalL = Math.max(totalDim.l, 16);
+      
+      // Valor da encomenda (padrão 50.00 se não informado)
+      const totalValue = packages.reduce((acc, p) => acc + (p.price || 0), 0) || 50;
 
-      // URL format: https://www.cepcerto.com/ws/json-frete-desconto/{origem}/{destino}/{peso_gramas}/{altura}/{largura}/{comprimento}/{chave}
-      // Note: Dimensions are in CM for CepCerto API
-      // Using json-frete-desconto as requested by user
+      // Tentar a nova API via POST primeiro
+      try {
+        const payload = {
+          token_cliente_postagem: token,
+          cep_remetente: config.origin_zip.replace(/\D/g, ''),
+          cep_destinatario: destZipCode.replace(/\D/g, ''),
+          peso: totalWeight.toFixed(2),
+          altura: Math.ceil(finalH).toString(),
+          largura: Math.ceil(finalW).toString(),
+          comprimento: Math.ceil(finalL).toString(),
+          valor_encomenda: totalValue.toFixed(2)
+        };
+
+        const response = await fetch('https://cepcerto.com/api-cotacao-frete/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.dados_frete) {
+            const quotes: ShippingQuote[] = [];
+            const frete = data.dados_frete;
+
+            if (frete.valor_sedex && config.services?.sedex !== false) {
+              quotes.push({
+                id: 'cepcerto-sedex',
+                name: 'SEDEX',
+                price: parseFloat(frete.valor_sedex.replace('R$', '').replace('.', '').replace(',', '.').trim()),
+                deadline: frete.prazo_entrega_sedex || 'Prazo não informado',
+                provider: 'cepcerto',
+                carrierName: config.carrier_name || 'CepCerto'
+              });
+            }
+
+            if (frete.valor_pac && config.services?.pac !== false) {
+              quotes.push({
+                id: 'cepcerto-pac',
+                name: 'PAC',
+                price: parseFloat(frete.valor_pac.replace('R$', '').replace('.', '').replace(',', '.').trim()),
+                deadline: frete.prazo_entrega_pac || 'Prazo não informado',
+                provider: 'cepcerto',
+                carrierName: config.carrier_name || 'CepCerto'
+              });
+            }
+
+            await logApiCall('cepcerto', '/api-cotacao-frete', Date.now() - startTime, true);
+            return quotes;
+          }
+        }
+      } catch (e) {
+        console.warn('Nova API de cotação falhou ou bloqueada por CORS, tentando fallback...', e);
+      }
+
+      // Fallback para a API antiga via GET
+      const totalWeightInGrams = Math.max(300, Math.ceil(totalWeight * 1000));
       const baseUrl = `https://www.cepcerto.com/ws/json-frete-desconto/${config.origin_zip.replace(/\D/g, '')}/${destZipCode.replace(/\D/g, '')}/${totalWeightInGrams}/${Math.ceil(finalH)}/${Math.ceil(finalW)}/${Math.ceil(finalL)}/${config.api_key}`;
       
-      console.log('🔗 URL CepCerto (Desconto):', baseUrl);
       const response = await fetch(baseUrl);
       const duration = Date.now() - startTime;
       
       if (response.ok) {
         const text = await response.text();
+        const data = JSON.parse(text);
         
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          console.error('❌ Erro ao fazer parse da resposta do CepCerto:', text);
-          throw new Error('CepCerto: Resposta inválida da API.');
-        }
-        
-        console.log('📦 Resposta CepCerto:', data);
-        
-        if (data.msg) {
-          console.error('❌ Erro CepCerto:', data.msg);
-          throw new Error(`CepCerto: ${data.msg}`);
-        }
-        
-        if (data.erro && data.erro !== '0') {
-          console.error('❌ Erro CepCerto:', data.erro);
-          throw new Error(`CepCerto Erro: ${data.erro}`);
-        }
+        if (data.msg && !data.dados_frete) throw new Error(`CepCerto: ${data.msg}`);
         
         await logApiCall('cepcerto', '/json-frete-desconto', duration, true);
         
         const quotes: ShippingQuote[] = [];
-        
-        let pacData: any = null;
-        let sedexData: any = null;
-
-        // O CepCerto com desconto pode retornar um objeto com dados_frete
         const frete = data.dados_frete || data;
 
-        if (frete.valor_sedex || frete.valorsedex) {
-           sedexData = {
-              valor: frete.valor_sedex || frete.valorsedex,
-              prazo: frete.prazo_entrega_sedex || frete.prazosedex
-           };
-        }
-        if (frete.valor_pac || frete.valorpac) {
-           pacData = {
-              valor: frete.valor_pac || frete.valorpac,
-              prazo: frete.prazo_entrega_pac || frete.prazopac
-           };
-        }
-
-        // Mapear os serviços retornados pelo CepCerto
-        if (sedexData && sedexData.valor && config.services?.sedex !== false) {
-          const cleanPrice = sedexData.valor.toString().replace('R$', '').replace(' ', '').replace(',', '.');
+        if ((frete.valor_sedex || frete.valorsedex) && config.services?.sedex !== false) {
+          const val = frete.valor_sedex || frete.valorsedex;
           quotes.push({
             id: 'cepcerto-sedex',
             name: 'SEDEX',
-            price: parseFloat(cleanPrice),
-            deadline: sedexData.prazo.toString().includes('dias') ? sedexData.prazo : `${sedexData.prazo} dias úteis`,
+            price: parseFloat(val.toString().replace('R$', '').replace(' ', '').replace(',', '.')),
+            deadline: frete.prazo_entrega_sedex || frete.prazosedex || 'Prazo não informado',
             provider: 'cepcerto',
             carrierName: config.carrier_name || 'CepCerto'
           });
         }
-        if (pacData && pacData.valor && config.services?.pac !== false) {
-          const cleanPrice = pacData.valor.toString().replace('R$', '').replace(' ', '').replace(',', '.');
+        if ((frete.valor_pac || frete.valorpac) && config.services?.pac !== false) {
+          const val = frete.valor_pac || frete.valorpac;
           quotes.push({
             id: 'cepcerto-pac',
             name: 'PAC',
-            price: parseFloat(cleanPrice),
-            deadline: pacData.prazo.toString().includes('dias') ? pacData.prazo : `${pacData.prazo} dias úteis`,
-            provider: 'cepcerto',
-            carrierName: config.carrier_name || 'CepCerto'
-          });
-        }
-
-        if (config.services?.jadlog === true) {
-          quotes.push({
-            id: 'cepcerto-jadlog',
-            name: 'JADLOG',
-            price: (pacData ? parseFloat(pacData.valor.toString().replace('R$', '').replace(' ', '').replace(',', '.')) : 25) * 1.15,
-            deadline: `${(parseInt(pacData?.prazo) || 5) + 2} dias úteis`,
+            price: parseFloat(val.toString().replace('R$', '').replace(' ', '').replace(',', '.')),
+            deadline: frete.prazo_entrega_pac || frete.prazopac || 'Prazo não informado',
             provider: 'cepcerto',
             carrierName: config.carrier_name || 'CepCerto'
           });
         }
         
         return quotes;
-      } else {
-        throw new Error(`CepCerto falhou com status ${response.status}`);
       }
+      throw new Error('Erro ao calcular frete no CepCerto');
     } catch (err) {
       console.error('CepCerto API Error:', err);
       throw err;
@@ -474,43 +481,78 @@ const cepcertoProvider: ShippingProvider = {
   async getBalance(config: any) {
     if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
     const key = config.api_key_postagem || config.api_key;
-    try {
-      // Tentar a nova API via POST primeiro
-      const response = await fetch('https://cepcerto.com/api-saldo/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          token_cliente_postagem: key
-        })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        // A nova API retorna saldo_atual no formato "R$1000,00"
-        // Vamos normalizar para o formato que o app espera (número ou string limpa)
-        if (data.saldo_atual) {
-          const cleanSaldo = data.saldo_atual.replace('R$', '').replace('.', '').replace(',', '.').trim();
-          return { ...data, saldo: cleanSaldo };
+    
+    // Tentar via proxy para evitar CORS
+    const tryFetch = async (url: string, options?: any) => {
+      try {
+        // Tenta primeiro via corsproxy.io (geralmente mais estável)
+        const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+        const res1 = await fetch(corsProxyUrl).catch(() => null);
+        if (res1 && res1.ok) {
+          const text = await res1.text();
+          try {
+            return JSON.parse(text);
+          } catch {
+            // Se for o AllOrigins formatado
+            const data = JSON.parse(text);
+            return JSON.parse(data.contents);
+          }
         }
+
+        // Tenta usar o proxy do AllOrigins como segunda opção
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&timestamp=${Date.now()}`;
+        
+        if (options?.method === 'POST') {
+          const getUrl = `https://www.cepcerto.com/ws/json-saldo/${key}`;
+          const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(getUrl)}&timestamp=${Date.now()}`);
+          if (res.ok) {
+            const data = await res.json();
+            return JSON.parse(data.contents);
+          }
+        } else {
+          const res = await fetch(proxyUrl);
+          if (res.ok) {
+            const data = await res.json();
+            return JSON.parse(data.contents);
+          }
+        }
+      } catch (e) {
+        console.warn(`Proxy falhou para ${url}:`, e);
+        return null;
+      }
+      return null;
+    };
+
+    try {
+      // Tentar primeiro a API antiga via proxy (mais estável para GET)
+      const data = await tryFetch(`https://www.cepcerto.com/ws/json-saldo/${key}`);
+      if (data && (data.saldo || data.saldo_atual)) {
         return data;
       }
-      
-      // Fallback para a API antiga via proxy se a nova falhar (ex: CORS)
-      console.warn('Nova API de saldo falhou, tentando fallback...');
-      const targetUrl = `https://www.cepcerto.com/ws/json-saldo/${key}`;
-      const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&timestamp=${Date.now()}`);
-      
-      if (proxyRes.ok) {
-        const data = await proxyRes.json();
-        const contents = JSON.parse(data.contents);
-        return contents;
+
+      // Se falhar, tenta a nova API (mas via proxy também)
+      // Como AllOrigins é chato com POST, vamos tentar outro proxy ou apenas falhar graciosamente
+      console.warn('Tentando via fallback direto (pode falhar por CORS)...');
+      const response = await fetch('https://cepcerto.com/api-saldo/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token_cliente_postagem: key })
+      }).catch(() => null);
+
+      if (response && response.ok) {
+        const newData = await response.json();
+        if (newData.saldo_atual) {
+          const cleanSaldo = newData.saldo_atual.replace('R$', '').replace('.', '').replace(',', '.').trim();
+          return { ...newData, saldo: cleanSaldo };
+        }
+        return newData;
       }
-      throw new Error('Erro ao consultar saldo');
+
+      // Se tudo falhar, retorna um objeto vazio para não quebrar o app
+      return { saldo: "0,00", error: "Não foi possível conectar à API" };
     } catch (err) {
       console.error('CepCerto Balance Error:', err);
-      throw err;
+      return { saldo: "0,00", error: String(err) };
     }
   },
 

@@ -33,11 +33,13 @@ export default function CepCertoAdmin() {
   
   const [quoteData, setQuoteData] = useState({
     cep_origem: '',
+    cep_remetente: '',
     cep_destino: '',
     peso: '1',
     comprimento: '20',
     largura: '20',
-    altura: '20'
+    altura: '20',
+    valor_encomenda: '50.00'
   });
   const [quotes, setQuotes] = useState<any[]>([]);
   const [calculating, setCalculating] = useState(false);
@@ -45,24 +47,36 @@ export default function CepCertoAdmin() {
 
   useEffect(() => {
     const checkAdmin = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate('/login');
-        return;
-      }
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          navigate('/login');
+          return;
+        }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .maybeSingle();
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle();
 
-      if (profile?.role !== 'admin' && session.user.email !== 'pereira.itapema@gmail.com') {
-        toast.error('Acesso negado.');
-        navigate('/');
-        return;
+        if (profile?.role !== 'admin' && session.user.email !== 'pereira.itapema@gmail.com') {
+          toast.error('Acesso negado.');
+          navigate('/');
+          return;
+        }
+        
+        // Executa fetchData com um timeout de segurança para garantir que a tela carregue
+        // mesmo que as APIs externas (CepCerto/Proxy) demorem ou falhem
+        await Promise.race([
+          fetchData(),
+          new Promise(resolve => setTimeout(resolve, 5000))
+        ]);
+      } catch (error) {
+        console.error('Erro na verificação de admin:', error);
+      } finally {
+        setLoading(false);
       }
-      fetchData();
     };
     checkAdmin();
   }, [navigate]);
@@ -103,7 +117,11 @@ export default function CepCertoAdmin() {
       
       // Configurar CEP de origem padrão se disponível
       if (carriers.config?.origin_zip) {
-        setQuoteData(prev => ({ ...prev, cep_origem: carriers.config.origin_zip }));
+        setQuoteData(prev => ({ 
+          ...prev, 
+          cep_origem: carriers.config.origin_zip,
+          cep_remetente: carriers.config.origin_zip 
+        }));
       }
 
       // Buscar saldo
@@ -209,17 +227,49 @@ export default function CepCertoAdmin() {
 
   const handleCalculate = async () => {
     if (!carrier) return;
+    
+    const pesoNum = parseFloat(quoteData.peso);
+    const altNum = parseFloat(quoteData.altura);
+    const largNum = parseFloat(quoteData.largura);
+    const compNum = parseFloat(quoteData.comprimento);
+
+    // Validações conforme API CepCerto
+    if (pesoNum < 0.3 || pesoNum > 30) {
+      toast.error('Peso deve ser entre 0.3kg e 30kg');
+      return;
+    }
+    if (altNum < 0.4 || altNum > 100) {
+      toast.error('Altura deve ser entre 0.4cm e 100cm');
+      return;
+    }
+    if (largNum < 11 || largNum > 100) {
+      toast.error('Largura deve ser entre 11cm e 100cm');
+      return;
+    }
+    if (compNum < 13 || compNum > 100) {
+      toast.error('Comprimento deve ser entre 13cm e 100cm');
+      return;
+    }
+    if ((altNum + largNum + compNum) > 200) {
+      toast.error('A soma de Altura + Largura + Comprimento não pode exceder 200cm');
+      return;
+    }
+
     try {
       setCalculating(true);
       const result = await shippingService.calculateShipping(
         quoteData.cep_destino,
         [{
-          weight: parseFloat(quoteData.peso),
-          width: parseFloat(quoteData.largura),
-          height: parseFloat(quoteData.altura),
-          length: parseFloat(quoteData.comprimento)
+          weight: pesoNum,
+          width: largNum,
+          height: altNum,
+          length: compNum,
+          price: parseFloat(quoteData.valor_encomenda)
         }],
-        carrier.id
+        {
+          ...carrier.config,
+          origin_zip: quoteData.cep_remetente || carrier.config?.origin_zip
+        }
       );
       setQuotes(result);
     } catch (error: any) {
@@ -423,27 +473,135 @@ export default function CepCertoAdmin() {
                     <Calculator className="text-indigo-600" size={20} />
                     Cotação Rápida
                   </h3>
-                  <div className="grid grid-cols-2 gap-2 mb-4">
-                    <input 
-                      placeholder="CEP Destino"
-                      value={quoteData.cep_destino}
-                      onChange={(e) => setQuoteData({...quoteData, cep_destino: e.target.value})}
-                      className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
-                    />
-                    <button 
-                      onClick={handleCalculate}
-                      disabled={calculating}
-                      className="bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
-                    >
-                      {calculating ? <RefreshCw className="animate-spin" size={16} /> : 'Calcular'}
-                    </button>
+                  <div className="space-y-3 mb-4">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Origem</label>
+                        <input 
+                          placeholder="00000-000"
+                          value={quoteData.cep_remetente}
+                          onChange={(e) => setQuoteData({...quoteData, cep_remetente: e.target.value})}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Destino</label>
+                        <input 
+                          placeholder="00000-000"
+                          value={quoteData.cep_destino}
+                          onChange={(e) => setQuoteData({...quoteData, cep_destino: e.target.value})}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Peso (kg)</label>
+                        <input 
+                          type="number"
+                          step="0.1"
+                          min="0.3"
+                          max="30"
+                          value={quoteData.peso}
+                          onChange={(e) => setQuoteData({...quoteData, peso: e.target.value})}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+                        />
+                        <p className="text-[9px] text-slate-400 ml-1">Min: 0.3kg | Max: 30kg</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Valor Encomenda (R$)</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          value={quoteData.valor_encomenda}
+                          onChange={(e) => setQuoteData({...quoteData, valor_encomenda: e.target.value})}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Alt (cm)</label>
+                        <input 
+                          type="number"
+                          min="0.4"
+                          max="100"
+                          value={quoteData.altura}
+                          onChange={(e) => setQuoteData({...quoteData, altura: e.target.value})}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+                        />
+                        <p className="text-[9px] text-slate-400 ml-1">Min: 0.4</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Larg (cm)</label>
+                        <input 
+                          type="number"
+                          min="11"
+                          max="100"
+                          value={quoteData.largura}
+                          onChange={(e) => setQuoteData({...quoteData, largura: e.target.value})}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+                        />
+                        <p className="text-[9px] text-slate-400 ml-1">Min: 11</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Comp (cm)</label>
+                        <input 
+                          type="number"
+                          min="13"
+                          max="100"
+                          value={quoteData.comprimento}
+                          onChange={(e) => setQuoteData({...quoteData, comprimento: e.target.value})}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+                        />
+                        <p className="text-[9px] text-slate-400 ml-1">Min: 13</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                      <p className="text-[10px] text-amber-700 font-bold leading-tight">
+                        ⚠️ A soma de Altura + Largura + Comprimento deve ser no máximo 200 cm.
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => {
+                          setQuoteData({
+                            ...quoteData,
+                            cep_destino: '',
+                            peso: '1',
+                            comprimento: '20',
+                            largura: '20',
+                            altura: '20',
+                            valor_encomenda: '50.00'
+                          });
+                          setQuotes([]);
+                        }}
+                        className="px-4 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+                      >
+                        Limpar
+                      </button>
+                      <button 
+                        onClick={handleCalculate}
+                        disabled={calculating}
+                        className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                      >
+                        {calculating ? <RefreshCw className="animate-spin" size={16} /> : 'Calcular Frete'}
+                      </button>
+                    </div>
                   </div>
                   {quotes.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="space-y-2 border-t border-slate-100 pt-4">
                       {quotes.map((q, i) => (
-                        <div key={i} className="flex justify-between items-center p-2 bg-slate-50 rounded-lg border border-slate-100">
-                          <span className="text-[10px] font-black text-slate-600 uppercase">{q.name}</span>
-                          <span className="text-xs font-black text-indigo-600">R$ {q.price.toFixed(2)}</span>
+                        <div key={i} className="flex justify-between items-center p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+                          <div>
+                            <span className="text-[10px] font-black text-indigo-600 uppercase block">{q.name}</span>
+                            <span className="text-[10px] text-indigo-400 font-bold">{q.deadline}</span>
+                          </div>
+                          <span className="text-sm font-black text-indigo-700">R$ {q.price.toFixed(2)}</span>
                         </div>
                       ))}
                     </div>

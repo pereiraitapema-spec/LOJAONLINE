@@ -3,6 +3,7 @@ export interface ShippingPackage {
   height: number;
   width: number;
   length: number;
+  price?: number;
 }
 
 export interface ShippingQuote {
