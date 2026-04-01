@@ -25,6 +25,8 @@ export default function CepCertoAdmin() {
   const [carrier, setCarrier] = useState<any>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [lastFetched, setLastFetched] = useState<number | null>(null);
   
   // Ferramentas
   const [cepSearch, setCepSearch] = useState('');
@@ -78,10 +80,12 @@ export default function CepCertoAdmin() {
         
         // Executa fetchData com um timeout de segurança para garantir que a tela carregue
         // mesmo que as APIs externas (CepCerto/Proxy) demorem ou falhem
-        await Promise.race([
-          fetchData(),
-          new Promise(resolve => setTimeout(resolve, 5000))
-        ]);
+        if (!lastFetched || Date.now() - lastFetched > 5 * 60 * 1000) {
+          await Promise.race([
+            fetchData(),
+            new Promise(resolve => setTimeout(resolve, 5000))
+          ]);
+        }
       } catch (error) {
         console.error('Erro na verificação de admin:', error);
       } finally {
@@ -90,6 +94,15 @@ export default function CepCertoAdmin() {
     };
     checkAdmin();
   }, [navigate]);
+
+  useEffect(() => {
+    if (!carrier) return;
+    const interval = setInterval(() => {
+      console.log('Auto-refreshing CepCerto data...');
+      fetchData(true);
+    }, 10 * 60 * 1000); // 10 minutes
+    return () => clearInterval(interval);
+  }, [carrier]);
 
   const handleRefreshBalance = async () => {
     if (!carrier) return;
@@ -106,9 +119,9 @@ export default function CepCertoAdmin() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       // Buscar transportadora CepCerto
       const { data: carriers } = await supabase
         .from('shipping_carriers')
@@ -118,12 +131,13 @@ export default function CepCertoAdmin() {
         .maybeSingle();
 
       if (!carriers) {
-        toast.error('Transportadora CepCerto não encontrada ou inativa.');
+        if (!silent) toast.error('Transportadora CepCerto não encontrada ou inativa.');
         setLoading(false);
         return;
       }
 
       setCarrier(carriers);
+      setLastFetched(Date.now());
       
       // Configurar CEP de origem padrão se disponível
       if (carriers.config?.origin_zip) {
@@ -447,392 +461,166 @@ export default function CepCertoAdmin() {
         </nav>
       </aside>
 
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Logística CepCerto</h1>
-              <p className="text-slate-500">Gerenciamento profissional de fretes e etiquetas.</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-slate-500">Gerenciamento profissional de fretes e etiquetas.</p>
+                {lastFetched && (
+                  <span className="text-[10px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
+                    Atualizado: {new Date(lastFetched).toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
             </div>
             <button 
-              onClick={fetchData}
-              className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
+              onClick={() => fetchData()}
+              className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2 font-bold text-sm"
             >
-              <RefreshCw size={20} />
+              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+              Atualizar
             </button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Card de Saldo */}
-            <div className="lg:col-span-1 space-y-6">
-              <div className="bg-indigo-600 rounded-[2.5rem] p-6 text-white shadow-xl shadow-indigo-200 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-6 opacity-10">
-                  <Wallet size={100} />
-                </div>
-                <div className="relative z-10">
-                  <p className="text-indigo-100 font-bold uppercase tracking-widest text-[10px] mb-1">Saldo Disponível</p>
-                  <h2 className="text-4xl font-black italic tracking-tighter mb-4">
-                    {balance?.saldo ? formatCurrency(parseFloat(balance.saldo)) : 'R$ 0,00'}
-                  </h2>
-                  <div className="flex items-center gap-2 text-indigo-100 text-xs font-medium mb-1">
-                    <Check size={14} />
-                    Sincronizado com CepCerto
-                  </div>
-                  {balance?.data_requisicao && (
-                    <p className="text-indigo-100/60 text-[9px] mb-4">
-                      Última consulta: {balance.data_requisicao}
-                    </p>
-                  )}
-                  <button 
-                    onClick={handleRefreshBalance}
-                    disabled={refreshingBalance}
-                    className="w-full py-2.5 bg-white/20 hover:bg-white/30 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 border border-white/30 disabled:opacity-50 text-sm"
-                  >
-                    <RefreshCw size={16} className={refreshingBalance ? 'animate-spin' : ''} />
-                    {refreshingBalance ? 'Consultando...' : 'Consultar Saldo'}
-                  </button>
-                  
-                  <button 
-                    onClick={handleGetFinancialStatement}
-                    disabled={loadingFinancial}
-                    className="w-full mt-2 py-2.5 bg-indigo-500 hover:bg-indigo-600 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 border border-indigo-400 disabled:opacity-50 text-sm"
-                  >
-                    {loadingFinancial ? <RefreshCw className="animate-spin" size={16} /> : <FileText size={16} />}
-                    Serviços Financeiros (Extrato)
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-[2.5rem] p-6 border border-slate-200 shadow-sm">
-                <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter mb-4 flex items-center gap-2">
-                  <CreditCard className="text-indigo-600" size={20} />
-                  Recarregar Saldo
-                </h3>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Valor da Recarga (R$)</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">R$</span>
-                      <input 
-                        type="number"
-                        value={pixAmount}
-                        onChange={e => setPixAmount(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-base"
-                        placeholder="0,00"
-                      />
-                    </div>
-                  </div>
-
-                  <button 
-                    onClick={handleGeneratePix}
-                    disabled={isGeneratingPix}
-                    className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
-                  >
-                    {isGeneratingPix ? <RefreshCw className="animate-spin" size={18} /> : <QrCode size={18} />}
-                    Inserir Crédito (PIX)
-                  </button>
-
-                  <p className="text-[9px] text-slate-400 text-center uppercase font-bold tracking-widest">
-                    Liberação instantânea após o pagamento
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Listagem e PIX */}
-            <div className="lg:col-span-2 space-y-8">
-              {/* Seção de Ferramentas */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Busca de CEP */}
-                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
-                  <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2 italic uppercase tracking-tighter">
-                    <MapPin className="text-indigo-600" size={20} />
-                    Busca de CEP
-                  </h3>
-                  <div className="flex gap-2 mb-4">
-                    <input 
-                      type="text"
-                      value={cepSearch}
-                      onChange={(e) => setCepSearch(e.target.value)}
-                      placeholder="Digite o CEP..."
-                      className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
-                    />
-                    <button 
-                      onClick={handleSearchCep}
-                      disabled={searchingCep}
-                      className="p-3 bg-slate-900 text-white rounded-xl hover:bg-black transition-all"
-                    >
-                      {searchingCep ? <RefreshCw className="animate-spin" size={20} /> : <Search size={20} />}
-                    </button>
-                  </div>
-                  {cepResult && (
-                    <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-                      <p className="text-sm font-bold text-indigo-900">{cepResult.logradouro}</p>
-                      <p className="text-xs text-indigo-600">{cepResult.bairro} - {cepResult.localidade}/{cepResult.uf}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Consulta de Postagem */}
-                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
-                  <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2 italic uppercase tracking-tighter">
-                    <Truck className="text-indigo-600" size={20} />
-                    Consulta de Postagem
-                  </h3>
-                  <div className="flex gap-2 mb-4">
-                    <input 
-                      type="text"
-                      value={trackingSearch}
-                      onChange={(e) => setTrackingSearch(e.target.value)}
-                      placeholder="Código de Rastreio..."
-                      className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
-                    />
-                    <button 
-                      onClick={() => handleConsultPostage()}
-                      disabled={consultingPostage}
-                      className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all"
-                    >
-                      {consultingPostage ? <RefreshCw className="animate-spin" size={20} /> : <Search size={20} />}
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">
-                    Consulta direta na API CepCerto com fallback para Correios
-                  </p>
-                  {consultResult && (
-                    <div className="mt-4 p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-2">
-                      <div className="flex justify-between items-center">
-                        <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Resultado da Consulta</p>
-                        <button onClick={() => setConsultResult(null)} className="text-amber-400 hover:text-amber-600">
-                          <X size={14} />
-                        </button>
-                      </div>
-                      <p className="text-xs font-bold text-amber-900">{consultResult.mensagem}</p>
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-200">
-                        <div>
-                          <p className="text-[9px] font-bold text-amber-600 uppercase">Saldo Anterior</p>
-                          <p className="text-xs font-black text-amber-900">{consultResult.saldo_anterior}</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] font-bold text-amber-600 uppercase">Saldo Atual</p>
-                          <p className="text-xs font-black text-amber-900">{consultResult.saldo_atual}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Cotação Rápida */}
-                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
-                  <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2 italic uppercase tracking-tighter">
-                    <Calculator className="text-indigo-600" size={20} />
-                    Cotação Rápida
-                  </h3>
-                  <div className="space-y-3 mb-4">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Origem</label>
-                        <input 
-                          placeholder="00000-000"
-                          value={quoteData.cep_remetente}
-                          onChange={(e) => setQuoteData({...quoteData, cep_remetente: e.target.value})}
-                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Destino</label>
-                        <input 
-                          placeholder="00000-000"
-                          value={quoteData.cep_destino}
-                          onChange={(e) => setQuoteData({...quoteData, cep_destino: e.target.value})}
-                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Peso (kg)</label>
-                        <input 
-                          type="number"
-                          step="0.1"
-                          min="0.3"
-                          max="30"
-                          value={quoteData.peso}
-                          onChange={(e) => setQuoteData({...quoteData, peso: e.target.value})}
-                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
-                        />
-                        <p className="text-[9px] text-slate-400 ml-1">Min: 0.3kg | Max: 30kg</p>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Valor Encomenda (R$)</label>
-                        <input 
-                          type="number"
-                          step="0.01"
-                          value={quoteData.valor_encomenda}
-                          onChange={(e) => setQuoteData({...quoteData, valor_encomenda: e.target.value})}
-                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Alt (cm)</label>
-                        <input 
-                          type="number"
-                          min="8"
-                          max="100"
-                          value={quoteData.altura}
-                          onChange={(e) => setQuoteData({...quoteData, altura: e.target.value})}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
-                        />
-                        <p className="text-[9px] text-slate-400 ml-1">Min: 8</p>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Larg (cm)</label>
-                        <input 
-                          type="number"
-                          min="13"
-                          max="100"
-                          value={quoteData.largura}
-                          onChange={(e) => setQuoteData({...quoteData, largura: e.target.value})}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
-                        />
-                        <p className="text-[9px] text-slate-400 ml-1">Min: 13</p>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Comp (cm)</label>
-                        <input 
-                          type="number"
-                          min="8"
-                          max="100"
-                          value={quoteData.comprimento}
-                          onChange={(e) => setQuoteData({...quoteData, comprimento: e.target.value})}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
-                        />
-                        <p className="text-[9px] text-slate-400 ml-1">Min: 8</p>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
-                      <p className="text-[10px] text-amber-700 font-bold leading-tight">
-                        ⚠️ A soma de Altura + Largura + Comprimento deve ser no máximo 200 cm.
-                      </p>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => {
-                          setQuoteData({
-                            ...quoteData,
-                            cep_destino: '',
-                            peso: '1',
-                            comprimento: '20',
-                            largura: '20',
-                            altura: '20',
-                            valor_encomenda: '50.00'
-                          });
-                          setQuotes([]);
-                        }}
-                        className="px-4 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
-                      >
-                        Limpar
-                      </button>
-                      <button 
-                        onClick={handleCalculate}
-                        disabled={calculating}
-                        className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
-                      >
-                        {calculating ? <RefreshCw className="animate-spin" size={16} /> : 'Calcular Frete'}
-                      </button>
-                    </div>
-                  </div>
-                  {quotes.length > 0 && (
-                    <div className="space-y-2 border-t border-slate-100 pt-4">
-                      {quotes.map((q, i) => (
-                        <div key={i} className="flex justify-between items-center p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                          <div>
-                            <span className="text-[10px] font-black text-indigo-600 uppercase block">{q.name}</span>
-                            <span className="text-[10px] text-indigo-400 font-bold">{q.deadline}</span>
-                          </div>
-                          <span className="text-sm font-black text-indigo-700">R$ {q.price.toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+          {/* Tabs Navigation */}
+          <div className="flex gap-2 mb-8 bg-white p-1.5 rounded-2xl border border-slate-200 w-fit shadow-sm">
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { id: 'logistica', label: 'Logística', icon: Truck },
+              { id: 'financeiro', label: 'Financeiro', icon: CreditCard },
+              { id: 'ferramentas', label: 'Ferramentas', icon: Zap },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
+                  activeTab === tab.id 
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                    : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <tab.icon size={18} />
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          {pixData && (
-            <div className="mt-8">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-emerald-50 border-2 border-emerald-200 rounded-[2.5rem] p-8"
-              >
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
-                      <h3 className="text-2xl font-black text-emerald-900 uppercase italic tracking-tighter">PIX Gerado!</h3>
-                      <p className="text-emerald-700 font-medium">Escaneie o QR Code ou copie o código abaixo.</p>
+          {activeTab === 'dashboard' && (
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Card de Saldo - Altura reduzida */}
+                <div className="bg-indigo-600 rounded-[2.5rem] p-6 text-white shadow-xl shadow-indigo-200 relative overflow-hidden h-fit">
+                  <div className="absolute top-0 right-0 p-6 opacity-10">
+                    <Wallet size={80} />
+                  </div>
+                  <div className="relative z-10">
+                    <p className="text-indigo-100 font-bold uppercase tracking-widest text-[10px] mb-1">Saldo Disponível</p>
+                    <h2 className="text-4xl font-black italic tracking-tighter mb-4">
+                      {balance?.saldo ? formatCurrency(parseFloat(balance.saldo)) : 'R$ 0,00'}
+                    </h2>
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={handleRefreshBalance}
+                        disabled={refreshingBalance}
+                        className="flex-1 py-2.5 bg-white/20 hover:bg-white/30 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 border border-white/30 disabled:opacity-50 text-xs"
+                      >
+                        <RefreshCw size={14} className={refreshingBalance ? 'animate-spin' : ''} />
+                        {refreshingBalance ? '...' : 'Atualizar'}
+                      </button>
+                      <button 
+                        onClick={handleGetFinancialStatement}
+                        disabled={loadingFinancial}
+                        className="flex-1 py-2.5 bg-indigo-500 hover:bg-indigo-600 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 border border-indigo-400 disabled:opacity-50 text-xs"
+                      >
+                        <FileText size={14} />
+                        Extrato
+                      </button>
                     </div>
-                    <button onClick={() => setPixData(null)} className="text-emerald-400 hover:text-emerald-600">
-                      <X size={24} />
+                  </div>
+                </div>
+
+                {/* Recarregar Saldo - Altura reduzida */}
+                <div className="lg:col-span-2 bg-white rounded-[2.5rem] p-6 border border-slate-200 shadow-sm h-fit">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
+                      <CreditCard className="text-indigo-600" size={20} />
+                      Recarregar Saldo
+                    </h3>
+                    <p className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">Liberação instantânea via PIX</p>
+                  </div>
+                  
+                  <div className="flex gap-4 items-end">
+                    <div className="flex-1">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Valor (R$)</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">R$</span>
+                        <input 
+                          type="number"
+                          value={pixAmount}
+                          onChange={e => setPixAmount(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-base"
+                          placeholder="0,00"
+                        />
+                      </div>
+                    </div>
+                    <button 
+                      onClick={handleGeneratePix}
+                      disabled={isGeneratingPix}
+                      className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+                    >
+                      {isGeneratingPix ? <RefreshCw className="animate-spin" size={18} /> : <QrCode size={18} />}
+                      Gerar PIX
                     </button>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                    <div className="bg-white p-4 rounded-3xl shadow-inner flex flex-col items-center justify-center aspect-square overflow-hidden relative">
-                      {pixData.qrcode_img ? (
-                        <img 
-                          src={pixData.qrcode_img} 
-                          alt="QR Code PIX" 
-                          className="w-full h-full object-contain z-10 bg-white"
-                          referrerPolicy="no-referrer"
-                          id="pix-qr-img"
-                          onError={(e) => {
-                            const img = e.target as HTMLImageElement;
-                            img.style.display = 'none';
-                            const svg = document.getElementById('pix-qr-svg');
-                            if (svg) svg.style.display = 'block';
-                          }}
-                        />
-                      ) : null}
-                      <div id="pix-qr-svg" style={{ display: pixData.qrcode_img ? 'none' : 'block' }}>
-                        <QRCodeSVG 
-                          value={pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code || ''} 
-                          size={200} 
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="p-4 bg-white rounded-2xl border border-emerald-100">
-                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-2">Código PIX (Copia e Cola)</p>
-                        <p className="text-xs font-mono break-all text-slate-600 line-clamp-3 mb-3">
-                          {pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code || 'Código não retornado'}
-                        </p>
-                        <button 
-                          onClick={() => copyToClipboard(pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code)}
-                          className="w-full py-2 bg-emerald-600 text-white rounded-xl font-bold text-xs hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
-                        >
-                          <Copy size={14} /> Copiar Código
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase italic">
-                        <AlertCircle size={16} />
-                        Válido por 30 minutos
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
+                </div>
               </div>
-            )}
 
-            <div className="mt-12">
-              <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm overflow-hidden">
+              {/* Ações Rápidas */}
+              <div className="bg-white rounded-[2.5rem] p-6 border border-slate-200 shadow-sm">
+                <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter mb-4 flex items-center gap-2">
+                  <Zap className="text-indigo-600" size={20} />
+                  Ações Rápidas
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                  <button onClick={() => setActiveTab('financeiro')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
+                    <QrCode className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
+                    <p className="text-[9px] font-black uppercase text-slate-600">Recarga PIX</p>
+                  </button>
+                  <button onClick={handleRefreshBalance} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
+                    <Wallet className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
+                    <p className="text-[9px] font-black uppercase text-slate-600">Saldo</p>
+                  </button>
+                  <button onClick={() => setActiveTab('logistica')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
+                    <Calculator className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
+                    <p className="text-[9px] font-black uppercase text-slate-600">Cotação</p>
+                  </button>
+                  <button onClick={() => navigate('/orders')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
+                    <Package className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
+                    <p className="text-[9px] font-black uppercase text-slate-600">Postagem</p>
+                  </button>
+                  <button onClick={() => setActiveTab('logistica')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
+                    <Search className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
+                    <p className="text-[9px] font-black uppercase text-slate-600">Consulta</p>
+                  </button>
+                  <button onClick={handleGetFinancialStatement} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
+                    <FileText className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
+                    <p className="text-[9px] font-black uppercase text-slate-600">Extrato</p>
+                  </button>
+                  <button onClick={() => setActiveTab('logistica')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
+                    <Truck className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
+                    <p className="text-[9px] font-black uppercase text-slate-600">Rastreio</p>
+                  </button>
+                  <button onClick={() => navigate('/orders')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
+                    <Trash2 className="text-slate-400 group-hover:text-rose-600 mx-auto mb-2" size={24} />
+                    <p className="text-[9px] font-black uppercase text-slate-600">Cancelar</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Etiquetas Recentes - Full Width */}
+              <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm overflow-hidden w-full">
                 <div className="flex justify-between items-center mb-8">
                   <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Etiquetas Recentes</h3>
                   <button onClick={() => navigate('/orders')} className="text-indigo-600 font-bold text-sm hover:underline">Ver todos os pedidos</button>
@@ -954,8 +742,385 @@ export default function CepCertoAdmin() {
                 </div>
               </div>
             </div>
-          </div>
-        </main>
+          )}
+
+          {activeTab === 'logistica' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Cotação Rápida */}
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
+                  <Calculator className="text-indigo-600" size={24} />
+                  Cotação Rápida
+                </h3>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Origem</label>
+                      <input 
+                        placeholder="00000-000"
+                        value={quoteData.cep_remetente}
+                        onChange={(e) => setQuoteData({...quoteData, cep_remetente: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Destino</label>
+                      <input 
+                        placeholder="00000-000"
+                        value={quoteData.cep_destino}
+                        onChange={(e) => setQuoteData({...quoteData, cep_destino: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Peso (kg)</label>
+                      <input 
+                        type="number"
+                        step="0.1"
+                        value={quoteData.peso}
+                        onChange={(e) => setQuoteData({...quoteData, peso: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Valor Encomenda (R$)</label>
+                      <input 
+                        type="number"
+                        step="0.01"
+                        value={quoteData.valor_encomenda}
+                        onChange={(e) => setQuoteData({...quoteData, valor_encomenda: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Alt (cm)</label>
+                      <input 
+                        type="number"
+                        value={quoteData.altura}
+                        onChange={(e) => setQuoteData({...quoteData, altura: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Larg (cm)</label>
+                      <input 
+                        type="number"
+                        value={quoteData.largura}
+                        onChange={(e) => setQuoteData({...quoteData, largura: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Comp (cm)</label>
+                      <input 
+                        type="number"
+                        value={quoteData.comprimento}
+                        onChange={(e) => setQuoteData({...quoteData, comprimento: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={handleCalculate}
+                    disabled={calculating}
+                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
+                  >
+                    {calculating ? <RefreshCw className="animate-spin" size={20} /> : <Calculator size={20} />}
+                    Calcular Frete
+                  </button>
+
+                  {quotes.length > 0 && (
+                    <div className="space-y-3 pt-4 border-t border-slate-100">
+                      {quotes.map((q, i) => (
+                        <div key={i} className="flex justify-between items-center p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                          <div>
+                            <span className="text-xs font-black text-indigo-600 uppercase block">{q.name}</span>
+                            <span className="text-xs text-indigo-400 font-bold">{q.deadline}</span>
+                          </div>
+                          <span className="text-lg font-black text-indigo-700">R$ {q.price.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-8">
+                {/* Consulta de Postagem */}
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                  <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
+                    <Search className="text-indigo-600" size={24} />
+                    Consulta de Postagem
+                  </h3>
+                  <div className="flex gap-3 mb-4">
+                    <input 
+                      type="text"
+                      value={trackingSearch}
+                      onChange={(e) => setTrackingSearch(e.target.value)}
+                      placeholder="Código de Rastreio..."
+                      className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                    />
+                    <button 
+                      onClick={() => handleConsultPostage()}
+                      disabled={consultingPostage}
+                      className="p-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                    >
+                      {consultingPostage ? <RefreshCw className="animate-spin" size={20} /> : <Search size={20} />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest leading-relaxed">
+                    Consulta forçada via API CepCerto. Caso não haja informação, você será redirecionado ao site dos Correios.
+                  </p>
+
+                  {consultResult && (
+                    <div className="mt-6 p-6 bg-amber-50 rounded-[2rem] border border-amber-100 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs font-black text-amber-600 uppercase tracking-widest">Resultado CepCerto</p>
+                        <button onClick={() => setConsultResult(null)} className="text-amber-400 hover:text-amber-600">
+                          <X size={18} />
+                        </button>
+                      </div>
+                      <p className="text-sm font-bold text-amber-900">{consultResult.mensagem}</p>
+                      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-amber-200">
+                        <div>
+                          <p className="text-[10px] font-bold text-amber-600 uppercase">Saldo Anterior</p>
+                          <p className="text-sm font-black text-amber-900">{consultResult.saldo_anterior}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-amber-600 uppercase">Saldo Atual</p>
+                          <p className="text-sm font-black text-amber-900">{consultResult.saldo_atual}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Rastreio Rápido */}
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                  <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
+                    <Truck className="text-indigo-600" size={24} />
+                    Rastreio Rápido
+                  </h3>
+                  <div className="flex gap-3">
+                    <input 
+                      type="text"
+                      placeholder="Código de Rastreio..."
+                      className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setTrackingModal({ isOpen: true, code: (e.target as HTMLInputElement).value });
+                        }
+                      }}
+                    />
+                    <button 
+                      onClick={(e) => {
+                        const input = (e.currentTarget.previousSibling as HTMLInputElement);
+                        if (input.value) setTrackingModal({ isOpen: true, code: input.value });
+                      }}
+                      className="p-4 bg-slate-900 text-white rounded-xl hover:bg-black transition-all shadow-lg shadow-slate-200"
+                    >
+                      <Search size={20} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'financeiro' && (
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Saldo em Conta</p>
+                  <h2 className="text-4xl font-black text-slate-900 italic tracking-tighter mb-6">
+                    {balance?.saldo ? formatCurrency(parseFloat(balance.saldo)) : 'R$ 0,00'}
+                  </h2>
+                  <button 
+                    onClick={handleGetFinancialStatement}
+                    disabled={loadingFinancial}
+                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 shadow-lg shadow-indigo-100"
+                  >
+                    {loadingFinancial ? <RefreshCw className="animate-spin" size={20} /> : <FileText size={20} />}
+                    Ver Extrato Completo
+                  </button>
+                </div>
+
+                <div className="md:col-span-2 bg-indigo-50 p-8 rounded-[2.5rem] border border-indigo-100 flex items-center gap-8">
+                  <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                    <Shield size={40} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-indigo-900 uppercase italic tracking-tighter mb-2">Segurança Financeira</h3>
+                    <p className="text-indigo-700 font-medium leading-relaxed">
+                      Todas as transações são processadas via API segura do CepCerto. 
+                      Seu saldo é atualizado em tempo real após cada postagem ou recarga.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Histórico Financeiro (Simulado ou Real se disponível) */}
+              <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm">
+                <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter mb-8">Histórico de Transações</h3>
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                  <FileText size={64} className="mb-4 opacity-20" />
+                  <p className="font-bold uppercase tracking-widest text-xs">Clique no botão acima para carregar o extrato oficial</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'ferramentas' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
+                  <MapPin className="text-indigo-600" size={24} />
+                  Busca de CEP Profissional
+                </h3>
+                <div className="flex gap-3 mb-6">
+                  <input 
+                    type="text"
+                    value={cepSearch}
+                    onChange={(e) => setCepSearch(e.target.value)}
+                    placeholder="Digite o CEP (ex: 01001-000)"
+                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                  />
+                  <button 
+                    onClick={handleSearchCep}
+                    disabled={searchingCep}
+                    className="p-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                  >
+                    {searchingCep ? <RefreshCw className="animate-spin" size={20} /> : <Search size={20} />}
+                  </button>
+                </div>
+
+                {cepResult && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100 space-y-4"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">Endereço Encontrado</p>
+                        <h4 className="text-xl font-black text-indigo-900 italic tracking-tight">{cepResult.logradouro}</h4>
+                      </div>
+                      <button onClick={() => setCepResult(null)} className="text-indigo-400 hover:text-indigo-600">
+                        <X size={20} />
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 bg-white rounded-2xl border border-indigo-50">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Bairro</p>
+                        <p className="text-sm font-black text-slate-900">{cepResult.bairro}</p>
+                      </div>
+                      <div className="p-4 bg-white rounded-2xl border border-indigo-50">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Cidade/UF</p>
+                        <p className="text-sm font-black text-slate-900">{cepResult.localidade} - {cepResult.uf}</p>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={() => copyToClipboard(`${cepResult.logradouro}, ${cepResult.bairro}, ${cepResult.localidade}-${cepResult.uf}`)}
+                      className="w-full py-3 bg-white text-indigo-600 rounded-xl font-bold text-sm border border-indigo-200 hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Copy size={16} /> Copiar Endereço Completo
+                    </button>
+                  </motion.div>
+                )}
+              </div>
+
+              <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white flex flex-col justify-center relative overflow-hidden">
+                <div className="absolute -right-20 -bottom-20 opacity-10 rotate-12">
+                  <Zap size={300} />
+                </div>
+                <h3 className="text-3xl font-black uppercase italic tracking-tighter mb-4 relative z-10">Ferramentas de Apoio</h3>
+                <p className="text-indigo-100 font-medium leading-relaxed mb-6 relative z-10">
+                  Utilize nossas ferramentas auxiliares para agilizar o processo de postagem. 
+                  A busca de CEP é integrada diretamente com o ViaCEP para garantir dados atualizados.
+                </p>
+                <div className="flex gap-4 relative z-10">
+                  <div className="px-4 py-2 bg-white/10 rounded-xl border border-white/20 text-xs font-bold uppercase tracking-widest">ViaCEP API</div>
+                  <div className="px-4 py-2 bg-white/10 rounded-xl border border-white/20 text-xs font-bold uppercase tracking-widest">Correios Sync</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {pixData && (
+            <div className="mt-8">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-emerald-50 border-2 border-emerald-200 rounded-[2.5rem] p-8"
+              >
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <h3 className="text-2xl font-black text-emerald-900 uppercase italic tracking-tighter">PIX Gerado!</h3>
+                      <p className="text-emerald-700 font-medium">Escaneie o QR Code ou copie o código abaixo.</p>
+                    </div>
+                    <button onClick={() => setPixData(null)} className="text-emerald-400 hover:text-emerald-600">
+                      <X size={24} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div className="bg-white p-4 rounded-3xl shadow-inner flex flex-col items-center justify-center aspect-square overflow-hidden relative">
+                      {pixData.qrcode_img ? (
+                        <img 
+                          src={pixData.qrcode_img} 
+                          alt="QR Code PIX" 
+                          className="w-full h-full object-contain z-10 bg-white"
+                          referrerPolicy="no-referrer"
+                          id="pix-qr-img"
+                          onError={(e) => {
+                            const img = e.target as HTMLImageElement;
+                            img.style.display = 'none';
+                            const svg = document.getElementById('pix-qr-svg');
+                            if (svg) svg.style.display = 'block';
+                          }}
+                        />
+                      ) : null}
+                      <div id="pix-qr-svg" style={{ display: pixData.qrcode_img ? 'none' : 'block' }}>
+                        <QRCodeSVG 
+                          value={pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code || ''} 
+                          size={200} 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="p-4 bg-white rounded-2xl border border-emerald-100">
+                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-2">Código PIX (Copia e Cola)</p>
+                        <p className="text-xs font-mono break-all text-slate-600 line-clamp-3 mb-3">
+                          {pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code || 'Código não retornado'}
+                        </p>
+                        <button 
+                          onClick={() => copyToClipboard(pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code)}
+                          className="w-full py-2 bg-emerald-600 text-white rounded-xl font-bold text-xs hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Copy size={14} /> Copiar Código
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase italic">
+                        <AlertCircle size={16} />
+                        Válido por 30 minutos
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+        </div>
+      </main>
 
       <TrackingModal 
         isOpen={trackingModal.isOpen}
