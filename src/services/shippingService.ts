@@ -573,7 +573,9 @@ const cepcertoProvider: ShippingProvider = {
         },
         body: JSON.stringify({
           token_cliente_postagem: key,
-          valor_credito: formattedAmount
+          valor_credito: formattedAmount,
+          email: email,
+          telefone: phone
         })
       });
       
