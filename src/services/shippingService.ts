@@ -380,9 +380,9 @@ const cepcertoProvider: ShippingProvider = {
           cep_remetente: config.origin_zip.replace(/\D/g, ''),
           cep_destinatario: destZipCode.replace(/\D/g, ''),
           peso: totalWeight.toFixed(2),
-          altura: Math.ceil(finalH).toString(),
-          largura: Math.ceil(finalW).toString(),
-          comprimento: Math.ceil(finalL).toString(),
+          altura: finalH.toFixed(2),
+          largura: finalW.toFixed(2),
+          comprimento: finalL.toFixed(2),
           valor_encomenda: totalValue.toFixed(2)
         };
 

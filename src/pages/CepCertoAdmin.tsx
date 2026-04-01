@@ -308,16 +308,16 @@ export default function CepCertoAdmin() {
       toast.error('Peso deve ser entre 0.3kg e 30kg');
       return;
     }
-    if (altNum < 8 || altNum > 100) {
-      toast.error('Altura deve ser entre 8cm e 100cm');
+    if (altNum < 0.4 || altNum > 100) {
+      toast.error('Altura deve ser entre 0.4cm e 100cm');
       return;
     }
-    if (largNum < 13 || largNum > 100) {
-      toast.error('Largura deve ser entre 13cm e 100cm');
+    if (largNum < 11 || largNum > 100) {
+      toast.error('Largura deve ser entre 11cm e 100cm');
       return;
     }
-    if (compNum < 8 || compNum > 100) {
-      toast.error('Comprimento deve ser entre 8cm e 100cm');
+    if (compNum < 13 || compNum > 100) {
+      toast.error('Comprimento deve ser entre 13cm e 100cm');
       return;
     }
     const valorNum = parseFloat(quoteData.valor_encomenda);
