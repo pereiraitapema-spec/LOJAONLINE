@@ -64,15 +64,23 @@ export const leadService = {
 
       if (!settings?.n8n_webhook_url) return;
 
-      await fetch(settings.n8n_webhook_url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event,
-          timestamp: new Date().toISOString(),
-          ...data
-        })
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      try {
+        await fetch(settings.n8n_webhook_url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event,
+            timestamp: new Date().toISOString(),
+            ...data
+          }),
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
     } catch (error) {
       console.warn('⚠️ Falha ao enviar webhook:', error);
     }

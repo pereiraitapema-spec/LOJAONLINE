@@ -578,8 +578,9 @@ export default function Checkout() {
       }
 
       // 2. Check Campaign Rules
+      let campaignApplied = false;
       for (const campaign of campaigns) {
-        if (!campaign.discount_value) continue;
+        if (!campaign.discount_value || campaignApplied) continue;
 
         let apply = false;
         const trigger = campaign.trigger_type || 'automatic';
@@ -602,6 +603,8 @@ export default function Checkout() {
             discountValue = campaign.discount_value;
           }
           newDiscounts.push({ name: campaign.title, value: discountValue });
+          currentTotal -= discountValue;
+          campaignApplied = true;
         }
       }
 

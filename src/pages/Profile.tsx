@@ -6,6 +6,7 @@ import { User, Camera, Save, ArrowLeft, Shield, LayoutDashboard, Package, Truck,
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { TrackingModal } from '../components/TrackingModal';
+import { withTimeout } from '../lib/utils';
 
 export default function Profile() {
   const [loading, setLoading] = useState(true);
@@ -24,34 +25,34 @@ export default function Profile() {
   useEffect(() => {
     const getProfile = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await withTimeout(supabase.auth.getSession());
         if (!session) {
           navigate('/login');
           return;
         }
         setUser(session.user);
 
-        const { data, error } = await supabase
+        const { data, error } = await withTimeout(supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .maybeSingle();
+          .maybeSingle());
 
         if (data) {
           const isMaster = session.user.email === 'pereira.itapema@gmail.com';
           setProfile({
             full_name: data.full_name || '',
-            avatar_url: data.avatar_url || '',
+            avatar_url: data.avatar_url || session.user.user_metadata?.avatar_url || '',
             role: isMaster ? 'admin' : (data.role || 'customer')
           });
         }
 
         // Fetch user orders
-        const { data: userOrders, error: ordersError } = await supabase
+        const { data: userOrders, error: ordersError } = await withTimeout(supabase
           .from('orders')
           .select('*')
           .eq('customer_email', session.user.email)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false }));
 
         if (!ordersError && userOrders) {
           setOrders(userOrders);
@@ -82,9 +83,9 @@ export default function Profile() {
       const fileName = `${user.id}-${Math.random()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await withTimeout(supabase.storage
         .from('avatars')
-        .upload(filePath, file);
+        .upload(filePath, file));
 
       if (uploadError) throw uploadError;
 
@@ -95,14 +96,14 @@ export default function Profile() {
       setProfile(prev => ({ ...prev, avatar_url: publicUrl }));
       
       // Salvar automaticamente no perfil usando upsert para garantir a persistência
-      const { error: updateError } = await supabase
+      const { error: updateError } = await withTimeout(supabase
         .from('profiles')
         .upsert({ 
           id: user.id,
           avatar_url: publicUrl,
           full_name: profile.full_name,
           email: user.email
-        }, { onConflict: 'id' });
+        }, { onConflict: 'id' }));
       
       if (updateError) throw updateError;
 
@@ -119,14 +120,14 @@ export default function Profile() {
     setSaving(true);
     try {
       // Usar upsert em vez de update para garantir que o registro exista
-      const { error } = await supabase
+      const { error } = await withTimeout(supabase
         .from('profiles')
         .upsert({
           id: user.id,
           full_name: profile.full_name,
           avatar_url: profile.avatar_url,
           email: user.email
-        }, { onConflict: 'id' });
+        }, { onConflict: 'id' }));
 
       if (error) throw error;
       toast.success('Perfil atualizado com sucesso!');
@@ -172,9 +173,9 @@ export default function Profile() {
             <div className="relative -mt-16 mb-8 flex justify-center">
               <div className="relative">
                 <div className="w-32 h-32 bg-white rounded-full p-1 shadow-lg">
-                  {profile.avatar_url ? (
+                  {profile.avatar_url || user?.user_metadata?.avatar_url ? (
                     <img 
-                      src={profile.avatar_url} 
+                      src={profile.avatar_url || user?.user_metadata?.avatar_url} 
                       alt="Avatar" 
                       className="w-full h-full rounded-full object-cover"
                       referrerPolicy="no-referrer"

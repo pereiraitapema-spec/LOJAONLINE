@@ -33,3 +33,12 @@ export const formatPhone = (phone: string) => {
   }
   return phone;
 };
+
+export const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 30000): Promise<T> => {
+  return Promise.race([
+    promise as Promise<T>,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error(`Timeout de ${timeoutMs}ms atingido`)), timeoutMs)
+    )
+  ]);
+};

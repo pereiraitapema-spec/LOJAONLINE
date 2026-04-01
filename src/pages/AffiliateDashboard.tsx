@@ -11,7 +11,7 @@ import { Loading } from '../components/Loading';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { motion, AnimatePresence } from 'motion/react';
 import SmartChat from '../components/SmartChat';
-import { formatCurrency, formatDate } from '../lib/utils';
+import { formatCurrency, formatDate, withTimeout } from '../lib/utils';
 
 interface Product {
   id: string;
@@ -130,14 +130,7 @@ export default function AffiliateDashboard() {
   });
 
   // Helper para timeout em chamadas Supabase
-  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 5000): Promise<T> => {
-    return Promise.race([
-      promise as Promise<T>,
-      new Promise<T>((_, reject) => 
-        setTimeout(() => reject(new Error(`Timeout de ${timeoutMs}ms atingido`)), timeoutMs)
-      )
-    ]);
-  };
+  // Helper for timeouts
 
   useEffect(() => {
     checkAffiliateStatus();

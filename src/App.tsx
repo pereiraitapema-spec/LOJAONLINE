@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import { Toaster } from 'react-hot-toast';
 import { useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabase';
+import { withTimeout } from './lib/utils';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ResetPassword from './pages/ResetPassword';
@@ -46,14 +47,7 @@ function AppContent() {
   const location = useLocation();
 
   // Helper para timeout em chamadas Supabase - Reduzido para 5s para performance
-  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 5000): Promise<T> => {
-    return Promise.race([
-      promise as Promise<T>,
-      new Promise<T>((_, reject) => 
-        setTimeout(() => reject(new Error(`Timeout de ${timeoutMs}ms atingido`)), timeoutMs)
-      )
-    ]);
-  };
+  // Helper for timeouts
 
   const syncUserSession = async (userId: string, email?: string) => {
     console.log('🔄 Sincronizando sessão para:', { userId, email });
@@ -105,11 +99,11 @@ function AppContent() {
 
       // 4. Se for 'customer', verificar se é afiliado (apenas se necessário)
       if (finalRole === 'customer') {
-        const { data: affiliate } = await supabase
+        const { data: affiliate } = await withTimeout(supabase
           .from('affiliates')
           .select('status, active')
           .eq('user_id', userId)
-          .maybeSingle();
+          .maybeSingle());
         
         if (affiliate && (affiliate.status === 'approved' || affiliate.active)) {
           finalRole = 'affiliate';
@@ -143,10 +137,14 @@ function AppContent() {
   useEffect(() => {
     // 0. Testar conexão com banco de dados
     const checkDB = async () => {
-      const { error } = await supabase.from('profiles').select('id').limit(1);
-      if (error && error.message.includes('does not exist')) {
-        console.error('❌ Tabela profiles não encontrada!');
-        toast.error('Banco de dados incompleto. Por favor, execute o script SQL de reparo no Supabase.', { duration: 10000 });
+      try {
+        const { error } = await withTimeout(supabase.from('profiles').select('id').limit(1));
+        if (error && error.message.includes('does not exist')) {
+          console.error('❌ Tabela profiles não encontrada!');
+          toast.error('Banco de dados incompleto. Por favor, execute o script SQL de reparo no Supabase.', { duration: 10000 });
+        }
+      } catch (e) {
+        console.error('❌ Erro ao testar conexão com banco de dados:', e);
       }
     };
     checkDB();

@@ -6,6 +6,8 @@ import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { leadService } from '../services/leadService';
 
+import { withTimeout } from '../lib/utils';
+
 export default function Login() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
@@ -94,10 +96,10 @@ export default function Login() {
     setLoading(true);
     try {
       if (mode === 'login') {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await withTimeout(supabase.auth.signInWithPassword({
           email,
           password,
-        });
+        }));
 
         if (error) {
           console.error('🔑 Login Error Details:', {
@@ -117,14 +119,14 @@ export default function Login() {
 
         if (data.user) {
           toast.success('Bem-vindo de volta!');
-          await leadService.updateStatus('frio');
+          leadService.updateStatus('frio').catch(console.error);
           
           // Garantir que o profile existe e tem o role correto se for master
-          const { data: existingProfile } = await supabase
+          const { data: existingProfile } = await withTimeout(supabase
             .from('profiles')
             .select('role, full_name, avatar_url')
             .eq('id', data.user.id)
-            .maybeSingle();
+            .maybeSingle());
             
           if (!existingProfile || (data.user.email === 'pereira.itapema@gmail.com' && existingProfile.role !== 'admin')) {
             const profileData: any = {
@@ -144,14 +146,14 @@ export default function Login() {
               profileData.avatar_url = existingProfile.avatar_url;
             }
 
-            await supabase.from('profiles').upsert(profileData);
+            await withTimeout(supabase.from('profiles').upsert(profileData));
           }
 
           // O App.tsx cuidará do redirecionamento via onAuthStateChange
         }
       } else {
         // Modo Cadastro
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await withTimeout(supabase.auth.signUp({
           email,
           password,
           options: {
@@ -162,7 +164,7 @@ export default function Login() {
               marketing_opt_in: marketingOptIn
             }
           }
-        });
+        }));
 
         if (error) {
           if (error.message.includes('User already registered')) {
@@ -174,7 +176,7 @@ export default function Login() {
         if (data.user) {
           if (data.session) {
             toast.success('Conta criada com sucesso!');
-            await leadService.updateStatus('frio');
+            leadService.updateStatus('frio').catch(console.error);
             navigate('/');
           } else {
             setShowResend(true);
@@ -206,7 +208,7 @@ export default function Login() {
           const storageKeys = Object.keys(localStorage).filter(k => k.includes('supabase') || k.includes('sb-'));
           console.log('📦 Current Storage Keys:', storageKeys);
           
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          const { data, error } = await withTimeout(supabase.auth.exchangeCodeForSession(code));
           
           if (error) {
             console.error('❌ Supabase Auth Exchange Error:', {
@@ -258,7 +260,7 @@ export default function Login() {
       
       console.log('🚀 Iniciando Google Login (Popup Flow):', redirectTo);
 
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await withTimeout(supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectTo,
@@ -268,7 +270,7 @@ export default function Login() {
             prompt: 'consent',
           },
         }
-      });
+      }));
 
       if (error) throw error;
 

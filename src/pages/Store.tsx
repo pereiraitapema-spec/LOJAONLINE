@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, withTimeout } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -166,7 +166,14 @@ export default function Store() {
   });
   const [campaigns, setCampaigns] = useState<Campaign[]>(() => {
     const saved = localStorage.getItem('cache_campaigns');
-    return saved ? JSON.parse(saved) : [];
+    const timestamp = localStorage.getItem('cache_campaigns_timestamp');
+    const now = Date.now();
+    
+    // Se o cache tiver mais de 5 minutos, ignorar e buscar novo
+    if (saved && timestamp && (now - parseInt(timestamp)) < 5 * 60 * 1000) {
+      return JSON.parse(saved);
+    }
+    return [];
   });
   const scrollToProducts = () => {
     const el = document.getElementById('products-grid');
@@ -400,16 +407,6 @@ export default function Store() {
     }
   }, [selectedProductId, products]);
 
-  // Helper para timeout em chamadas Supabase
-  const withTimeout = async <T,>(promise: PromiseLike<T>, timeoutMs: number = 30000): Promise<T> => {
-    return Promise.race([
-      promise as Promise<T>,
-      new Promise<T>((_, reject) => 
-        setTimeout(() => reject(new Error(`Timeout de ${timeoutMs}ms atingido`)), timeoutMs)
-      )
-    ]);
-  };
-
   useEffect(() => {
     // Se já temos dados em cache, liberamos o loading IMEDIATAMENTE
     if (products.length > 0 || banners.length > 0 || settings) {
@@ -429,14 +426,18 @@ export default function Store() {
         
         if (session) {
           console.log('✅ Store: Usuário logado:', session.user.email);
-          const { data: profile } = await withTimeout(
+          const { data: profile, error: profileError } = await withTimeout(
             supabase
               .from('profiles')
-              .select('role, avatar_url')
+              .select('role, avatar_url, full_name')
               .eq('id', session.user.id)
               .maybeSingle(),
             5000
           );
+
+          if (profileError) {
+            console.error('❌ Store: Erro ao buscar perfil:', profileError);
+          }
 
           setUserProfile(profile);
           console.log('📊 Store: Perfil carregado:', profile);
@@ -544,6 +545,7 @@ export default function Store() {
         if (results[3].status === 'fulfilled' && results[3].value.data) {
           setCampaigns(results[3].value.data);
           localStorage.setItem('cache_campaigns', JSON.stringify(results[3].value.data));
+          localStorage.setItem('cache_campaigns_timestamp', Date.now().toString());
         }
 
         if (results[4].status === 'fulfilled' && results[4].value.data) {
@@ -991,8 +993,8 @@ export default function Store() {
                   className="flex items-center gap-2 text-slate-600 hover:text-emerald-600 transition-colors group"
                 >
                   <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center overflow-hidden group-hover:bg-emerald-50 transition-colors">
-                    {userProfile?.avatar_url ? (
-                      <img src={userProfile.avatar_url} alt="Perfil" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    {userProfile?.avatar_url || session?.user?.user_metadata?.avatar_url ? (
+                      <img src={userProfile?.avatar_url || session?.user?.user_metadata?.avatar_url} alt="Perfil" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <User size={20} />
                     )}
@@ -1378,7 +1380,7 @@ export default function Store() {
         </div>
 
         {/* Grid de Produtos */}
-        <div ref={productsRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div ref={productsRef} className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
           {(() => {
             const filtered = products.filter(p => {
               // Filtro por Categoria (Link Direto ou Seleção)
@@ -1398,16 +1400,16 @@ export default function Store() {
             return filtered.map((product) => (
               <motion.div 
                 key={product.id}
-                whileHover={{ y: -10 }}
+                whileHover={{ y: -5 }}
                 onClick={() => handleSelectProduct(product)}
                 className="group cursor-pointer"
               >
-              <div className="aspect-[3/4] bg-slate-100 rounded-3xl mb-4 overflow-hidden relative shadow-sm border border-slate-100">
+              <div className="aspect-[4/3] bg-slate-100 rounded-xl mb-1 overflow-hidden relative shadow-sm border border-slate-100">
                 {product.image_url ? (
                   <img 
                     src={product.image_url} 
                     alt={product.name}
-                    className="w-full h-full object-contain p-4 group-hover:scale-110 transition-transform duration-500"
+                    className="w-full h-full object-contain p-0.5 group-hover:scale-105 transition-transform duration-500"
                     referrerPolicy="no-referrer"
                   />
                 ) : (
@@ -1442,11 +1444,11 @@ export default function Store() {
                   </div>
                 )}
               </div>
-              <h3 className="font-bold text-slate-900 truncate">{product.name}</h3>
+              <h3 className="font-bold text-slate-900 truncate text-sm">{product.name}</h3>
               {product.quantity_info && (
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">{product.quantity_info}</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mt-0">{product.quantity_info}</span>
               )}
-              <div className="mt-1 flex items-baseline gap-2">
+              <div className="mt-0.5 flex items-baseline gap-2">
                 {product.discount_price !== null && product.discount_price !== undefined && product.discount_price > 0 ? (
                   <>
                     <span className="text-emerald-600 font-black">{formatCurrency(product.discount_price)}</span>

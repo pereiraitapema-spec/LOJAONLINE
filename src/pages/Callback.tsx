@@ -2,19 +2,39 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Loader2 } from 'lucide-react';
+import { withTimeout } from '../lib/utils';
 
 export default function Callback() {
   const navigate = useNavigate();
-  const [siteLogo, setSiteLogo] = useState<string | null>(null);
-  const [siteName, setSiteName] = useState<string | null>(null);
+  const [siteLogo, setSiteLogo] = useState<string | null>(() => {
+    try {
+      const cached = localStorage.getItem('cache_site_content');
+      if (cached) {
+        const data = JSON.parse(cached);
+        return data.find((item: any) => item.key === 'site_logo')?.value || null;
+      }
+    } catch (e) {}
+    return null;
+  });
+  
+  const [siteName, setSiteName] = useState<string | null>(() => {
+    try {
+      const cached = localStorage.getItem('cache_site_content');
+      if (cached) {
+        const data = JSON.parse(cached);
+        return data.find((item: any) => item.key === 'site_name')?.value || null;
+      }
+    } catch (e) {}
+    return null;
+  });
 
   useEffect(() => {
     const fetchSiteData = async () => {
       try {
-        const { data } = await supabase
+        const { data } = await withTimeout(supabase
           .from('site_content')
           .select('key, value')
-          .in('key', ['site_logo', 'site_name']);
+          .in('key', ['site_logo', 'site_name']), 3000);
           
         if (data) {
           const logo = data.find(item => item.key === 'site_logo')?.value;
