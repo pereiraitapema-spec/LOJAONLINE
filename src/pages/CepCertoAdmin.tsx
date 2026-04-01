@@ -1281,7 +1281,7 @@ export default function CepCertoAdmin() {
             </div>
             <div className="p-6 space-y-6">
               <p className="text-emerald-700 font-medium text-center">Escaneie o QR Code ou copie o código abaixo.</p>
-              <div className="bg-white p-4 rounded-3xl shadow-inner flex flex-col items-center justify-center aspect-square overflow-hidden relative border border-slate-100">
+              <div className="bg-white p-4 rounded-3xl shadow-inner flex flex-col items-center justify-center aspect-square overflow-hidden relative border border-slate-100 max-w-[200px] mx-auto">
                 {pixData.qrcode_img ? (
                   <img 
                     src={pixData.qrcode_img} 
@@ -1294,7 +1294,7 @@ export default function CepCertoAdmin() {
                   <div id="pix-qr-svg">
                     <QRCodeSVG 
                       value={pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code || ''} 
-                      size={200} 
+                      size={150} 
                     />
                   </div>
                 )}
@@ -1312,12 +1312,18 @@ export default function CepCertoAdmin() {
                       navigator.clipboard.writeText(pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code);
                       toast.success('Código copiado!');
                     }}
-                    className="px-4 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700"
+                    className="px-4 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all"
                   >
                     Copiar
                   </button>
                 </div>
               </div>
+              <button 
+                onClick={() => setShowPixModal(false)}
+                className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all"
+              >
+                Voltar
+              </button>
             </div>
           </motion.div>
         </div>
