@@ -45,6 +45,83 @@ export async function handleTracking(req: any, res: any) {
 
     // 2. TENTA APIs EXTERNAS (Prioridade Máxima)
     
+    // 0. TENTA CEPCERTO (URL Sugerida pelo Usuário)
+    try {
+      console.log(`📡 [TRACKING_LOG] Consultando CepCerto (API v1)...`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      
+      const response = await fetch(`https://api.cepcerto.com/track/${code}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      
+      console.log(`📊 [TRACKING_LOG] CepCerto (v1) Status: ${response.status}`);
+      
+      if (response.ok) {
+        const data: any = await response.json();
+        console.log(`📊 [TRACKING_LOG] Resposta CepCerto (v1):`, data);
+        if (data && data.success && data.history && data.history.length > 0) {
+          console.log(`✅ [TRACKING_LOG] CepCerto (v1) retornou ${data.history.length} eventos.`);
+          console.log("📊 [TRACKING_LOG] Eventos API encontrados:", data.history.length);
+          
+          if (orderId) {
+            await syncTrackingHistory(supabase, orderId, data.history);
+          }
+
+          return res.json({
+            success: true,
+            provider: 'CepCerto (v1)',
+            status: data.status || 'Em trânsito',
+            history: data.history
+          });
+        }
+      }
+    } catch (e: any) {
+      console.warn(`⚠️ [TRACKING_LOG] Falha no CepCerto (v1): ${e.message}`);
+    }
+    
+    // 0.1 TENTA CEPCERTO (URL Clássica com API KEY)
+    if (apiKey && apiKey !== 'undefined') {
+      try {
+        console.log(`📡 [TRACKING_LOG] Consultando CepCerto (WS)...`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        
+        const cepUrl = `https://cepcerto.com/ws/encomenda-json/${code}/${apiKey}`;
+        const response = await fetch(cepUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+        
+        if (response.ok) {
+          const data: any = await response.json();
+          if (data && data.rastreio && data.rastreio.length > 0) {
+            console.log(`✅ [TRACKING_LOG] CepCerto (WS) retornou ${data.rastreio.length} eventos.`);
+            
+            const history = data.rastreio.map((e: any) => ({
+              date: e.data + ' ' + e.hora,
+              location: e.local || 'Correios',
+              description: e.status
+            }));
+
+            console.log("📊 [TRACKING_LOG] Eventos API encontrados:", history.length);
+            
+            if (orderId) {
+              await syncTrackingHistory(supabase, orderId, history);
+            }
+
+            return res.json({
+              success: true,
+              provider: 'CepCerto (WS)',
+              status: data.status || 'Em trânsito',
+              history: history
+            });
+          }
+        }
+      } catch (e: any) {
+        console.error(`⚠️ [TRACKING_LOG] Falha no CepCerto (WS): ${e.message}`);
+      }
+    }
+
     // 0. TENTA LINKETRACK (Prioridade Sugerida pelo Usuário)
     try {
       const linkeUser = process.env.LINKETRACK_USER || 'teste';
@@ -134,83 +211,6 @@ export async function handleTracking(req: any, res: any) {
       }
     } catch (e: any) {
       console.error(`⚠️ [TRACKING_LOG] Falha na BrasilAPI: ${e.message}`);
-    }
-
-    // 2. TENTA CEPCERTO (URL Sugerida pelo Usuário)
-    try {
-      console.log(`📡 [TRACKING_LOG] Consultando CepCerto (API v1)...`);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000);
-      
-      const response = await fetch(`https://api.cepcerto.com/track/${code}`, {
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
-      
-      console.log(`📊 [TRACKING_LOG] CepCerto (v1) Status: ${response.status}`);
-      
-      if (response.ok) {
-        const data: any = await response.json();
-        console.log(`📊 [TRACKING_LOG] Resposta CepCerto (v1):`, data);
-        if (data && data.success && data.history && data.history.length > 0) {
-          console.log(`✅ [TRACKING_LOG] CepCerto (v1) retornou ${data.history.length} eventos.`);
-          console.log("📊 [TRACKING_LOG] Eventos API encontrados:", data.history.length);
-          
-          if (orderId) {
-            await syncTrackingHistory(supabase, orderId, data.history);
-          }
-
-          return res.json({
-            success: true,
-            provider: 'CepCerto (v1)',
-            status: data.status || 'Em trânsito',
-            history: data.history
-          });
-        }
-      }
-    } catch (e: any) {
-      console.warn(`⚠️ [TRACKING_LOG] Falha no CepCerto (v1): ${e.message}`);
-    }
-
-    // 0.1 TENTA CEPCERTO (URL Clássica com API KEY)
-    if (apiKey && apiKey !== 'undefined') {
-      try {
-        console.log(`📡 [TRACKING_LOG] Consultando CepCerto (WS)...`);
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
-        
-        const cepUrl = `https://cepcerto.com/ws/encomenda-json/${code}/${apiKey}`;
-        const response = await fetch(cepUrl, { signal: controller.signal });
-        clearTimeout(timeout);
-        
-        if (response.ok) {
-          const data: any = await response.json();
-          if (data && data.rastreio && data.rastreio.length > 0) {
-            console.log(`✅ [TRACKING_LOG] CepCerto (WS) retornou ${data.rastreio.length} eventos.`);
-            
-            const history = data.rastreio.map((e: any) => ({
-              date: e.data + ' ' + e.hora,
-              location: e.local || 'Correios',
-              description: e.status
-            }));
-
-            console.log("📊 [TRACKING_LOG] Eventos API encontrados:", history.length);
-            
-            if (orderId) {
-              await syncTrackingHistory(supabase, orderId, history);
-            }
-
-            return res.json({
-              success: true,
-              provider: 'CepCerto (WS)',
-              status: data.status || 'Em trânsito',
-              history: history
-            });
-          }
-        }
-      } catch (e: any) {
-        console.error(`⚠️ [TRACKING_LOG] Falha no CepCerto (WS): ${e.message}`);
-      }
     }
 
     // 0.2 TENTA CORREIOS (Se houver endpoint configurado ou via proxy)

@@ -1548,12 +1548,10 @@ export const shippingService = {
           console.log("✅ Eventos encontrados API:", data.history.length);
           
           if (data.provider === 'Fallback Manual') {
-            console.log("Abrindo Correios fallback");
-            const url = `https://rastreamento.correios.com.br/app/index.php?objetos=${trackingCode}`;
-            window.open(url, '_blank');
+            console.log("Aguardando verificação manual");
             
             data.history = [{
-              description: "Não foi possível consultar automaticamente. Abrindo site dos Correios para verificação manual. Após verificar, volte para esta página.",
+              description: "Não foi possível consultar automaticamente. Por favor, verifique o status manualmente.",
               location: "Correios",
               date: new Date().toLocaleString('pt-BR')
             }];
@@ -1607,14 +1605,12 @@ export const shippingService = {
     }
 
     if (trackingCode) {
-      console.log("Abrindo Correios fallback");
-      const url = `https://rastreamento.correios.com.br/app/index.php?objetos=${trackingCode}`;
-      window.open(url, '_blank');
+      console.log("Aguardando verificação manual");
       
       return {
         status: 'Aguardando verificação manual',
         history: [{
-          description: "Não foi possível consultar automaticamente. Abrindo site dos Correios para verificação manual. Após verificar, volte para esta página.",
+          description: "Não foi possível consultar automaticamente. Por favor, verifique o status manualmente.",
           location: "Correios",
           date: new Date().toLocaleString('pt-BR')
         }]
