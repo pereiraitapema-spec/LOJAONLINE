@@ -39,6 +39,7 @@ export default function CepCertoAdmin() {
   const [financialData, setFinancialData] = useState<any>(null);
   const [showFinancialModal, setShowFinancialModal] = useState(false);
   const [showPixModal, setShowPixModal] = useState(false);
+  const [showValueModal, setShowValueModal] = useState(false);
   const [loadingFinancial, setLoadingFinancial] = useState(false);
   const [trackingInfo, setTrackingInfo] = useState<any>(null);
   const [showTrackingInfoModal, setShowTrackingInfoModal] = useState(false);
@@ -623,29 +624,13 @@ export default function CepCertoAdmin() {
                     <p className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">Liberação instantânea via PIX</p>
                   </div>
                   
-                  <div className="flex gap-4 items-end">
-                    <div className="flex-1">
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Valor (R$)</label>
-                      <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">R$</span>
-                        <input 
-                          type="number"
-                          value={pixAmount}
-                          onChange={e => setPixAmount(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-base"
-                          placeholder="0,00"
-                        />
-                      </div>
-                    </div>
-                    <button 
-                      onClick={handleGeneratePix}
-                      disabled={isGeneratingPix}
-                      className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
-                    >
-                      {isGeneratingPix ? <RefreshCw className="animate-spin" size={18} /> : <QrCode size={18} />}
-                      Gerar PIX
-                    </button>
-                  </div>
+                  <button 
+                    onClick={() => setShowValueModal(true)}
+                    className="w-full px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 text-sm"
+                  >
+                    <QrCode size={18} />
+                    Gerar PIX
+                  </button>
                 </div>
               </div>
 
@@ -656,7 +641,7 @@ export default function CepCertoAdmin() {
                   Ações Rápidas
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <button onClick={() => setActiveTab('financeiro')} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
+                  <button onClick={handleGeneratePix} className="p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all text-center group">
                     <QrCode className="text-slate-400 group-hover:text-indigo-600 mx-auto mb-2" size={24} />
                     <p className="text-[9px] font-black uppercase text-slate-600">Inserir crédito via pix</p>
                   </button>
@@ -797,7 +782,25 @@ export default function CepCertoAdmin() {
           )}
 
           {activeTab === 'logistica' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="space-y-8">
+              <div className="bg-white rounded-[2.5rem] p-6 border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
+                    <CreditCard className="text-indigo-600" size={20} />
+                    Recarregar Saldo
+                  </h3>
+                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">Liberação instantânea via PIX</p>
+                </div>
+                
+                <button 
+                  onClick={() => setShowValueModal(true)}
+                  className="w-full px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 text-sm"
+                >
+                  <QrCode size={18} />
+                  Gerar PIX
+                </button>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Cotação Rápida */}
               {/* TESTE */}
               <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
@@ -985,6 +988,7 @@ export default function CepCertoAdmin() {
                 </div>
               </div>
             </div>
+          </div>
           )}
 
           {activeTab === 'financeiro' && (
@@ -1231,6 +1235,31 @@ export default function CepCertoAdmin() {
               >
                 Fechar
               </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      {showValueModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden p-8"
+          >
+            <h2 className="text-xl font-black uppercase italic tracking-tighter mb-6">Inserir Valor (R$)</h2>
+            <input 
+              type="number"
+              value={pixAmount}
+              onChange={e => setPixAmount(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl mb-6 font-bold text-lg"
+              placeholder="0,00"
+            />
+            <div className="flex gap-4">
+              <button onClick={() => setShowValueModal(false)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold">Cancelar</button>
+              <button onClick={() => {
+                setShowValueModal(false);
+                handleGeneratePix();
+              }} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold">OK</button>
             </div>
           </motion.div>
         </div>

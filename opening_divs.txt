@@ -1,0 +1,107 @@
+490:    <div className="min-h-screen bg-slate-50 flex">
+493:        <div className="p-6 border-bottom border-slate-100">
+494:          <div className="flex items-center gap-3 text-indigo-600 font-bold text-xl cursor-pointer" onClick={() => navigate('/dashboard')}>
+522:          <div className="space-y-1">
+537:        <div className="max-w-7xl mx-auto">
+538:          <div className="flex justify-between items-center mb-8">
+539:            <div>
+541:              <div className="flex items-center gap-2 mt-1">
+560:          <div className="flex gap-2 mb-8 bg-white p-1.5 rounded-2xl border border-slate-200 w-fit shadow-sm">
+583:            <div className="space-y-8">
+584:              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+586:                <div className="bg-indigo-600 rounded-[2.5rem] p-6 text-white shadow-xl shadow-indigo-200 relative overflow-hidden h-fit">
+587:                  <div className="absolute top-0 right-0 p-6 opacity-10">
+590:                  <div className="relative z-10">
+595:                    <div className="flex items-center gap-4">
+617:                <div className="lg:col-span-2 bg-white rounded-[2.5rem] p-6 border border-slate-200 shadow-sm h-fit">
+618:                  <div className="flex items-center justify-between mb-4">
+626:                  <div className="flex gap-4 items-end">
+627:                    <div className="flex-1">
+629:                      <div className="relative">
+653:              <div className="bg-white rounded-[2.5rem] p-6 border border-slate-200 shadow-sm">
+658:                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+675:              <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm overflow-hidden w-full">
+676:                <div className="flex justify-between items-center mb-8">
+681:                <div className="overflow-x-auto">
+710:                              <div className="flex items-center gap-2">
+721:                            <div className="flex justify-end gap-2">
+800:            <div className="space-y-8">
+801:              <div className="bg-white rounded-[2.5rem] p-6 border border-slate-200 shadow-sm">
+802:                <div className="flex items-center justify-between mb-4">
+810:                <div className="flex gap-4 items-end">
+811:                  <div className="flex-1">
+813:                    <div className="relative">
+834:              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+837:              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+842:                <div className="space-y-4">
+843:                  <div className="grid grid-cols-2 gap-4">
+844:                    <div className="space-y-1">
+853:                    <div className="space-y-1">
+864:                  <div className="grid grid-cols-2 gap-4">
+865:                    <div className="space-y-1">
+875:                    <div className="space-y-1">
+887:                  <div className="grid grid-cols-3 gap-4">
+888:                    <div className="space-y-1">
+897:                    <div className="space-y-1">
+906:                    <div className="space-y-1">
+927:                    <div className="space-y-3 pt-4 border-t border-slate-100">
+929:                        <div key={i} className="flex justify-between items-center p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+930:                          <div>
+942:              <div className="space-y-8">
+944:                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+949:                  <div className="flex gap-3 mb-4">
+970:                    <div className="mt-6 p-6 bg-amber-50 rounded-[2rem] border border-amber-100 space-y-4">
+971:                      <div className="flex justify-between items-center">
+978:                      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-amber-200">
+979:                        <div>
+983:                        <div>
+993:                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+998:                  <div className="flex gap-3">
+1025:            <div className="space-y-8">
+1026:              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+1027:                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+1042:                <div className="md:col-span-2 bg-indigo-50 p-8 rounded-[2.5rem] border border-indigo-100 flex items-center gap-8">
+1043:                  <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+1046:                  <div>
+1057:              <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm">
+1060:                  <div className="space-y-4">
+1062:                      <div key={index} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl">
+1063:                        <div>
+1074:                  <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+1084:            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+1089:                <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+1106:                <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+1116:                <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+1133:        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+1139:            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-600 text-white">
+1140:              <div className="flex items-center gap-3">
+1149:            <div className="p-8 space-y-6">
+1150:              <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+1151:                <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+1156:                <div className="grid grid-cols-2 gap-4">
+1157:                  <div className="p-4 bg-white rounded-2xl border border-slate-100">
+1161:                  <div className="p-4 bg-white rounded-2xl border border-slate-100">
+1167:                <div className="p-6 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100">
+1173:                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+1184:                <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+1187:                    <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center">
+1188:                      <div>
+1213:        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+1219:            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-purple-600 text-white">
+1220:              <div className="flex items-center gap-3">
+1229:            <div className="p-8 space-y-6">
+1230:              <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+1231:                <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+1236:                <div className="grid grid-cols-2 gap-4">
+1237:                  <div className="p-4 bg-white rounded-2xl border border-slate-100">
+1241:                  <div className="p-4 bg-white rounded-2xl border border-slate-100">
+1247:                <div className="p-6 bg-purple-600 rounded-2xl text-white shadow-lg shadow-purple-100">
+1253:                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+1273:        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+1279:            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-emerald-600 text-white">
+1280:              <div className="flex items-center gap-3">
+1287:            <div className="p-6 space-y-6">
+1289:              <div className="bg-white p-4 rounded-3xl shadow-inner flex flex-col items-center justify-center aspect-square overflow-hidden relative border border-slate-100">
+1299:                  <div id="pix-qr-svg">
+1307:              <div className="space-y-2">
+1309:                <div className="flex gap-2">
