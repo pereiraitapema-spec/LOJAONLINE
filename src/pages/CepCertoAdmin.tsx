@@ -122,6 +122,7 @@ export default function CepCertoAdmin() {
   const fetchData = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
+      
       // Buscar transportadora CepCerto
       const { data: carriers } = await supabase
         .from('shipping_carriers')
@@ -148,23 +149,28 @@ export default function CepCertoAdmin() {
         }));
       }
 
-      // Buscar saldo
-      try {
-        const balanceData = await shippingService.getBalance(carriers.id);
-        setBalance(balanceData);
-      } catch (e) {
-        console.error('Erro ao buscar saldo:', e);
-      }
-
-      // Buscar pedidos recentes com CepCerto
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('*')
-        .or('shipping_method.ilike.sedex,shipping_method.ilike.pac,shipping_method.ilike.jadlog')
-        .order('created_at', { ascending: false })
-        .limit(10);
-      
-      setRecentOrders(orders || []);
+      // Buscar saldo e pedidos em paralelo
+      await Promise.all([
+        (async () => {
+          try {
+            const config = carriers.config || carriers.settings;
+            const balanceData = await shippingService.getBalance(config);
+            setBalance(balanceData);
+          } catch (e) {
+            console.error('Erro ao buscar saldo:', e);
+          }
+        })(),
+        (async () => {
+          const { data: orders } = await supabase
+            .from('orders')
+            .select('*')
+            .or('shipping_method.ilike.sedex,shipping_method.ilike.pac,shipping_method.ilike.jadlog')
+            .order('created_at', { ascending: false })
+            .limit(10);
+          
+          setRecentOrders(orders || []);
+        })()
+      ]);
 
     } catch (error: any) {
       console.error('Error fetching CepCerto data:', error);
@@ -188,10 +194,10 @@ export default function CepCertoAdmin() {
     try {
       setIsGeneratingPix(true);
       const data = await shippingService.generatePix(
-        carrier.id,
         amount,
         'pereira.itapema@gmail.com', 
-        '47999999999'
+        '47999999999',
+        carrier.settings
       );
 
       setPixData(data);
@@ -313,12 +319,12 @@ export default function CepCertoAdmin() {
     toast.success('Copiado para a área de transferência!');
   };
 
-  const handleCancelLabel = async (orderId: string) => {
+  const handleCancelLabel = async (orderId: string, trackingCode: string) => {
     if (!window.confirm(`Deseja realmente cancelar a etiqueta deste pedido?`)) return;
     
     try {
       toast.loading('Cancelando etiqueta...', { id: 'cancel-label' });
-      const result = await shippingService.cancelLabel(orderId);
+      const result = await shippingService.cancelLabel(trackingCode, carrier.settings);
       if (!result.success) {
         throw new Error(result.error || 'Erro ao cancelar etiqueta');
       }
@@ -711,7 +717,7 @@ export default function CepCertoAdmin() {
                                     <Activity size={16} />
                                   </button>
                                   <button 
-                                    onClick={() => handleCancelLabel(order.id)}
+                                    onClick={() => handleCancelLabel(order.id, order.tracking_code)}
                                     className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
                                     title="Cancelar Etiqueta"
                                   >
@@ -981,6 +987,24 @@ export default function CepCertoAdmin() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
                 <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
+                  <Package className="text-indigo-600" size={24} />
+                  Gerar Etiqueta Manual
+                </h3>
+                <div className="space-y-4">
+                  <input placeholder="Nome Destinatário" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  <input placeholder="CEP Destino" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <input placeholder="Peso (kg)" type="number" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="Valor (R$)" type="number" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  </div>
+                  <input placeholder="Logradouro" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  <button className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all">Gerar Etiqueta</button>
+                </div>
+              </div>
+              
+              {/* Other tools... */}
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
                   <MapPin className="text-indigo-600" size={24} />
                   Busca de CEP Profissional
                 </h3>
@@ -1037,24 +1061,8 @@ export default function CepCertoAdmin() {
                   </motion.div>
                 )}
               </div>
-
-              <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white flex flex-col justify-center relative overflow-hidden">
-                <div className="absolute -right-20 -bottom-20 opacity-10 rotate-12">
-                  <Zap size={300} />
-                </div>
-                <h3 className="text-3xl font-black uppercase italic tracking-tighter mb-4 relative z-10">Ferramentas de Apoio</h3>
-                <p className="text-indigo-100 font-medium leading-relaxed mb-6 relative z-10">
-                  Utilize nossas ferramentas auxiliares para agilizar o processo de postagem. 
-                  A busca de CEP é integrada diretamente com o ViaCEP para garantir dados atualizados.
-                </p>
-                <div className="flex gap-4 relative z-10">
-                  <div className="px-4 py-2 bg-white/10 rounded-xl border border-white/20 text-xs font-bold uppercase tracking-widest">ViaCEP API</div>
-                  <div className="px-4 py-2 bg-white/10 rounded-xl border border-white/20 text-xs font-bold uppercase tracking-widest">Correios Sync</div>
-                </div>
-              </div>
             </div>
           )}
-
           {pixData && (
             <div className="mt-8">
               <motion.div 
