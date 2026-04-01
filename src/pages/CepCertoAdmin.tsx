@@ -115,15 +115,19 @@ export default function CepCertoAdmin() {
   };
 
   const handleGeneratePix = async () => {
-    if (!carrier) return;
+    if (!carrier) {
+      toast.error('Transportadora não carregada.');
+      return;
+    }
+    
+    const amount = parseFloat(pixAmount);
+    if (isNaN(amount) || amount < 20) {
+      toast.error('O valor mínimo para recarga é R$ 20,00');
+      return;
+    }
+
     try {
       setIsGeneratingPix(true);
-      const amount = parseFloat(pixAmount);
-      if (isNaN(amount) || amount < 10) {
-        toast.error('Valor mínimo de R$ 10,00');
-        return;
-      }
-
       const data = await shippingService.generatePix(
         carrier.id,
         amount,
@@ -134,6 +138,7 @@ export default function CepCertoAdmin() {
       setPixData(data);
       toast.success('PIX gerado com sucesso!');
     } catch (error: any) {
+      console.error('Erro ao gerar PIX:', error);
       toast.error('Erro ao gerar PIX: ' + error.message);
     } finally {
       setIsGeneratingPix(false);
@@ -338,7 +343,7 @@ export default function CepCertoAdmin() {
                     className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {isGeneratingPix ? <RefreshCw className="animate-spin" /> : <QrCode size={20} />}
-                    Gerar PIX de Recarga
+                    Inserir Crédito (PIX)
                   </button>
 
                   <p className="text-[10px] text-slate-400 text-center uppercase font-bold tracking-widest">
@@ -433,8 +438,28 @@ export default function CepCertoAdmin() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                    <div className="bg-white p-4 rounded-3xl shadow-inner flex items-center justify-center aspect-square">
-                      <QRCodeSVG value={pixData.copia_cola || pixData.copia_e_cola} size={200} />
+                    <div className="bg-white p-4 rounded-3xl shadow-inner flex flex-col items-center justify-center aspect-square overflow-hidden relative">
+                      {pixData.qrcode_img ? (
+                        <img 
+                          src={pixData.qrcode_img} 
+                          alt="QR Code PIX" 
+                          className="w-full h-full object-contain z-10 bg-white"
+                          referrerPolicy="no-referrer"
+                          id="pix-qr-img"
+                          onError={(e) => {
+                            const img = e.target as HTMLImageElement;
+                            img.style.display = 'none';
+                            const svg = document.getElementById('pix-qr-svg');
+                            if (svg) svg.style.display = 'block';
+                          }}
+                        />
+                      ) : null}
+                      <div id="pix-qr-svg" style={{ display: pixData.qrcode_img ? 'none' : 'block' }}>
+                        <QRCodeSVG 
+                          value={pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code || ''} 
+                          size={200} 
+                        />
+                      </div>
                     </div>
 
                     <div className="space-y-4">

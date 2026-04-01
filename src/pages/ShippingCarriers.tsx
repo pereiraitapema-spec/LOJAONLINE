@@ -219,16 +219,25 @@ export default function ShippingCarriers() {
               <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Transportadoras & Logística</h1>
               <p className="text-slate-500">Gerencie fretes, etiquetas e rastreamento.</p>
             </div>
-            <button 
-              onClick={() => {
-                setCurrentCarrier({ active: true, config: { tracking_notifications: true, label_generation: true } });
-                setIsEditing(true);
-              }}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
-            >
-              <Plus size={20} />
-              Nova Transportadora
-            </button>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => navigate('/shipping/cepcerto')}
+                className="flex items-center gap-2 bg-white border border-slate-200 text-indigo-600 px-6 py-3 rounded-2xl font-bold hover:bg-slate-50 transition-all shadow-sm"
+              >
+                <Zap size={20} />
+                Logística CepCerto
+              </button>
+              <button 
+                onClick={() => {
+                  setCurrentCarrier({ active: true, config: { tracking_notifications: true, label_generation: true } });
+                  setIsEditing(true);
+                }}
+                className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+              >
+                <Plus size={20} />
+                Nova Transportadora
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

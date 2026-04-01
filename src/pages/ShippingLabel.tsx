@@ -51,10 +51,18 @@ export default function ShippingLabel() {
       {/* Controles (Não aparecem na impressão) */}
       <div className="max-w-3xl mx-auto mb-8 flex justify-between items-center print:hidden">
         <button 
-          onClick={() => navigate('/orders')}
+          onClick={() => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('from') === 'cepcerto') {
+              navigate('/shipping/cepcerto');
+            } else {
+              navigate('/orders');
+            }
+          }}
           className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold"
         >
-          <ArrowLeft size={20} /> Voltar para Pedidos
+          <ArrowLeft size={20} /> 
+          {new URLSearchParams(window.location.search).get('from') === 'cepcerto' ? 'Voltar para Logística CepCerto' : 'Voltar para Pedidos'}
         </button>
         <button 
           onClick={handlePrint}

@@ -494,15 +494,39 @@ const cepcertoProvider: ShippingProvider = {
     if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
     const key = config.api_key_postagem || config.api_key;
     try {
-      const targetUrl = `https://www.cepcerto.com/ws/json-pix/${amount}/${email}/${phone.replace(/\D/g, '')}/${key}`;
-      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&timestamp=${Date.now()}`);
+      // Formatar o valor como 9.999,00 conforme solicitado
+      const formattedAmount = new Intl.NumberFormat('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(amount);
+
+      const response = await fetch('https://cepcerto.com/api-credito/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          token_cliente_postagem: key,
+          valor_credito: formattedAmount
+        })
+      });
       
       if (response.ok) {
-        const data = await response.json();
+        return await response.json();
+      }
+      
+      // Se falhar por CORS ou outro erro, tentar via proxy
+      console.warn('Direct PIX generation failed, trying via proxy...');
+      const targetUrl = `https://www.cepcerto.com/ws/json-pix/${amount}/${email}/${phone.replace(/\D/g, '')}/${key}`;
+      const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&timestamp=${Date.now()}`);
+      
+      if (proxyRes.ok) {
+        const data = await proxyRes.json();
         const contents = JSON.parse(data.contents);
         if (contents.msg && contents.msg !== 'OK') throw new Error(contents.msg);
         return contents;
       }
+      
       throw new Error('Erro ao gerar PIX');
     } catch (err) {
       console.error('CepCerto PIX Error:', err);
