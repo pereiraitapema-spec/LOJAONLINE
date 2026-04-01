@@ -221,6 +221,9 @@ export default function CepCertoAdmin() {
 
       setPixData(data);
       toast.success('PIX gerado com sucesso!');
+      // Atualiza o saldo após gerar PIX
+      const balanceData = await shippingService.getBalance(carrier.settings);
+      setBalance(balanceData);
     } catch (error: any) {
       console.error('Erro ao gerar PIX:', error);
       toast.error('Erro ao gerar PIX: ' + error.message);
@@ -1010,13 +1013,29 @@ export default function CepCertoAdmin() {
                 </div>
               </div>
 
-              {/* Histórico Financeiro (Simulado ou Real se disponível) */}
+              {/* Histórico Financeiro */}
               <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm">
                 <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter mb-8">Histórico de Transações</h3>
-                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                  <FileText size={64} className="mb-4 opacity-20" />
-                  <p className="font-bold uppercase tracking-widest text-xs">Clique no botão acima para carregar o extrato oficial</p>
-                </div>
+                {financialData?.extrato ? (
+                  <div className="space-y-4">
+                    {financialData.extrato.map((item: any, index: number) => (
+                      <div key={index} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl">
+                        <div>
+                          <p className="font-bold text-slate-900">{item.descricao}</p>
+                          <p className="text-xs text-slate-500">{item.data}</p>
+                        </div>
+                        <p className={`font-black ${item.valor.startsWith('-') ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {item.valor}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                    <FileText size={64} className="mb-4 opacity-20" />
+                    <p className="font-bold uppercase tracking-widest text-xs">Clique no botão acima para carregar o extrato oficial</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
