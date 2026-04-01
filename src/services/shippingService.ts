@@ -608,28 +608,124 @@ const cepcertoProvider: ShippingProvider = {
     console.log('📦 Gerando etiqueta real CepCerto para o pedido:', orderId);
     
     try {
-      // Primeiro gera a pré-postagem
-      const response = await fetch('https://bnqxinknkjvfbaqaopjc.supabase.co/functions/v1/cepcerto-proxy', {
+      // 1. Buscar dados completos do pedido e itens
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (orderError || !order) throw new Error('Pedido não encontrado');
+
+      // 2. Buscar dados da loja (remetente)
+      const { data: settings } = await supabase
+        .from('store_settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+
+      if (!settings) throw new Error('Configurações da loja não encontradas');
+
+      // 3. Mapear tipo de entrega
+      const method = (order.shipping_method || '').toLowerCase();
+      let tipoEntrega = 'sedex';
+      if (method.includes('pac')) tipoEntrega = 'pac';
+      else if (method.includes('jadlog-package')) tipoEntrega = 'jadlog-package';
+      else if (method.includes('jadlog-dotcom')) tipoEntrega = 'jadlog-dotcom';
+
+      // 4. Preparar dados do remetente (parsing do endereço se necessário)
+      const senderAddress = settings.address || '';
+      const senderParts = senderAddress.split(',').map((s: string) => s.trim());
+      const senderLogradouro = senderParts[0] || 'Endereço não informado';
+      const senderRest = (senderParts[1] || '').split('-').map((s: string) => s.trim());
+      const senderNumero = senderRest[0] || 'SN';
+      const senderBairro = senderRest[1] || 'Centro';
+
+      // 5. Preparar dados do destinatário
+      const dest = order.shipping_address || {};
+      
+      // 6. Montar o payload conforme solicitado
+      const payload = {
+        token_cliente_postagem: key,
+        tipo_entrega: tipoEntrega,
+        logistica_reversa: "",
+        cep_remetente: (settings.origin_zip_code || settings.cep || '').replace(/\D/g, ''),
+        cep_destinatario: (dest.cep || '').replace(/\D/g, ''),
+        peso: (order.weight_kg || 1).toString(),
+        altura: (order.height_cm || 20).toString(),
+        largura: (order.width_cm || 20).toString(),
+        comprimento: (order.length_cm || 20).toString(),
+        valor_encomenda: Math.max(50, order.total).toFixed(2),
+        
+        // Remetente
+        nome_remetente: settings.company_name.substring(0, 50),
+        cpf_cnpj_remetente: settings.cnpj.replace(/\D/g, ''),
+        whatsapp_remetente: (settings.whatsapp || settings.phone || '').replace(/\D/g, '').substring(0, 11),
+        email_remetente: settings.email.substring(0, 50),
+        logradouro_remetente: senderLogradouro.substring(0, 50),
+        bairro_remetente: senderBairro.substring(0, 40),
+        numero_endereco_remetente: senderNumero.substring(0, 10),
+        complemento_remetente: "",
+        
+        // Destinatário
+        nome_destinatario: (order.customer_name || dest.nome || 'Cliente').substring(0, 50),
+        cpf_cnpj_destinatario: (order.customer_document || '').replace(/\D/g, ''),
+        whatsapp_destinatario: (order.customer_phone || '').replace(/\D/g, '').substring(0, 11),
+        email_destinatario: (order.customer_email || '').substring(0, 50),
+        logradouro_destinatario: (dest.logradouro || '').substring(0, 50),
+        bairro_destinatario: (dest.bairro || '').substring(0, 40),
+        numero_endereco_destinatario: (dest.numero || 'SN').toString().substring(0, 10),
+        complemento_destinatario: (dest.complemento || '').substring(0, 20),
+        
+        tipo_doc_fiscal: "declaracao",
+        produtos: (order.order_items || []).map((item: any) => ({
+          descricao: item.product_name.substring(0, 50),
+          valor: item.price.toFixed(2),
+          quantidade: item.quantity.toString()
+        })),
+        chave_danfe: ""
+      };
+
+      console.log('🚀 Enviando payload para CepCerto:', payload);
+
+      // Tentar via proxy para evitar CORS
+      const response = await fetch('https://cepcerto.com/api-postagem/', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          orderId: orderId,
-          apiKeyPostagem: key,
-          action: 'pre-postagem'
-        })
+        body: JSON.stringify(payload)
       });
       
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error || 'Erro na pré-postagem CepCerto');
-      
-      const prePostData = result.data;
-      if (!prePostData.recibo) throw new Error('CepCerto não retornou recibo de pré-postagem.');
+      let result;
+      if (response.ok) {
+        result = await response.json();
+      } else {
+        // Fallback via proxy se falhar por CORS
+        console.warn('Direct postagem failed, trying via proxy...');
+        const proxyRes = await fetch('https://bnqxinknkjvfbaqaopjc.supabase.co/functions/v1/cepcerto-proxy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            action: 'postagem-direta',
+            payload: payload
+          })
+        });
+        result = await proxyRes.json();
+      }
+
+      if (!result || (!result.success && !result.recibo)) {
+        throw new Error(result?.error || result?.msg || 'Erro ao gerar postagem no CepCerto');
+      }
+
+      const recibo = result.recibo || result.data?.recibo;
+      if (!recibo) throw new Error('CepCerto não retornou recibo de postagem.');
 
       // Agora gera a etiqueta com o recibo
-      const labelRes = await fetch(`https://www.cepcerto.com/ws/json-etiqueta/${prePostData.recibo}/${key}`);
+      const labelRes = await fetch(`https://www.cepcerto.com/ws/json-etiqueta/${recibo}/${key}`);
       if (!labelRes.ok) throw new Error('Erro ao gerar etiqueta final');
       
       const labelData = await labelRes.json();

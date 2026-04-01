@@ -233,21 +233,26 @@ export default function CepCertoAdmin() {
     const largNum = parseFloat(quoteData.largura);
     const compNum = parseFloat(quoteData.comprimento);
 
-    // Validações conforme API CepCerto
+    // Validações conforme API CepCerto (Postagem)
     if (pesoNum < 0.3 || pesoNum > 30) {
       toast.error('Peso deve ser entre 0.3kg e 30kg');
       return;
     }
-    if (altNum < 0.4 || altNum > 100) {
-      toast.error('Altura deve ser entre 0.4cm e 100cm');
+    if (altNum < 8 || altNum > 100) {
+      toast.error('Altura deve ser entre 8cm e 100cm');
       return;
     }
-    if (largNum < 11 || largNum > 100) {
-      toast.error('Largura deve ser entre 11cm e 100cm');
+    if (largNum < 13 || largNum > 100) {
+      toast.error('Largura deve ser entre 13cm e 100cm');
       return;
     }
-    if (compNum < 13 || compNum > 100) {
-      toast.error('Comprimento deve ser entre 13cm e 100cm');
+    if (compNum < 8 || compNum > 100) {
+      toast.error('Comprimento deve ser entre 8cm e 100cm');
+      return;
+    }
+    const valorNum = parseFloat(quoteData.valor_encomenda);
+    if (valorNum < 50 || valorNum > 35000) {
+      toast.error('Valor da encomenda deve ser entre R$ 50,00 e R$ 35.000,00');
       return;
     }
     if ((altNum + largNum + compNum) > 200) {
@@ -526,37 +531,37 @@ export default function CepCertoAdmin() {
                         <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Alt (cm)</label>
                         <input 
                           type="number"
-                          min="0.4"
+                          min="8"
                           max="100"
                           value={quoteData.altura}
                           onChange={(e) => setQuoteData({...quoteData, altura: e.target.value})}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
                         />
-                        <p className="text-[9px] text-slate-400 ml-1">Min: 0.4</p>
+                        <p className="text-[9px] text-slate-400 ml-1">Min: 8</p>
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Larg (cm)</label>
                         <input 
                           type="number"
-                          min="11"
+                          min="13"
                           max="100"
                           value={quoteData.largura}
                           onChange={(e) => setQuoteData({...quoteData, largura: e.target.value})}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
                         />
-                        <p className="text-[9px] text-slate-400 ml-1">Min: 11</p>
+                        <p className="text-[9px] text-slate-400 ml-1">Min: 13</p>
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Comp (cm)</label>
                         <input 
                           type="number"
-                          min="13"
+                          min="8"
                           max="100"
                           value={quoteData.comprimento}
                           onChange={(e) => setQuoteData({...quoteData, comprimento: e.target.value})}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
                         />
-                        <p className="text-[9px] text-slate-400 ml-1">Min: 13</p>
+                        <p className="text-[9px] text-slate-400 ml-1">Min: 8</p>
                       </div>
                     </div>
 
