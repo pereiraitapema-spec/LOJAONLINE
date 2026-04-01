@@ -123,6 +123,7 @@ export default function Store() {
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [session, setSession] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [affiliateData, setAffiliateData] = useState<any>(null);
   
@@ -431,12 +432,13 @@ export default function Store() {
           const { data: profile } = await withTimeout(
             supabase
               .from('profiles')
-              .select('role')
+              .select('role, avatar_url')
               .eq('id', session.user.id)
               .maybeSingle(),
             5000
           );
 
+          setUserProfile(profile);
           console.log('📊 Store: Perfil carregado:', profile);
           const isMaster = session.user.email === 'pereira.itapema@gmail.com';
           if (profile?.role === 'admin' || isMaster) {
@@ -989,7 +991,11 @@ export default function Store() {
                   className="flex items-center gap-2 text-slate-600 hover:text-emerald-600 transition-colors group"
                 >
                   <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center overflow-hidden group-hover:bg-emerald-50 transition-colors">
-                    <User size={20} />
+                    {userProfile?.avatar_url ? (
+                      <img src={userProfile.avatar_url} alt="Perfil" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <User size={20} />
+                    )}
                   </div>
                   <div className="hidden lg:flex flex-col items-start">
                     <span className="text-[10px] uppercase font-bold text-slate-400">Olá {session.user.email.split('@')[0]}!</span>
