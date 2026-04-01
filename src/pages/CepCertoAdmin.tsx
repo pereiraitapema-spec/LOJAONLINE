@@ -266,7 +266,13 @@ export default function CepCertoAdmin() {
     if (!carrier) return;
     try {
       toast.loading('Gerando etiqueta manual...', { id: 'gen-label-manual' });
-      const result = await shippingService.generateLabel('manual', carrier.settings, manualLabelData);
+      
+      const payload = {
+        ...manualLabelData,
+        token_cliente_postagem: carrier.settings.api_key_postagem || carrier.settings.api_key
+      };
+      
+      const result = await shippingService.generateLabel('manual', carrier.settings, payload);
       
       if (result.success) {
         toast.success('Etiqueta gerada com sucesso!', { id: 'gen-label-manual' });

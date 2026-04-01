@@ -697,7 +697,7 @@ const cepcertoProvider: ShippingProvider = {
         };
       }
 
-      console.log('🚀 Enviando payload para CepCerto:', payload);
+      console.log('🚀 Enviando payload para CepCerto:', JSON.stringify(payload, null, 2));
 
       // Tentar via proxy para evitar CORS
       const response = await fetch('https://cepcerto.com/api-postagem/', {
@@ -708,9 +708,12 @@ const cepcertoProvider: ShippingProvider = {
         body: JSON.stringify(payload)
       });
       
+      const responseText = await response.text();
+      console.log('📡 Resposta da API CepCerto:', responseText);
+
       let result;
       if (response.ok) {
-        result = await response.json();
+        result = JSON.parse(responseText);
       } else {
         // Fallback via proxy se falhar por CORS
         console.warn('Direct postagem failed, trying via proxy...');
