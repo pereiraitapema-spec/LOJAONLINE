@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { 
   ShoppingBag, DollarSign, Link as LinkIcon, Copy, 
-  LogOut, User, BarChart, Tag, Percent, ArrowRight,
+  LogOut, User, BarChart, Tag, Percent, ArrowRight, ArrowLeft,
   ChevronRight, Package, Grid, Trash2, CheckCircle, Calendar, Info, TrendingUp, Filter, Users
 } from 'lucide-react';
 import { Loading } from '../components/Loading';
@@ -562,13 +562,22 @@ export default function AffiliateDashboard() {
       {/* Sidebar / Mobile Menu */}
       <div className="bg-emerald-900 text-white pb-8 md:pb-0">
         <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="bg-emerald-800 p-2 rounded-lg">
-              <User size={24} className="text-emerald-400" />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg leading-tight">Painel do Afiliado</h1>
-              <p className="text-xs text-emerald-400">Bem-vindo, {affiliate?.name}</p>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/')}
+              className="bg-emerald-800 hover:bg-emerald-700 p-2 rounded-lg transition-colors flex items-center justify-center"
+              title="Voltar para a Loja"
+            >
+              <ArrowLeft size={24} className="text-emerald-400" />
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="bg-emerald-800 p-2 rounded-lg">
+                <User size={24} className="text-emerald-400" />
+              </div>
+              <div>
+                <h1 className="font-bold text-lg leading-tight">Painel do Afiliado</h1>
+                <p className="text-xs text-emerald-400">Bem-vindo, {affiliate?.name}</p>
+              </div>
             </div>
           </div>
 

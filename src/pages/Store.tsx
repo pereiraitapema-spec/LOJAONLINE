@@ -259,19 +259,19 @@ export default function Store() {
         if (showCart) {
           packages = cart.map(item => ({
             weight: (item.product as any).weight || 0.5,
-            height: ((item.product as any).height || 10) * 10,
-            width: ((item.product as any).width || 10) * 10,
-            length: ((item.product as any).length || 10) * 10
+            height: (item.product as any).height || 10,
+            width: (item.product as any).width || 10,
+            length: (item.product as any).length || 10
           }));
         } else if (selectedProduct) {
           packages = [{
             weight: (selectedProduct as any).weight || 0.5,
-            height: ((selectedProduct as any).height || 10) * 10,
-            width: ((selectedProduct as any).width || 10) * 10,
-            length: ((selectedProduct as any).length || 10) * 10
+            height: (selectedProduct as any).height || 10,
+            width: (selectedProduct as any).width || 10,
+            length: (selectedProduct as any).length || 10
           }];
         } else {
-          packages = [{ weight: 0.5, height: 100, width: 100, length: 100 }];
+          packages = [{ weight: 0.5, height: 10, width: 10, length: 10 }];
         }
 
         let allQuotes: any[] = [];
