@@ -343,10 +343,7 @@ export default function CepCertoAdmin() {
           length: compNum,
           price: parseFloat(quoteData.valor_encomenda)
         }],
-        {
-          ...carrier.config,
-          origin_zip: quoteData.cep_remetente || carrier.config?.origin_zip
-        }
+        carrier.id
       );
       setQuotes(result);
     } catch (error: any) {
