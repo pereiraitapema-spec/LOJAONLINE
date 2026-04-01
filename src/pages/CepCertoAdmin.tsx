@@ -6,7 +6,7 @@ import {
   Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, 
   ShoppingBag, Megaphone, Users, Truck, CreditCard, Zap,
   Search, ChevronRight, Check, Copy, RefreshCw, X, AlertCircle, Wallet, QrCode, Trash2,
-  MapPin, Calculator, FileText, ArrowRight, ExternalLink
+  MapPin, Calculator, FileText, ArrowRight, ExternalLink, Activity
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -30,6 +30,16 @@ export default function CepCertoAdmin() {
   const [cepSearch, setCepSearch] = useState('');
   const [cepResult, setCepResult] = useState<any>(null);
   const [searchingCep, setSearchingCep] = useState(false);
+  
+  const [trackingSearch, setTrackingSearch] = useState('');
+  const [consultingPostage, setConsultingPostage] = useState(false);
+  const [consultResult, setConsultResult] = useState<any>(null);
+  const [financialData, setFinancialData] = useState<any>(null);
+  const [showFinancialModal, setShowFinancialModal] = useState(false);
+  const [loadingFinancial, setLoadingFinancial] = useState(false);
+  const [trackingInfo, setTrackingInfo] = useState<any>(null);
+  const [showTrackingInfoModal, setShowTrackingInfoModal] = useState(false);
+  const [loadingTrackingInfo, setLoadingTrackingInfo] = useState(false);
   
   const [quoteData, setQuoteData] = useState({
     cep_origem: '',
@@ -298,10 +308,93 @@ export default function CepCertoAdmin() {
       if (!result.success) {
         throw new Error(result.error || 'Erro ao cancelar etiqueta');
       }
+
+      // Limpar no banco de dados
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ 
+          tracking_code: null, 
+          shipping_label_url: null 
+        })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+
       toast.success('Etiqueta cancelada com sucesso!', { id: 'cancel-label' });
       fetchData();
     } catch (error: any) {
       toast.error('Erro ao cancelar: ' + error.message, { id: 'cancel-label' });
+    }
+  };
+
+  const handleConsultPostage = async (code?: string) => {
+    const trackingCode = code || trackingSearch;
+    if (!trackingCode) {
+      toast.error('Digite um código de rastreio');
+      return;
+    }
+
+    if (!carrier) {
+      toast.error('Configurações do CepCerto não encontradas');
+      return;
+    }
+
+    setConsultingPostage(true);
+    setConsultResult(null);
+    try {
+      const result = await shippingService.consultPostage(trackingCode, carrier.settings);
+      
+      if (result && (result.sucesso === true || result.sucesso === "true")) {
+        setConsultResult(result);
+        toast.success(result.mensagem || 'Informação encontrada no CepCerto');
+      } else {
+        // Se não encontrou informação ou sucesso é falso, redireciona para o Correios
+        toast.loading('Informação não encontrada no CepCerto. Redirecionando para Correios...', { duration: 3000 });
+        setTimeout(() => {
+          window.open(`https://rastreamento.correios.com.br/app/index.php?objeto=${trackingCode}`, '_blank');
+        }, 2000);
+      }
+    } catch (error: any) {
+      console.error('Erro ao consultar postagem:', error);
+      window.open(`https://rastreamento.correios.com.br/app/index.php?objeto=${trackingCode}`, '_blank');
+    } finally {
+      setConsultingPostage(false);
+    }
+  };
+
+  const handleGetFinancialStatement = async () => {
+    if (!carrier) return;
+    setLoadingFinancial(true);
+    try {
+      const result = await shippingService.getFinancialStatement(carrier.settings);
+      if (result && (result.sucesso === true || result.sucesso === "true")) {
+        setFinancialData(result);
+        setShowFinancialModal(true);
+      } else {
+        toast.error(result?.mensagem || 'Erro ao buscar extrato financeiro');
+      }
+    } catch (e: any) {
+      toast.error('Erro: ' + e.message);
+    } finally {
+      setLoadingFinancial(false);
+    }
+  };
+
+  const handleGetTrackingInfo = async (trackingCode: string) => {
+    if (!carrier) return;
+    setLoadingTrackingInfo(true);
+    try {
+      const result = await shippingService.getTrackingInfo(trackingCode, carrier.settings);
+      if (result && (result.sucesso === true || result.sucesso === "true")) {
+        setTrackingInfo(result);
+        setShowTrackingInfoModal(true);
+      } else {
+        toast.error(result?.mensagem || 'Erro ao buscar informações de rastreio');
+      }
+    } catch (e: any) {
+      toast.error('Erro: ' + e.message);
+    } finally {
+      setLoadingTrackingInfo(false);
     }
   };
 
@@ -355,7 +448,7 @@ export default function CepCertoAdmin() {
       </aside>
 
       <main className="flex-1 p-8">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Logística CepCerto</h1>
@@ -372,51 +465,60 @@ export default function CepCertoAdmin() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Card de Saldo */}
             <div className="lg:col-span-1 space-y-6">
-              <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-indigo-200 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 opacity-10">
-                  <Wallet size={120} />
+              <div className="bg-indigo-600 rounded-[2.5rem] p-6 text-white shadow-xl shadow-indigo-200 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-10">
+                  <Wallet size={100} />
                 </div>
                 <div className="relative z-10">
-                  <p className="text-indigo-100 font-bold uppercase tracking-widest text-xs mb-2">Saldo Disponível</p>
-                  <h2 className="text-5xl font-black italic tracking-tighter mb-6">
+                  <p className="text-indigo-100 font-bold uppercase tracking-widest text-[10px] mb-1">Saldo Disponível</p>
+                  <h2 className="text-4xl font-black italic tracking-tighter mb-4">
                     {balance?.saldo ? formatCurrency(parseFloat(balance.saldo)) : 'R$ 0,00'}
                   </h2>
-                  <div className="flex items-center gap-2 text-indigo-100 text-sm font-medium mb-2">
-                    <Check size={16} />
+                  <div className="flex items-center gap-2 text-indigo-100 text-xs font-medium mb-1">
+                    <Check size={14} />
                     Sincronizado com CepCerto
                   </div>
                   {balance?.data_requisicao && (
-                    <p className="text-indigo-100/60 text-[10px] mb-6">
+                    <p className="text-indigo-100/60 text-[9px] mb-4">
                       Última consulta: {balance.data_requisicao}
                     </p>
                   )}
                   <button 
                     onClick={handleRefreshBalance}
                     disabled={refreshingBalance}
-                    className="w-full py-3 bg-white/20 hover:bg-white/30 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 border border-white/30 disabled:opacity-50"
+                    className="w-full py-2.5 bg-white/20 hover:bg-white/30 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 border border-white/30 disabled:opacity-50 text-sm"
                   >
-                    <RefreshCw size={18} className={refreshingBalance ? 'animate-spin' : ''} />
+                    <RefreshCw size={16} className={refreshingBalance ? 'animate-spin' : ''} />
                     {refreshingBalance ? 'Consultando...' : 'Consultar Saldo'}
+                  </button>
+                  
+                  <button 
+                    onClick={handleGetFinancialStatement}
+                    disabled={loadingFinancial}
+                    className="w-full mt-2 py-2.5 bg-indigo-500 hover:bg-indigo-600 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2 border border-indigo-400 disabled:opacity-50 text-sm"
+                  >
+                    {loadingFinancial ? <RefreshCw className="animate-spin" size={16} /> : <FileText size={16} />}
+                    Serviços Financeiros (Extrato)
                   </button>
                 </div>
               </div>
 
-              <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm">
-                <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter mb-6 flex items-center gap-2">
-                  <CreditCard className="text-indigo-600" />
+              <div className="bg-white rounded-[2.5rem] p-6 border border-slate-200 shadow-sm">
+                <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter mb-4 flex items-center gap-2">
+                  <CreditCard className="text-indigo-600" size={20} />
                   Recarregar Saldo
                 </h3>
                 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Valor da Recarga (R$)</label>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Valor da Recarga (R$)</label>
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">R$</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">R$</span>
                       <input 
                         type="number"
                         value={pixAmount}
                         onChange={e => setPixAmount(e.target.value)}
-                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-lg"
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-base"
                         placeholder="0,00"
                       />
                     </div>
@@ -425,13 +527,13 @@ export default function CepCertoAdmin() {
                   <button 
                     onClick={handleGeneratePix}
                     disabled={isGeneratingPix}
-                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
                   >
-                    {isGeneratingPix ? <RefreshCw className="animate-spin" /> : <QrCode size={20} />}
+                    {isGeneratingPix ? <RefreshCw className="animate-spin" size={18} /> : <QrCode size={18} />}
                     Inserir Crédito (PIX)
                   </button>
 
-                  <p className="text-[10px] text-slate-400 text-center uppercase font-bold tracking-widest">
+                  <p className="text-[9px] text-slate-400 text-center uppercase font-bold tracking-widest">
                     Liberação instantânea após o pagamento
                   </p>
                 </div>
@@ -468,6 +570,54 @@ export default function CepCertoAdmin() {
                     <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
                       <p className="text-sm font-bold text-indigo-900">{cepResult.logradouro}</p>
                       <p className="text-xs text-indigo-600">{cepResult.bairro} - {cepResult.localidade}/{cepResult.uf}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Consulta de Postagem */}
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
+                  <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2 italic uppercase tracking-tighter">
+                    <Truck className="text-indigo-600" size={20} />
+                    Consulta de Postagem
+                  </h3>
+                  <div className="flex gap-2 mb-4">
+                    <input 
+                      type="text"
+                      value={trackingSearch}
+                      onChange={(e) => setTrackingSearch(e.target.value)}
+                      placeholder="Código de Rastreio..."
+                      className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                    />
+                    <button 
+                      onClick={() => handleConsultPostage()}
+                      disabled={consultingPostage}
+                      className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all"
+                    >
+                      {consultingPostage ? <RefreshCw className="animate-spin" size={20} /> : <Search size={20} />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">
+                    Consulta direta na API CepCerto com fallback para Correios
+                  </p>
+                  {consultResult && (
+                    <div className="mt-4 p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Resultado da Consulta</p>
+                        <button onClick={() => setConsultResult(null)} className="text-amber-400 hover:text-amber-600">
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <p className="text-xs font-bold text-amber-900">{consultResult.mensagem}</p>
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-200">
+                        <div>
+                          <p className="text-[9px] font-bold text-amber-600 uppercase">Saldo Anterior</p>
+                          <p className="text-xs font-black text-amber-900">{consultResult.saldo_anterior}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-bold text-amber-600 uppercase">Saldo Atual</p>
+                          <p className="text-xs font-black text-amber-900">{consultResult.saldo_atual}</p>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -613,13 +763,16 @@ export default function CepCertoAdmin() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
 
-              {pixData && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-emerald-50 border-2 border-emerald-200 rounded-[2.5rem] p-8"
-                >
+          {pixData && (
+            <div className="mt-8">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-emerald-50 border-2 border-emerald-200 rounded-[2.5rem] p-8"
+              >
                   <div className="flex justify-between items-start mb-6">
                     <div>
                       <h3 className="text-2xl font-black text-emerald-900 uppercase italic tracking-tighter">PIX Gerado!</h3>
@@ -675,8 +828,10 @@ export default function CepCertoAdmin() {
                     </div>
                   </div>
                 </motion.div>
-              )}
+              </div>
+            )}
 
+            <div className="mt-12">
               <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm overflow-hidden">
                 <div className="flex justify-between items-center mb-8">
                   <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Etiquetas Recentes</h3>
@@ -754,6 +909,20 @@ export default function CepCertoAdmin() {
                                     <Truck size={16} />
                                   </button>
                                   <button 
+                                    onClick={() => handleConsultPostage(order.tracking_code)}
+                                    className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-colors"
+                                    title="Consultar Postagem (API)"
+                                  >
+                                    <Search size={16} />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleGetTrackingInfo(order.tracking_code)}
+                                    className="p-2 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors"
+                                    title="Rastreio Detalhado (API)"
+                                  >
+                                    <Activity size={16} />
+                                  </button>
+                                  <button 
                                     onClick={() => handleCancelLabel(order.id)}
                                     className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
                                     title="Cancelar Etiqueta"
@@ -786,14 +955,155 @@ export default function CepCertoAdmin() {
               </div>
             </div>
           </div>
-        </div>
-      </main>
+        </main>
 
       <TrackingModal 
         isOpen={trackingModal.isOpen}
         onClose={() => setTrackingModal({ isOpen: false, code: '' })}
         trackingCode={trackingModal.code}
       />
+
+      {/* Modal Financeiro */}
+      {showFinancialModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden"
+          >
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-600 text-white">
+              <div className="flex items-center gap-3">
+                <CreditCard size={24} />
+                <h2 className="text-xl font-black uppercase italic tracking-tighter">Extrato Financeiro</h2>
+              </div>
+              <button onClick={() => setShowFinancialModal(false)} className="hover:rotate-90 transition-transform">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+                <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+                  <p className="text-xs font-bold text-slate-500 uppercase">Cliente</p>
+                  <p className="text-sm font-black text-slate-900">{financialData?.nome_cliente}</p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-white rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Saldo Anterior</p>
+                    <p className="text-lg font-black text-slate-900">{financialData?.saldo_anterior}</p>
+                  </div>
+                  <div className="p-4 bg-white rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Valor Creditado</p>
+                    <p className="text-lg font-black text-emerald-600">{financialData?.valor_creditado}</p>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100">
+                  <p className="text-xs font-bold opacity-80 uppercase mb-1">Saldo Atual Disponível</p>
+                  <p className="text-3xl font-black tracking-tighter">{financialData?.saldo_atual}</p>
+                </div>
+
+                {financialData?.mensagem && (
+                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                    <p className="text-xs font-bold text-amber-800 flex items-center gap-2">
+                      <AlertCircle size={14} />
+                      {financialData.mensagem}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Se o extrato retornar uma lista (extrato_lista), renderizamos aqui */}
+              {financialData?.extrato_lista && Array.isArray(financialData.extrato_lista) && (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Últimas Movimentações</p>
+                  {financialData.extrato_lista.map((item: any, idx: number) => (
+                    <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center">
+                      <div>
+                        <p className="text-xs font-bold text-slate-900">{item.descricao || 'Movimentação'}</p>
+                        <p className="text-[10px] text-slate-500">{item.data}</p>
+                      </div>
+                      <p className={`text-xs font-black ${item.tipo === 'credito' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {item.valor}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button 
+                onClick={() => setShowFinancialModal(false)}
+                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all"
+              >
+                Fechar Extrato
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal Rastreio Detalhado */}
+      {showTrackingInfoModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden"
+          >
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-purple-600 text-white">
+              <div className="flex items-center gap-3">
+                <Activity size={24} />
+                <h2 className="text-xl font-black uppercase italic tracking-tighter">Rastreio Detalhado</h2>
+              </div>
+              <button onClick={() => setShowTrackingInfoModal(false)} className="hover:rotate-90 transition-transform">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+                <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+                  <p className="text-xs font-bold text-slate-500 uppercase">Cliente</p>
+                  <p className="text-sm font-black text-slate-900">{trackingInfo?.nome_cliente}</p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-white rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Saldo Anterior</p>
+                    <p className="text-lg font-black text-slate-900">{trackingInfo?.saldo_anterior}</p>
+                  </div>
+                  <div className="p-4 bg-white rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Valor Creditado</p>
+                    <p className="text-lg font-black text-emerald-600">{trackingInfo?.valor_creditado}</p>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-purple-600 rounded-2xl text-white shadow-lg shadow-purple-100">
+                  <p className="text-xs font-bold opacity-80 uppercase mb-1">Saldo Atual</p>
+                  <p className="text-3xl font-black tracking-tighter">{trackingInfo?.saldo_atual}</p>
+                </div>
+
+                {trackingInfo?.mensagem && (
+                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                    <p className="text-xs font-bold text-amber-800 flex items-center gap-2">
+                      <AlertCircle size={14} />
+                      {trackingInfo.mensagem}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <button 
+                onClick={() => setShowTrackingInfoModal(false)}
+                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all"
+              >
+                Fechar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

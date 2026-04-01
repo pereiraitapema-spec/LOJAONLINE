@@ -593,21 +593,6 @@ export default function Orders() {
     generateBatchPickingList([orderId]);
   };
 
-  const handleCancelLabel = async (orderId: string) => {
-    setProcessingShipping(true);
-    try {
-      const result = await shippingService.cancelLabel(orderId);
-      if (result.success) {
-        await updateTrackingCode(orderId, '');
-        toast.success('Etiqueta cancelada!');
-      }
-    } catch (error: any) {
-      toast.error('Erro ao cancelar etiqueta: ' + error.message);
-    } finally {
-      setProcessingShipping(false);
-    }
-  };
-
   const handleManualCepBlur = async (cep: string) => {
     try {
       const address = await cepService.fetchAddress(cep);
@@ -1237,6 +1222,42 @@ export default function Orders() {
       toast.success('Pedido excluído com sucesso!', { id: 'delete-order' });
     } catch (error: any) {
       toast.error('Erro ao excluir pedido: ' + error.message, { id: 'delete-order' });
+    }
+  };
+
+  const handleCancelLabel = async (orderId: string) => {
+    if (!window.confirm('Deseja realmente cancelar a etiqueta de postagem deste pedido?')) return;
+    
+    try {
+      setProcessingShipping(true);
+      toast.loading('Cancelando etiqueta...', { id: 'cancel-label' });
+      
+      const result = await shippingService.cancelLabel(orderId);
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao cancelar etiqueta');
+      }
+
+      // Limpar no banco de dados
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ 
+          tracking_code: null, 
+          shipping_label_url: null 
+        })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+
+      setOrders(orders.map(o => o.id === orderId ? { ...o, tracking_code: null, shipping_label_url: null } : o));
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, tracking_code: null, shipping_label_url: null });
+      }
+
+      toast.success('Etiqueta cancelada com sucesso!', { id: 'cancel-label' });
+    } catch (error: any) {
+      toast.error('Erro ao cancelar: ' + error.message, { id: 'cancel-label' });
+    } finally {
+      setProcessingShipping(false);
     }
   };
 
@@ -2115,6 +2136,16 @@ export default function Orders() {
                           <Zap size={14} />
                           Automática
                         </button>
+                        {selectedOrder.tracking_code && (
+                          <button 
+                            onClick={() => handleCancelLabel(selectedOrder.id)}
+                            disabled={processingShipping}
+                            className="flex items-center justify-center p-2 bg-rose-100 text-rose-600 rounded-xl hover:bg-rose-200 transition-all"
+                            title="Excluir Postagem (Cancelar Etiqueta)"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                         <a 
                           href="https://www.cepcerto.com/painel/nova-etiqueta"
                           target="_blank"

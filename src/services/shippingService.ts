@@ -744,19 +744,191 @@ const cepcertoProvider: ShippingProvider = {
   async cancelLabel(trackingCode: string, config: any) {
     if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
     const key = config.api_key_postagem || config.api_key;
+    
+    const payload = {
+      token_cliente_postagem: key,
+      cod_objeto: trackingCode
+    };
+
     try {
-      const response = await fetch(`https://www.cepcerto.com/ws/json-cancelar/${trackingCode}/${key}`);
+      console.log('🗑️ Cancelando postagem CepCerto:', trackingCode);
+      
+      // Tenta via POST conforme nova documentação
+      const response = await fetch('https://cepcerto.com/api-cancela-postagem/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      let result;
       if (response.ok) {
-        const data = await response.json();
-        if (data.erro && data.erro !== '0') {
-          return { success: false, error: data.msg || data.erro };
-        }
+        result = await response.json();
+      } else {
+        // Fallback via proxy se falhar por CORS
+        console.warn('Direct cancel failed, trying via proxy...');
+        const proxyRes = await fetch('https://bnqxinknkjvfbaqaopjc.supabase.co/functions/v1/cepcerto-proxy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            action: 'cancelar-postagem',
+            payload: payload
+          })
+        });
+        result = await proxyRes.json();
+      }
+
+      console.log('📡 Resposta cancelamento CepCerto:', result);
+
+      if (result && (result.sucesso === true || result.sucesso === "true" || result.success === true)) {
         return { success: true };
       }
-      throw new Error('Erro ao cancelar etiqueta');
+      
+      throw new Error(result?.mensagem || result?.msg || result?.erro || 'Erro ao cancelar etiqueta');
     } catch (err: any) {
       console.error('CepCerto Cancel Error:', err);
       return { success: false, error: err.message };
+    }
+  },
+  async consultPostage(trackingCode: string, config: any) {
+    const apiKey = config?.api_key || config?.api_key_postagem;
+    if (!apiKey) throw new Error('Token de postagem não configurado');
+
+    const payload = {
+      token_cliente_postagem: apiKey,
+      cod_objeto: trackingCode
+    };
+
+    try {
+      console.log('🔍 Consultando postagem CepCerto:', trackingCode);
+      
+      const response = await fetch('https://cepcerto.com/api-consulta-postagem/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      let result;
+      if (response.ok) {
+        result = await response.json();
+      } else {
+        // Fallback via proxy
+        const proxyRes = await fetch('https://bnqxinknkjvfbaqaopjc.supabase.co/functions/v1/cepcerto-proxy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            action: 'consulta-postagem',
+            payload: payload
+          })
+        });
+        result = await proxyRes.json();
+      }
+
+      console.log('📡 Resposta consulta CepCerto:', result);
+      return result;
+    } catch (err: any) {
+      console.error('CepCerto Consult Error:', err);
+      throw err;
+    }
+  },
+  async getFinancialStatement(config: any) {
+    const apiKey = config?.api_key || config?.api_key_postagem;
+    if (!apiKey) throw new Error('Token de postagem não configurado');
+
+    const payload = {
+      token_cliente_postagem: apiKey
+    };
+
+    try {
+      console.log('💰 Consultando extrato financeiro CepCerto');
+      
+      const response = await fetch('https://cepcerto.com/api-financeiro/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      let result;
+      if (response.ok) {
+        result = await response.json();
+      } else {
+        // Fallback via proxy
+        const proxyRes = await fetch('https://bnqxinknkjvfbaqaopjc.supabase.co/functions/v1/cepcerto-proxy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            action: 'extrato-financeiro',
+            payload: payload
+          })
+        });
+        result = await proxyRes.json();
+      }
+
+      console.log('📡 Resposta extrato financeiro CepCerto:', result);
+      return result;
+    } catch (err: any) {
+      console.error('CepCerto Financial Error:', err);
+      throw err;
+    }
+  },
+  async getTrackingInfo(trackingCode: string, config: any) {
+    const apiKey = config?.api_key || config?.api_key_postagem;
+    if (!apiKey) throw new Error('Token de postagem não configurado');
+
+    const payload = {
+      token_cliente_postagem: apiKey,
+      codigo_objeto: trackingCode
+    };
+
+    try {
+      console.log('🔍 Consultando rastreio CepCerto (API POST):', trackingCode);
+      
+      const response = await fetch('https://cepcerto.com/api-rastreio/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      let result;
+      if (response.ok) {
+        result = await response.json();
+      } else {
+        // Fallback via proxy
+        const proxyRes = await fetch('https://bnqxinknkjvfbaqaopjc.supabase.co/functions/v1/cepcerto-proxy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            action: 'rastreio-objeto',
+            payload: payload
+          })
+        });
+        result = await proxyRes.json();
+      }
+
+      console.log('📡 Resposta rastreio CepCerto:', result);
+      return result;
+    } catch (err: any) {
+      console.error('CepCerto Tracking API Error:', err);
+      throw err;
     }
   },
   async getTrackingStatus(trackingCode: string, config: any) {
@@ -1471,5 +1643,17 @@ export const shippingService = {
       throw error;
     }
     return { success: true };
+  },
+
+  async consultPostage(trackingCode: string, config: any) {
+    return cepcertoProvider.consultPostage!(trackingCode, config);
+  },
+
+  async getFinancialStatement(config: any) {
+    return cepcertoProvider.getFinancialStatement!(config);
+  },
+
+  async getTrackingInfo(trackingCode: string, config: any) {
+    return cepcertoProvider.getTrackingInfo!(trackingCode, config);
   }
 };

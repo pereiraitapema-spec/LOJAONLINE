@@ -22,5 +22,7 @@ export interface ShippingProvider {
   getTrackingStatus(trackingCode: string, config: any): Promise<{ status: string; history: { date: string; location: string; description: string }[] }>;
   getBalance?(config: any): Promise<any>;
   generatePix?(amount: number, email: string, phone: string, config: any): Promise<any>;
-  createPrePosting?(data: any, config: any): Promise<any>;
+  consultPostage?(trackingCode: string, config: any): Promise<any>;
+  getFinancialStatement?(config: any): Promise<any>;
+  getTrackingInfo?(trackingCode: string, config: any): Promise<any>;
 }
