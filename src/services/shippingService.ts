@@ -750,7 +750,7 @@ const cepcertoProvider: ShippingProvider = {
     }
   },
 
-  async cancelLabel(trackingCode: string, config: any) {
+  async cancelLabel(orderId: string, trackingCode: string, config: any) {
     if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
     const key = config.api_key_postagem || config.api_key;
     
