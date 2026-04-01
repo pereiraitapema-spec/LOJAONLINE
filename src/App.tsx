@@ -32,6 +32,7 @@ import AbandonedCarts from './pages/AbandonedCarts';
 import AiAgentSettings from './pages/AiAgentSettings';
 import AdminReports from './pages/AdminReports';
 import NotFound from './pages/NotFound';
+import Callback from './pages/Callback';
 import { Loading } from './components/Loading';
 import { leadService } from './services/leadService';
 import { toast } from 'react-hot-toast';
@@ -218,8 +219,14 @@ function AppContent() {
     
     // Lista de caminhos que NÃO devem sofrer redirecionamento automático se o usuário for 'user'
     const isUserPage = path === '/profile' || path === '/success' || path.startsWith('/tracking');
+    const isCallback = path === '/callback.html' || path === '/auth/callback';
 
-    if (path === '/login' || path === '/register' || path === '/' || path === '/callback.html') {
+    if (isCallback) {
+      setLoading(false);
+      return;
+    }
+
+    if (path === '/login' || path === '/register' || path === '/') {
       if (role === 'admin') navigate('/dashboard');
       else if (role === 'affiliate') navigate('/affiliate-dashboard');
       else if (path !== '/' && !isUserPage) navigate('/');
@@ -290,6 +297,8 @@ function AppContent() {
         <Route path="/affiliate-dashboard" element={<AffiliateDashboard />} />
         <Route path="/success" element={<Success />} />
         <Route path="/tracking/:trackingCode?" element={<Tracking />} />
+        <Route path="/auth/callback" element={<Callback />} />
+        <Route path="/callback.html" element={<Callback />} />
         
         <Route 
           path="/checkout" 

@@ -17,6 +17,8 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [siteLogo, setSiteLogo] = useState<string | null>(null);
+  const [siteName, setSiteName] = useState<string | null>(null);
   const [resendTimer, setResendTimer] = useState(0);
   const [showResend, setShowResend] = useState(false);
   const navigate = useNavigate();
@@ -34,11 +36,15 @@ export default function Login() {
     }
   }, [resendTimer]);
 
-  // Testar conexão ao carregar a página
+  // Testar conexão ao carregar a página e buscar logo
   React.useEffect(() => {
-    const testConnection = async () => {
+    const fetchSiteData = async () => {
       try {
-        const { error } = await supabase.from('site_content').select('count', { count: 'exact', head: true });
+        const { data, error } = await supabase
+          .from('site_content')
+          .select('key, value')
+          .in('key', ['site_logo', 'site_name']);
+          
         if (error) {
           console.error('🧪 Connection Test Error:', error);
           // Se for erro de rede (DNS/IP), a mensagem será clara
@@ -49,12 +55,18 @@ export default function Login() {
           }
         } else {
           setConnectionError(null);
+          if (data) {
+            const logo = data.find(item => item.key === 'site_logo')?.value;
+            const name = data.find(item => item.key === 'site_name')?.value;
+            if (logo) setSiteLogo(logo);
+            if (name) setSiteName(name);
+          }
         }
       } catch (err: any) {
         setConnectionError('Falha crítica de rede. O servidor do banco de dados não foi encontrado.');
       }
     };
-    testConnection();
+    fetchSiteData();
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -354,11 +366,15 @@ export default function Login() {
         className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8"
       >
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <LogIn className="w-8 h-8 text-emerald-600" />
-          </div>
+          {siteLogo ? (
+            <img src={siteLogo} alt={siteName || 'Logo'} className="h-16 mx-auto mb-4 object-contain" />
+          ) : (
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <LogIn className="w-8 h-8 text-emerald-600" />
+            </div>
+          )}
           <h1 className="text-2xl font-bold text-slate-900 mb-2">
-            {mode === 'login' ? 'Acesse sua conta' : 'Crie sua conta'}
+            {mode === 'login' ? `Acesse sua conta ${siteName ? `na ${siteName}` : ''}` : `Crie sua conta ${siteName ? `na ${siteName}` : ''}`}
           </h1>
           <p className="text-slate-500">
             {mode === 'login' 
