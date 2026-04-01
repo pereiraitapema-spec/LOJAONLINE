@@ -151,6 +151,12 @@ export default function CepCertoAdmin() {
     }
   };
 
+  const formatCEP = (value: string) => {
+    return value
+      .replace(/\D/g, '')
+      .replace(/^(\d{5})(\d{3})$/, '$1-$2');
+  };
+
   const fetchData = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
@@ -263,7 +269,10 @@ export default function CepCertoAdmin() {
   };
 
   const handleGenerateManualLabel = async () => {
-    if (!carrier) return;
+    if (!carrier || !carrier.settings) {
+      toast.error('Configurações da transportadora não carregadas.');
+      return;
+    }
     try {
       toast.loading('Gerando etiqueta manual...', { id: 'gen-label-manual' });
       
@@ -277,7 +286,6 @@ export default function CepCertoAdmin() {
       if (result.success) {
         toast.success('Etiqueta gerada com sucesso!', { id: 'gen-label-manual' });
         console.log('✅ Etiqueta manual gerada:', result);
-        // Aqui você pode adicionar lógica para exibir a etiqueta ou salvar no banco
       } else {
         throw new Error(result.error || 'Erro desconhecido');
       }
@@ -933,7 +941,7 @@ export default function CepCertoAdmin() {
                     <h4 className="font-bold text-slate-700">Remetente</h4>
                     <input placeholder="Nome" value={manualLabelData.nome_remetente} onChange={e => setManualLabelData({...manualLabelData, nome_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
                     <input placeholder="CPF/CNPJ" value={manualLabelData.cpf_cnpj_remetente} onChange={e => setManualLabelData({...manualLabelData, cpf_cnpj_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
-                    <input placeholder="CEP" value={manualLabelData.cep_remetente} onChange={e => setManualLabelData({...manualLabelData, cep_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="CEP" value={manualLabelData.cep_remetente} onChange={e => setManualLabelData({...manualLabelData, cep_remetente: formatCEP(e.target.value)})} maxLength={9} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
                     <input placeholder="Logradouro" value={manualLabelData.logradouro_remetente} onChange={e => setManualLabelData({...manualLabelData, logradouro_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
                   </div>
                   {/* Destinatário */}
@@ -941,7 +949,7 @@ export default function CepCertoAdmin() {
                     <h4 className="font-bold text-slate-700">Destinatário</h4>
                     <input placeholder="Nome" value={manualLabelData.nome_destinatario} onChange={e => setManualLabelData({...manualLabelData, nome_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
                     <input placeholder="CPF/CNPJ" value={manualLabelData.cpf_cnpj_destinatario} onChange={e => setManualLabelData({...manualLabelData, cpf_cnpj_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
-                    <input placeholder="CEP" value={manualLabelData.cep_destinatario} onChange={e => setManualLabelData({...manualLabelData, cep_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="CEP" value={manualLabelData.cep_destinatario} onChange={e => setManualLabelData({...manualLabelData, cep_destinatario: formatCEP(e.target.value)})} maxLength={9} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
                     <input placeholder="Logradouro" value={manualLabelData.logradouro_destinatario} onChange={e => setManualLabelData({...manualLabelData, logradouro_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
                   </div>
                 </div>
