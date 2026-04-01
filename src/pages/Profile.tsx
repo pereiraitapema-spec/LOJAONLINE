@@ -258,7 +258,7 @@ export default function Profile() {
                   className="w-full bg-slate-100 text-slate-700 py-4 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2 mb-4"
                 >
                   <Store size={20} />
-                  ENTRAR NA LOJA DE VENDAS
+                  IR PARA O SITE PRINCIPAL
                 </button>
                 <button
                   type="submit"
