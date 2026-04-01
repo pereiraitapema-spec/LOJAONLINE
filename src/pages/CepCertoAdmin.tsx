@@ -800,112 +800,35 @@ export default function CepCertoAdmin() {
                   Gerar PIX
                 </button>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Cotação Rápida */}
-              {/* TESTE */}
-              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 mt-8">
                 <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
-                  <Calculator className="text-indigo-600" size={24} />
-                  Cotação Rápida
+                  <ShoppingBag className="text-indigo-600" size={24} />
+                  Gerar Etiqueta Manual
                 </h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Origem</label>
-                      <input 
-                        placeholder="00000-000"
-                        value={quoteData.cep_remetente}
-                        onChange={(e) => setQuoteData({...quoteData, cep_remetente: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Destino</label>
-                      <input 
-                        placeholder="00000-000"
-                        value={quoteData.cep_destino}
-                        onChange={(e) => setQuoteData({...quoteData, cep_destino: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
-                      />
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Remetente */}
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-slate-700">Remetente</h4>
+                    <input placeholder="Nome" value={manualLabelData.nome_remetente} onChange={e => setManualLabelData({...manualLabelData, nome_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="CPF/CNPJ" value={manualLabelData.cpf_cnpj_remetente} onChange={e => setManualLabelData({...manualLabelData, cpf_cnpj_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="CEP" value={manualLabelData.cep_remetente} onChange={e => setManualLabelData({...manualLabelData, cep_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="Logradouro" value={manualLabelData.logradouro_remetente} onChange={e => setManualLabelData({...manualLabelData, logradouro_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Peso (kg)</label>
-                      <input 
-                        type="number"
-                        step="0.1"
-                        value={quoteData.peso}
-                        onChange={(e) => setQuoteData({...quoteData, peso: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Valor Encomenda (R$)</label>
-                      <input 
-                        type="number"
-                        step="0.01"
-                        value={quoteData.valor_encomenda}
-                        onChange={(e) => setQuoteData({...quoteData, valor_encomenda: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
-                      />
-                    </div>
+                  {/* Destinatário */}
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-slate-700">Destinatário</h4>
+                    <input placeholder="Nome" value={manualLabelData.nome_destinatario} onChange={e => setManualLabelData({...manualLabelData, nome_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="CPF/CNPJ" value={manualLabelData.cpf_cnpj_destinatario} onChange={e => setManualLabelData({...manualLabelData, cpf_cnpj_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="CEP" value={manualLabelData.cep_destinatario} onChange={e => setManualLabelData({...manualLabelData, cep_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="Logradouro" value={manualLabelData.logradouro_destinatario} onChange={e => setManualLabelData({...manualLabelData, logradouro_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
                   </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Alt (cm)</label>
-                      <input 
-                        type="number"
-                        value={quoteData.altura}
-                        onChange={(e) => setQuoteData({...quoteData, altura: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Larg (cm)</label>
-                      <input 
-                        type="number"
-                        value={quoteData.largura}
-                        onChange={(e) => setQuoteData({...quoteData, largura: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Comp (cm)</label>
-                      <input 
-                        type="number"
-                        value={quoteData.comprimento}
-                        onChange={(e) => setQuoteData({...quoteData, comprimento: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
-                      />
-                    </div>
-                  </div>
-
-                  <button 
-                    onClick={handleCalculate}
-                    disabled={calculating}
-                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
-                  >
-                    {calculating ? <RefreshCw className="animate-spin" size={20} /> : <Calculator size={20} />}
-                    Calcular Frete
-                  </button>
-
-                  {quotes.length > 0 && (
-                    <div className="space-y-3 pt-4 border-t border-slate-100">
-                      {quotes.map((q, i) => (
-                        <div key={i} className="flex justify-between items-center p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-                          <div>
-                            <span className="text-xs font-black text-indigo-600 uppercase block">{q.name}</span>
-                            <span className="text-xs text-indigo-400 font-bold">{q.deadline}</span>
-                          </div>
-                          <span className="text-lg font-black text-indigo-700">R$ {q.price.toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
+                <button 
+                  onClick={handleGenerateManualLabel}
+                  className="w-full mt-8 py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+                >
+                  Gerar Etiqueta
+                </button>
               </div>
 
               <div className="space-y-8">
@@ -988,7 +911,6 @@ export default function CepCertoAdmin() {
                 </div>
               </div>
             </div>
-          </div>
           )}
 
           {activeTab === 'financeiro' && (
