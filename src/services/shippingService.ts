@@ -1217,7 +1217,7 @@ const jadlogProvider: ShippingProvider = {
     return { success: true };
   },
   async getTrackingStatus(trackingCode: string, config: any) {
-    // Fallback para BrasilAPI
+    // 1. Fallback para BrasilAPI
     try {
       const response = await fetch(`https://brasilapi.com.br/api/rastreio/v1/${trackingCode}`);
       if (response.ok) {
@@ -1234,6 +1234,28 @@ const jadlogProvider: ShippingProvider = {
       }
     } catch (e) {
       console.warn('⚠️ BrasilAPI fallback falhou para Jadlog.', e);
+    }
+
+    // 2. Fallback para Linketrack (Proxy do Servidor)
+    try {
+      console.log('🔄 Tentando Linketrack Proxy (Jadlog)...');
+      const response = await fetch(`/api/tracking/linketrack?tracking_code=${trackingCode}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.eventos && data.eventos.length > 0) {
+          console.log('✅ Rastreio encontrado via Linketrack Proxy (Jadlog)');
+          return {
+            status: data.eventos[0].status || 'Em trânsito',
+            history: data.eventos.map((e: any) => ({
+              date: `${e.data} ${e.hora}`,
+              location: e.local || 'Não informado',
+              description: e.status + (e.subStatus ? ` - ${e.subStatus[0]}` : '')
+            }))
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Linketrack fallback falhou para Jadlog.', e);
     }
 
     return { status: 'Não encontrado ou aguardando postagem', history: [] };
