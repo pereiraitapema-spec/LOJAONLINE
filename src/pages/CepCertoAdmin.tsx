@@ -44,6 +44,16 @@ export default function CepCertoAdmin() {
   const [showTrackingInfoModal, setShowTrackingInfoModal] = useState(false);
   const [loadingTrackingInfo, setLoadingTrackingInfo] = useState(false);
   const [quotes, setQuotes] = useState<any[]>([]);
+  const [quoteData, setQuoteData] = useState<any>({
+    cep_origem: '',
+    cep_remetente: '',
+    cep_destino: '',
+    peso: '',
+    altura: '',
+    largura: '',
+    comprimento: '',
+    valor_encomenda: ''
+  });
   const [calculating, setCalculating] = useState(false);
   const [trackingModal, setTrackingModal] = useState<{ isOpen: boolean, code: string }>({ isOpen: false, code: '' });
   const [manualLabelData, setManualLabelData] = useState<any>({
@@ -201,7 +211,23 @@ export default function CepCertoAdmin() {
   };
 
   const handleGeneratePix = async () => {
-    if (!carrier) {
+    // Tentar carregar o carrier se ainda não estiver carregado
+    let currentCarrier = carrier;
+    if (!currentCarrier) {
+      const { data: carriers } = await supabase
+        .from('shipping_carriers')
+        .select('*')
+        .eq('provider', 'cepcerto')
+        .eq('active', true)
+        .maybeSingle();
+      
+      if (carriers) {
+        setCarrier(carriers);
+        currentCarrier = carriers;
+      }
+    }
+
+    if (!currentCarrier) {
       toast.error('Transportadora não carregada.');
       return;
     }
@@ -215,17 +241,17 @@ export default function CepCertoAdmin() {
     try {
       setIsGeneratingPix(true);
       const data = await shippingService.generatePix(
+        currentCarrier.id,
         amount,
         'pereira.itapema@gmail.com', 
-        '47999999999',
-        carrier.settings
+        '47999999999'
       );
 
       setPixData(data);
       setShowPixModal(true);
       toast.success('PIX gerado com sucesso!');
       // Atualiza o saldo após gerar PIX
-      const balanceData = await shippingService.getBalance(carrier.settings);
+      const balanceData = await shippingService.getBalance(currentCarrier.settings);
       setBalance(balanceData);
     } catch (error: any) {
       console.error('Erro ao gerar PIX:', error);
@@ -311,21 +337,21 @@ export default function CepCertoAdmin() {
       toast.error('Peso deve ser entre 0.3kg e 30kg');
       return;
     }
-    if (altNum < 0.4 || altNum > 100) {
-      toast.error('Altura deve ser entre 0.4cm e 100cm');
+    if (altNum < 8 || altNum > 100) {
+      toast.error('Altura deve ser entre 8cm e 100cm');
       return;
     }
-    if (largNum < 11 || largNum > 100) {
-      toast.error('Largura deve ser entre 11cm e 100cm');
+    if (largNum < 13 || largNum > 100) {
+      toast.error('Largura deve ser entre 13cm e 100cm');
       return;
     }
-    if (compNum < 13 || compNum > 100) {
-      toast.error('Comprimento deve ser entre 13cm e 100cm');
+    if (compNum < 8 || compNum > 100) {
+      toast.error('Comprimento deve ser entre 8cm e 100cm');
       return;
     }
     const valorNum = parseFloat(quoteData.valor_encomenda);
-    if (valorNum < 50 || valorNum > 35000) {
-      toast.error('Valor da encomenda deve ser entre R$ 50,00 e R$ 35.000,00');
+    if (valorNum < 1 || valorNum > 35000) {
+      toast.error('Valor da encomenda deve ser entre R$ 1,00 e R$ 35.000,00');
       return;
     }
     if ((altNum + largNum + compNum) > 200) {
@@ -1069,65 +1095,6 @@ export default function CepCertoAdmin() {
         trackingCode={trackingModal.code}
       />
 
-      {/* Modal PIX */}
-      {showPixModal && pixData && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden"
-          >
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-emerald-600 text-white">
-              <div className="flex items-center gap-3">
-                <h2 className="text-xl font-black uppercase italic tracking-tighter">PIX Gerado!</h2>
-              </div>
-              <button onClick={() => setShowPixModal(false)} className="hover:rotate-90 transition-transform">
-                <X size={24} />
-              </button>
-            </div>
-            <div className="p-6 space-y-6">
-              <p className="text-emerald-700 font-medium text-center">Escaneie o QR Code ou copie o código abaixo.</p>
-              <div className="bg-white p-4 rounded-3xl shadow-inner flex flex-col items-center justify-center aspect-square overflow-hidden relative border border-slate-100">
-                {pixData.qrcode_img ? (
-                  <img 
-                    src={pixData.qrcode_img} 
-                    alt="QR Code PIX" 
-                    className="w-full h-full object-contain z-10 bg-white"
-                    referrerPolicy="no-referrer"
-                    id="pix-qr-img"
-                  />
-                ) : (
-                  <div id="pix-qr-svg">
-                    <QRCodeSVG 
-                      value={pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code || ''} 
-                      size={200} 
-                    />
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Código Copia e Cola</p>
-                <div className="flex gap-2">
-                  <input 
-                    readOnly 
-                    value={pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code || ''} 
-                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs"
-                  />
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(pixData.copia_cola || pixData.copia_e_cola || pixData.pix_code);
-                      toast.success('Código copiado!');
-                    }}
-                    className="px-4 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700"
-                  >
-                    Copiar
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
       {showFinancialModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <motion.div 
@@ -1268,7 +1235,6 @@ export default function CepCertoAdmin() {
           </motion.div>
         </div>
       )}
-      {/* Modal PIX */}
       {showPixModal && pixData && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <motion.div 

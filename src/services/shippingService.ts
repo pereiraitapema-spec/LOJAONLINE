@@ -1341,7 +1341,23 @@ export const shippingService = {
     }
   },
 
-  async generateLabel(orderId: string) {
+  async generateLabel(orderId: string, config?: any, manualData?: any) {
+    if (orderId === 'manual') {
+      // Busca a transportadora CepCerto para pegar a config se não fornecida
+      let carrier = config;
+      if (!carrier) {
+        const { data: c } = await supabase
+          .from('shipping_carriers')
+          .select('*')
+          .eq('provider', 'cepcerto')
+          .eq('active', true)
+          .maybeSingle();
+        carrier = c;
+      }
+      const provider = providers[carrier.provider];
+      return provider.generateLabel(orderId, carrier.config, manualData);
+    }
+
     // Tenta buscar pelo ID completo (UUID)
     let { data: order, error: orderError } = await supabase
       .from('orders')
@@ -1397,26 +1413,32 @@ export const shippingService = {
     return provider.generateLabel(order.id, carrier.config);
   },
 
-  async cancelLabel(orderId: string) {
+  async cancelLabel(orderId: string, trackingCode?: string, config?: any) {
+    let order: any;
+    
     // Tenta buscar pelo ID completo (UUID)
-    let { data: order } = await supabase
+    let { data: orderData } = await supabase
       .from('orders')
       .select('shipping_method, tracking_code')
       .eq('id', orderId)
       .maybeSingle();
 
     // Se não encontrar pelo ID completo, tenta pelo ID curto (primeiros 8 caracteres)
-    if (!order) {
+    if (!orderData) {
       // Tenta buscar como string para evitar erro de cast em UUID
       const { data: orderShort } = await supabase
         .from('orders')
         .select('shipping_method, tracking_code')
         .textSearch('id', `${orderId}:*`, { type: 'websearch' })
         .maybeSingle();
-      order = orderShort;
+      orderData = orderShort;
     }
     
-    if (!order) return { success: false, error: 'Order not found' };
+    if (!orderData) return { success: false, error: 'Order not found' };
+    order = orderData;
+    if (!trackingCode) {
+      trackingCode = order.tracking_code || orderId;
+    }
     
     // Busca diretamente pelo nome, pois shipping_method contém o nome (ex: "SEDEX")
     const shippingMethod = order.shipping_method.toUpperCase();
@@ -1442,7 +1464,7 @@ export const shippingService = {
     if (!provider) return { success: false, error: 'Provider not found' };
 
     // Para CepCerto, usamos o tracking_code se disponível
-    const identifier = (carrier.provider === 'cepcerto' && order.tracking_code) ? order.tracking_code : orderId;
+    const identifier = (carrier.provider === 'cepcerto' && trackingCode) ? trackingCode : orderId;
 
     return provider.cancelLabel(identifier, carrier.config);
   },

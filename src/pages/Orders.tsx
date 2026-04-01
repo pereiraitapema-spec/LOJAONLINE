@@ -1211,7 +1211,7 @@ export default function Orders() {
       try {
         const order = orders.find(o => o.id === orderId);
         if (order?.tracking_code) {
-          await shippingService.cancelLabel(orderId, order.tracking_code, carrier.settings);
+          await shippingService.cancelLabel(orderId, order.tracking_code);
         }
       } catch (e) {
         console.warn('Aviso: Não foi possível cancelar a etiqueta ou ela não existe.', e);
@@ -1242,7 +1242,7 @@ export default function Orders() {
       const order = orders.find(o => o.id === orderId);
       if (!order?.tracking_code) throw new Error('Pedido não possui etiqueta para cancelar.');
       
-      const result = await shippingService.cancelLabel(orderId, order.tracking_code, carrier.settings);
+      const result = await shippingService.cancelLabel(orderId, order.tracking_code);
       if (!result.success) {
         throw new Error(result.error || 'Erro ao cancelar etiqueta');
       }
