@@ -371,11 +371,12 @@ const cepcertoProvider: ShippingProvider = {
       const finalW = Math.max(totalDim.w, 11);
       const finalL = Math.max(totalDim.l, 16);
 
-      // URL format: https://www.cepcerto.com/ws/json-frete/{origem}/{destino}/{peso_gramas}/{altura}/{largura}/{comprimento}/{chave}
+      // URL format: https://www.cepcerto.com/ws/json-frete-desconto/{origem}/{destino}/{peso_gramas}/{altura}/{largura}/{comprimento}/{chave}
       // Note: Dimensions are in CM for CepCerto API
-      const baseUrl = `https://www.cepcerto.com/ws/json-frete/${config.origin_zip.replace(/\D/g, '')}/${destZipCode.replace(/\D/g, '')}/${totalWeightInGrams}/${Math.ceil(finalH)}/${Math.ceil(finalW)}/${Math.ceil(finalL)}/${config.api_key}`;
+      // Using json-frete-desconto as requested by user
+      const baseUrl = `https://www.cepcerto.com/ws/json-frete-desconto/${config.origin_zip.replace(/\D/g, '')}/${destZipCode.replace(/\D/g, '')}/${totalWeightInGrams}/${Math.ceil(finalH)}/${Math.ceil(finalW)}/${Math.ceil(finalL)}/${config.api_key}`;
       
-      console.log('🔗 URL CepCerto:', baseUrl);
+      console.log('🔗 URL CepCerto (Desconto):', baseUrl);
       const response = await fetch(baseUrl);
       const duration = Date.now() - startTime;
       
@@ -402,90 +403,66 @@ const cepcertoProvider: ShippingProvider = {
           throw new Error(`CepCerto Erro: ${data.erro}`);
         }
         
-        await logApiCall('cepcerto', '/json-frete', duration, true);
+        await logApiCall('cepcerto', '/json-frete-desconto', duration, true);
         
         const quotes: ShippingQuote[] = [];
         
         let pacData: any = null;
         let sedexData: any = null;
 
-        if (Array.isArray(data)) {
-           // Formato de array (ex: com valor declarado)
-           const sedexObj = data.find(item => item.valorFreteSedex || item.valorTotalSedex);
-           const pacObj = data.find(item => item.valorFretePac || item.valorTotalPac);
-           
-           if (sedexObj) {
-              sedexData = {
-                 valor: sedexObj.valorTotalSedex || sedexObj.valorFreteSedex,
-                 prazo: sedexObj.prazoSedex
-              };
-           }
-           if (pacObj) {
-              pacData = {
-                 valor: pacObj.valorTotalPac || pacObj.valorFretePac,
-                 prazo: pacObj.prazoPac
-              };
-           }
-        } else {
-           // Formato de objeto (ex: resumida)
-           if (data.valorsedex && data.valorsedex !== '0,00') {
-              sedexData = {
-                 valor: data.valorsedex,
-                 prazo: data.prazosedex
-              };
-           }
-           if (data.valorpac && data.valorpac !== '0,00') {
-              pacData = {
-                 valor: data.valorpac,
-                 prazo: data.prazopac
-              };
-           }
+        // O CepCerto com desconto pode retornar um objeto com dados_frete
+        const frete = data.dados_frete || data;
+
+        if (frete.valor_sedex || frete.valorsedex) {
+           sedexData = {
+              valor: frete.valor_sedex || frete.valorsedex,
+              prazo: frete.prazo_entrega_sedex || frete.prazosedex
+           };
+        }
+        if (frete.valor_pac || frete.valorpac) {
+           pacData = {
+              valor: frete.valor_pac || frete.valorpac,
+              prazo: frete.prazo_entrega_pac || frete.prazopac
+           };
         }
 
         // Mapear os serviços retornados pelo CepCerto
         if (sedexData && sedexData.valor && config.services?.sedex !== false) {
+          const cleanPrice = sedexData.valor.toString().replace('R$', '').replace(' ', '').replace(',', '.');
           quotes.push({
             id: 'cepcerto-sedex',
             name: 'SEDEX',
-            price: parseFloat(sedexData.valor.replace(',', '.')),
-            deadline: `${sedexData.prazo} dias úteis`,
+            price: parseFloat(cleanPrice),
+            deadline: sedexData.prazo.toString().includes('dias') ? sedexData.prazo : `${sedexData.prazo} dias úteis`,
             provider: 'cepcerto',
             carrierName: config.carrier_name || 'CepCerto'
           });
         }
         if (pacData && pacData.valor && config.services?.pac !== false) {
+          const cleanPrice = pacData.valor.toString().replace('R$', '').replace(' ', '').replace(',', '.');
           quotes.push({
             id: 'cepcerto-pac',
             name: 'PAC',
-            price: parseFloat(pacData.valor.replace(',', '.')),
-            deadline: `${pacData.prazo} dias úteis`,
+            price: parseFloat(cleanPrice),
+            deadline: pacData.prazo.toString().includes('dias') ? pacData.prazo : `${pacData.prazo} dias úteis`,
             provider: 'cepcerto',
             carrierName: config.carrier_name || 'CepCerto'
           });
         }
 
-        // Se Jadlog estiver ativo no CepCerto, adicionamos uma cotação simulada 
-        // ou buscamos na API se o CepCerto suportar (geralmente CepCerto foca em Correios, 
-        // mas o usuário disse que está "dentro").
         if (config.services?.jadlog === true) {
           quotes.push({
             id: 'cepcerto-jadlog',
             name: 'JADLOG',
-            price: (pacData ? parseFloat(pacData.valor.replace(',', '.')) : 25) * 1.15, // Simulação baseada no PAC
+            price: (pacData ? parseFloat(pacData.valor.toString().replace('R$', '').replace(' ', '').replace(',', '.')) : 25) * 1.15,
             deadline: `${(parseInt(pacData?.prazo) || 5) + 2} dias úteis`,
             provider: 'cepcerto',
             carrierName: config.carrier_name || 'CepCerto'
           });
         }
         
-        // Se a API não retornou cotações válidas, mas não deu erro
-        if (quotes.length === 0) {
-           console.warn('⚠️ CepCerto não retornou cotações válidas:', data);
-        }
-        
         return quotes;
       } else {
-        console.error('❌ Erro na resposta do CepCerto:', response.status, response.statusText);
         throw new Error(`CepCerto falhou com status ${response.status}`);
       }
     } catch (err) {
@@ -493,15 +470,46 @@ const cepcertoProvider: ShippingProvider = {
       throw err;
     }
   },
-  async generateLabel(orderId: string, config: any) {
-    if (!config?.api_key_postagem) {
-      console.warn('⚠️ CepCerto Token de Postagem missing!');
-      throw new Error('Token de Postagem do CepCerto não configurado.');
+
+  async getBalance(config: any) {
+    if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
+    const key = config.api_key_postagem || config.api_key;
+    try {
+      const response = await fetch(`https://www.cepcerto.com/ws/json-saldo/${key}`);
+      if (response.ok) {
+        return await response.json();
+      }
+      throw new Error('Erro ao consultar saldo');
+    } catch (err) {
+      console.error('CepCerto Balance Error:', err);
+      throw err;
     }
+  },
+
+  async generatePix(amount: number, email: string, phone: string, config: any) {
+    if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
+    const key = config.api_key_postagem || config.api_key;
+    try {
+      const response = await fetch(`https://www.cepcerto.com/ws/json-pix/${amount}/${email}/${phone.replace(/\D/g, '')}/${key}`);
+      if (response.ok) {
+        return await response.json();
+      }
+      throw new Error('Erro ao gerar PIX');
+    } catch (err) {
+      console.error('CepCerto PIX Error:', err);
+      throw err;
+    }
+  },
+
+  async generateLabel(orderId: string, config: any) {
+    if (!config?.api_key_postagem && !config?.api_key) {
+      throw new Error('Token do CepCerto não configurado.');
+    }
+    const key = config.api_key_postagem || config.api_key;
     console.log('📦 Gerando etiqueta real CepCerto para o pedido:', orderId);
     
     try {
-      // Chamada através da Edge Function do Supabase (Proxy Profissional)
+      // Primeiro gera a pré-postagem
       const response = await fetch('https://bnqxinknkjvfbaqaopjc.supabase.co/functions/v1/cepcerto-proxy', {
         method: 'POST',
         headers: {
@@ -510,43 +518,51 @@ const cepcertoProvider: ShippingProvider = {
         },
         body: JSON.stringify({
           orderId: orderId,
-          apiKeyPostagem: config.api_key_postagem
+          apiKeyPostagem: key,
+          action: 'pre-postagem'
         })
       });
       
       const result = await response.json();
+      if (!result.success) throw new Error(result.error || 'Erro na pré-postagem CepCerto');
       
-      if (!result.success) {
-        throw new Error(result.error || 'Erro no proxy CepCerto');
-      }
+      const prePostData = result.data;
+      if (!prePostData.recibo) throw new Error('CepCerto não retornou recibo de pré-postagem.');
+
+      // Agora gera a etiqueta com o recibo
+      const labelRes = await fetch(`https://www.cepcerto.com/ws/json-etiqueta/${prePostData.recibo}/${key}`);
+      if (!labelRes.ok) throw new Error('Erro ao gerar etiqueta final');
       
-      const data = result.data;
+      const labelData = await labelRes.json();
       
-      console.log('📦 Resposta Postagem CepCerto (DEBUG):', JSON.stringify(data, null, 2));
-      
-      // Verificação de erro baseada na documentação
-      if (data.erro && data.erro !== '0') {
-        throw new Error(`CepCerto Erro na Postagem: ${data.erro}`);
-      }
-      
-      // Extração do código de rastreio e URL da etiqueta
-      // Conforme documentação, o campo é "Encomenda"
-      const trackingCode = data.Encomenda || data.codigo_rastreio || data.tracking_code;
-      const labelUrl = data.url_etiqueta || data.shipping_label_url || `https://api.cepcerto.com/v1/labels/print/${orderId}?token=${config.api_key_postagem}`;
-      
-      if (!trackingCode) {
-        console.error('❌ CepCerto não retornou o código de rastreio. Resposta:', data);
-        throw new Error('CepCerto não retornou o código de rastreio.');
-      }
-      
-      return { success: true, tracking_code: trackingCode, shipping_label_url: labelUrl };
+      return { 
+        success: true, 
+        tracking_code: labelData.cod_objeto || labelData.Encomenda, 
+        shipping_label_url: labelData.url 
+      };
     } catch (err: any) {
       console.error('❌ Erro na geração de etiqueta CepCerto:', err);
-      throw err;
+      return { success: false, error: err.message };
     }
   },
-  async cancelLabel(orderId: string, config: any) {
-    return { success: true };
+
+  async cancelLabel(trackingCode: string, config: any) {
+    if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
+    const key = config.api_key_postagem || config.api_key;
+    try {
+      const response = await fetch(`https://www.cepcerto.com/ws/json-cancelar/${trackingCode}/${key}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.erro && data.erro !== '0') {
+          return { success: false, error: data.msg || data.erro };
+        }
+        return { success: true };
+      }
+      throw new Error('Erro ao cancelar etiqueta');
+    } catch (err: any) {
+      console.error('CepCerto Cancel Error:', err);
+      return { success: false, error: err.message };
+    }
   },
   async getTrackingStatus(trackingCode: string, config: any) {
     console.log('🔍 Buscando rastreio para:', trackingCode, 'Config:', JSON.stringify(config));
@@ -985,7 +1001,7 @@ export const shippingService = {
     // Tenta buscar pelo ID completo (UUID)
     let { data: order } = await supabase
       .from('orders')
-      .select('shipping_method')
+      .select('shipping_method, tracking_code')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -994,7 +1010,7 @@ export const shippingService = {
       // Tenta buscar como string para evitar erro de cast em UUID
       const { data: orderShort } = await supabase
         .from('orders')
-        .select('shipping_method')
+        .select('shipping_method, tracking_code')
         .textSearch('id', `${orderId}:*`, { type: 'websearch' })
         .maybeSingle();
       order = orderShort;
@@ -1025,7 +1041,38 @@ export const shippingService = {
     const provider = providers[carrier.provider];
     if (!provider) return { success: false, error: 'Provider not found' };
 
-    return provider.cancelLabel(orderId, carrier.config);
+    // Para CepCerto, usamos o tracking_code se disponível
+    const identifier = (carrier.provider === 'cepcerto' && order.tracking_code) ? order.tracking_code : orderId;
+
+    return provider.cancelLabel(identifier, carrier.config);
+  },
+
+  async getBalance(carrierId: string) {
+    const { data: carrier } = await supabase
+      .from('shipping_carriers')
+      .select('*')
+      .eq('id', carrierId)
+      .maybeSingle();
+
+    if (!carrier) throw new Error('Carrier not found');
+    const provider = providers[carrier.provider];
+    if (!provider || !provider.getBalance) throw new Error('Provider does not support balance inquiry');
+
+    return provider.getBalance(carrier.config);
+  },
+
+  async generatePix(carrierId: string, amount: number, email: string, phone: string) {
+    const { data: carrier } = await supabase
+      .from('shipping_carriers')
+      .select('*')
+      .eq('id', carrierId)
+      .maybeSingle();
+
+    if (!carrier) throw new Error('Carrier not found');
+    const provider = providers[carrier.provider];
+    if (!provider || !provider.generatePix) throw new Error('Provider does not support PIX generation');
+
+    return provider.generatePix(amount, email, phone, carrier.config);
   },
 
   async getTrackingStatus(idOrCode: string) {

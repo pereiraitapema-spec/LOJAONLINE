@@ -238,6 +238,7 @@ export default function Dashboard() {
       items: [
         { name: "Banners", path: "/banners", icon: ImageIcon },
         { name: "Transportadoras", path: "/shipping", icon: Truck },
+        { name: "Logística CepCerto", path: "/shipping/cepcerto", icon: Zap },
         { name: "Automações", path: "/automations", icon: Zap },
         { name: "Config. IA", path: "/ai-settings", icon: Bot },
         { name: "Configurações", path: "/settings", icon: Settings }

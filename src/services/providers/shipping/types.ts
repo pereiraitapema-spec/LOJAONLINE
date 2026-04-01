@@ -19,4 +19,6 @@ export interface ShippingProvider {
   generateLabel(orderId: string, config: any): Promise<{ success: boolean; tracking_code?: string; shipping_label_url?: string; error?: string }>;
   cancelLabel(orderId: string, config: any): Promise<{ success: boolean; error?: string }>;
   getTrackingStatus(trackingCode: string, config: any): Promise<{ status: string; history: { date: string; location: string; description: string }[] }>;
+  getBalance?(config: any): Promise<any>;
+  generatePix?(amount: number, email: string, phone: string, config: any): Promise<any>;
 }

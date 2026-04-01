@@ -1213,7 +1213,19 @@ export default function Orders() {
   };
 
   const deleteOrder = async (orderId: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este pedido? Esta ação também cancelará a etiqueta de postagem se houver.')) return;
+    
     try {
+      toast.loading('Excluindo pedido e cancelando etiqueta...', { id: 'delete-order' });
+      
+      // 1. Tentar cancelar a etiqueta primeiro (se houver)
+      try {
+        await shippingService.cancelLabel(orderId);
+      } catch (e) {
+        console.warn('Aviso: Não foi possível cancelar a etiqueta ou ela não existe.', e);
+      }
+
+      // 2. Excluir o pedido
       const { error } = await supabase
         .from('orders')
         .delete()
@@ -1222,9 +1234,9 @@ export default function Orders() {
       if (error) throw error;
       
       setOrders(orders.filter(o => o.id !== orderId));
-      toast.success('Pedido excluído com sucesso!');
+      toast.success('Pedido excluído com sucesso!', { id: 'delete-order' });
     } catch (error: any) {
-      toast.error('Erro ao excluir pedido: ' + error.message);
+      toast.error('Erro ao excluir pedido: ' + error.message, { id: 'delete-order' });
     }
   };
 

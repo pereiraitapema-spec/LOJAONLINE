@@ -24,6 +24,7 @@ import Tracking from './pages/Tracking';
 import ShippingLabel from './pages/ShippingLabel';
 import PaymentGateways from './pages/PaymentGateways';
 import ShippingCarriers from './pages/ShippingCarriers';
+import CepCertoAdmin from './pages/CepCertoAdmin';
 import Integrations from './pages/Integrations';
 import Leads from './pages/Leads';
 import LeadsChat from './pages/LeadsChat';
@@ -349,6 +350,10 @@ function AppContent() {
         <Route 
           path="/shipping" 
           element={<AdminRoute><ShippingCarriers /></AdminRoute>} 
+        />
+        <Route 
+          path="/shipping/cepcerto" 
+          element={<AdminRoute><CepCertoAdmin /></AdminRoute>} 
         />
         <Route 
           path="/integrations" 

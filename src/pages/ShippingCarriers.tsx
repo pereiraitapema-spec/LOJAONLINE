@@ -200,8 +200,11 @@ export default function ShippingCarriers() {
           <button onClick={() => navigate('/gateways')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors">
             <CreditCard size={20} /> Gateways
           </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 bg-indigo-50 text-indigo-700 rounded-xl font-medium transition-colors">
+          <button onClick={() => navigate('/shipping')} className="w-full flex items-center gap-3 px-4 py-3 bg-indigo-50 text-indigo-700 rounded-xl font-medium transition-colors">
             <Truck size={20} /> Transportadoras
+          </button>
+          <button onClick={() => navigate('/shipping/cepcerto')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors">
+            <Zap size={20} /> Logística CepCerto
           </button>
           <button onClick={() => navigate('/settings')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors">
             <Settings size={20} /> Configurações
