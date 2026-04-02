@@ -61,6 +61,60 @@ async function startServer() {
     }
   });
 
+  // Proxy para Postagem CepCerto
+  app.post("/api/cepcerto/postagem", async (req, res) => {
+    console.log("CEP CERTO BACKEND REQUEST (POSTAGEM)", req.body);
+    try {
+      const response = await fetch('https://cepcerto.com/api-postagem-frete/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await response.json();
+      console.log("CEP CERTO BACKEND RESPONSE (POSTAGEM)", data);
+      res.json(data);
+    } catch (error) {
+      console.error("CEP CERTO BACKEND ERROR (POSTAGEM)", error);
+      res.status(500).json({ error: 'Erro ao processar postagem no CepCerto' });
+    }
+  });
+
+  // Proxy para Cotação CepCerto
+  app.post("/api/cepcerto/cotacao", async (req, res) => {
+    console.log("CEP CERTO BACKEND REQUEST (COTACAO)", req.body);
+    try {
+      const response = await fetch('https://cepcerto.com/api-cotacao/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await response.json();
+      console.log("CEP CERTO BACKEND RESPONSE (COTACAO)", data);
+      res.json(data);
+    } catch (error) {
+      console.error("CEP CERTO BACKEND ERROR (COTACAO)", error);
+      res.status(500).json({ error: 'Erro ao processar cotação no CepCerto' });
+    }
+  });
+
+  // Proxy para Crédito/PIX CepCerto
+  app.post("/api/cepcerto/credito", async (req, res) => {
+    console.log("CEP CERTO BACKEND REQUEST (CREDITO)", req.body);
+    try {
+      const response = await fetch('https://cepcerto.com/api-credito/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await response.json();
+      console.log("CEP CERTO BACKEND RESPONSE (CREDITO)", data);
+      res.json(data);
+    } catch (error) {
+      console.error("CEP CERTO BACKEND ERROR (CREDITO)", error);
+      res.status(500).json({ error: 'Erro ao processar crédito no CepCerto' });
+    }
+  });
+
   // 5. Proxy para Rastreio Linketrack (CORS Fix)
   app.all("/api/tracking/linketrack", async (req, res) => {
     const { tracking_code } = { ...req.query, ...req.body };

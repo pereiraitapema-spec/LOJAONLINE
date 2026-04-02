@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { 
   Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, 
   ShoppingBag, Megaphone, Users, Truck, CreditCard, Zap,
-  Search, ChevronRight, Check, Copy, RefreshCw, X, AlertCircle, Wallet, QrCode, Trash2,
+  Search, ChevronRight, Check, Copy, RefreshCw, X, AlertCircle, Wallet, QrCode, Trash2, Printer,
   MapPin, Calculator, FileText, ArrowRight, ExternalLink, Activity
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -93,13 +93,17 @@ export default function CepCertoAdmin() {
   const [savedSender, setSavedSender] = useState<any>(null);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [senderData, setSenderData] = useState<any>({
-    nome: '',
-    cep: '',
-    cidade: '',
-    estado: '',
-    endereco: '',
-    numero: '',
-    complemento: ''
+    nome_remetente: '',
+    cpf_cnpj_remetente: '',
+    whatsapp_remetente: '',
+    email_remetente: '',
+    cep_remetente: '',
+    cidade_remetente: '',
+    estado_remetente: '',
+    logradouro_remetente: '',
+    numero_remetente: '',
+    complemento_remetente: '',
+    bairro_remetente: ''
   });
   const [recipientQuoteData, setRecipientQuoteData] = useState<any>({
     cep: '',
@@ -153,21 +157,24 @@ export default function CepCertoAdmin() {
   const [etiquetasGeradas, setEtiquetasGeradas] = useState<any[]>([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('cepcerto_sender_data');
+    const saved = localStorage.getItem('cepcerto_remetente_padrao');
     if (saved) {
       const data = JSON.parse(saved);
       setSenderData(data);
       // Preencher dados do remetente na postagem
       setPostagemData((prev: any) => ({
         ...prev,
-        nome_remetente: data.nome || '',
-        cep_remetente: data.cep || '',
-        cidade_remetente: data.cidade || '',
-        estado_remetente: data.estado || '',
-        logradouro_remetente: data.endereco || '',
-        numero_endereco_remetente: data.numero || '',
-        complemento_remetente: data.complemento || '',
-        bairro_remetente: data.bairro || ''
+        nome_remetente: data.nome_remetente || '',
+        cpf_cnpj_remetente: data.cpf_cnpj_remetente || '',
+        whatsapp_remetente: data.whatsapp_remetente || '',
+        email_remetente: data.email_remetente || '',
+        cep_remetente: data.cep_remetente || '',
+        cidade_remetente: data.cidade_remetente || '',
+        estado_remetente: data.estado_remetente || '',
+        logradouro_remetente: data.logradouro_remetente || '',
+        numero_endereco_remetente: data.numero_remetente || '',
+        complemento_remetente: data.complemento_remetente || '',
+        bairro_remetente: data.bairro_remetente || ''
       }));
     }
   }, []);
@@ -265,18 +272,18 @@ export default function CepCertoAdmin() {
   }, [carrier]);
 
   const handleSaveSender = () => {
-    if (!senderData.cep || senderData.cep.length !== 8) {
+    if (!senderData.cep_remetente || senderData.cep_remetente.length !== 8) {
       toast.error('CEP do Remetente é obrigatório e deve ter 8 dígitos.');
       return;
     }
-    localStorage.setItem('cepcerto_sender_data', JSON.stringify(senderData));
+    localStorage.setItem('cepcerto_remetente_padrao', JSON.stringify(senderData));
     toast.success('Dados do remetente salvos com sucesso!');
   };
 
   const handleCalculateQuote = async () => {
     // LOG 1 — DADOS RECEBIDOS DO FORMULÁRIO
     console.log("CEP CERTO - Dados formulário", {
-      cep_remetente: senderData.cep,
+      cep_remetente: senderData.cep_remetente,
       cep_destinatario: recipientQuoteData.cep,
       peso_gramas: recipientQuoteData.peso,
       altura: recipientQuoteData.altura,
@@ -285,13 +292,21 @@ export default function CepCertoAdmin() {
       valor_encomenda: recipientQuoteData.valor_encomenda
     });
 
+    // LOG CEP CERTO - REMETENTE COTAÇÃO
+    console.log("CEP CERTO - REMETENTE COTAÇÃO", {
+      nome_remetente: senderData.nome_remetente,
+      cpf_cnpj_remetente: senderData.cpf_cnpj_remetente,
+      whatsapp_remetente: senderData.whatsapp_remetente,
+      email_remetente: senderData.email_remetente
+    });
+
     // LOG 2 — VALIDAÇÃO CAMPOS
-    if (!senderData.cep || !recipientQuoteData.cep || !recipientQuoteData.peso || 
+    if (!senderData.cep_remetente || !recipientQuoteData.cep || !recipientQuoteData.peso || 
         !recipientQuoteData.altura || !recipientQuoteData.largura || 
         !recipientQuoteData.comprimento || !recipientQuoteData.valor_encomenda) {
       
       console.error("CEP CERTO - Campo faltando", {
-        cep_remetente: senderData.cep,
+        cep_remetente: senderData.cep_remetente,
         cep_destinatario: recipientQuoteData.cep,
         peso_gramas: recipientQuoteData.peso,
         altura: recipientQuoteData.altura,
@@ -303,7 +318,7 @@ export default function CepCertoAdmin() {
       return;
     }
 
-    if (senderData.cep.length !== 8) {
+    if (senderData.cep_remetente.length !== 8) {
       toast.error('CEP do Remetente deve ter 8 dígitos.');
       return;
     }
@@ -409,17 +424,17 @@ export default function CepCertoAdmin() {
         comprimento: comprimento.toString(),
         valor_encomenda: valor.toString()
       };
-      console.log("CEP CERTO - Body enviado API", body);
+      console.log("CEP CERTO - Body enviado API (Proxy)", body);
 
-      // 2. Fazer POST
-      const response = await fetch('https://cepcerto.com/api-cotacao/', {
+      // 2. Fazer POST via Proxy
+      const response = await fetch('/api/cepcerto/cotacao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
 
       // LOG 6 — RESPOSTA API
-      console.log("CEP CERTO - Resposta API", response);
+      console.log("CEP CERTO - Resposta Proxy", response);
 
       if (response.ok) {
         const data = await response.json();
@@ -429,15 +444,12 @@ export default function CepCertoAdmin() {
         if (data.erro) {
           console.error("CEP CERTO - Erro API", data.erro);
           setQuoteError(data.erro);
-          toast.error(`CEP inválido: ${data.erro}`);
+          toast.error(`Erro na cotação: ${data.erro}`);
           return;
         }
 
         if (data.dados_frete) {
           console.log("CEP CERTO - Frete encontrado", data.dados_frete);
-          console.log("CEP CERTO - Frete PAC", data.dados_frete.valor_pac);
-          console.log("CEP CERTO - Frete SEDEX", data.dados_frete.valor_sedex);
-          
           setFreteResultado(data.dados_frete);
           toast.success('Cotação realizada com sucesso!');
         } else {
@@ -445,7 +457,8 @@ export default function CepCertoAdmin() {
           toast.error('Erro ao calcular frete. Motivo: Resposta inválida da API');
         }
       } else {
-        console.error("CEP CERTO - Erro na requisição (HTTP Error)");
+        const errorText = await response.text();
+        console.error("CEP CERTO - Erro na requisição (HTTP Error)", { status: response.status, error: errorText });
         toast.error('Erro ao calcular frete. Motivo: Erro API CEP CERTO');
       }
     } catch (error) {
@@ -462,11 +475,33 @@ export default function CepCertoAdmin() {
       return;
     }
 
+    // VALIDAÇÃO OBRIGATÓRIA REMETENTE
+    if (!senderData.nome_remetente) {
+      toast.error('Nome do remetente é obrigatório');
+      console.error("NOME REMETENTE FALTANDO");
+      return;
+    }
+    if (!senderData.cpf_cnpj_remetente) {
+      toast.error('CPF/CNPJ do remetente é obrigatório');
+      console.error("CPF/CNPJ REMETENTE FALTANDO");
+      return;
+    }
+    if (!senderData.whatsapp_remetente) {
+      toast.error('WhatsApp do remetente é obrigatório');
+      console.error("WHATSAPP REMETENTE FALTANDO");
+      return;
+    }
+    if (!senderData.email_remetente) {
+      toast.error('Email do remetente é obrigatório');
+      console.error("EMAIL REMETENTE FALTANDO");
+      return;
+    }
+
     const pesoGramas = parseFloat(recipientQuoteData.peso);
     const pesoKg = pesoGramas / 1000;
 
     const dadosEtiqueta = {
-      cep_remetente: senderData.cep,
+      cep_remetente: senderData.cep_remetente,
       cep_destinatario: recipientQuoteData.cep,
       peso: pesoKg.toString(),
       altura: recipientQuoteData.altura,
@@ -480,11 +515,39 @@ export default function CepCertoAdmin() {
 
     localStorage.setItem("cepcerto_dados_etiqueta", JSON.stringify(dadosEtiqueta));
     console.log("CEP CERTO - Dados etiqueta preparados", dadosEtiqueta);
-    setShowLabelConfirmModal(true);
+    
+    // Preencher postagemData com dados do remetente salvo
+    setPostagemData((prev: any) => ({
+      ...prev,
+      tipo_entrega: freteSelecionado.tipo.toLowerCase().replace(' ', '-'),
+      cep_remetente: senderData.cep_remetente,
+      cep_destinatario: recipientQuoteData.cep,
+      peso: pesoKg.toString(),
+      altura: recipientQuoteData.altura,
+      largura: recipientQuoteData.largura,
+      comprimento: recipientQuoteData.comprimento,
+      valor_encomenda: recipientQuoteData.valor_encomenda,
+      nome_remetente: senderData.nome_remetente,
+      cpf_cnpj_remetente: senderData.cpf_cnpj_remetente,
+      whatsapp_remetente: senderData.whatsapp_remetente,
+      email_remetente: senderData.email_remetente,
+      logradouro_remetente: senderData.logradouro_remetente,
+      numero_endereco_remetente: senderData.numero_remetente,
+      complemento_remetente: senderData.complemento_remetente,
+      bairro_remetente: senderData.bairro_remetente,
+      cidade_remetente: senderData.cidade_remetente,
+      estado_remetente: senderData.estado_remetente
+    }));
+
+    setLogisticaSubTab('etiquetas');
+    setShowQuoteModal(false);
+    toast.success('Dados transferidos para postagem!');
   };
 
   const gerarEtiqueta = async () => {
     setGeneratingLabel(true);
+    console.log("CEP CERTO - Iniciando geração de etiqueta (Proxy)", postagemData);
+
     try {
       // 1. Buscar Token
       const { data: carriers } = await supabase
@@ -495,6 +558,7 @@ export default function CepCertoAdmin() {
         .limit(1);
 
       if (!carriers || carriers.length === 0) {
+        console.error("CEP CERTO - Token não encontrado");
         toast.error('Configuração CEP CERTO não encontrada');
         return;
       }
@@ -507,6 +571,7 @@ export default function CepCertoAdmin() {
       }
 
       if (!apiKey) {
+        console.error("CEP CERTO - Token não encontrado");
         toast.error('Token de postagem não encontrado');
         return;
       }
@@ -520,10 +585,10 @@ export default function CepCertoAdmin() {
         cep_destinatario: postagemData.cep_destinatario.replace(/\D/g, '')
       };
 
-      console.log("CEP CERTO - BODY POSTAGEM", body);
+      console.log("CEP CERTO - BODY POSTAGEM (Proxy)", body);
 
-      // 3. Enviar POST
-      const response = await fetch('https://cepcerto.com/api-postagem-frete/', {
+      // 3. Enviar POST via Proxy
+      const response = await fetch('/api/cepcerto/postagem', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -534,19 +599,25 @@ export default function CepCertoAdmin() {
         console.log("CEP CERTO - RESPOSTA POSTAGEM", data);
 
         if (data.erro) {
+          console.error("CEP CERTO - Erro retornado pela API", data.erro);
           toast.error(`Erro na postagem: ${data.erro}`);
           return;
         }
 
-        if (data.frete) {
+        if (data.codigoObjeto) {
           const result = {
-            ...data.frete,
+            id: Date.now().toString(),
+            data: new Date().toISOString(),
+            codigoObjeto: data.codigoObjeto,
+            idRecibo: data.idRecibo,
+            idStringCorreios: data.idStringCorreios,
+            pdfUrlEtiqueta: data.pdfUrlEtiqueta,
+            pdfUrlDeclaracao: data.pdfUrlDeclaracao,
             transportadora: postagemData.tipo_entrega.includes('jadlog') ? 'Jadlog' : 'Correios',
             tipo_entrega: postagemData.tipo_entrega,
-            valor: freteSelecionado?.valor || postagemData.valor_encomenda,
+            valor: freteSelecionado?.valor || `R$ ${postagemData.valor_encomenda}`,
             prazo: freteSelecionado?.prazo || '',
-            data: new Date().toISOString(),
-            status: 'Aguardando postagem'
+            status: 'Gerada'
           };
 
           setLabelResult(result);
@@ -559,8 +630,13 @@ export default function CepCertoAdmin() {
           setEtiquetasGeradas(novasEtiquetas);
           localStorage.setItem('cepcerto_etiquetas_geradas', JSON.stringify(novasEtiquetas));
           localStorage.setItem('cepcerto_etiqueta_gerada', JSON.stringify(result));
+        } else {
+          console.error("CEP CERTO - Resposta sem código de objeto", data);
+          toast.error('Erro ao gerar etiqueta: Resposta inválida da API');
         }
       } else {
+        const errorText = await response.text();
+        console.error("CEP CERTO - Erro na requisição (HTTP Error)", { status: response.status, error: errorText });
         toast.error('Erro ao conectar com a API de postagem');
       }
     } catch (error) {
@@ -1130,13 +1206,49 @@ export default function CepCertoAdmin() {
                     
                     <div className="grid grid-cols-1 gap-4">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome Remetente</label>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome Remetente *</label>
                         <input 
                           type="text" 
-                          value={senderData.nome} 
-                          onChange={e => setSenderData({...senderData, nome: e.target.value})}
+                          value={senderData.nome_remetente} 
+                          onChange={e => setSenderData({...senderData, nome_remetente: e.target.value.slice(0, 50)})}
                           className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                           placeholder="Nome da Empresa/Pessoa"
+                          required
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CPF / CNPJ Remetente *</label>
+                          <input 
+                            type="text" 
+                            value={senderData.cpf_cnpj_remetente} 
+                            onChange={e => setSenderData({...senderData, cpf_cnpj_remetente: e.target.value.replace(/\D/g, '').slice(0, 14)})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                            placeholder="Apenas números"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">WhatsApp Remetente *</label>
+                          <input 
+                            type="text" 
+                            value={senderData.whatsapp_remetente} 
+                            onChange={e => setSenderData({...senderData, whatsapp_remetente: e.target.value.replace(/\D/g, '').slice(0, 11)})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                            placeholder="DDD + Número"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Email Remetente *</label>
+                        <input 
+                          type="email" 
+                          value={senderData.email_remetente} 
+                          onChange={e => setSenderData({...senderData, email_remetente: e.target.value.slice(0, 50)})}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                          placeholder="email@exemplo.com"
+                          required
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
@@ -1144,18 +1256,19 @@ export default function CepCertoAdmin() {
                           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Remetente *</label>
                           <input 
                             type="text" 
-                            value={senderData.cep} 
-                            onChange={e => setSenderData({...senderData, cep: e.target.value.replace(/\D/g, '').slice(0, 8)})}
+                            value={senderData.cep_remetente} 
+                            onChange={e => setSenderData({...senderData, cep_remetente: e.target.value.replace(/\D/g, '').slice(0, 8)})}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                             placeholder="00000000"
+                            required
                           />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Cidade</label>
                           <input 
                             type="text" 
-                            value={senderData.cidade} 
-                            onChange={e => setSenderData({...senderData, cidade: e.target.value})}
+                            value={senderData.cidade_remetente} 
+                            onChange={e => setSenderData({...senderData, cidade_remetente: e.target.value})}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                           />
                         </div>
@@ -1165,8 +1278,8 @@ export default function CepCertoAdmin() {
                           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Endereço</label>
                           <input 
                             type="text" 
-                            value={senderData.endereco} 
-                            onChange={e => setSenderData({...senderData, endereco: e.target.value})}
+                            value={senderData.logradouro_remetente} 
+                            onChange={e => setSenderData({...senderData, logradouro_remetente: e.target.value})}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                           />
                         </div>
@@ -1174,8 +1287,8 @@ export default function CepCertoAdmin() {
                           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Número</label>
                           <input 
                             type="text" 
-                            value={senderData.numero} 
-                            onChange={e => setSenderData({...senderData, numero: e.target.value})}
+                            value={senderData.numero_remetente} 
+                            onChange={e => setSenderData({...senderData, numero_remetente: e.target.value})}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                           />
                         </div>
@@ -1185,8 +1298,8 @@ export default function CepCertoAdmin() {
                           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Estado</label>
                           <input 
                             type="text" 
-                            value={senderData.estado} 
-                            onChange={e => setSenderData({...senderData, estado: e.target.value.toUpperCase().slice(0, 2)})}
+                            value={senderData.estado_remetente} 
+                            onChange={e => setSenderData({...senderData, estado_remetente: e.target.value.toUpperCase().slice(0, 2)})}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                             placeholder="UF"
                           />
@@ -1195,11 +1308,20 @@ export default function CepCertoAdmin() {
                           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Complemento</label>
                           <input 
                             type="text" 
-                            value={senderData.complemento} 
-                            onChange={e => setSenderData({...senderData, complemento: e.target.value})}
+                            value={senderData.complemento_remetente} 
+                            onChange={e => setSenderData({...senderData, complemento_remetente: e.target.value})}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                           />
                         </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Bairro</label>
+                        <input 
+                          type="text" 
+                          value={senderData.bairro_remetente} 
+                          onChange={e => setSenderData({...senderData, bairro_remetente: e.target.value})}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                        />
                       </div>
                     </div>
                     <button 
@@ -1560,14 +1682,20 @@ export default function CepCertoAdmin() {
                           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome / Razão Social</label>
                           <input type="text" value={postagemData.nome_remetente} onChange={e => setPostagemData({...postagemData, nome_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CPF / CNPJ</label>
-                            <input type="text" value={postagemData.cpf_cnpj_remetente} onChange={e => setPostagemData({...postagemData, cpf_cnpj_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.cpf_cnpj_remetente} onChange={e => setPostagemData({...postagemData, cpf_cnpj_remetente: e.target.value.replace(/\D/g, '')})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">WhatsApp</label>
-                            <input type="text" value={postagemData.whatsapp_remetente} onChange={e => setPostagemData({...postagemData, whatsapp_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.whatsapp_remetente} onChange={e => setPostagemData({...postagemData, whatsapp_remetente: e.target.value.replace(/\D/g, '')})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Email</label>
+                            <input type="email" value={postagemData.email_remetente} onChange={e => setPostagemData({...postagemData, email_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="space-y-1">
@@ -1583,6 +1711,20 @@ export default function CepCertoAdmin() {
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Bairro</label>
                             <input type="text" value={postagemData.bairro_remetente} onChange={e => setPostagemData({...postagemData, bairro_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Cidade</label>
+                            <input type="text" value={postagemData.cidade_remetente} onChange={e => setPostagemData({...postagemData, cidade_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Estado</label>
+                            <input type="text" value={postagemData.estado_remetente} onChange={e => setPostagemData({...postagemData, estado_remetente: e.target.value.toUpperCase().slice(0, 2)})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Complemento</label>
+                          <input type="text" value={postagemData.complemento_remetente} onChange={e => setPostagemData({...postagemData, complemento_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                         </div>
                       </div>
                     </div>
@@ -1793,8 +1935,16 @@ export default function CepCertoAdmin() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                   <div className="space-y-6">
                     <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Informações do Frete</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Detalhes da Etiqueta</p>
                       <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-slate-500">ID Recibo</span>
+                          <span className="text-sm font-bold text-slate-900">{labelResult.idRecibo}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-slate-500">ID Correios</span>
+                          <span className="text-sm font-bold text-slate-900">{labelResult.idStringCorreios}</span>
+                        </div>
                         <div className="flex justify-between">
                           <span className="text-sm text-slate-500">Transportadora</span>
                           <span className="text-sm font-bold text-slate-900">{labelResult.transportadora}</span>
@@ -1824,13 +1974,6 @@ export default function CepCertoAdmin() {
                           <Copy size={18} />
                         </button>
                       </div>
-                      <button 
-                        onClick={() => handleConsultPostage(labelResult.codigoObjeto)}
-                        className="w-full mt-4 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
-                      >
-                        <Search size={16} />
-                        Abrir Rastreamento
-                      </button>
                     </div>
                   </div>
 
@@ -1842,49 +1985,31 @@ export default function CepCertoAdmin() {
                           onClick={() => window.open(labelResult.pdfUrlEtiqueta, '_blank')}
                           className="w-full py-3 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
                         >
-                          <FileText size={18} />
-                          Visualizar Etiqueta
+                          <Printer size={16} />
+                          Imprimir Etiqueta
                         </button>
                         <button 
                           onClick={() => window.open(labelResult.pdfUrlEtiqueta, '_blank')}
                           className="w-full py-3 bg-indigo-500 text-white rounded-xl font-bold text-sm hover:bg-indigo-400 transition-all flex items-center justify-center gap-2"
                         >
-                          <ExternalLink size={18} />
-                          Imprimir Etiqueta
+                          <ExternalLink size={16} />
+                          Visualizar PDF
                         </button>
                       </div>
                     </div>
 
-                    <div className="p-6 bg-emerald-600 rounded-3xl text-white shadow-xl shadow-emerald-100">
-                      <p className="text-[10px] font-bold text-emerald-200 uppercase tracking-widest mb-4">Declaração de Conteúdo</p>
-                      <div className="space-y-3">
+                    {labelResult.pdfUrlDeclaracao && (
+                      <div className="p-6 bg-slate-100 rounded-3xl border border-slate-200">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Declaração de Conteúdo</p>
                         <button 
-                          onClick={() => window.open(labelResult.declaracaoUrl, '_blank')}
-                          className="w-full py-3 bg-white text-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-50 transition-all flex items-center justify-center gap-2"
+                          onClick={() => window.open(labelResult.pdfUrlDeclaracao, '_blank')}
+                          className="w-full py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
                         >
-                          <FileText size={18} />
-                          Visualizar Declaração
-                        </button>
-                        <button 
-                          onClick={() => window.open(labelResult.declaracaoUrl, '_blank')}
-                          className="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-sm hover:bg-emerald-400 transition-all flex items-center justify-center gap-2"
-                        >
-                          <ExternalLink size={18} />
-                          Imprimir Declaração
+                          <FileText size={16} />
+                          Ver Declaração
                         </button>
                       </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ID Recibo</p>
-                    <p className="text-xs font-mono text-slate-600 truncate">{labelResult.idRecibo}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ID Correios</p>
-                    <p className="text-xs font-mono text-slate-600 truncate">{labelResult.idStringCorreios}</p>
+                    )}
                   </div>
                 </div>
 
