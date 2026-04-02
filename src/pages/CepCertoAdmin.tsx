@@ -184,18 +184,20 @@ export default function CepCertoAdmin() {
       console.log('--- BUSCANDO DADOS CEPCERTO ---');
       
       // 1. Busca o carrier primeiro para obter o token
+      console.log('--- [DEBUG] Buscando transportadora no Supabase ---');
       const { data: carriers, error: carrierError } = await supabase
         .from('shipping_carriers')
         .select('*')
-        .eq('provider', 'cepcerto')
-        .maybeSingle();
+        .eq('provider', 'cepcerto');
+
+      console.log('--- [DEBUG] Resultado da busca:', { data: carriers, error: carrierError });
 
       if (carrierError) {
         console.error('Erro ao buscar carrier:', carrierError);
-        throw new Error('Erro ao buscar transportadora');
+        throw new Error('Erro ao buscar transportadora: ' + carrierError.message);
       }
 
-      const carrier = carriers;
+      const carrier = carriers && carriers.length > 0 ? carriers[0] : null;
       if (!carrier) {
         console.warn('Transportadora CepCerto não encontrada.');
         setLoading(false);
