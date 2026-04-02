@@ -387,9 +387,13 @@ const cepcertoProvider: ShippingProvider = {
         };
 
         console.log('Payload enviado para CepCerto:', JSON.stringify(payload));
-        const response = await fetch('https://cepcerto.com/api-cotacao-frete/', {
+        const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent('https://cepcerto.com/api-cotacao-frete/')}`;
+        const response = await fetch(corsProxyUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Origin': 'https://cepcerto.com' // Tenta simular a origem correta
+          },
           body: JSON.stringify(payload)
         });
 
