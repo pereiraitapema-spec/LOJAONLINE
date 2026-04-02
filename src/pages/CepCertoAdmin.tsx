@@ -181,10 +181,10 @@ export default function CepCertoAdmin() {
     try {
       if (!silent) setLoading(true);
       
+      console.log('Iniciando busca na tabela shipping_carriers...');
       const { data: carriers, error: carrierError } = await supabase
         .from('shipping_carriers')
-        .select('id, name, provider, config')
-        .eq('provider', 'cepcerto');
+        .select('*');
 
       if (carrierError) {
         console.error('--- ERRO DETALHADO SUPABASE ---');
@@ -198,7 +198,7 @@ export default function CepCertoAdmin() {
         return;
       }
 
-      const carrier = carriers && carriers.length > 0 ? carriers[0] : null;
+      const carrier = carriers && carriers.length > 0 ? carriers.find(c => c.provider === 'cepcerto') : null;
 
       if (!carrier) {
         console.warn('Transportadora CepCerto não encontrada ou inativa.');
