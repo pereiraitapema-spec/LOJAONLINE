@@ -511,10 +511,11 @@ const cepcertoProvider: ShippingProvider = {
       const data = await response.json();
       console.log('Resposta saldo CepCerto:', data);
 
-      // A API retorna { nome_cliente, saldo_atual, data_requisicao }
-      if (data && data.saldo_atual) {
+      // A API retorna { nome_cliente, saldo_atual, data_requisicao } ou { saldo, status }
+      const saldo = data.saldo || data.saldo_atual;
+      if (data && saldo) {
         return { 
-          saldo: data.saldo_atual,
+          saldo: saldo,
           nome: data.nome_cliente,
           data: data.data_requisicao
         };
@@ -1443,28 +1444,42 @@ export const shippingService = {
     return provider.cancelLabel(identifier, carrier.config);
   },
 
-  async getBalance(carrierId: string) {
+  async getBalance(carrierId?: string) {
+    // Busca diretamente pelo provider 'cepcerto' se for uma consulta de saldo CepCerto
+    // ou se o ID for inválido, conforme solicitado pelo usuário.
     const { data: carrier } = await supabase
       .from('shipping_carriers')
       .select('*')
-      .eq('id', carrierId)
+      .eq('provider', 'cepcerto')
+      .eq('active', true)
+      .limit(1)
       .maybeSingle();
 
-    if (!carrier) throw new Error('Carrier not found');
+    if (!carrier) throw new Error('Configuração do CEP CERTO não encontrada');
     const provider = providers[carrier.provider];
     if (!provider || !provider.getBalance) throw new Error('Provider does not support balance inquiry');
 
     return provider.getBalance(carrier.config);
   },
 
-  async generatePix(carrierId: string, amount: number, email: string, phone: string) {
+  async generatePix(amount: number, email: string, phone: string, config?: any) {
+    // Se o config for passado diretamente, usamos ele
+    if (config) {
+      const provider = providers['cepcerto'];
+      if (!provider || !provider.generatePix) throw new Error('Provider does not support PIX generation');
+      return provider.generatePix(amount, email, phone, config);
+    }
+
+    // Caso contrário, buscamos a transportadora ativa do CepCerto
     const { data: carrier } = await supabase
       .from('shipping_carriers')
       .select('*')
-      .eq('id', carrierId)
+      .eq('provider', 'cepcerto')
+      .eq('active', true)
+      .limit(1)
       .maybeSingle();
 
-    if (!carrier) throw new Error('Carrier not found');
+    if (!carrier) throw new Error('Configuração do CEP CERTO não encontrada');
     const provider = providers[carrier.provider];
     if (!provider || !provider.generatePix) throw new Error('Provider does not support PIX generation');
 

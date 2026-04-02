@@ -162,8 +162,9 @@ export default function CepCertoAdmin() {
     if (!carrier) return;
     setRefreshingBalance(true);
     try {
-      const balanceData = await shippingService.getBalance(carrier.settings);
+      const balanceData = await shippingService.getBalance();
       setBalance(balanceData);
+      setLastFetched(Date.now());
       toast.success('Saldo atualizado!');
     } catch (e) {
       console.error('Erro ao buscar saldo:', e);
@@ -226,8 +227,9 @@ export default function CepCertoAdmin() {
         if (response.ok) {
           const data = await response.json();
           // 3. Tratar resposta e 4. Exibir no Modal
-          if (data && data.saldo_atual) {
-            setBalance({ saldo: data.saldo_atual });
+          if (data && (data.saldo || data.saldo_atual)) {
+            setBalance({ saldo: data.saldo || data.saldo_atual });
+            setLastFetched(Date.now());
           } else {
             setBalance({ error: "Não foi possível consultar saldo" });
           }
@@ -295,8 +297,9 @@ export default function CepCertoAdmin() {
       setPixData(data);
       setShowPixModal(true);
       toast.success('PIX gerado com sucesso!');
-      const balanceData = await shippingService.getBalance(currentCarrier.config);
+      const balanceData = await shippingService.getBalance();
       setBalance(balanceData);
+      setLastFetched(Date.now());
     } catch (error: any) {
       console.error('Erro ao gerar PIX:', error);
       toast.error('Erro ao gerar PIX: ' + error.message);
