@@ -340,8 +340,15 @@ export default function CepCertoAdmin() {
       }
 
       // Formatação CEP
-      const cep_remetente_formatado = senderData.cep_remetente.replace(/\D/g, '');
-      const cep_destinatario_formatado = recipientQuoteData.cep.replace(/\D/g, '');
+      console.log("CEP REMETENTE:", senderData.cep_remetente);
+      console.log("CEP DESTINATARIO:", recipientQuoteData.cep);
+      console.log("PESO:", recipientQuoteData.peso);
+      console.log("ALTURA:", recipientQuoteData.altura);
+      console.log("LARGURA:", recipientQuoteData.largura);
+      console.log("COMPRIMENTO:", recipientQuoteData.comprimento);
+
+      const cep_remetente_formatado = (senderData.cep_remetente || '').replace(/\D/g, '');
+      const cep_destinatario_formatado = (recipientQuoteData.cep || '').replace(/\D/g, '');
       console.log("PASSO 2 - DADOS COTAÇÃO", {
         cep_remetente: cep_remetente_formatado,
         cep_destinatario: cep_destinatario_formatado,
@@ -603,12 +610,31 @@ export default function CepCertoAdmin() {
       }
 
       // 2. Montar Body
+      console.log("CEP REMETENTE:", postagemData.cep_remetente);
+      console.log("CEP DESTINATARIO:", postagemData.cep_destinatario);
+      console.log("CPF DESTINATARIO:", postagemData.cpf_cnpj_destinatario);
+      console.log("WHATSAPP DESTINATARIO:", postagemData.whatsapp_destinatario);
+      console.log("PESO:", postagemData.peso);
+      console.log("ALTURA:", postagemData.altura);
+      console.log("LARGURA:", postagemData.largura);
+      console.log("COMPRIMENTO:", postagemData.comprimento);
+
       const body = {
         token_cliente_postagem: apiKey,
         ...postagemData,
-        // Garantir formatos
-        cep_remetente: postagemData.cep_remetente.replace(/\D/g, ''),
-        cep_destinatario: postagemData.cep_destinatario.replace(/\D/g, '')
+        // Garantir formatos e evitar undefined
+        nome_remetente: (postagemData.nome_remetente || '').trim(),
+        cpf_cnpj_remetente: (postagemData.cpf_cnpj_remetente || '').replace(/\D/g, ''),
+        whatsapp_remetente: (postagemData.whatsapp_remetente || '').replace(/\D/g, ''),
+        email_remetente: (postagemData.email_remetente || '').trim(),
+        
+        nome_destinatario: (postagemData.nome_destinatario || '').trim(),
+        cpf_cnpj_destinatario: (postagemData.cpf_cnpj_destinatario || '').replace(/\D/g, ''),
+        whatsapp_destinatario: (postagemData.whatsapp_destinatario || '').replace(/\D/g, ''),
+        email_destinatario: (postagemData.email_destinatario || '').trim() || "",
+        
+        cep_remetente: (postagemData.cep_remetente || '').replace(/\D/g, ''),
+        cep_destinatario: (postagemData.cep_destinatario || '').replace(/\D/g, '')
       };
 
       console.log("CEP CERTO - BODY POSTAGEM (Proxy)", body);
