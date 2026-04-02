@@ -187,8 +187,13 @@ export default function CepCertoAdmin() {
         .eq('provider', 'cepcerto');
 
       if (carrierError) {
-        console.error('Erro ao buscar transportadora CepCerto:', carrierError);
-        toast.error('Erro ao buscar transportadora.');
+        console.error('--- ERRO DETALHADO SUPABASE ---');
+        console.error('Código:', carrierError.code);
+        console.error('Mensagem:', carrierError.message);
+        console.error('Detalhes:', carrierError.details);
+        console.error('Hint:', carrierError.hint);
+        console.error('Objeto Completo:', JSON.stringify(carrierError, null, 2));
+        toast.error('Erro de permissão no banco de dados.');
         setLoading(false);
         return;
       }
