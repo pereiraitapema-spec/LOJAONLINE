@@ -110,6 +110,8 @@ export default function CepCertoAdmin() {
     valor_encomenda: ''
   });
   const [freteResultado, setFreteResultado] = useState<any>(null);
+  const [freteSelecionado, setFreteSelecionado] = useState<any>(null);
+  const [showLabelConfirmModal, setShowLabelConfirmModal] = useState(false);
   const [calculatingQuote, setCalculatingQuote] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
@@ -288,6 +290,7 @@ export default function CepCertoAdmin() {
 
     setCalculatingQuote(true);
     setFreteResultado(null);
+    setFreteSelecionado(null);
     setQuoteError(null);
 
     try {
@@ -375,6 +378,41 @@ export default function CepCertoAdmin() {
     } finally {
       setCalculatingQuote(false);
     }
+  };
+
+  const handlePrepareLabel = () => {
+    if (!freteSelecionado) {
+      toast.error('Selecione um frete primeiro');
+      return;
+    }
+
+    const pesoGramas = parseFloat(recipientQuoteData.peso);
+    const pesoKg = pesoGramas / 1000;
+
+    const dadosEtiqueta = {
+      cep_remetente: senderData.cep,
+      cep_destinatario: recipientQuoteData.cep,
+      peso: pesoKg.toString(),
+      altura: recipientQuoteData.altura,
+      largura: recipientQuoteData.largura,
+      comprimento: recipientQuoteData.comprimento,
+      valor_encomenda: recipientQuoteData.valor_encomenda,
+      frete_tipo: freteSelecionado.tipo,
+      frete_valor: freteSelecionado.valor,
+      frete_prazo: freteSelecionado.prazo
+    };
+
+    localStorage.setItem("cepcerto_dados_etiqueta", JSON.stringify(dadosEtiqueta));
+    console.log("CEP CERTO - Dados etiqueta preparados", dadosEtiqueta);
+    setShowLabelConfirmModal(true);
+  };
+
+  const gerarEtiqueta = async () => {
+    console.log("CEP CERTO - Preparando gerar etiqueta");
+    console.log("CEP CERTO - Iniciando geração etiqueta");
+    // Placeholder para futura implementação da API de postagem
+    toast.success('Iniciando processo de geração de etiqueta...');
+    setShowLabelConfirmModal(false);
   };
 
   const handleRefreshBalance = async () => {
@@ -1102,14 +1140,29 @@ export default function CepCertoAdmin() {
                 {/* Resultado da Cotação */}
                 {freteResultado && (
                   <div className="mt-12 p-8 bg-slate-50 rounded-[2rem] border border-slate-100">
-                    <h3 className="text-lg font-black text-slate-900 mb-6 uppercase italic tracking-tighter flex items-center gap-2">
-                      <Activity size={20} className="text-indigo-600" />
-                      Resultado da Cotação
-                    </h3>
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
+                        <Activity size={20} className="text-indigo-600" />
+                        Resultado da Cotação
+                      </h3>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Selecione um frete para continuar</p>
+                    </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                       {freteResultado.valor_pac && (
-                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div 
+                          onClick={() => setFreteSelecionado({
+                            tipo: "PAC",
+                            valor: freteResultado.valor_pac,
+                            prazo: freteResultado.prazo_entrega_pac
+                          })}
+                          className={`bg-white p-6 rounded-3xl border-2 transition-all cursor-pointer relative ${freteSelecionado?.tipo === 'PAC' ? 'border-indigo-600 shadow-lg shadow-indigo-100' : 'border-slate-200 shadow-sm hover:border-slate-300'}`}
+                        >
+                          <div className="absolute top-4 right-4">
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${freteSelecionado?.tipo === 'PAC' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`}>
+                              {freteSelecionado?.tipo === 'PAC' && <Check size={12} className="text-white" />}
+                            </div>
+                          </div>
                           <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
                               <Package size={20} />
@@ -1122,7 +1175,19 @@ export default function CepCertoAdmin() {
                       )}
                       
                       {freteResultado.valor_sedex && (
-                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div 
+                          onClick={() => setFreteSelecionado({
+                            tipo: "SEDEX",
+                            valor: freteResultado.valor_sedex,
+                            prazo: freteResultado.prazo_entrega_sedex
+                          })}
+                          className={`bg-white p-6 rounded-3xl border-2 transition-all cursor-pointer relative ${freteSelecionado?.tipo === 'SEDEX' ? 'border-emerald-600 shadow-lg shadow-emerald-100' : 'border-slate-200 shadow-sm hover:border-slate-300'}`}
+                        >
+                          <div className="absolute top-4 right-4">
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${freteSelecionado?.tipo === 'SEDEX' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'}`}>
+                              {freteSelecionado?.tipo === 'SEDEX' && <Check size={12} className="text-white" />}
+                            </div>
+                          </div>
                           <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
                               <Zap size={20} />
@@ -1135,30 +1200,67 @@ export default function CepCertoAdmin() {
                       )}
 
                       {(freteResultado.valor_jadlog_package || freteResultado.valor_jadlog_dotcom) && (
-                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                          <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
-                              <Truck size={20} />
-                            </div>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">JADLOG</p>
-                          </div>
+                        <div className="space-y-4">
                           {freteResultado.valor_jadlog_package && (
-                            <div className="mb-3 pb-3 border-b border-slate-50">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-tighter">Package</p>
-                              <p className="text-xl font-black text-blue-600">{freteResultado.valor_jadlog_package}</p>
-                              <p className="text-xs text-slate-500">Prazo: {freteResultado.prazo_entrega_jadlog_package}</p>
+                            <div 
+                              onClick={() => setFreteSelecionado({
+                                tipo: "JADLOG PACKAGE",
+                                valor: freteResultado.valor_jadlog_package,
+                                prazo: freteResultado.prazo_entrega_jadlog_package
+                              })}
+                              className={`bg-white p-6 rounded-3xl border-2 transition-all cursor-pointer relative ${freteSelecionado?.tipo === 'JADLOG PACKAGE' ? 'border-blue-600 shadow-lg shadow-blue-100' : 'border-slate-200 shadow-sm hover:border-slate-300'}`}
+                            >
+                              <div className="absolute top-4 right-4">
+                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${freteSelecionado?.tipo === 'JADLOG PACKAGE' ? 'border-blue-600 bg-blue-600' : 'border-slate-300'}`}>
+                                  {freteSelecionado?.tipo === 'JADLOG PACKAGE' && <Check size={12} className="text-white" />}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                                  <Truck size={20} />
+                                </div>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">JADLOG PACKAGE</p>
+                              </div>
+                              <p className="text-2xl font-black text-blue-600 mb-1">{freteResultado.valor_jadlog_package}</p>
+                              <p className="text-sm text-slate-500 font-medium">Prazo: {freteResultado.prazo_entrega_jadlog_package}</p>
                             </div>
                           )}
                           {freteResultado.valor_jadlog_dotcom && (
-                            <div>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-tighter">Dotcom</p>
-                              <p className="text-xl font-black text-blue-600">{freteResultado.valor_jadlog_dotcom}</p>
-                              <p className="text-xs text-slate-500">Prazo: {freteResultado.prazo_entrega_jadlog_dotcom}</p>
+                            <div 
+                              onClick={() => setFreteSelecionado({
+                                tipo: "JADLOG DOTCOM",
+                                valor: freteResultado.valor_jadlog_dotcom,
+                                prazo: freteResultado.prazo_entrega_jadlog_dotcom
+                              })}
+                              className={`bg-white p-6 rounded-3xl border-2 transition-all cursor-pointer relative ${freteSelecionado?.tipo === 'JADLOG DOTCOM' ? 'border-blue-600 shadow-lg shadow-blue-100' : 'border-slate-200 shadow-sm hover:border-slate-300'}`}
+                            >
+                              <div className="absolute top-4 right-4">
+                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${freteSelecionado?.tipo === 'JADLOG DOTCOM' ? 'border-blue-600 bg-blue-600' : 'border-slate-300'}`}>
+                                  {freteSelecionado?.tipo === 'JADLOG DOTCOM' && <Check size={12} className="text-white" />}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                                  <Truck size={20} />
+                                </div>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">JADLOG DOTCOM</p>
+                              </div>
+                              <p className="text-2xl font-black text-blue-600 mb-1">{freteResultado.valor_jadlog_dotcom}</p>
+                              <p className="text-sm text-slate-500 font-medium">Prazo: {freteResultado.prazo_entrega_jadlog_dotcom}</p>
                             </div>
                           )}
                         </div>
                       )}
                     </div>
+
+                    <button 
+                      onClick={handlePrepareLabel}
+                      disabled={!freteSelecionado}
+                      className={`w-full py-5 rounded-2xl font-black text-lg uppercase italic tracking-tighter transition-all flex items-center justify-center gap-3 ${freteSelecionado ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-200 hover:bg-emerald-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                    >
+                      <FileText size={24} />
+                      Gerar Etiqueta
+                    </button>
                   </div>
                 )}
 
@@ -1186,6 +1288,7 @@ export default function CepCertoAdmin() {
                         valor_encomenda: ''
                       });
                       setFreteResultado(null);
+                      setFreteSelecionado(null);
                       setQuoteError(null);
                     }}
                     className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
@@ -1198,6 +1301,59 @@ export default function CepCertoAdmin() {
                     className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all"
                   >
                     Fechar
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* Modal Confirmação Etiqueta */}
+          {showLabelConfirmModal && freteSelecionado && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl p-8"
+              >
+                <div className="text-center mb-8">
+                  <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600 mx-auto mb-6">
+                    <FileText size={40} />
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Confirmar Geração de Etiqueta</h2>
+                  <p className="text-slate-500 mt-2">Revise os dados antes de prosseguir com a postagem.</p>
+                </div>
+
+                <div className="space-y-4 mb-8">
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Frete Selecionado</p>
+                    <div className="flex justify-between items-center">
+                      <span className="font-black text-slate-900">{freteSelecionado.tipo}</span>
+                      <span className="font-black text-indigo-600">{freteSelecionado.valor}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Prazo estimado: {freteSelecionado.prazo}</p>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Destino</p>
+                    <div className="flex items-center gap-2">
+                      <MapPin size={16} className="text-slate-400" />
+                      <span className="font-bold text-slate-700">CEP: {recipientQuoteData.cep}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => setShowLabelConfirmModal(false)}
+                    className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={gerarEtiqueta}
+                    className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
+                  >
+                    Confirmar
                   </button>
                 </div>
               </motion.div>
