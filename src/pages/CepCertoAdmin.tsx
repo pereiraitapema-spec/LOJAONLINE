@@ -580,7 +580,10 @@ export default function CepCertoAdmin() {
               </div>
             </div>
             <button 
-              onClick={() => fetchData()}
+              onClick={() => {
+                console.log('Botão Atualizar clicado!');
+                fetchData();
+              }}
               className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2 font-bold text-sm"
             >
               <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
