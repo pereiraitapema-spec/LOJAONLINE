@@ -185,7 +185,6 @@ export default function CepCertoAdmin() {
         .from('shipping_carriers')
         .select('*')
         .eq('provider', 'cepcerto')
-        .eq('active', true)
         .maybeSingle();
 
       if (carrierError) {
