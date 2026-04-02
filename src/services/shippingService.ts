@@ -488,45 +488,41 @@ const cepcertoProvider: ShippingProvider = {
   },
 
   async getBalance(config: any) {
-    console.log('--- [DEBUG] getBalance chamado com config:', config);
-    if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
-    const key = config.api_key_postagem || config.api_key;
+    const key = config?.api_key_postagem || config?.api_key;
+    if (!key) throw new Error('Token CepCerto não configurado.');
     
     try {
       console.log('--- [DEBUG] Iniciando getBalance ---');
-      console.log('Token utilizado:', key);
       
-      const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent('https://cepcerto.com/api-saldo/')}`;
-      console.log('URL de requisição (proxy):', corsProxyUrl);
-
-      const response = await fetch(corsProxyUrl, {
+      // O endpoint correto para saldo segundo a documentação é https://cepcerto.com/api-saldo/
+      // E o payload deve conter token_cliente_postagem
+      const payload = { token_cliente_postagem: key };
+      
+      const response = await fetch('https://cepcerto.com/api-saldo/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token_cliente_postagem: key })
+        body: JSON.stringify(payload)
       });
 
-      console.log('Status da resposta:', response.status);
-
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Erro na API de saldo (corpo):', errorText);
-        throw new Error(`Erro na API de saldo: ${response.statusText} - ${errorText}`);
+        throw new Error(`Erro na API de saldo: ${response.statusText}`);
       }
 
       const data = await response.json();
       console.log('Resposta saldo CepCerto:', data);
 
+      // A API retorna { nome_cliente, saldo_atual, data_requisicao }
       if (data && data.saldo_atual) {
         return { 
-          ...data, 
-          saldo: data.saldo_atual
+          saldo: data.saldo_atual,
+          nome: data.nome_cliente,
+          data: data.data_requisicao
         };
       }
       
-      console.warn('Formato de resposta inesperado:', data);
       return { saldo: "0,00", error: "Formato de resposta inválido" };
     } catch (err) {
-      console.error('CepCerto Balance Error (Detalhes):', err);
+      console.error('CepCerto Balance Error:', err);
       return { saldo: "0,00", error: String(err) };
     }
   },
