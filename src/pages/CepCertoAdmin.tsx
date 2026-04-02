@@ -280,31 +280,59 @@ export default function CepCertoAdmin() {
     toast.success('Dados do remetente salvos com sucesso!');
   };
 
+  const limparNumero = (valor: any, campo: string) => {
+    if (!valor) {
+      console.error("CAMPO UNDEFINED:", campo);
+      return "";
+    }
+    return valor.toString().replace(/\D/g, '');
+  };
+
   const handleCalculateQuote = async () => {
+    console.log("========== CEP CERTO - CALCULAR FRETE ==========");
     console.log("CEP CERTO - BOTÃO CALCULAR FRETE CLICADO");
     
     try {
-      // LOG 1 — DADOS RECEBIDOS DO FORMULÁRIO
-      console.log("CEP CERTO - Dados formulário", {
-        cep_remetente: senderData.cep_remetente,
-        cep_destinatario: recipientQuoteData.cep,
-        peso_gramas: recipientQuoteData.peso,
-        altura: recipientQuoteData.altura,
-        largura: recipientQuoteData.largura,
-        comprimento: recipientQuoteData.comprimento,
-        valor_encomenda: recipientQuoteData.valor_encomenda
-      });
-
-      // LOG CEP CERTO - REMETENTE COTAÇÃO
-      console.log("CEP CERTO - REMETENTE COTAÇÃO", {
+      // PASSO 1 - REMETENTE
+      console.log("PASSO 1 - REMETENTE");
+      console.log({
         nome_remetente: senderData.nome_remetente,
         cpf_cnpj_remetente: senderData.cpf_cnpj_remetente,
         whatsapp_remetente: senderData.whatsapp_remetente,
         email_remetente: senderData.email_remetente
       });
 
+      // PASSO 2 - DADOS COTAÇÃO
+      console.log("PASSO 2 - DADOS COTAÇÃO");
+      console.log({
+        cep_remetente: senderData.cep_remetente,
+        cep_destinatario: recipientQuoteData.cep,
+        peso: recipientQuoteData.peso,
+        altura: recipientQuoteData.altura,
+        largura: recipientQuoteData.largura,
+        comprimento: recipientQuoteData.comprimento,
+        valor_encomenda: recipientQuoteData.valor_encomenda
+      });
+
+      // PASSO 3 - DESTINATÁRIO (Se houver no contexto de cotação, embora geralmente seja preenchido depois)
+      console.log("PASSO 3 - DESTINATÁRIO");
+      console.log({
+        nome_destinatario: postagemData.nome_destinatario,
+        cpf_cnpj_destinatario: postagemData.cpf_cnpj_destinatario,
+        whatsapp_destinatario: postagemData.whatsapp_destinatario,
+        email_destinatario: postagemData.email_destinatario
+      });
+
+      // LOG CAMPOS INDIVIDUAIS
+      console.log("CEP REMETENTE:", senderData.cep_remetente);
+      console.log("CEP DESTINATARIO:", recipientQuoteData.cep);
+      console.log("PESO:", recipientQuoteData.peso);
+      console.log("ALTURA:", recipientQuoteData.altura);
+      console.log("LARGURA:", recipientQuoteData.largura);
+      console.log("COMPRIMENTO:", recipientQuoteData.comprimento);
+
       // LOG 2 — VALIDAÇÃO CAMPOS
-      console.log("PASSO 1 - VALIDAR CAMPOS");
+      console.log("PASSO 1 - VALIDAR CAMPOS (INTERNO)");
       if (!senderData.cep_remetente || !recipientQuoteData.cep || !recipientQuoteData.peso || 
           !recipientQuoteData.altura || !recipientQuoteData.largura || 
           !recipientQuoteData.comprimento || !recipientQuoteData.valor_encomenda) {
@@ -339,17 +367,13 @@ export default function CepCertoAdmin() {
         return;
       }
 
-      // Formatação CEP
-      console.log("CEP REMETENTE:", senderData.cep_remetente);
-      console.log("CEP DESTINATARIO:", recipientQuoteData.cep);
-      console.log("PESO:", recipientQuoteData.peso);
-      console.log("ALTURA:", recipientQuoteData.altura);
-      console.log("LARGURA:", recipientQuoteData.largura);
-      console.log("COMPRIMENTO:", recipientQuoteData.comprimento);
+      console.log("PASSO 4 - INICIANDO CÁLCULO");
 
-      const cep_remetente_formatado = (senderData.cep_remetente || '').replace(/\D/g, '');
-      const cep_destinatario_formatado = (recipientQuoteData.cep || '').replace(/\D/g, '');
-      console.log("PASSO 2 - DADOS COTAÇÃO", {
+      // Formatação CEP usando limparNumero
+      const cep_remetente_formatado = limparNumero(senderData.cep_remetente, "cep_remetente");
+      const cep_destinatario_formatado = limparNumero(recipientQuoteData.cep, "cep_destinatario");
+      
+      console.log("PASSO 2 - DADOS COTAÇÃO FORMATADOS", {
         cep_remetente: cep_remetente_formatado,
         cep_destinatario: cep_destinatario_formatado,
         peso: recipientQuoteData.peso,
@@ -492,13 +516,15 @@ export default function CepCertoAdmin() {
         console.error("CEP CERTO - Erro na requisição (HTTP Error)", { status: response.status, error: errorText });
         toast.error('Erro ao calcular frete. Motivo: Erro API CEP CERTO');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("PASSO 7 - ERRO");
       console.error("CEP CERTO - ERRO COTAÇÃO");
       console.error(error);
+      console.error("STACK", error.stack);
       toast.error(`Erro ao calcular frete. Motivo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setCalculatingQuote(false);
+      console.log("========== FIM CALCULAR FRETE ==========");
     }
   };
 
@@ -622,19 +648,19 @@ export default function CepCertoAdmin() {
       const body = {
         token_cliente_postagem: apiKey,
         ...postagemData,
-        // Garantir formatos e evitar undefined
+        // Garantir formatos e evitar undefined usando limparNumero
         nome_remetente: (postagemData.nome_remetente || '').trim(),
-        cpf_cnpj_remetente: (postagemData.cpf_cnpj_remetente || '').replace(/\D/g, ''),
-        whatsapp_remetente: (postagemData.whatsapp_remetente || '').replace(/\D/g, ''),
+        cpf_cnpj_remetente: limparNumero(postagemData.cpf_cnpj_remetente, "cpf_cnpj_remetente"),
+        whatsapp_remetente: limparNumero(postagemData.whatsapp_remetente, "whatsapp_remetente"),
         email_remetente: (postagemData.email_remetente || '').trim(),
         
         nome_destinatario: (postagemData.nome_destinatario || '').trim(),
-        cpf_cnpj_destinatario: (postagemData.cpf_cnpj_destinatario || '').replace(/\D/g, ''),
-        whatsapp_destinatario: (postagemData.whatsapp_destinatario || '').replace(/\D/g, ''),
+        cpf_cnpj_destinatario: limparNumero(postagemData.cpf_cnpj_destinatario, "cpf_cnpj_destinatario"),
+        whatsapp_destinatario: limparNumero(postagemData.whatsapp_destinatario, "whatsapp_destinatario"),
         email_destinatario: (postagemData.email_destinatario || '').trim() || "",
         
-        cep_remetente: (postagemData.cep_remetente || '').replace(/\D/g, ''),
-        cep_destinatario: (postagemData.cep_destinatario || '').replace(/\D/g, '')
+        cep_remetente: limparNumero(postagemData.cep_remetente, "cep_remetente"),
+        cep_destinatario: limparNumero(postagemData.cep_destinatario, "cep_destinatario")
       };
 
       console.log("CEP CERTO - BODY POSTAGEM (Proxy)", body);
