@@ -114,13 +114,89 @@ export default function CepCertoAdmin() {
   const [showLabelConfirmModal, setShowLabelConfirmModal] = useState(false);
   const [calculatingQuote, setCalculatingQuote] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [postagemData, setPostagemData] = useState<any>({
+    tipo_entrega: 'sedex',
+    cep_remetente: '',
+    cep_destinatario: '',
+    peso: '',
+    altura: '',
+    largura: '',
+    comprimento: '',
+    valor_encomenda: '',
+    nome_remetente: '',
+    cpf_cnpj_remetente: '',
+    whatsapp_remetente: '',
+    email_remetente: '',
+    logradouro_remetente: '',
+    numero_endereco_remetente: '',
+    complemento_remetente: '',
+    bairro_remetente: '',
+    cidade_remetente: '',
+    estado_remetente: '',
+    nome_destinatario: '',
+    cpf_cnpj_destinatario: '',
+    whatsapp_destinatario: '',
+    email_destinatario: '',
+    logradouro_destinatario: '',
+    numero_endereco_destinatario: '',
+    complemento_destinatario: '',
+    bairro_destinatario: '',
+    cidade_destinatario: '',
+    estado_destinatario: '',
+    tipo_doc_fiscal: 'declaracao',
+    chave_danfe: '',
+    produtos: [{ descricao: 'Pacote', valor: '', quantidade: '1' }]
+  });
+  const [generatingLabel, setGeneratingLabel] = useState(false);
+  const [labelResult, setLabelResult] = useState<any>(null);
+  const [showLabelResultModal, setShowLabelResultModal] = useState(false);
+  const [etiquetasGeradas, setEtiquetasGeradas] = useState<any[]>([]);
 
   useEffect(() => {
     const saved = localStorage.getItem('cepcerto_sender_data');
     if (saved) {
-      setSenderData(JSON.parse(saved));
+      const data = JSON.parse(saved);
+      setSenderData(data);
+      // Preencher dados do remetente na postagem
+      setPostagemData((prev: any) => ({
+        ...prev,
+        nome_remetente: data.nome || '',
+        cep_remetente: data.cep || '',
+        cidade_remetente: data.cidade || '',
+        estado_remetente: data.estado || '',
+        logradouro_remetente: data.endereco || '',
+        numero_endereco_remetente: data.numero || '',
+        complemento_remetente: data.complemento || '',
+        bairro_remetente: data.bairro || ''
+      }));
     }
   }, []);
+
+  useEffect(() => {
+    if (logisticaSubTab === 'etiquetas') {
+      const savedQuote = localStorage.getItem('cepcerto_dados_etiqueta');
+      if (savedQuote) {
+        const data = JSON.parse(savedQuote);
+        setPostagemData((prev: any) => ({
+          ...prev,
+          tipo_entrega: data.frete_tipo?.toLowerCase().replace(' ', '-') || 'sedex',
+          cep_remetente: data.cep_remetente || prev.cep_remetente,
+          cep_destinatario: data.cep_destinatario || prev.cep_destinatario,
+          peso: data.peso || prev.peso,
+          altura: data.altura || prev.altura,
+          largura: data.largura || prev.largura,
+          comprimento: data.comprimento || prev.comprimento,
+          valor_encomenda: data.valor_encomenda || prev.valor_encomenda,
+          produtos: [{ descricao: 'Pacote', valor: data.valor_encomenda || '', quantidade: '1' }]
+        }));
+      }
+
+      const savedLabels = localStorage.getItem('cepcerto_etiquetas_geradas');
+      if (savedLabels) {
+        setEtiquetasGeradas(JSON.parse(savedLabels));
+      }
+    }
+  }, [logisticaSubTab]);
 
   useEffect(() => {
     const fetchSavedSender = async () => {
@@ -408,11 +484,91 @@ export default function CepCertoAdmin() {
   };
 
   const gerarEtiqueta = async () => {
-    console.log("CEP CERTO - Preparando gerar etiqueta");
-    console.log("CEP CERTO - Iniciando geração etiqueta");
-    // Placeholder para futura implementação da API de postagem
-    toast.success('Iniciando processo de geração de etiqueta...');
-    setShowLabelConfirmModal(false);
+    setGeneratingLabel(true);
+    try {
+      // 1. Buscar Token
+      const { data: carriers } = await supabase
+        .from('shipping_carriers')
+        .select('api_key, config')
+        .eq('provider', 'cepcerto')
+        .eq('active', true)
+        .limit(1);
+
+      if (!carriers || carriers.length === 0) {
+        toast.error('Configuração CEP CERTO não encontrada');
+        return;
+      }
+
+      const carrierData = carriers[0];
+      let apiKey = carrierData.api_key;
+      if (!apiKey && carrierData.config) {
+        const config = typeof carrierData.config === 'string' ? JSON.parse(carrierData.config) : carrierData.config;
+        apiKey = config.api_key_postagem || config.api_key;
+      }
+
+      if (!apiKey) {
+        toast.error('Token de postagem não encontrado');
+        return;
+      }
+
+      // 2. Montar Body
+      const body = {
+        token_cliente_postagem: apiKey,
+        ...postagemData,
+        // Garantir formatos
+        cep_remetente: postagemData.cep_remetente.replace(/\D/g, ''),
+        cep_destinatario: postagemData.cep_destinatario.replace(/\D/g, '')
+      };
+
+      console.log("CEP CERTO - BODY POSTAGEM", body);
+
+      // 3. Enviar POST
+      const response = await fetch('https://cepcerto.com/api-postagem-frete/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("CEP CERTO - RESPOSTA POSTAGEM", data);
+
+        if (data.erro) {
+          toast.error(`Erro na postagem: ${data.erro}`);
+          return;
+        }
+
+        if (data.frete) {
+          const result = {
+            ...data.frete,
+            transportadora: postagemData.tipo_entrega.includes('jadlog') ? 'Jadlog' : 'Correios',
+            tipo_entrega: postagemData.tipo_entrega,
+            valor: freteSelecionado?.valor || postagemData.valor_encomenda,
+            prazo: freteSelecionado?.prazo || '',
+            data: new Date().toISOString(),
+            status: 'Aguardando postagem'
+          };
+
+          setLabelResult(result);
+          setShowLabelResultModal(true);
+          setShowLabelConfirmModal(false);
+          toast.success('Etiqueta gerada com sucesso!');
+
+          // Salvar no histórico
+          const novasEtiquetas = [result, ...etiquetasGeradas];
+          setEtiquetasGeradas(novasEtiquetas);
+          localStorage.setItem('cepcerto_etiquetas_geradas', JSON.stringify(novasEtiquetas));
+          localStorage.setItem('cepcerto_etiqueta_gerada', JSON.stringify(result));
+        }
+      } else {
+        toast.error('Erro ao conectar com a API de postagem');
+      }
+    } catch (error) {
+      console.error("CEP CERTO - Erro ao gerar etiqueta", error);
+      toast.error('Erro inesperado ao gerar etiqueta');
+    } finally {
+      setGeneratingLabel(false);
+    }
   };
 
   const handleRefreshBalance = async () => {
@@ -1301,6 +1457,443 @@ export default function CepCertoAdmin() {
                     className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all"
                   >
                     Fechar
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {logisticaSubTab === 'etiquetas' && (
+            <div className="space-y-8">
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                <div className="flex items-center gap-3 mb-8 pb-4 border-b border-slate-100">
+                  <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                    <FileText size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Gerar Nova Etiqueta</h3>
+                    <p className="text-sm text-slate-500">Preencha os dados abaixo para postagem via CepCerto.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                  {/* Coluna 1: Frete e Remetente */}
+                  <div className="space-y-8">
+                    {/* Seção 1 — DADOS FRETE */}
+                    <div className="space-y-4">
+                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                        <Truck size={16} className="text-indigo-600" />
+                        Seção 1 — Dados do Frete
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tipo Entrega</label>
+                          <select 
+                            value={postagemData.tipo_entrega}
+                            onChange={e => setPostagemData({...postagemData, tipo_entrega: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
+                          >
+                            <option value="sedex">SEDEX</option>
+                            <option value="pac">PAC</option>
+                            <option value="jadlog-package">Jadlog Package</option>
+                            <option value="jadlog-dotcom">Jadlog Dotcom</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Valor Encomenda (R$)</label>
+                          <input 
+                            type="number" 
+                            value={postagemData.valor_encomenda}
+                            onChange={e => setPostagemData({...postagemData, valor_encomenda: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Remetente</label>
+                          <input 
+                            type="text" 
+                            value={postagemData.cep_remetente}
+                            onChange={e => setPostagemData({...postagemData, cep_remetente: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Destinatário</label>
+                          <input 
+                            type="text" 
+                            value={postagemData.cep_destinatario}
+                            onChange={e => setPostagemData({...postagemData, cep_destinatario: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Peso (kg)</label>
+                          <input type="text" value={postagemData.peso} onChange={e => setPostagemData({...postagemData, peso: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Alt (cm)</label>
+                          <input type="text" value={postagemData.altura} onChange={e => setPostagemData({...postagemData, altura: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Larg (cm)</label>
+                          <input type="text" value={postagemData.largura} onChange={e => setPostagemData({...postagemData, largura: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Comp (cm)</label>
+                          <input type="text" value={postagemData.comprimento} onChange={e => setPostagemData({...postagemData, comprimento: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SEÇÃO 2 — REMETENTE */}
+                    <div className="space-y-4">
+                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                        <MapPin size={16} className="text-indigo-600" />
+                        Seção 2 — Remetente
+                      </h4>
+                      <div className="grid grid-cols-1 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome / Razão Social</label>
+                          <input type="text" value={postagemData.nome_remetente} onChange={e => setPostagemData({...postagemData, nome_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CPF / CNPJ</label>
+                            <input type="text" value={postagemData.cpf_cnpj_remetente} onChange={e => setPostagemData({...postagemData, cpf_cnpj_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">WhatsApp</label>
+                            <input type="text" value={postagemData.whatsapp_remetente} onChange={e => setPostagemData({...postagemData, whatsapp_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Logradouro</label>
+                          <input type="text" value={postagemData.logradouro_remetente} onChange={e => setPostagemData({...postagemData, logradouro_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Número</label>
+                            <input type="text" value={postagemData.numero_endereco_remetente} onChange={e => setPostagemData({...postagemData, numero_endereco_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                          <div className="col-span-2 space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Bairro</label>
+                            <input type="text" value={postagemData.bairro_remetente} onChange={e => setPostagemData({...postagemData, bairro_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Coluna 2: Destinatário e Documentos */}
+                  <div className="space-y-8">
+                    {/* SEÇÃO 3 — DESTINATÁRIO */}
+                    <div className="space-y-4">
+                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                        <Users size={16} className="text-indigo-600" />
+                        Seção 3 — Destinatário
+                      </h4>
+                      <div className="grid grid-cols-1 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome Completo</label>
+                          <input type="text" value={postagemData.nome_destinatario} onChange={e => setPostagemData({...postagemData, nome_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Nome do destinatário" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CPF / CNPJ</label>
+                            <input type="text" value={postagemData.cpf_cnpj_destinatario} onChange={e => setPostagemData({...postagemData, cpf_cnpj_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">WhatsApp</label>
+                            <input type="text" value={postagemData.whatsapp_destinatario} onChange={e => setPostagemData({...postagemData, whatsapp_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Logradouro</label>
+                          <input type="text" value={postagemData.logradouro_destinatario} onChange={e => setPostagemData({...postagemData, logradouro_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Número</label>
+                            <input type="text" value={postagemData.numero_endereco_destinatario} onChange={e => setPostagemData({...postagemData, numero_endereco_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                          <div className="col-span-2 space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Bairro</label>
+                            <input type="text" value={postagemData.bairro_destinatario} onChange={e => setPostagemData({...postagemData, bairro_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SEÇÃO 4 — DOCUMENTO */}
+                    <div className="space-y-4">
+                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                        <Shield size={16} className="text-indigo-600" />
+                        Seção 4 — Documento Fiscal
+                      </h4>
+                      <div className="grid grid-cols-1 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tipo de Documento</label>
+                          <select 
+                            value={postagemData.tipo_doc_fiscal}
+                            onChange={e => setPostagemData({...postagemData, tipo_doc_fiscal: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
+                          >
+                            <option value="declaracao">Declaração de Conteúdo (Padrão)</option>
+                            <option value="danfe">DANFE (Nota Fiscal)</option>
+                          </select>
+                        </div>
+                        {postagemData.tipo_doc_fiscal === 'danfe' && (
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Chave NF-e</label>
+                            <input type="text" value={postagemData.chave_danfe} onChange={e => setPostagemData({...postagemData, chave_danfe: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="44 dígitos da chave" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* SEÇÃO PRODUTOS */}
+                    <div className="space-y-4">
+                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                        <Package size={16} className="text-indigo-600" />
+                        Produtos
+                      </h4>
+                      <div className="space-y-3">
+                        {postagemData.produtos.map((prod: any, idx: number) => (
+                          <div key={idx} className="grid grid-cols-12 gap-2">
+                            <div className="col-span-6">
+                              <input type="text" value={prod.descricao} onChange={e => {
+                                const newProds = [...postagemData.produtos];
+                                newProds[idx].descricao = e.target.value;
+                                setPostagemData({...postagemData, produtos: newProds});
+                              }} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" placeholder="Descrição" />
+                            </div>
+                            <div className="col-span-2">
+                              <input type="number" value={prod.quantidade} onChange={e => {
+                                const newProds = [...postagemData.produtos];
+                                newProds[idx].quantidade = e.target.value;
+                                setPostagemData({...postagemData, produtos: newProds});
+                              }} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" placeholder="Qtd" />
+                            </div>
+                            <div className="col-span-3">
+                              <input type="number" value={prod.valor} onChange={e => {
+                                const newProds = [...postagemData.produtos];
+                                newProds[idx].valor = e.target.value;
+                                setPostagemData({...postagemData, produtos: newProds});
+                              }} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" placeholder="Valor" />
+                            </div>
+                            <div className="col-span-1 flex items-center justify-center">
+                              <button onClick={() => {
+                                const newProds = postagemData.produtos.filter((_: any, i: number) => i !== idx);
+                                setPostagemData({...postagemData, produtos: newProds});
+                              }} className="text-red-400 hover:text-red-600">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button 
+                          onClick={() => setPostagemData({...postagemData, produtos: [...postagemData.produtos, { descricao: '', valor: '', quantidade: '1' }]})}
+                          className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest hover:text-indigo-700 flex items-center gap-1"
+                        >
+                          <Zap size={12} />
+                          Adicionar Produto
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-12 pt-8 border-t border-slate-100">
+                  <button 
+                    onClick={gerarEtiqueta}
+                    disabled={generatingLabel}
+                    className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-xl uppercase italic tracking-tighter hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3"
+                  >
+                    {generatingLabel ? <RefreshCw size={24} className="animate-spin" /> : <FileText size={24} />}
+                    {generatingLabel ? 'Gerando Etiqueta...' : 'Gerar Etiqueta de Postagem'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Histórico de Etiquetas */}
+              {etiquetasGeradas.length > 0 && (
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                  <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter mb-6 flex items-center gap-2">
+                    <Activity size={24} className="text-indigo-600" />
+                    Histórico de Etiquetas
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-left border-b border-slate-100">
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Código</th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Transportadora</th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {etiquetasGeradas.map((etq, idx) => (
+                          <tr key={idx} className="group">
+                            <td className="py-4 text-sm text-slate-600">{new Date(etq.data).toLocaleDateString()}</td>
+                            <td className="py-4">
+                              <span className="font-mono text-sm font-bold text-slate-900">{etq.codigoObjeto}</span>
+                            </td>
+                            <td className="py-4 text-sm text-slate-600">{etq.transportadora}</td>
+                            <td className="py-4">
+                              <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-bold uppercase tracking-widest">
+                                {etq.status}
+                              </span>
+                            </td>
+                            <td className="py-4 text-right">
+                              <div className="flex justify-end gap-2">
+                                <button onClick={() => {
+                                  setLabelResult(etq);
+                                  setShowLabelResultModal(true);
+                                }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                                  <ExternalLink size={18} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Modal Resultado Etiqueta */}
+          {showLabelResultModal && labelResult && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4 overflow-y-auto">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-8 my-8"
+              >
+                <div className="flex justify-between items-center mb-8">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+                      <Check size={28} />
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Etiqueta Gerada com Sucesso</h2>
+                  </div>
+                  <button onClick={() => setShowLabelResultModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                    <X size={24} className="text-slate-400" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                  <div className="space-y-6">
+                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Informações do Frete</p>
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-slate-500">Transportadora</span>
+                          <span className="text-sm font-bold text-slate-900">{labelResult.transportadora}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-slate-500">Tipo Entrega</span>
+                          <span className="text-sm font-bold text-slate-900 uppercase">{labelResult.tipo_entrega}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-slate-500">Valor</span>
+                          <span className="text-sm font-bold text-indigo-600">{labelResult.valor}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Rastreamento</p>
+                      <div className="flex items-center justify-between gap-4 p-3 bg-white rounded-xl border border-slate-200">
+                        <span className="font-mono font-black text-slate-900">{labelResult.codigoObjeto}</span>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(labelResult.codigoObjeto);
+                            toast.success('Código copiado!');
+                          }}
+                          className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                        >
+                          <Copy size={18} />
+                        </button>
+                      </div>
+                      <button 
+                        onClick={() => handleConsultPostage(labelResult.codigoObjeto)}
+                        className="w-full mt-4 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Search size={16} />
+                        Abrir Rastreamento
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="p-6 bg-indigo-600 rounded-3xl text-white shadow-xl shadow-indigo-100">
+                      <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mb-4">Etiqueta de Postagem</p>
+                      <div className="space-y-3">
+                        <button 
+                          onClick={() => window.open(labelResult.pdfUrlEtiqueta, '_blank')}
+                          className="w-full py-3 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
+                        >
+                          <FileText size={18} />
+                          Visualizar Etiqueta
+                        </button>
+                        <button 
+                          onClick={() => window.open(labelResult.pdfUrlEtiqueta, '_blank')}
+                          className="w-full py-3 bg-indigo-500 text-white rounded-xl font-bold text-sm hover:bg-indigo-400 transition-all flex items-center justify-center gap-2"
+                        >
+                          <ExternalLink size={18} />
+                          Imprimir Etiqueta
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="p-6 bg-emerald-600 rounded-3xl text-white shadow-xl shadow-emerald-100">
+                      <p className="text-[10px] font-bold text-emerald-200 uppercase tracking-widest mb-4">Declaração de Conteúdo</p>
+                      <div className="space-y-3">
+                        <button 
+                          onClick={() => window.open(labelResult.declaracaoUrl, '_blank')}
+                          className="w-full py-3 bg-white text-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-50 transition-all flex items-center justify-center gap-2"
+                        >
+                          <FileText size={18} />
+                          Visualizar Declaração
+                        </button>
+                        <button 
+                          onClick={() => window.open(labelResult.declaracaoUrl, '_blank')}
+                          className="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-sm hover:bg-emerald-400 transition-all flex items-center justify-center gap-2"
+                        >
+                          <ExternalLink size={18} />
+                          Imprimir Declaração
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ID Recibo</p>
+                    <p className="text-xs font-mono text-slate-600 truncate">{labelResult.idRecibo}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ID Correios</p>
+                    <p className="text-xs font-mono text-slate-600 truncate">{labelResult.idStringCorreios}</p>
+                  </div>
+                </div>
+
+                <div className="mt-8">
+                  <button 
+                    onClick={() => setShowLabelResultModal(false)}
+                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all"
+                  >
+                    Concluído
                   </button>
                 </div>
               </motion.div>
