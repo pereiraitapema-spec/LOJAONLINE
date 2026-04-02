@@ -492,16 +492,24 @@ const cepcertoProvider: ShippingProvider = {
     const key = config.api_key_postagem || config.api_key;
     
     try {
-      console.log('Consultando saldo CepCerto via Proxy...');
+      console.log('--- [DEBUG] Iniciando getBalance ---');
+      console.log('Token utilizado:', key);
+      
       const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent('https://cepcerto.com/api-saldo/')}`;
+      console.log('URL de requisição (proxy):', corsProxyUrl);
+
       const response = await fetch(corsProxyUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token_cliente_postagem: key })
       });
 
+      console.log('Status da resposta:', response.status);
+
       if (!response.ok) {
-        throw new Error(`Erro na API de saldo: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Erro na API de saldo (corpo):', errorText);
+        throw new Error(`Erro na API de saldo: ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -514,6 +522,7 @@ const cepcertoProvider: ShippingProvider = {
         };
       }
       
+      console.warn('Formato de resposta inesperado:', data);
       return { saldo: "0,00", error: "Formato de resposta inválido" };
     } catch (err) {
       console.error('CepCerto Balance Error (Detalhes):', err);

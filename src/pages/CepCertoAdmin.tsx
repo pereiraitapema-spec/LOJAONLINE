@@ -181,19 +181,45 @@ export default function CepCertoAdmin() {
     try {
       if (!silent) setLoading(true);
       
-      console.log('--- BUSCANDO SALDO DIRETAMENTE ---');
+      console.log('--- BUSCANDO DADOS CEPCERTO ---');
       
-      // Bypass total do Supabase para o saldo
+      // 1. Busca o carrier primeiro para obter o token
+      const { data: carriers, error: carrierError } = await supabase
+        .from('shipping_carriers')
+        .select('*')
+        .eq('provider', 'cepcerto')
+        .maybeSingle();
+
+      if (carrierError) {
+        console.error('Erro ao buscar carrier:', carrierError);
+        throw new Error('Erro ao buscar transportadora');
+      }
+
+      const carrier = carriers;
+      if (!carrier) {
+        console.warn('Transportadora CepCerto não encontrada.');
+        setLoading(false);
+        return;
+      }
+
+      setCarrier(carrier);
+      setLastFetched(Date.now());
+      
+      // 2. Busca o saldo usando o token do carrier
+      console.log('--- BUSCANDO SALDO DIRETAMENTE ---');
       try {
-        const TOKEN_CEPCERTO = "a39dd3954594aa60e22b16b5f42a0e78e34b0e35188421daf9810272cfa5f7f0f38c16769f5cc4d950e378f912f0baaa31a217a2f3a425a02afe5594e6a13f5a";
-        const balanceData = await shippingService.getBalance({ api_key_postagem: TOKEN_CEPCERTO });
+        // Usa o token do carrier carregado
+        const token = carrier.config?.api_key_postagem || carrier.config?.api_key;
+        if (!token) throw new Error('Token não encontrado no config do carrier');
+        
+        const balanceData = await shippingService.getBalance({ api_key_postagem: token });
         setBalance(balanceData);
       } catch (e) {
         console.error('Erro ao buscar saldo:', e);
         toast.error('Erro ao buscar saldo.');
       }
       
-      // Busca de pedidos (mantida, mas não bloqueia o saldo)
+      // 3. Busca de pedidos
       const { data: orders } = await supabase
         .from('orders')
         .select('*')
