@@ -275,10 +275,10 @@ export default function CepCertoAdmin() {
     try {
       setIsGeneratingPix(true);
       const data = await shippingService.generatePix(
-        currentCarrier.id,
         amount,
         'pereira.itapema@gmail.com', 
-        '47999999999'
+        '47999999999',
+        currentCarrier.config
       );
 
       setPixData(data);
