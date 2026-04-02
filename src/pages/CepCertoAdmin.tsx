@@ -183,53 +183,63 @@ export default function CepCertoAdmin() {
     try {
       if (!silent) setLoading(true);
       
-      console.log('--- BUSCANDO DADOS CEPCERTO ---');
-      
-      // 1. Busca o carrier primeiro para obter o token
+      // 1. SELECT api_key FROM public.shipping_carriers
       const { data: carriers, error: carrierError } = await supabase
         .from('shipping_carriers')
-        .select('*')
-        .eq('provider', 'cepcerto');
+        .select('api_key, config')
+        .eq('provider', 'cepcerto')
+        .eq('active', true)
+        .limit(1);
 
-      if (carrierError) {
-        console.error('Erro ao buscar carrier:', carrierError);
-        throw new Error('Erro ao buscar transportadora: ' + carrierError.message);
-      }
-
-      const carrier = carriers && carriers.length > 0 ? carriers[0] : null;
-      if (carrier) {
-        // CORREÇÃO: Parse do JSON que está vindo como string do Supabase
-        try {
-          carrier.config = typeof carrier.config === 'string' ? JSON.parse(carrier.config) : carrier.config;
-        } catch (e) {
-          console.error('Erro ao fazer parse do config:', e);
-          carrier.config = {};
-        }
-      }
-
-      if (!carrier) {
-        console.warn('Transportadora CepCerto não encontrada.');
-        setLoading(false);
+      if (carrierError || !carriers || carriers.length === 0) {
+        console.error('Erro ao buscar api_key:', carrierError);
+        setBalance({ error: "Não foi possível consultar saldo" });
         return;
       }
 
-      setCarrier(carrier);
-      setLastFetched(Date.now());
+      const carrierData = carriers[0];
+      // Tenta pegar a api_key direta ou de dentro do config se for JSON
+      let apiKey = carrierData.api_key;
       
-      // 2. Busca o saldo usando o token do carrier
+      if (!apiKey && carrierData.config) {
+        try {
+          const config = typeof carrierData.config === 'string' ? JSON.parse(carrierData.config) : carrierData.config;
+          apiKey = config.api_key_postagem || config.api_key;
+        } catch (e) {}
+      }
+
+      if (!apiKey) {
+        setBalance({ error: "Não foi possível consultar saldo" });
+        return;
+      }
+
+      setCarrier(carrierData);
+      
+      // 2. POST https://cepcerto.com/api-saldo/
       try {
-        // Usa o token do carrier carregado
-        const token = carrier.config?.api_key_postagem || carrier.config?.api_key;
-        if (!token) throw new Error('Token não encontrado no config do carrier');
-        
-        const balanceData = await shippingService.getBalance(carrier.config);
-        setBalance(balanceData);
+        const response = await fetch('https://cepcerto.com/api-saldo/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token_cliente_postagem: apiKey })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // 3. Tratar resposta e 4. Exibir no Modal
+          if (data && data.saldo_atual) {
+            setBalance({ saldo: data.saldo_atual });
+          } else {
+            setBalance({ error: "Não foi possível consultar saldo" });
+          }
+        } else {
+          setBalance({ error: "Não foi possível consultar saldo" });
+        }
       } catch (e) {
-        console.error('Erro ao buscar saldo:', e);
-        toast.error('Erro ao buscar saldo.');
+        console.error('Erro na requisição POST:', e);
+        setBalance({ error: "Não foi possível consultar saldo" });
       }
       
-      // 3. Busca de pedidos
+      // Busca de pedidos recentes (opcional, mantendo para não quebrar a UI)
       const { data: orders } = await supabase
         .from('orders')
         .select('*')
@@ -241,6 +251,7 @@ export default function CepCertoAdmin() {
 
     } catch (error: any) {
       console.error('Error fetching CepCerto data:', error);
+      setBalance({ error: "Não foi possível consultar saldo" });
     } finally {
       setLoading(false);
     }
