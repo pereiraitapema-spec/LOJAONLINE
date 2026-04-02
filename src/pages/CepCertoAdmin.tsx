@@ -181,10 +181,11 @@ export default function CepCertoAdmin() {
     try {
       if (!silent) setLoading(true);
       
-      console.log('Iniciando busca na tabela shipping_carriers via view pública...');
+      console.log('--- BUSCANDO DIRETAMENTE NA TABELA ---');
       const { data: carriers, error: carrierError } = await supabase
-        .from('vw_shipping_carriers')
-        .select('*');
+        .from('shipping_carriers')
+        .select('*')
+        .eq('provider', 'cepcerto');
 
       if (carrierError) {
         console.error('--- ERRO DETALHADO SUPABASE ---');
@@ -210,21 +211,21 @@ export default function CepCertoAdmin() {
       setCarrier(carrier);
       setLastFetched(Date.now());
       
-      if (carriers.config?.origin_zip) {
+      if (carrier.config?.origin_zip) {
         setQuoteData(prev => ({ 
           ...prev, 
-          cep_origem: carriers.config.origin_zip,
-          cep_remetente: carriers.config.origin_zip 
+          cep_origem: carrier.config.origin_zip,
+          cep_remetente: carrier.config.origin_zip 
         }));
       }
 
       await Promise.all([
         (async () => {
           try {
-      const config = carriers.config || {};
-      const balanceData = await shippingService.getBalance(config);
-      setBalance(balanceData);
-    } catch (e) {
+            const config = carrier.config || {};
+            const balanceData = await shippingService.getBalance(config);
+            setBalance(balanceData);
+          } catch (e) {
             console.error('Erro ao buscar saldo:', e);
           }
         })(),
