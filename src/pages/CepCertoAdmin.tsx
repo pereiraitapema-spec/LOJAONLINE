@@ -598,6 +598,72 @@ export default function CepCertoAdmin() {
               <RefreshCw size={24} className={refreshingBalance ? 'animate-spin' : ''} />
             </button>
           </div>
+
+          {/* Conteúdo Principal (Tabs) */}
+          <div className="flex gap-4 mb-8">
+            <button 
+              onClick={() => setLogisticaSubTab('cotacao')}
+              className={`px-6 py-3 rounded-2xl font-bold transition-all ${logisticaSubTab === 'cotacao' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+            >
+              Cotação
+            </button>
+            <button 
+              onClick={() => setLogisticaSubTab('etiquetas')}
+              className={`px-6 py-3 rounded-2xl font-bold transition-all ${logisticaSubTab === 'etiquetas' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+            >
+              Etiquetas
+            </button>
+            <button 
+              onClick={() => setLogisticaSubTab('rastreio')}
+              className={`px-6 py-3 rounded-2xl font-bold transition-all ${logisticaSubTab === 'rastreio' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+            >
+              Rastreio
+            </button>
+          </div>
+
+          {/* Conteúdo das Tabs */}
+          {logisticaSubTab === 'cotacao' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Formulário de Cotação */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                <h3 className="text-xl font-black text-slate-900 mb-6 uppercase italic tracking-tighter">Nova Cotação</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <input type="text" placeholder="CEP Destino" value={quoteData.cep_destino} onChange={e => setQuoteData({...quoteData, cep_destino: formatCEP(e.target.value)})} className="col-span-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" />
+                  <input type="number" placeholder="Peso (kg)" value={quoteData.peso} onChange={e => setQuoteData({...quoteData, peso: e.target.value})} className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" />
+                  <input type="number" placeholder="Valor (R$)" value={quoteData.valor_encomenda} onChange={e => setQuoteData({...quoteData, valor_encomenda: e.target.value})} className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" />
+                  <input type="number" placeholder="Altura (cm)" value={quoteData.altura} onChange={e => setQuoteData({...quoteData, altura: e.target.value})} className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" />
+                  <input type="number" placeholder="Largura (cm)" value={quoteData.largura} onChange={e => setQuoteData({...quoteData, largura: e.target.value})} className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" />
+                  <input type="number" placeholder="Comprimento (cm)" value={quoteData.comprimento} onChange={e => setQuoteData({...quoteData, comprimento: e.target.value})} className="col-span-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" />
+                </div>
+                <button onClick={handleCalculate} disabled={calculating} className="w-full mt-6 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
+                  {calculating ? 'Calculando...' : 'Calcular Frete'}
+                </button>
+              </div>
+
+              {/* Resultados */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                <h3 className="text-xl font-black text-slate-900 mb-6 uppercase italic tracking-tighter">Opções de Envio</h3>
+                {quotes.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400">
+                    <Truck size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>Preencha os dados e calcule o frete.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {quotes.map((q: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div>
+                          <p className="font-bold text-slate-900">{q.name}</p>
+                          <p className="text-sm text-slate-500">Prazo: {q.delivery_time} dias</p>
+                        </div>
+                        <p className="text-lg font-black text-indigo-600">R$ {q.price}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
