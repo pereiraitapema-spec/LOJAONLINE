@@ -271,6 +271,18 @@ export default function CepCertoAdmin() {
     return () => clearInterval(interval);
   }, [carrier]);
 
+  useEffect(() => {
+    const savedQuotes = localStorage.getItem('cepcerto_cotacoes');
+    if (savedQuotes) {
+      setAvailableQuotes(JSON.parse(savedQuotes));
+    }
+    
+    const savedHistory = localStorage.getItem('cepcerto_etiquetas_geradas');
+    if (savedHistory) {
+      setEtiquetasGeradas(JSON.parse(savedHistory));
+    }
+  }, []);
+
   const handleSaveSender = () => {
     if (!senderData.cep_remetente || senderData.cep_remetente.length !== 8) {
       toast.error('CEP do Remetente é obrigatório e deve ter 8 dígitos.');
@@ -279,6 +291,9 @@ export default function CepCertoAdmin() {
     localStorage.setItem('cepcerto_remetente_padrao', JSON.stringify(senderData));
     toast.success('Dados do remetente salvos com sucesso!');
   };
+
+  const [showSelectQuoteModal, setShowSelectQuoteModal] = useState(false);
+  const [availableQuotes, setAvailableQuotes] = useState<any[]>([]);
 
   const limparNumero = (valor: any, campo: string) => {
     if (!valor) {
@@ -506,6 +521,11 @@ export default function CepCertoAdmin() {
         if (data.dados_frete) {
           console.log("CEP CERTO - Frete encontrado", data.dados_frete);
           setFreteResultado(data.dados_frete);
+          
+          // Salvar cotações no localStorage
+          localStorage.setItem('cepcerto_cotacoes', JSON.stringify(data.dados_frete));
+          setAvailableQuotes(data.dados_frete);
+          
           toast.success('Cotação realizada com sucesso!');
         } else {
           console.error("CEP CERTO - Dados de frete não encontrados na resposta");
@@ -573,7 +593,18 @@ export default function CepCertoAdmin() {
     };
 
     localStorage.setItem("cepcerto_dados_etiqueta", JSON.stringify(dadosEtiqueta));
+    
+    // Salvar cotação selecionada
+    const selectedQuote = {
+      tipo_entrega: freteSelecionado.tipo.toLowerCase().replace(' ', '-'),
+      valor: freteSelecionado.valor,
+      prazo: freteSelecionado.prazo,
+      transportadora: freteSelecionado.tipo.toLowerCase().includes('jadlog') ? 'Jadlog' : 'Correios'
+    };
+    localStorage.setItem('cepcerto_cotacao_selecionada', JSON.stringify(selectedQuote));
+    
     console.log("CEP CERTO - Dados etiqueta preparados", dadosEtiqueta);
+    console.log("CEP CERTO - Cotação selecionada salva", selectedQuote);
     
     // Preencher postagemData com dados do remetente salvo
     setPostagemData((prev: any) => ({
@@ -604,10 +635,78 @@ export default function CepCertoAdmin() {
   };
 
   const gerarEtiqueta = async () => {
+    // Validar cotação selecionada
+    const savedQuote = localStorage.getItem('cepcerto_cotacao_selecionada');
+    const cotacao_selecionada = savedQuote ? JSON.parse(savedQuote) : null;
+
+    console.log("========== GERAR ETIQUETA ==========");
+    console.log("COTAÇÃO SELECIONADA", cotacao_selecionada);
+
+    if (!cotacao_selecionada || !postagemData.tipo_entrega) {
+      console.error("Nenhuma cotação selecionada");
+      
+      // Tentar carregar cotações disponíveis
+      const savedQuotes = localStorage.getItem('cepcerto_cotacoes');
+      if (savedQuotes) {
+        const quotes = JSON.parse(savedQuotes);
+        setAvailableQuotes(quotes);
+        console.log("COTAÇÕES DISPONÍVEIS", quotes);
+        setShowSelectQuoteModal(true);
+        toast.error('Por favor, selecione uma cotação primeiro');
+      } else {
+        toast.error('Nenhuma cotação encontrada. Por favor, calcule o frete primeiro.');
+      }
+      return;
+    }
+
     setGeneratingLabel(true);
     console.log("CEP CERTO - Iniciando geração de etiqueta (Proxy)", postagemData);
+    
+    console.log("TIPO ENTREGA ENVIADO", postagemData.tipo_entrega);
+    console.log("VALOR FRETE", cotacao_selecionada.valor);
 
     try {
+      // PASSO 1 — LOG DADOS FRETE
+      console.log("PASSO 1 - DADOS FRETE");
+      console.log({
+        tipo_entrega: postagemData.tipo_entrega,
+        cep_remetente: postagemData.cep_remetente,
+        cep_destinatario: postagemData.cep_destinatario,
+        peso: postagemData.peso,
+        altura: postagemData.altura,
+        largura: postagemData.largura,
+        comprimento: postagemData.comprimento,
+        valor_encomenda: postagemData.valor_encomenda
+      });
+
+      // PASSO 2 — LOG REMETENTE
+      console.log("PASSO 2 - REMETENTE");
+      console.log({
+        nome_remetente: postagemData.nome_remetente,
+        cpf_cnpj_remetente: postagemData.cpf_cnpj_remetente,
+        whatsapp_remetente: postagemData.whatsapp_remetente,
+        email_remetente: postagemData.email_remetente,
+        logradouro_remetente: postagemData.logradouro_remetente,
+        bairro_remetente: postagemData.bairro_remetente,
+        numero_endereco_remetente: postagemData.numero_endereco_remetente
+      });
+
+      // PASSO 3 — LOG DESTINATÁRIO
+      console.log("PASSO 3 - DESTINATÁRIO");
+      console.log({
+        nome_destinatario: postagemData.nome_destinatario,
+        cpf_cnpj_destinatario: postagemData.cpf_cnpj_destinatario,
+        whatsapp_destinatario: postagemData.whatsapp_destinatario,
+        email_destinatario: postagemData.email_destinatario,
+        logradouro_destinatario: postagemData.logradouro_destinatario,
+        bairro_destinatario: postagemData.bairro_destinatario,
+        numero_endereco_destinatario: postagemData.numero_endereco_destinatario
+      });
+
+      // PASSO 4 — LOG PRODUTOS
+      console.log("PASSO 4 - PRODUTOS");
+      console.log(postagemData.produtos);
+
       // 1. Buscar Token
       const { data: carriers } = await supabase
         .from('shipping_carriers')
@@ -619,6 +718,7 @@ export default function CepCertoAdmin() {
       if (!carriers || carriers.length === 0) {
         console.error("CEP CERTO - Token não encontrado");
         toast.error('Configuração CEP CERTO não encontrada');
+        setGeneratingLabel(false);
         return;
       }
 
@@ -632,19 +732,11 @@ export default function CepCertoAdmin() {
       if (!apiKey) {
         console.error("CEP CERTO - Token não encontrado");
         toast.error('Token de postagem não encontrado');
+        setGeneratingLabel(false);
         return;
       }
 
       // 2. Montar Body
-      console.log("CEP REMETENTE:", postagemData.cep_remetente);
-      console.log("CEP DESTINATARIO:", postagemData.cep_destinatario);
-      console.log("CPF DESTINATARIO:", postagemData.cpf_cnpj_destinatario);
-      console.log("WHATSAPP DESTINATARIO:", postagemData.whatsapp_destinatario);
-      console.log("PESO:", postagemData.peso);
-      console.log("ALTURA:", postagemData.altura);
-      console.log("LARGURA:", postagemData.largura);
-      console.log("COMPRIMENTO:", postagemData.comprimento);
-
       const body = {
         token_cliente_postagem: apiKey,
         ...postagemData,
@@ -663,34 +755,61 @@ export default function CepCertoAdmin() {
         cep_destinatario: limparNumero(postagemData.cep_destinatario, "cep_destinatario")
       };
 
-      console.log("CEP CERTO - BODY POSTAGEM (Proxy)", body);
+      // PASSO 5 — LOG BODY COMPLETO
+      console.log("PASSO 5 - BODY COMPLETO");
+      console.log(JSON.stringify(body, null, 2));
 
       // 3. Enviar POST via Proxy
+      console.log("PASSO 6 - ENVIANDO API CEP CERTO");
       const response = await fetch('/api/cepcerto/postagem', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
 
+      // PASSO 7 — LOG RESPOSTA COMPLETA
+      console.log("PASSO 7 - RESPOSTA COMPLETA API");
+      console.log(response);
+
       if (response.ok) {
         const data = await response.json();
-        console.log("CEP CERTO - RESPOSTA POSTAGEM", data);
+        console.log("RESPONSE RAW");
+        console.log(JSON.stringify(data, null, 2));
+        console.log("DEBUG API");
+        console.log(data?.debug);
 
-        if (data.erro) {
-          console.error("CEP CERTO - Erro retornado pela API", data.erro);
-          toast.error(`Erro na postagem: ${data.erro}`);
+        // PASSO 8 — LOG CAMPOS RETORNO
+        console.log("PASSO 8 - CAMPOS RETORNO");
+        console.log({
+          status: data?.status,
+          sucesso: data?.sucesso,
+          mensagem: data?.mensagem,
+          codigoObjeto: data?.frete?.codigoObjeto || data?.codigoObjeto,
+          idRecibo: data?.frete?.idRecibo || data?.idRecibo,
+          idStringCorreios: data?.frete?.idStringCorreios || data?.idStringCorreios,
+          pdfUrlEtiqueta: data?.frete?.pdfUrlEtiqueta || data?.pdfUrlEtiqueta,
+          declaracaoUrl: data?.frete?.declaracaoUrl || data?.pdfUrlDeclaracao
+        });
+
+        if (data.erro || (data.sucesso === false)) {
+          console.error("CEP CERTO - API RETORNOU ERRO");
+          console.error(data);
+          toast.error(`Erro na postagem: ${data.erro || data.mensagem || 'Erro desconhecido'}`);
           return;
         }
 
-        if (data.codigoObjeto) {
+        // Tentar encontrar o código do objeto em diferentes estruturas possíveis
+        const codigoObjeto = data?.frete?.codigoObjeto || data?.codigoObjeto;
+
+        if (codigoObjeto) {
           const result = {
             id: Date.now().toString(),
             data: new Date().toISOString(),
-            codigoObjeto: data.codigoObjeto,
-            idRecibo: data.idRecibo,
-            idStringCorreios: data.idStringCorreios,
-            pdfUrlEtiqueta: data.pdfUrlEtiqueta,
-            pdfUrlDeclaracao: data.pdfUrlDeclaracao,
+            codigoObjeto: codigoObjeto,
+            idRecibo: data?.frete?.idRecibo || data?.idRecibo,
+            idStringCorreios: data?.frete?.idStringCorreios || data?.idStringCorreios,
+            pdfUrlEtiqueta: data?.frete?.pdfUrlEtiqueta || data?.pdfUrlEtiqueta,
+            pdfUrlDeclaracao: data?.frete?.pdfUrlDeclaracao || data?.pdfUrlDeclaracao,
             transportadora: postagemData.tipo_entrega.includes('jadlog') ? 'Jadlog' : 'Correios',
             tipo_entrega: postagemData.tipo_entrega,
             valor: freteSelecionado?.valor || `R$ ${postagemData.valor_encomenda}`,
@@ -709,7 +828,9 @@ export default function CepCertoAdmin() {
           localStorage.setItem('cepcerto_etiquetas_geradas', JSON.stringify(novasEtiquetas));
           localStorage.setItem('cepcerto_etiqueta_gerada', JSON.stringify(result));
         } else {
-          console.error("CEP CERTO - Resposta sem código de objeto", data);
+          console.error("CEP CERTO - Resposta sem código de objeto");
+          console.error("Resposta completa:", data);
+          console.error("Mensagem API:", data?.mensagem);
           toast.error('Erro ao gerar etiqueta: Resposta inválida da API');
         }
       } else {
@@ -722,7 +843,27 @@ export default function CepCertoAdmin() {
       toast.error('Erro inesperado ao gerar etiqueta');
     } finally {
       setGeneratingLabel(false);
+      console.log("========== FIM GERAR ETIQUETA ==========");
     }
+  };
+
+  const handleSelectQuote = (quote: any) => {
+    const selectedQuote = {
+      tipo_entrega: quote.tipo.toLowerCase().replace(' ', '-'),
+      valor: quote.valor,
+      prazo: quote.prazo,
+      transportadora: quote.tipo.toLowerCase().includes('jadlog') ? 'Jadlog' : 'Correios'
+    };
+    
+    setPostagemData((prev: any) => ({
+      ...prev,
+      tipo_entrega: selectedQuote.tipo_entrega
+    }));
+    
+    localStorage.setItem('cepcerto_cotacao_selecionada', JSON.stringify(selectedQuote));
+    setShowSelectQuoteModal(false);
+    toast.success(`Cotação ${quote.tipo} selecionada!`);
+    console.log("COTAÇÃO SELECIONADA MANUALMENTE", selectedQuote);
   };
 
   const handleRefreshBalance = async () => {
@@ -1681,10 +1822,27 @@ export default function CepCertoAdmin() {
                   <div className="space-y-8">
                     {/* Seção 1 — DADOS FRETE */}
                     <div className="space-y-4">
-                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
-                        <Truck size={16} className="text-indigo-600" />
-                        Seção 1 — Dados do Frete
-                      </h4>
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                          <Truck size={16} className="text-indigo-600" />
+                          Seção 1 — Dados do Frete
+                        </h4>
+                        <button 
+                          onClick={() => {
+                            const savedQuotes = localStorage.getItem('cepcerto_cotacoes');
+                            if (savedQuotes) {
+                              setAvailableQuotes(JSON.parse(savedQuotes));
+                              setShowSelectQuoteModal(true);
+                            } else {
+                              toast.error('Nenhuma cotação encontrada. Calcule o frete primeiro.');
+                            }
+                          }}
+                          className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest hover:bg-indigo-50 px-3 py-1 rounded-lg transition-all border border-indigo-100 flex items-center gap-1"
+                        >
+                          <Zap size={12} />
+                          Selecionar Cotação
+                        </button>
+                      </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tipo Entrega</label>
@@ -1987,6 +2145,67 @@ export default function CepCertoAdmin() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Modal de Seleção de Cotação */}
+          {showSelectQuoteModal && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100"
+              >
+                <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Selecionar Cotação</h3>
+                    <p className="text-xs text-slate-500 font-medium uppercase tracking-widest mt-1">Escolha o frete para a etiqueta</p>
+                  </div>
+                  <button onClick={() => setShowSelectQuoteModal(false)} className="p-2 hover:bg-white rounded-full transition-all text-slate-400 hover:text-slate-600 shadow-sm">
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="p-8 space-y-4 max-h-[60vh] overflow-y-auto">
+                  {availableQuotes.length > 0 ? (
+                    availableQuotes.map((quote, idx) => (
+                      <div 
+                        key={idx}
+                        className="p-4 bg-slate-50 border border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group cursor-pointer"
+                        onClick={() => handleSelectQuote(quote)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-black text-slate-900 uppercase italic tracking-tighter text-lg">{quote.tipo}</p>
+                            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{quote.prazo} dias úteis</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-black text-indigo-600 text-xl tracking-tighter">R$ {quote.valor}</p>
+                            <button className="mt-2 text-[10px] font-bold text-white bg-indigo-600 px-3 py-1 rounded-full uppercase tracking-widest group-hover:bg-indigo-700 transition-all">
+                              Selecionar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8">
+                      <Package size={48} className="mx-auto text-slate-200 mb-4" />
+                      <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Nenhuma cotação disponível</p>
+                      <p className="text-[10px] text-slate-400 mt-2">Calcule o frete na aba de cotação primeiro</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end">
+                  <button 
+                    onClick={() => setShowSelectQuoteModal(false)}
+                    className="px-6 py-3 text-slate-500 font-bold uppercase text-xs tracking-widest hover:text-slate-700 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </motion.div>
             </div>
           )}
 
