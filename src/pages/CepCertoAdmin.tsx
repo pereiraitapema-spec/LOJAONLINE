@@ -215,7 +215,7 @@ export default function CepCertoAdmin() {
       await Promise.all([
         (async () => {
           try {
-            const config = carriers.config || carriers.settings;
+            const config = carriers.config || {};
             const balanceData = await shippingService.getBalance(config);
             setBalance(balanceData);
           } catch (e) {
