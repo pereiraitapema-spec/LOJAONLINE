@@ -215,10 +215,10 @@ export default function CepCertoAdmin() {
       await Promise.all([
         (async () => {
           try {
-            const config = carriers.config || {};
-            const balanceData = await shippingService.getBalance(config);
-            setBalance(balanceData);
-          } catch (e) {
+      const config = carriers.config || {};
+      const balanceData = await shippingService.getBalance(config);
+      setBalance(balanceData);
+    } catch (e) {
             console.error('Erro ao buscar saldo:', e);
           }
         })(),
@@ -279,7 +279,7 @@ export default function CepCertoAdmin() {
       setPixData(data);
       setShowPixModal(true);
       toast.success('PIX gerado com sucesso!');
-      const balanceData = await shippingService.getBalance(currentCarrier.settings);
+      const balanceData = await shippingService.getBalance(currentCarrier.config || {});
       setBalance(balanceData);
     } catch (error: any) {
       console.error('Erro ao gerar PIX:', error);
@@ -290,7 +290,7 @@ export default function CepCertoAdmin() {
   };
 
   const handleGenerateManualLabel = async () => {
-    if (!carrier || !carrier.settings) {
+    if (!carrier || !carrier.config) {
       toast.error('Configurações da transportadora não carregadas.');
       return;
     }
@@ -299,10 +299,10 @@ export default function CepCertoAdmin() {
       
       const payload = {
         ...manualLabelData,
-        token_cliente_postagem: carrier.settings.api_key_postagem || carrier.settings.api_key
+        token_cliente_postagem: carrier.config.api_key_postagem || carrier.config.api_key
       };
       
-      const result = await shippingService.generateLabel('manual', carrier.settings, payload);
+      const result = await shippingService.generateLabel('manual', carrier.config, payload);
       
       if (result.success) {
         toast.success('Etiqueta gerada com sucesso!', { id: 'gen-label-manual' });
@@ -409,7 +409,7 @@ export default function CepCertoAdmin() {
           length: compNum,
           price: parseFloat(quoteData.valor_encomenda)
         }],
-        carrier.settings
+        carrier.config || {}
       );
       setQuotes(result);
     } catch (error: any) {
@@ -429,7 +429,7 @@ export default function CepCertoAdmin() {
     
     try {
       toast.loading('Cancelando etiqueta...', { id: 'cancel-label' });
-      const result = await shippingService.cancelLabel(trackingCode, carrier.settings);
+      const result = await shippingService.cancelLabel(trackingCode, carrier.config || {});
       if (!result.success) {
         throw new Error(result.error || 'Erro ao cancelar etiqueta');
       }
@@ -466,7 +466,7 @@ export default function CepCertoAdmin() {
     setConsultingPostage(true);
     setConsultResult(null);
     try {
-      const result = await shippingService.consultPostage(trackingCode, carrier.settings);
+      const result = await shippingService.consultPostage(trackingCode, carrier.config || {});
       
       if (result && (result.sucesso === true || result.sucesso === "true")) {
         setConsultResult(result);
@@ -489,7 +489,7 @@ export default function CepCertoAdmin() {
     if (!carrier) return;
     setLoadingFinancial(true);
     try {
-      const result = await shippingService.getFinancialStatement(carrier.settings);
+      const result = await shippingService.getFinancialStatement(carrier.config || {});
       if (result && (result.sucesso === true || result.sucesso === "true")) {
         setFinancialData(result);
         setShowFinancialModal(true);
@@ -507,7 +507,7 @@ export default function CepCertoAdmin() {
     if (!carrier) return;
     setLoadingTrackingInfo(true);
     try {
-      const result = await shippingService.getTrackingInfo(trackingCode, carrier.settings);
+      const result = await shippingService.getTrackingInfo(trackingCode, carrier.config || {});
       if (result && (result.sucesso === true || result.sucesso === "true")) {
         setTrackingInfo(result);
         setShowTrackingInfoModal(true);
