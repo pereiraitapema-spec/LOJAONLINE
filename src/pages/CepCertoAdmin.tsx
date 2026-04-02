@@ -248,7 +248,6 @@ export default function CepCertoAdmin() {
         .from('shipping_carriers')
         .select('*')
         .eq('provider', 'cepcerto')
-        .eq('active', true)
         .maybeSingle();
       
       if (carriers) {
@@ -363,13 +362,18 @@ export default function CepCertoAdmin() {
   const handleCalculate = async () => {
     if (!carrier) return;
     
-    const pesoNum = parseFloat(quoteData.peso);
+    // Converte gramas para kg se o valor for maior que 30 (assumindo que valores > 30 são gramas)
+    let pesoNum = parseFloat(quoteData.peso);
+    if (pesoNum > 30) {
+      pesoNum = pesoNum / 1000;
+    }
+    
     const altNum = parseFloat(quoteData.altura);
     const largNum = parseFloat(quoteData.largura);
     const compNum = parseFloat(quoteData.comprimento);
 
     if (pesoNum < 0.3 || pesoNum > 30) {
-      toast.error('Peso deve ser entre 0.3kg e 30kg');
+      toast.error(`Peso inválido (${pesoNum}kg). Deve ser entre 0.3kg e 30kg.`);
       return;
     }
     if (altNum < 8 || altNum > 100) {
