@@ -109,8 +109,9 @@ export default function CepCertoAdmin() {
     comprimento: '',
     valor_encomenda: ''
   });
-  const [quoteResult, setQuoteResult] = useState<any>(null);
+  const [freteResultado, setFreteResultado] = useState<any>(null);
   const [calculatingQuote, setCalculatingQuote] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('cepcerto_sender_data');
@@ -286,7 +287,8 @@ export default function CepCertoAdmin() {
     }
 
     setCalculatingQuote(true);
-    setQuoteResult(null);
+    setFreteResultado(null);
+    setQuoteError(null);
 
     try {
       // LOG 4 — BUSCAR TOKEN
@@ -345,12 +347,23 @@ export default function CepCertoAdmin() {
         // LOG 7 — STATUS API
         console.log("CEP CERTO - Dados da Resposta", data);
         
-        if (data.status === 'sucesso') {
-          setQuoteResult(data);
+        if (data.erro) {
+          console.error("CEP CERTO - Erro API", data.erro);
+          setQuoteError(data.erro);
+          toast.error(`CEP inválido: ${data.erro}`);
+          return;
+        }
+
+        if (data.dados_frete) {
+          console.log("CEP CERTO - Frete encontrado", data.dados_frete);
+          console.log("CEP CERTO - Frete PAC", data.dados_frete.valor_pac);
+          console.log("CEP CERTO - Frete SEDEX", data.dados_frete.valor_sedex);
+          
+          setFreteResultado(data.dados_frete);
           toast.success('Cotação realizada com sucesso!');
         } else {
-          console.error("CEP CERTO - Status inválido", data);
-          toast.error(`Erro ao calcular frete. Motivo: ${data.mensagem || 'Erro API CEP CERTO'}`);
+          console.error("CEP CERTO - Dados de frete não encontrados na resposta");
+          toast.error('Erro ao calcular frete. Motivo: Resposta inválida da API');
         }
       } else {
         console.error("CEP CERTO - Erro na requisição (HTTP Error)");
@@ -1087,60 +1100,77 @@ export default function CepCertoAdmin() {
                 </div>
 
                 {/* Resultado da Cotação */}
-                {quoteResult && (
+                {freteResultado && (
                   <div className="mt-12 p-8 bg-slate-50 rounded-[2rem] border border-slate-100">
                     <h3 className="text-lg font-black text-slate-900 mb-6 uppercase italic tracking-tighter flex items-center gap-2">
                       <Activity size={20} className="text-indigo-600" />
                       Resultado da Cotação
                     </h3>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {quoteResult.frete?.valor_pac && (
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">PAC</p>
-                          <p className="text-lg font-black text-indigo-600">R$ {quoteResult.frete.valor_pac}</p>
-                          <p className="text-xs text-slate-500">Prazo: {quoteResult.frete.prazo_pac}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {freteResultado.valor_pac && (
+                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                              <Package size={20} />
+                            </div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">PAC</p>
+                          </div>
+                          <p className="text-2xl font-black text-indigo-600 mb-1">{freteResultado.valor_pac}</p>
+                          <p className="text-sm text-slate-500 font-medium">Prazo: {freteResultado.prazo_entrega_pac}</p>
                         </div>
                       )}
-                      {quoteResult.frete?.valor_sedex && (
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">SEDEX</p>
-                          <p className="text-lg font-black text-indigo-600">R$ {quoteResult.frete.valor_sedex}</p>
-                          <p className="text-xs text-slate-500">Prazo: {quoteResult.frete.prazo_sedex}</p>
+                      
+                      {freteResultado.valor_sedex && (
+                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+                              <Zap size={20} />
+                            </div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">SEDEX</p>
+                          </div>
+                          <p className="text-2xl font-black text-emerald-600 mb-1">{freteResultado.valor_sedex}</p>
+                          <p className="text-sm text-slate-500 font-medium">Prazo: {freteResultado.prazo_entrega_sedex}</p>
                         </div>
                       )}
-                      {quoteResult.frete?.valor_jadlog_package && (
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">JADLOG PACKAGE</p>
-                          <p className="text-lg font-black text-indigo-600">R$ {quoteResult.frete.valor_jadlog_package}</p>
-                          <p className="text-xs text-slate-500">Prazo: {quoteResult.frete.prazo_jadlog_package}</p>
-                        </div>
-                      )}
-                      {quoteResult.frete?.valor_jadlog_dotcom && (
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">JADLOG DOTCOM</p>
-                          <p className="text-lg font-black text-indigo-600">R$ {quoteResult.frete.valor_jadlog_dotcom}</p>
-                          <p className="text-xs text-slate-500">Prazo: {quoteResult.frete.prazo_jadlog_dotcom}</p>
+
+                      {(freteResultado.valor_jadlog_package || freteResultado.valor_jadlog_dotcom) && (
+                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                              <Truck size={20} />
+                            </div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">JADLOG</p>
+                          </div>
+                          {freteResultado.valor_jadlog_package && (
+                            <div className="mb-3 pb-3 border-b border-slate-50">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-tighter">Package</p>
+                              <p className="text-xl font-black text-blue-600">{freteResultado.valor_jadlog_package}</p>
+                              <p className="text-xs text-slate-500">Prazo: {freteResultado.prazo_entrega_jadlog_package}</p>
+                            </div>
+                          )}
+                          {freteResultado.valor_jadlog_dotcom && (
+                            <div>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-tighter">Dotcom</p>
+                              <p className="text-xl font-black text-blue-600">{freteResultado.valor_jadlog_dotcom}</p>
+                              <p className="text-xs text-slate-500">Prazo: {freteResultado.prazo_entrega_jadlog_dotcom}</p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
 
-                    {quoteResult.alertas && quoteResult.alertas.length > 0 && (
-                      <div className="mt-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
-                        <div className="flex items-center gap-2 text-amber-700 font-bold text-sm mb-2">
-                          <AlertCircle size={16} />
-                          Atenção:
-                        </div>
-                        <ul className="space-y-1">
-                          {quoteResult.alertas.map((alerta: string, idx: number) => (
-                            <li key={idx} className="text-xs text-amber-600 flex items-center gap-2">
-                              <div className="w-1 h-1 bg-amber-400 rounded-full" />
-                              {alerta}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                {quoteError && (
+                  <div className="mt-8 p-6 bg-red-50 border border-red-100 rounded-[2rem] flex items-start gap-4">
+                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600 shrink-0">
+                      <AlertCircle size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-red-900 mb-1">CEP Inválido</h4>
+                      <p className="text-sm text-red-600">{quoteError}</p>
+                    </div>
                   </div>
                 )}
 
@@ -1155,7 +1185,8 @@ export default function CepCertoAdmin() {
                         comprimento: '',
                         valor_encomenda: ''
                       });
-                      setQuoteResult(null);
+                      setFreteResultado(null);
+                      setQuoteError(null);
                     }}
                     className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
                   >
