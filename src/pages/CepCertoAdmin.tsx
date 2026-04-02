@@ -593,21 +593,44 @@ export default function CepCertoAdmin() {
             </button>
           </div>
           
-          {/* Card de Saldo */}
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 mb-8 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Saldo Disponível</p>
-              <h2 className="text-3xl font-black text-slate-900 mt-1">
-                {balance ? `R$ ${balance.saldo || balance.saldo_atual || '0,00'}` : 'Carregando...'}
-              </h2>
+          {/* Card de Saldo e Recarga */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Saldo Disponível</p>
+                <h2 className="text-3xl font-black text-slate-900 mt-1">
+                  {balance ? `R$ ${balance.saldo || balance.saldo_atual || '0,00'}` : 'Carregando...'}
+                </h2>
+              </div>
+              <button 
+                onClick={handleRefreshBalance}
+                disabled={refreshingBalance}
+                className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-100 transition-all"
+              >
+                <RefreshCw size={24} className={refreshingBalance ? 'animate-spin' : ''} />
+              </button>
             </div>
-            <button 
-              onClick={handleRefreshBalance}
-              disabled={refreshingBalance}
-              className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-100 transition-all"
-            >
-              <RefreshCw size={24} className={refreshingBalance ? 'animate-spin' : ''} />
-            </button>
+
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+              <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Adicionar Crédito (PIX)</p>
+              <div className="flex gap-2">
+                <input 
+                  type="number" 
+                  value={pixAmount} 
+                  onChange={e => setPixAmount(e.target.value)}
+                  className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                  placeholder="Valor (R$)"
+                />
+                <button 
+                  onClick={handleGeneratePix}
+                  disabled={isGeneratingPix}
+                  className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 text-sm flex items-center gap-2"
+                >
+                  <QrCode size={18} />
+                  {isGeneratingPix ? 'Gerando...' : 'Gerar PIX'}
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Conteúdo Principal (Tabs) */}
@@ -673,6 +696,42 @@ export default function CepCertoAdmin() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+          {/* Modal PIX */}
+          {showPixModal && pixData && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center"
+              >
+                <h2 className="text-2xl font-black text-slate-900 mb-6 uppercase italic tracking-tighter">PIX Gerado</h2>
+                <div className="bg-slate-50 p-4 rounded-2xl mb-6 flex justify-center">
+                  <QRCodeSVG value={pixData.copia_cola} size={200} />
+                </div>
+                <p className="text-sm text-slate-500 mb-6">Escaneie o QR Code ou copie o código abaixo:</p>
+                <div className="bg-slate-100 p-4 rounded-xl text-xs font-mono text-slate-700 break-all mb-6">
+                  {pixData.copia_cola}
+                </div>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(pixData.copia_cola);
+                      toast.success('Código copiado!');
+                    }}
+                    className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all"
+                  >
+                    Copiar Código
+                  </button>
+                  <button 
+                    onClick={() => setShowPixModal(false)}
+                    className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </motion.div>
             </div>
           )}
         </div>
