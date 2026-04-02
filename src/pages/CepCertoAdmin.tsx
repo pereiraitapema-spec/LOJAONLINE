@@ -281,31 +281,11 @@ export default function CepCertoAdmin() {
   };
 
   const handleCalculateQuote = async () => {
-    // LOG 1 — DADOS RECEBIDOS DO FORMULÁRIO
-    console.log("CEP CERTO - Dados formulário", {
-      cep_remetente: senderData.cep_remetente,
-      cep_destinatario: recipientQuoteData.cep,
-      peso_gramas: recipientQuoteData.peso,
-      altura: recipientQuoteData.altura,
-      largura: recipientQuoteData.largura,
-      comprimento: recipientQuoteData.comprimento,
-      valor_encomenda: recipientQuoteData.valor_encomenda
-    });
-
-    // LOG CEP CERTO - REMETENTE COTAÇÃO
-    console.log("CEP CERTO - REMETENTE COTAÇÃO", {
-      nome_remetente: senderData.nome_remetente,
-      cpf_cnpj_remetente: senderData.cpf_cnpj_remetente,
-      whatsapp_remetente: senderData.whatsapp_remetente,
-      email_remetente: senderData.email_remetente
-    });
-
-    // LOG 2 — VALIDAÇÃO CAMPOS
-    if (!senderData.cep_remetente || !recipientQuoteData.cep || !recipientQuoteData.peso || 
-        !recipientQuoteData.altura || !recipientQuoteData.largura || 
-        !recipientQuoteData.comprimento || !recipientQuoteData.valor_encomenda) {
-      
-      console.error("CEP CERTO - Campo faltando", {
+    console.log("CEP CERTO - BOTÃO CALCULAR FRETE CLICADO");
+    
+    try {
+      // LOG 1 — DADOS RECEBIDOS DO FORMULÁRIO
+      console.log("CEP CERTO - Dados formulário", {
         cep_remetente: senderData.cep_remetente,
         cep_destinatario: recipientQuoteData.cep,
         peso_gramas: recipientQuoteData.peso,
@@ -314,78 +294,118 @@ export default function CepCertoAdmin() {
         comprimento: recipientQuoteData.comprimento,
         valor_encomenda: recipientQuoteData.valor_encomenda
       });
-      toast.error('Campo obrigatório não preenchido');
-      return;
-    }
 
-    if (senderData.cep_remetente.length !== 8) {
-      toast.error('CEP do Remetente deve ter 8 dígitos.');
-      return;
-    }
-    if (recipientQuoteData.cep.length !== 8) {
-      toast.error('CEP do Destinatário deve ter 8 dígitos.');
-      return;
-    }
+      // LOG CEP CERTO - REMETENTE COTAÇÃO
+      console.log("CEP CERTO - REMETENTE COTAÇÃO", {
+        nome_remetente: senderData.nome_remetente,
+        cpf_cnpj_remetente: senderData.cpf_cnpj_remetente,
+        whatsapp_remetente: senderData.whatsapp_remetente,
+        email_remetente: senderData.email_remetente
+      });
 
-    // Formatação CEP
-    const cep_remetente_formatado = senderData.cep.replace(/\D/g, '');
-    const cep_destinatario_formatado = recipientQuoteData.cep.replace(/\D/g, '');
-    console.log("CEP formatado", cep_remetente_formatado, cep_destinatario_formatado);
+      // LOG 2 — VALIDAÇÃO CAMPOS
+      console.log("PASSO 1 - VALIDAR CAMPOS");
+      if (!senderData.cep_remetente || !recipientQuoteData.cep || !recipientQuoteData.peso || 
+          !recipientQuoteData.altura || !recipientQuoteData.largura || 
+          !recipientQuoteData.comprimento || !recipientQuoteData.valor_encomenda) {
+        
+        if (!senderData.cep_remetente) console.error("CEP REMETENTE FALTANDO");
+        if (!recipientQuoteData.cep) console.error("CEP DESTINATARIO FALTANDO");
+        if (!recipientQuoteData.peso) console.error("PESO FALTANDO");
+        if (!recipientQuoteData.altura) console.error("ALTURA FALTANDO");
+        if (!recipientQuoteData.largura) console.error("LARGURA FALTANDO");
+        if (!recipientQuoteData.comprimento) console.error("COMPRIMENTO FALTANDO");
+        if (!recipientQuoteData.valor_encomenda) console.error("VALOR ENCOMENDA FALTANDO");
 
-    // LOG 3 — CONVERSÃO PESO
-    const pesoGramas = parseFloat(recipientQuoteData.peso);
-    const pesoKg = pesoGramas / 1000;
-    console.log("CEP CERTO - Peso convertido", {
-      peso_gramas: pesoGramas,
-      peso_kilo: pesoKg
-    });
+        console.error("CEP CERTO - Campo faltando", {
+          cep_remetente: senderData.cep_remetente,
+          cep_destinatario: recipientQuoteData.cep,
+          peso_gramas: recipientQuoteData.peso,
+          altura: recipientQuoteData.altura,
+          largura: recipientQuoteData.largura,
+          comprimento: recipientQuoteData.comprimento,
+          valor_encomenda: recipientQuoteData.valor_encomenda
+        });
+        toast.error('Campo obrigatório não preenchido');
+        return;
+      }
 
-    // VALIDAÇÃO PESO
-    if (isNaN(pesoKg) || pesoKg < 0.3 || pesoKg > 30) {
-      console.log("Peso validado - ERRO", pesoKg);
-      toast.error('Peso deve ser entre 300g e 30kg.');
-      return;
-    }
-    console.log("Peso validado - OK", pesoKg);
+      if (senderData.cep_remetente.length !== 8) {
+        toast.error('CEP do Remetente deve ter 8 dígitos.');
+        return;
+      }
+      if (recipientQuoteData.cep.length !== 8) {
+        toast.error('CEP do Destinatário deve ter 8 dígitos.');
+        return;
+      }
 
-    // VALIDAÇÃO DIMENSÕES
-    const altura = parseFloat(recipientQuoteData.altura);
-    const largura = parseFloat(recipientQuoteData.largura);
-    const comprimento = parseFloat(recipientQuoteData.comprimento);
-    console.log("Dimensões", {
-      altura,
-      largura,
-      comprimento
-    });
+      // Formatação CEP
+      const cep_remetente_formatado = senderData.cep_remetente.replace(/\D/g, '');
+      const cep_destinatario_formatado = recipientQuoteData.cep.replace(/\D/g, '');
+      console.log("PASSO 2 - DADOS COTAÇÃO", {
+        cep_remetente: cep_remetente_formatado,
+        cep_destinatario: cep_destinatario_formatado,
+        peso: recipientQuoteData.peso,
+        altura: recipientQuoteData.altura,
+        largura: recipientQuoteData.largura,
+        comprimento: recipientQuoteData.comprimento
+      });
 
-    if (isNaN(altura) || altura < 0.4 || altura > 100) {
-      toast.error('Altura deve ser entre 0,4cm e 100cm.');
-      return;
-    }
+      // LOG 3 — CONVERSÃO PESO
+      const pesoGramas = parseFloat(recipientQuoteData.peso);
+      const pesoKg = pesoGramas / 1000;
+      console.log("CEP CERTO - Peso convertido", {
+        peso_gramas: pesoGramas,
+        peso_kilo: pesoKg
+      });
 
-    if (isNaN(largura) || largura < 11 || largura > 100) {
-      toast.error('Largura deve ser entre 11cm e 100cm.');
-      return;
-    }
+      // VALIDAÇÃO PESO
+      if (isNaN(pesoKg) || pesoKg < 0.3 || pesoKg > 30) {
+        console.log("Peso validado - ERRO", pesoKg);
+        toast.error('Peso deve ser entre 300g e 30kg.');
+        return;
+      }
+      console.log("Peso validado - OK", pesoKg);
 
-    if (isNaN(comprimento) || comprimento < 13 || comprimento > 100) {
-      toast.error('Comprimento deve ser entre 13cm e 100cm.');
-      return;
-    }
+      // VALIDAÇÃO DIMENSÕES
+      const altura = parseFloat(recipientQuoteData.altura);
+      const largura = parseFloat(recipientQuoteData.largura);
+      const comprimento = parseFloat(recipientQuoteData.comprimento);
+      console.log("Dimensões", {
+        altura,
+        largura,
+        comprimento
+      });
 
-    const valor = parseFloat(recipientQuoteData.valor_encomenda);
-    if (isNaN(valor) || valor <= 0) {
-      toast.error('Valor da encomenda inválido.');
-      return;
-    }
+      if (isNaN(altura) || altura < 0.4 || altura > 100) {
+        toast.error('Altura deve ser entre 0,4cm e 100cm.');
+        return;
+      }
 
-    setCalculatingQuote(true);
-    setFreteResultado(null);
-    setFreteSelecionado(null);
-    setQuoteError(null);
+      if (isNaN(largura) || largura < 11 || largura > 100) {
+        toast.error('Largura deve ser entre 11cm e 100cm.');
+        return;
+      }
 
-    try {
+      if (isNaN(comprimento) || comprimento < 13 || comprimento > 100) {
+        toast.error('Comprimento deve ser entre 13cm e 100cm.');
+        return;
+      }
+
+      const valor = parseFloat(recipientQuoteData.valor_encomenda);
+      if (isNaN(valor) || valor <= 0) {
+        toast.error('Valor da encomenda inválido.');
+        return;
+      }
+
+      console.log("PASSO 6 - LOADING");
+      setCalculatingQuote(true);
+      setFreteResultado(null);
+      setFreteSelecionado(null);
+      setQuoteError(null);
+
       // LOG 4 — BUSCAR TOKEN
+      console.log("PASSO 3 - BUSCANDO TOKEN");
       const { data: carriers } = await supabase
         .from('shipping_carriers')
         .select('api_key, config')
@@ -396,6 +416,7 @@ export default function CepCertoAdmin() {
       if (!carriers || carriers.length === 0) {
         console.error("CEP CERTO - Token não encontrado");
         toast.error('Configuração CEP CERTO não encontrada');
+        setCalculatingQuote(false);
         return;
       }
 
@@ -409,6 +430,7 @@ export default function CepCertoAdmin() {
       if (!apiKey) {
         console.error("CEP CERTO - Token não encontrado");
         toast.error('Configuração CEP CERTO não encontrada');
+        setCalculatingQuote(false);
         return;
       }
       console.log("CEP CERTO - Token encontrado", apiKey);
@@ -424,9 +446,10 @@ export default function CepCertoAdmin() {
         comprimento: comprimento.toString(),
         valor_encomenda: valor.toString()
       };
-      console.log("CEP CERTO - Body enviado API (Proxy)", body);
+      console.log("PASSO 4 - BODY COTAÇÃO", body);
 
       // 2. Fazer POST via Proxy
+      console.log("PASSO 5 - ENVIANDO API COTAÇÃO");
       const response = await fetch('/api/cepcerto/cotacao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -434,7 +457,7 @@ export default function CepCertoAdmin() {
       });
 
       // LOG 6 — RESPOSTA API
-      console.log("CEP CERTO - Resposta Proxy", response);
+      console.log("PASSO 8 - RESPOSTA API", response);
 
       if (response.ok) {
         const data = await response.json();
@@ -445,6 +468,7 @@ export default function CepCertoAdmin() {
           console.error("CEP CERTO - Erro API", data.erro);
           setQuoteError(data.erro);
           toast.error(`Erro na cotação: ${data.erro}`);
+          setCalculatingQuote(false);
           return;
         }
 
@@ -462,7 +486,9 @@ export default function CepCertoAdmin() {
         toast.error('Erro ao calcular frete. Motivo: Erro API CEP CERTO');
       }
     } catch (error) {
-      console.error("CEP CERTO - Erro API", error);
+      console.error("PASSO 7 - ERRO");
+      console.error("CEP CERTO - ERRO COTAÇÃO");
+      console.error(error);
       toast.error(`Erro ao calcular frete. Motivo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setCalculatingQuote(false);
