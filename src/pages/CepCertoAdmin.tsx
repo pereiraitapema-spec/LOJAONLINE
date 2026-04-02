@@ -636,7 +636,7 @@ export default function CepCertoAdmin() {
               <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
                 <h3 className="text-xl font-black text-slate-900 mb-6 uppercase italic tracking-tighter">Nova Cotação</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <input type="text" placeholder="CEP Destino" value={quoteData.cep_destino} onChange={e => setQuoteData({...quoteData, cep_destino: formatCEP(e.target.value)})} className="col-span-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" />
+                  <input type="text" placeholder="CEP Destino (8 números)" value={quoteData.cep_destino} onChange={e => setQuoteData({...quoteData, cep_destino: e.target.value.replace(/\D/g, '').slice(0, 8)})} className="col-span-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" />
                   <input type="number" placeholder="Peso (kg)" value={quoteData.peso} onChange={e => setQuoteData({...quoteData, peso: e.target.value})} className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" />
                   <input type="number" placeholder="Valor (R$)" value={quoteData.valor_encomenda} onChange={e => setQuoteData({...quoteData, valor_encomenda: e.target.value})} className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" />
                   <input type="number" placeholder="Altura (cm)" value={quoteData.altura} onChange={e => setQuoteData({...quoteData, altura: e.target.value})} className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl" />

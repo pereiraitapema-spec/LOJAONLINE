@@ -386,12 +386,14 @@ const cepcertoProvider: ShippingProvider = {
           valor_encomenda: totalValue.toFixed(2)
         };
 
+        console.log('Payload enviado para CepCerto:', JSON.stringify(payload));
         const response = await fetch('https://cepcerto.com/api-cotacao-frete/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
+        console.log('Resposta da API CepCerto:', response);
         if (response.ok) {
           const data = await response.json();
           if (data.dados_frete) {
@@ -423,6 +425,9 @@ const cepcertoProvider: ShippingProvider = {
             await logApiCall('cepcerto', '/api-cotacao-frete', Date.now() - startTime, true);
             return quotes;
           }
+        } else {
+          const errorText = await response.text();
+          console.error('Erro na resposta da API CepCerto:', errorText);
         }
       } catch (e) {
         console.warn('Nova API de cotação falhou ou bloqueada por CORS, tentando fallback...', e);
