@@ -488,6 +488,7 @@ const cepcertoProvider: ShippingProvider = {
   },
 
   async getBalance(config: any) {
+    console.log('--- [DEBUG] getBalance chamado com config:', config);
     if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
     const key = config.api_key_postagem || config.api_key;
     

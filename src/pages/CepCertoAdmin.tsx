@@ -28,6 +28,7 @@ export default function CepCertoAdmin() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [logisticaSubTab, setLogisticaSubTab] = useState('cotacao');
   const [lastFetched, setLastFetched] = useState<number | null>(null);
+  const hasFetched = React.useRef(false);
   
   // Ferramentas
   const [cepSearch, setCepSearch] = useState('');
@@ -132,7 +133,8 @@ export default function CepCertoAdmin() {
           return;
         }
         
-        if (!lastFetched || Date.now() - lastFetched > 5 * 60 * 1000) {
+        if (!hasFetched.current) {
+          hasFetched.current = true;
           await Promise.race([
             fetchData(),
             new Promise(resolve => setTimeout(resolve, 5000))
@@ -184,13 +186,10 @@ export default function CepCertoAdmin() {
       console.log('--- BUSCANDO DADOS CEPCERTO ---');
       
       // 1. Busca o carrier primeiro para obter o token
-      console.log('--- [DEBUG] Buscando transportadora no Supabase ---');
       const { data: carriers, error: carrierError } = await supabase
         .from('shipping_carriers')
         .select('*')
         .eq('provider', 'cepcerto');
-
-      console.log('--- [DEBUG] Resultado da busca:', { data: carriers, error: carrierError });
 
       if (carrierError) {
         console.error('Erro ao buscar carrier:', carrierError);
@@ -198,13 +197,10 @@ export default function CepCertoAdmin() {
       }
 
       const carrier = carriers && carriers.length > 0 ? carriers[0] : null;
-      console.log('--- [DEBUG] Transportadora encontrada:', carrier);
       if (carrier) {
         // CORREÇÃO: Parse do JSON que está vindo como string do Supabase
         try {
-          console.log('--- [DEBUG] Config original:', carrier.config);
           carrier.config = typeof carrier.config === 'string' ? JSON.parse(carrier.config) : carrier.config;
-          console.log('--- [DEBUG] Config parseado:', carrier.config);
         } catch (e) {
           console.error('Erro ao fazer parse do config:', e);
           carrier.config = {};
@@ -221,7 +217,6 @@ export default function CepCertoAdmin() {
       setLastFetched(Date.now());
       
       // 2. Busca o saldo usando o token do carrier
-      console.log('--- BUSCANDO SALDO DIRETAMENTE ---');
       try {
         // Usa o token do carrier carregado
         const token = carrier.config?.api_key_postagem || carrier.config?.api_key;
