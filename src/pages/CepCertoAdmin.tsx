@@ -195,36 +195,85 @@ export default function CepCertoAdmin() {
   };
 
   const handleCalculateQuote = async () => {
-    if (!senderData.cep) {
-      toast.error('CEP do Remetente não configurado.');
+    // LOG 1 — DADOS RECEBIDOS DO FORMULÁRIO
+    console.log("CEP CERTO - Dados formulário", {
+      cep_remetente: senderData.cep,
+      cep_destinatario: recipientQuoteData.cep,
+      peso_gramas: recipientQuoteData.peso,
+      altura: recipientQuoteData.altura,
+      largura: recipientQuoteData.largura,
+      comprimento: recipientQuoteData.comprimento,
+      valor_encomenda: recipientQuoteData.valor_encomenda
+    });
+
+    // LOG 2 — VALIDAÇÃO CAMPOS
+    if (!senderData.cep || !recipientQuoteData.cep || !recipientQuoteData.peso || 
+        !recipientQuoteData.altura || !recipientQuoteData.largura || 
+        !recipientQuoteData.comprimento || !recipientQuoteData.valor_encomenda) {
+      
+      console.error("CEP CERTO - Campo faltando", {
+        cep_remetente: senderData.cep,
+        cep_destinatario: recipientQuoteData.cep,
+        peso_gramas: recipientQuoteData.peso,
+        altura: recipientQuoteData.altura,
+        largura: recipientQuoteData.largura,
+        comprimento: recipientQuoteData.comprimento,
+        valor_encomenda: recipientQuoteData.valor_encomenda
+      });
+      toast.error('Campo obrigatório não preenchido');
       return;
     }
-    if (!recipientQuoteData.cep || recipientQuoteData.cep.length !== 8) {
+
+    if (senderData.cep.length !== 8) {
+      toast.error('CEP do Remetente deve ter 8 dígitos.');
+      return;
+    }
+    if (recipientQuoteData.cep.length !== 8) {
       toast.error('CEP do Destinatário deve ter 8 dígitos.');
       return;
     }
 
-    // Validações de peso e dimensões
+    // Formatação CEP
+    const cep_remetente_formatado = senderData.cep.replace(/\D/g, '');
+    const cep_destinatario_formatado = recipientQuoteData.cep.replace(/\D/g, '');
+    console.log("CEP formatado", cep_remetente_formatado, cep_destinatario_formatado);
+
+    // LOG 3 — CONVERSÃO PESO
     const pesoGramas = parseFloat(recipientQuoteData.peso);
-    if (isNaN(pesoGramas) || pesoGramas < 300 || pesoGramas > 30000) {
+    const pesoKg = pesoGramas / 1000;
+    console.log("CEP CERTO - Peso convertido", {
+      peso_gramas: pesoGramas,
+      peso_kilo: pesoKg
+    });
+
+    // VALIDAÇÃO PESO
+    if (isNaN(pesoKg) || pesoKg < 0.3 || pesoKg > 30) {
+      console.log("Peso validado - ERRO", pesoKg);
       toast.error('Peso deve ser entre 300g e 30kg.');
       return;
     }
-    const pesoKg = pesoGramas / 1000;
+    console.log("Peso validado - OK", pesoKg);
 
+    // VALIDAÇÃO DIMENSÕES
     const altura = parseFloat(recipientQuoteData.altura);
+    const largura = parseFloat(recipientQuoteData.largura);
+    const comprimento = parseFloat(recipientQuoteData.comprimento);
+    console.log("Dimensões", {
+      altura,
+      largura,
+      comprimento
+    });
+
     if (isNaN(altura) || altura < 0.4 || altura > 100) {
       toast.error('Altura deve ser entre 0,4cm e 100cm.');
       return;
     }
 
-    const largura = parseFloat(recipientQuoteData.largura);
     if (isNaN(largura) || largura < 11 || largura > 100) {
       toast.error('Largura deve ser entre 11cm e 100cm.');
       return;
     }
 
-    const comprimento = parseFloat(recipientQuoteData.comprimento);
     if (isNaN(comprimento) || comprimento < 13 || comprimento > 100) {
       toast.error('Comprimento deve ser entre 13cm e 100cm.');
       return;
@@ -240,7 +289,7 @@ export default function CepCertoAdmin() {
     setQuoteResult(null);
 
     try {
-      // 1. Buscar API key
+      // LOG 4 — BUSCAR TOKEN
       const { data: carriers } = await supabase
         .from('shipping_carriers')
         .select('api_key, config')
@@ -249,6 +298,7 @@ export default function CepCertoAdmin() {
         .limit(1);
 
       if (!carriers || carriers.length === 0) {
+        console.error("CEP CERTO - Token não encontrado");
         toast.error('Configuração CEP CERTO não encontrada');
         return;
       }
@@ -261,40 +311,54 @@ export default function CepCertoAdmin() {
       }
 
       if (!apiKey) {
+        console.error("CEP CERTO - Token não encontrado");
         toast.error('Configuração CEP CERTO não encontrada');
         return;
       }
+      console.log("CEP CERTO - Token encontrado", apiKey);
+
+      // LOG 5 — BODY COMPLETO API
+      const body = {
+        token_cliente_postagem: apiKey,
+        cep_remetente: cep_remetente_formatado,
+        cep_destinatario: cep_destinatario_formatado,
+        peso: pesoKg.toString(),
+        altura: altura.toString(),
+        largura: largura.toString(),
+        comprimento: comprimento.toString(),
+        valor_encomenda: valor.toString()
+      };
+      console.log("CEP CERTO - Body enviado API", body);
 
       // 2. Fazer POST
       const response = await fetch('https://cepcerto.com/api-cotacao/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token_cliente_postagem: apiKey,
-          cep_remetente: senderData.cep.replace(/\D/g, ''),
-          cep_destinatario: recipientQuoteData.cep.replace(/\D/g, ''),
-          peso: pesoKg.toString(),
-          altura: altura.toString(),
-          largura: largura.toString(),
-          comprimento: comprimento.toString(),
-          valor_encomenda: valor.toString()
-        })
+        body: JSON.stringify(body)
       });
+
+      // LOG 6 — RESPOSTA API
+      console.log("CEP CERTO - Resposta API", response);
 
       if (response.ok) {
         const data = await response.json();
+        // LOG 7 — STATUS API
+        console.log("CEP CERTO - Dados da Resposta", data);
+        
         if (data.status === 'sucesso') {
           setQuoteResult(data);
           toast.success('Cotação realizada com sucesso!');
         } else {
-          toast.error(data.mensagem || 'Erro ao calcular frete');
+          console.error("CEP CERTO - Status inválido", data);
+          toast.error(`Erro ao calcular frete. Motivo: ${data.mensagem || 'Erro API CEP CERTO'}`);
         }
       } else {
-        toast.error('Erro ao calcular frete');
+        console.error("CEP CERTO - Erro na requisição (HTTP Error)");
+        toast.error('Erro ao calcular frete. Motivo: Erro API CEP CERTO');
       }
     } catch (error) {
-      console.error('Erro na cotação:', error);
-      toast.error('Erro ao calcular frete');
+      console.error("CEP CERTO - Erro API", error);
+      toast.error(`Erro ao calcular frete. Motivo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setCalculatingQuote(false);
     }
