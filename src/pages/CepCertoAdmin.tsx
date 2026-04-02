@@ -198,6 +198,17 @@ export default function CepCertoAdmin() {
       }
 
       const carrier = carriers && carriers.length > 0 ? carriers[0] : null;
+      if (carrier) {
+        // CORREÇÃO: Parse do JSON que está vindo como string do Supabase
+        try {
+          carrier.config = typeof carrier.config === 'string' ? JSON.parse(carrier.config) : carrier.config;
+          console.log('--- [DEBUG] Config parseado:', carrier.config);
+        } catch (e) {
+          console.error('Erro ao fazer parse do config:', e);
+          carrier.config = {};
+        }
+      }
+
       if (!carrier) {
         console.warn('Transportadora CepCerto não encontrada.');
         setLoading(false);
