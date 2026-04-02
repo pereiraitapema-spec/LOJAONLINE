@@ -492,8 +492,9 @@ const cepcertoProvider: ShippingProvider = {
     const key = config.api_key_postagem || config.api_key;
     
     try {
-      console.log('Consultando saldo CepCerto...');
-      const response = await fetch('https://cepcerto.com/api-saldo/', {
+      console.log('Consultando saldo CepCerto via Proxy...');
+      const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent('https://cepcerto.com/api-saldo/')}`;
+      const response = await fetch(corsProxyUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token_cliente_postagem: key })
@@ -507,10 +508,9 @@ const cepcertoProvider: ShippingProvider = {
       console.log('Resposta saldo CepCerto:', data);
 
       if (data && data.saldo_atual) {
-        // Normaliza o saldo para formato numérico se necessário, ou mantém como string
         return { 
           ...data, 
-          saldo: data.saldo_atual // Mantém a estrutura esperada pelo componente
+          saldo: data.saldo_atual
         };
       }
       

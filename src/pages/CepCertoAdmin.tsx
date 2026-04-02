@@ -182,62 +182,26 @@ export default function CepCertoAdmin() {
       if (!silent) setLoading(true);
       
       console.log('--- BUSCANDO SALDO DIRETAMENTE ---');
-      const balanceData = await shippingService.getBalance({ api_key_postagem: "SEU_TOKEN_AQUI" }); // <--- COLOQUE SEU TOKEN AQUI
-      setBalance(balanceData);
-
-      if (carrierError) {
-        console.error('--- ERRO DETALHADO SUPABASE ---');
-        console.error('Código:', carrierError.code);
-        console.error('Mensagem:', carrierError.message);
-        console.error('Detalhes:', carrierError.details);
-        console.error('Hint:', carrierError.hint);
-        console.error('Objeto Completo:', JSON.stringify(carrierError, null, 2));
-        toast.error('Erro de permissão no banco de dados.');
-        setLoading(false);
-        return;
-      }
-
-      const carrier = carriers && carriers.length > 0 ? carriers.find(c => c.provider === 'cepcerto') : null;
-
-      if (!carrier) {
-        console.warn('Transportadora CepCerto não encontrada ou inativa.');
-        if (!silent) toast.error('Transportadora CepCerto não encontrada ou inativa.');
-        setLoading(false);
-        return;
-      }
-
-      setCarrier(carrier);
-      setLastFetched(Date.now());
       
-      if (carrier.config?.origin_zip) {
-        setQuoteData(prev => ({ 
-          ...prev, 
-          cep_origem: carrier.config.origin_zip,
-          cep_remetente: carrier.config.origin_zip 
-        }));
+      // Bypass total do Supabase para o saldo
+      try {
+        const TOKEN_CEPCERTO = "a39dd3954594aa60e22b16b5f42a0e78e34b0e35188421daf9810272cfa5f7f0f38c16769f5cc4d950e378f912f0baaa31a217a2f3a425a02afe5594e6a13f5a";
+        const balanceData = await shippingService.getBalance({ api_key_postagem: TOKEN_CEPCERTO });
+        setBalance(balanceData);
+      } catch (e) {
+        console.error('Erro ao buscar saldo:', e);
+        toast.error('Erro ao buscar saldo.');
       }
-
-      await Promise.all([
-        (async () => {
-          try {
-            const config = carrier.config || {};
-            const balanceData = await shippingService.getBalance(config);
-            setBalance(balanceData);
-          } catch (e) {
-            console.error('Erro ao buscar saldo:', e);
-          }
-        })(),
-        (async () => {
-          const { data: orders } = await supabase
-            .from('orders')
-            .select('*')
-            .or('shipping_method.ilike.sedex,shipping_method.ilike.pac,shipping_method.ilike.jadlog')
-            .order('created_at', { ascending: false })
-            .limit(10);
-          
-          setRecentOrders(orders || []);
-        })()
-      ]);
+      
+      // Busca de pedidos (mantida, mas não bloqueia o saldo)
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('*')
+        .or('shipping_method.ilike.sedex,shipping_method.ilike.pac,shipping_method.ilike.jadlog')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      setRecentOrders(orders || []);
 
     } catch (error: any) {
       console.error('Error fetching CepCerto data:', error);
