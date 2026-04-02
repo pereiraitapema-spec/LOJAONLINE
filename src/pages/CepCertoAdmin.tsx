@@ -198,9 +198,11 @@ export default function CepCertoAdmin() {
       }
 
       const carrier = carriers && carriers.length > 0 ? carriers[0] : null;
+      console.log('--- [DEBUG] Transportadora encontrada:', carrier);
       if (carrier) {
         // CORREÇÃO: Parse do JSON que está vindo como string do Supabase
         try {
+          console.log('--- [DEBUG] Config original:', carrier.config);
           carrier.config = typeof carrier.config === 'string' ? JSON.parse(carrier.config) : carrier.config;
           console.log('--- [DEBUG] Config parseado:', carrier.config);
         } catch (e) {
