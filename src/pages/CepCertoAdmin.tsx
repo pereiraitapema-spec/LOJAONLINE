@@ -222,7 +222,7 @@ export default function CepCertoAdmin() {
         const token = carrier.config?.api_key_postagem || carrier.config?.api_key;
         if (!token) throw new Error('Token não encontrado no config do carrier');
         
-        const balanceData = await shippingService.getBalance({ api_key_postagem: token });
+        const balanceData = await shippingService.getBalance(carrier.config);
         setBalance(balanceData);
       } catch (e) {
         console.error('Erro ao buscar saldo:', e);
@@ -284,7 +284,7 @@ export default function CepCertoAdmin() {
       setPixData(data);
       setShowPixModal(true);
       toast.success('PIX gerado com sucesso!');
-      const balanceData = await shippingService.getBalance(currentCarrier.config || {});
+      const balanceData = await shippingService.getBalance(currentCarrier.config);
       setBalance(balanceData);
     } catch (error: any) {
       console.error('Erro ao gerar PIX:', error);
