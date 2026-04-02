@@ -181,9 +181,9 @@ export default function CepCertoAdmin() {
     try {
       if (!silent) setLoading(true);
       
-      console.log('Iniciando busca na tabela shipping_carriers...');
+      console.log('Iniciando busca na tabela shipping_carriers via view pública...');
       const { data: carriers, error: carrierError } = await supabase
-        .from('shipping_carriers')
+        .from('vw_shipping_carriers')
         .select('*');
 
       if (carrierError) {
