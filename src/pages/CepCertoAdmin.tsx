@@ -26,6 +26,7 @@ export default function CepCertoAdmin() {
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [logisticaSubTab, setLogisticaSubTab] = useState('cotacao');
   const [lastFetched, setLastFetched] = useState<number | null>(null);
   
   // Ferramentas
@@ -88,6 +89,27 @@ export default function CepCertoAdmin() {
     produtos: [{ descricao: '', valor: '', quantidade: '' }],
     chave_danfe: ''
   });
+  const [savedSender, setSavedSender] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchSavedSender = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const { data } = await supabase
+        .from('saved_senders')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      if (data) {
+        setSavedSender(data);
+        setManualLabelData((prev: any) => ({
+          ...prev,
+          ...data
+        }));
+      }
+    };
+    fetchSavedSender();
+  }, []);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -798,23 +820,38 @@ export default function CepCertoAdmin() {
 
           {activeTab === 'logistica' && (
             <div className="space-y-8">
-              <div className="bg-white rounded-[2.5rem] p-6 border border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
-                    <CreditCard className="text-indigo-600" size={20} />
-                    Recarregar Saldo
-                  </h3>
-                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">Liberação instantânea via PIX</p>
-                </div>
-                
-                <button 
-                  onClick={() => setShowValueModal(true)}
-                  className="w-full px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 text-sm"
-                >
-                  <QrCode size={18} />
-                  Gerar PIX
-                </button>
+              {/* Sub-tabs */}
+              <div className="flex gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 w-fit shadow-sm">
+                <button onClick={() => setLogisticaSubTab('cotacao')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${logisticaSubTab === 'cotacao' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}>Cotação Rápida</button>
+                <button onClick={() => setLogisticaSubTab('etiqueta')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${logisticaSubTab === 'etiqueta' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}>Gerar Etiqueta</button>
               </div>
+              
+              {logisticaSubTab === 'cotacao' && (
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                  <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
+                    <Calculator className="text-indigo-600" size={24} />
+                    Cotação Rápida
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <input placeholder="CEP Origem" value={quoteData.cep_origem} onChange={e => setQuoteData({...quoteData, cep_origem: formatCEP(e.target.value)})} maxLength={9} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="CEP Destino" value={quoteData.cep_destino} onChange={e => setQuoteData({...quoteData, cep_destino: formatCEP(e.target.value)})} maxLength={9} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="Altura (cm)" value={quoteData.altura} onChange={e => setQuoteData({...quoteData, altura: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="Largura (cm)" value={quoteData.largura} onChange={e => setQuoteData({...quoteData, largura: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="Comprimento (cm)" value={quoteData.comprimento} onChange={e => setQuoteData({...quoteData, comprimento: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="Peso (kg)" value={quoteData.peso} onChange={e => setQuoteData({...quoteData, peso: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                    <input placeholder="Valor Seguro (R$)" value={quoteData.valor_encomenda} onChange={e => setQuoteData({...quoteData, valor_encomenda: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  </div>
+                  <button 
+                    onClick={handleCalculate}
+                    disabled={calculating}
+                    className="w-full mt-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                  >
+                    {calculating ? 'Calculando...' : 'Calcular Frete'}
+                  </button>
+                </div>
+              )}
+
+              {logisticaSubTab === 'etiqueta' && (
               <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 mt-8">
                 <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
                   <ShoppingBag className="text-indigo-600" size={24} />
