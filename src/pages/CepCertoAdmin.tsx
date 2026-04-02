@@ -181,11 +181,9 @@ export default function CepCertoAdmin() {
     try {
       if (!silent) setLoading(true);
       
-      console.log('--- BUSCANDO DIRETAMENTE NA TABELA ---');
-      const { data: carriers, error: carrierError } = await supabase
-        .from('shipping_carriers')
-        .select('*')
-        .eq('provider', 'cepcerto');
+      console.log('--- BUSCANDO SALDO DIRETAMENTE ---');
+      const balanceData = await shippingService.getBalance({ api_key_postagem: "SEU_TOKEN_AQUI" }); // <--- COLOQUE SEU TOKEN AQUI
+      setBalance(balanceData);
 
       if (carrierError) {
         console.error('--- ERRO DETALHADO SUPABASE ---');
