@@ -551,7 +551,12 @@ const cepcertoProvider: ShippingProvider = {
       // Se tudo falhar, retorna um objeto vazio para não quebrar o app
       return { saldo: "0,00", error: "Não foi possível conectar à API" };
     } catch (err) {
-      console.error('CepCerto Balance Error:', err);
+      console.error('CepCerto Balance Error (Detalhes):', err);
+      // Tentar capturar mais detalhes se for um erro de rede ou resposta
+      if (err instanceof Response) {
+        const text = await err.text();
+        console.error('CepCerto Response Body:', text);
+      }
       return { saldo: "0,00", error: String(err) };
     }
   },
