@@ -482,81 +482,32 @@ const cepcertoProvider: ShippingProvider = {
     if (!config?.api_key_postagem && !config?.api_key) throw new Error('Token CepCerto não configurado.');
     const key = config.api_key_postagem || config.api_key;
     
-    // Tentar via proxy para evitar CORS
-    const tryFetch = async (url: string, options?: any) => {
-      try {
-        // Tenta primeiro via corsproxy.io (geralmente mais estável)
-        const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-        const res1 = await fetch(corsProxyUrl).catch(() => null);
-        if (res1 && res1.ok) {
-          const text = await res1.text();
-          try {
-            return JSON.parse(text);
-          } catch {
-            // Se for o AllOrigins formatado
-            const data = JSON.parse(text);
-            return JSON.parse(data.contents);
-          }
-        }
-
-        // Tenta usar o proxy do AllOrigins como segunda opção
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&timestamp=${Date.now()}`;
-        
-        if (options?.method === 'POST') {
-          const getUrl = `https://www.cepcerto.com/ws/json-saldo/${key}`;
-          const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(getUrl)}&timestamp=${Date.now()}`);
-          if (res.ok) {
-            const data = await res.json();
-            return JSON.parse(data.contents);
-          }
-        } else {
-          const res = await fetch(proxyUrl);
-          if (res.ok) {
-            const data = await res.json();
-            return JSON.parse(data.contents);
-          }
-        }
-      } catch (e) {
-        console.warn(`Proxy falhou para ${url}:`, e);
-        return null;
-      }
-      return null;
-    };
-
     try {
-      // Tentar primeiro a API antiga via proxy (mais estável para GET)
-      const data = await tryFetch(`https://www.cepcerto.com/ws/json-saldo/${key}`);
-      if (data && (data.saldo || data.saldo_atual)) {
-        return data;
-      }
-
-      // Se falhar, tenta a nova API (mas via proxy também)
-      // Como AllOrigins é chato com POST, vamos tentar outro proxy ou apenas falhar graciosamente
-      console.warn('Tentando via fallback direto (pode falhar por CORS)...');
+      console.log('Consultando saldo CepCerto...');
       const response = await fetch('https://cepcerto.com/api-saldo/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token_cliente_postagem: key })
-      }).catch(() => null);
+      });
 
-      if (response && response.ok) {
-        const newData = await response.json();
-        if (newData.saldo_atual) {
-          const cleanSaldo = newData.saldo_atual.replace('R$', '').replace('.', '').replace(',', '.').trim();
-          return { ...newData, saldo: cleanSaldo };
-        }
-        return newData;
+      if (!response.ok) {
+        throw new Error(`Erro na API de saldo: ${response.statusText}`);
       }
 
-      // Se tudo falhar, retorna um objeto vazio para não quebrar o app
-      return { saldo: "0,00", error: "Não foi possível conectar à API" };
+      const data = await response.json();
+      console.log('Resposta saldo CepCerto:', data);
+
+      if (data && data.saldo_atual) {
+        // Normaliza o saldo para formato numérico se necessário, ou mantém como string
+        return { 
+          ...data, 
+          saldo: data.saldo_atual // Mantém a estrutura esperada pelo componente
+        };
+      }
+      
+      return { saldo: "0,00", error: "Formato de resposta inválido" };
     } catch (err) {
       console.error('CepCerto Balance Error (Detalhes):', err);
-      // Tentar capturar mais detalhes se for um erro de rede ou resposta
-      if (err instanceof Response) {
-        const text = await err.text();
-        console.error('CepCerto Response Body:', text);
-      }
       return { saldo: "0,00", error: String(err) };
     }
   },
