@@ -154,13 +154,33 @@ export default function AffiliateDashboard() {
       }
 
       // Buscar dados do afiliado
-      const { data: affiliateData, error } = await withTimeout(
+      let { data: affiliateData, error } = await withTimeout(
         supabase
           .from('affiliates')
           .select('*')
           .eq('user_id', session.user.id)
           .maybeSingle()
       );
+
+      // Se não encontrou por user_id, tentar por e-mail
+      if (!affiliateData && !error && session.user.email) {
+        console.log('🔍 Buscando afiliado por e-mail no dashboard:', session.user.email);
+        const { data: byEmail } = await withTimeout(
+          supabase
+            .from('affiliates')
+            .select('*')
+            .eq('email', session.user.email)
+            .maybeSingle()
+        );
+        if (byEmail) {
+          affiliateData = byEmail;
+          // Vincular o user_id se estiver faltando
+          if (!affiliateData.user_id) {
+            console.log('🔗 Vinculando user_id ao registro de afiliado no dashboard...');
+            await supabase.from('affiliates').update({ user_id: session.user.id }).eq('id', affiliateData.id);
+          }
+        }
+      }
 
       if (error) {
         console.error('❌ Erro ao buscar dados do afiliado:', error);

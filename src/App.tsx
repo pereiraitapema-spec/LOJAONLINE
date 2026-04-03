@@ -100,14 +100,43 @@ function AppContent() {
 
       // 4. Se for 'customer', verificar se é afiliado (apenas se necessário)
       if (finalRole === 'customer') {
-        const { data: affiliate } = await withTimeout(supabase
+        console.log('🔍 Verificando se o usuário é um afiliado aprovado...');
+        
+        // Tentar por user_id primeiro
+        const { data: affiliateById } = await withTimeout(supabase
           .from('affiliates')
-          .select('status, active')
+          .select('id, status, active, email')
           .eq('user_id', userId)
           .maybeSingle());
         
-        if (affiliate && (affiliate.status === 'approved' || affiliate.active === true)) {
+        if (affiliateById && (affiliateById.status === 'approved' || affiliateById.active === true)) {
+          console.log('✅ Afiliado encontrado por ID e aprovado.');
           finalRole = 'affiliate';
+          
+          // Atualizar o role no profile para persistir e agilizar futuras consultas
+          await supabase.from('profiles').update({ role: 'affiliate' }).eq('id', userId);
+        } else if (email) {
+          // Tentar por e-mail (caso o user_id não esteja vinculado)
+          console.log('🔍 Buscando afiliado por e-mail:', email);
+          const { data: affiliateByEmail } = await withTimeout(supabase
+            .from('affiliates')
+            .select('id, status, active, user_id')
+            .eq('email', email)
+            .maybeSingle());
+          
+          if (affiliateByEmail && (affiliateByEmail.status === 'approved' || affiliateByEmail.active === true)) {
+            console.log('✅ Afiliado encontrado por e-mail e aprovado.');
+            finalRole = 'affiliate';
+            
+            // Vincular o user_id se estiver faltando
+            if (!affiliateByEmail.user_id) {
+              console.log('🔗 Vinculando user_id ao registro de afiliado...');
+              await supabase.from('affiliates').update({ user_id: userId }).eq('id', affiliateByEmail.id);
+            }
+
+            // Atualizar o role no profile para persistir
+            await supabase.from('profiles').update({ role: 'affiliate' }).eq('id', userId);
+          }
         }
       }
 

@@ -125,13 +125,26 @@ export default function AffiliateRegister() {
 
       if (userId) {
         // 2. Verificar se já existe um registro de afiliado para este usuário
-        const { data: existingAffiliate } = await supabase
+        let { data: existingAffiliate } = await supabase
           .from('affiliates')
           .select('id, status')
           .eq('user_id', userId)
           .maybeSingle();
 
+        // Se não encontrou por user_id, tentar por e-mail
+        if (!existingAffiliate && formData.email) {
+          const { data: byEmail } = await supabase
+            .from('affiliates')
+            .select('id, status')
+            .eq('email', formData.email)
+            .maybeSingle();
+          existingAffiliate = byEmail;
+        }
+
         if (existingAffiliate) {
+          // Se encontrou por e-mail mas não tinha user_id, vincular agora
+          await supabase.from('affiliates').update({ user_id: userId }).eq('id', existingAffiliate.id).is('user_id', null);
+          
           if (existingAffiliate.status === 'approved') {
             toast.success('Você já é um afiliado aprovado!');
             navigate('/affiliate-dashboard');

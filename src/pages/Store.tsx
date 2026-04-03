@@ -448,7 +448,7 @@ export default function Store() {
           }
 
           // Buscar dados do afiliado
-          const { data: affData } = await withTimeout(
+          let { data: affData } = await withTimeout(
             supabase
               .from('affiliates')
               .select('*')
@@ -457,6 +457,19 @@ export default function Store() {
               .maybeSingle(),
             5000
           );
+          
+          if (!affData && session.user.email) {
+            const { data: byEmail } = await withTimeout(
+              supabase
+                .from('affiliates')
+                .select('*')
+                .eq('email', session.user.email)
+                .eq('status', 'approved')
+                .maybeSingle(),
+              5000
+            );
+            affData = byEmail;
+          }
           
           if (affData) {
             setAffiliateData(affData);
@@ -989,7 +1002,12 @@ export default function Store() {
             {session ? (
               <div className="flex items-center gap-2 lg:gap-4">
                 <button 
-                  onClick={() => navigate('/profile')}
+                  onClick={() => {
+                    const isMaster = session?.user?.email === 'pereira.itapema@gmail.com';
+                    if (userProfile?.role === 'admin' || isMaster) navigate('/dashboard');
+                    else if (userProfile?.role === 'affiliate' || affiliateData) navigate('/affiliate-dashboard');
+                    else navigate('/profile');
+                  }}
                   className="flex items-center gap-2 text-slate-600 hover:text-emerald-600 transition-colors group"
                 >
                   <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center overflow-hidden group-hover:bg-emerald-50 transition-colors">
