@@ -1227,15 +1227,46 @@ export default function CepCertoAdmin() {
 
   const cancelarEtiqueta = async (token: string, cod_objeto: string) => {
     console.log("========== CANCELAMENTO ETIQUETA ==========");
-    console.log("Token:", token);
+    console.log("Token recebido:", token);
     console.log("Objeto:", cod_objeto);
+
+    let tokenFinal = token;
+
+    // Se o token não foi passado (etiquetas antigas), buscar do banco
+    if (!tokenFinal) {
+      console.log("Token não encontrado na etiqueta, buscando do banco...");
+      try {
+        const { data: carrierData } = await supabase
+          .from('shipping_carriers')
+          .select('*')
+          .eq('name', 'CepCerto')
+          .single();
+
+        if (carrierData) {
+          tokenFinal = carrierData.api_key;
+          if (!tokenFinal && carrierData.config) {
+            const config = typeof carrierData.config === 'string' ? JSON.parse(carrierData.config) : carrierData.config;
+            tokenFinal = config.api_key_postagem || config.api_key;
+          }
+          console.log("Token recuperado do banco:", tokenFinal);
+        }
+      } catch (error) {
+        console.error("Erro ao recuperar token do banco", error);
+      }
+    }
+
+    if (!tokenFinal) {
+      toast.error("Token de cancelamento não encontrado");
+      console.log("Cancelamento abortado: Token ausente");
+      return;
+    }
 
     try {
       const response = await fetch("/api/cepcerto/cancelamento", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          token_cliente_postagem: token,
+          token_cliente_postagem: tokenFinal,
           cod_objeto: cod_objeto
         })
       });
@@ -1257,9 +1288,14 @@ export default function CepCertoAdmin() {
       if (data.sucesso || data.status === "sucesso") {
         toast.success(data.mensagem || "Etiqueta cancelada com sucesso!");
         removerEtiquetaLista(cod_objeto);
-        console.log("Etiqueta cancelada");
+        console.log("Etiqueta cancelada e removida da lista");
       } else {
+        // Se o erro for que o token não foi recebido, mas nós enviamos, logar o erro
+        console.error("Erro no cancelamento:", data.mensagem || data.erro);
         toast.error(data.erro || data.mensagem || "Erro ao cancelar etiqueta");
+        
+        // Opcional: Se o erro for "Etiqueta não encontrada" ou algo que indique que ela já foi cancelada ou não existe no CepCerto, podemos remover da lista local mesmo assim?
+        // Por enquanto vamos manter apenas se for sucesso.
       }
     } catch (error) {
       console.error("Erro cancelamento", error);
