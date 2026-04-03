@@ -296,7 +296,44 @@ export default function CepCertoAdmin() {
   const [calculatingAutoQuote, setCalculatingAutoQuote] = useState(false);
   const [availableQuotes, setAvailableQuotes] = useState([]);
 
-  // Funções de formatação e validação
+  // Funções auxiliares de formatação e validação
+  function converterPesoGramas(peso: number) {
+    if (peso < 1) {
+      return peso * 1000;
+    }
+    return peso;
+  }
+
+  async function buscarCEPAPI(cep: string) {
+    try {
+      console.log("Chamando API CEP");
+      const response = await fetch(`/api/cep/${cep}`);
+      const data = await response.json();
+      console.log("Resposta CEP:", data);
+      if (!data || data.erro) {
+        console.error("CEP não encontrado");
+        toast.error("CEP não consta na base de dados");
+        return;
+      }
+      console.log("CEP válido");
+      // Preencher endereço (assumindo que existe uma lógica para isso)
+      // preencherEndereco(data); 
+    } catch (error) {
+      console.error("Erro consulta CEP");
+      console.error(error);
+    }
+  }
+
+  function validarCEPOnline(cep: string) {
+    cep = cep.replace(/\D/g, '');
+    if (cep.length !== 8) {
+      console.log("CEP incompleto");
+      return;
+    }
+    console.log("Consultando CEP online");
+    buscarCEPAPI(cep);
+  }
+
   const formatarCEP = (cep: string) => {
     cep = cep.replace(/\D/g, '');
     if (cep.length > 8) cep = cep.slice(0, 8);
@@ -314,14 +351,17 @@ export default function CepCertoAdmin() {
     return true;
   };
 
-  const formatarWhatsapp = (numero: string) => {
+  function formatarWhatsapp(numero: string) {
     numero = numero.replace(/\D/g, '');
+    if (numero.length > 11) {
+      numero = numero.slice(0, 11);
+    }
     numero = numero.replace(/^(\d{2})(\d)/g, "($1) $2");
     numero = numero.replace(/(\d)(\d{4})$/, "$1-$2");
     return numero;
-  };
+  }
 
-  const validarWhatsapp = (numero: string) => {
+  function validarWhatsapp(numero: string) {
     const limpo = numero.replace(/\D/g, '');
     if (limpo.length !== 11) {
       console.error("WhatsApp inválido");
@@ -329,7 +369,7 @@ export default function CepCertoAdmin() {
       return false;
     }
     return true;
-  };
+  }
 
   const formatarCPF = (cpf: string) => {
     cpf = cpf.replace(/\D/g, '');
@@ -372,62 +412,48 @@ export default function CepCertoAdmin() {
   };
 
   async function calcularCotacaoOnline() {
-    console.log("========== INÍCIO CÁLCULO FRETE ==========");
+    console.log("========== VALIDAÇÃO ==========");
+    const { 
+      cep_destinatario, 
+      peso, 
+      produtos 
+    } = postagemData;
+    const whatsapp = postagemData.whatsapp_destinatario || '';
+
+    console.log("CEP:", cep_destinatario);
+    console.log("WhatsApp:", whatsapp);
+    console.log("Produtos:", produtos);
+    console.log("Peso:", peso);
+    console.log("Chamando cálculo");
+
+    // Validação
+    if (
+      !validarCEP(cep_destinatario) ||
+      !validarWhatsapp(whatsapp) ||
+      !produtos || produtos.length === 0
+    ) {
+      console.log("Dados inválidos — cancelando cálculo");
+      console.log("========== FIM VALIDAÇÃO ==========");
+      return;
+    }
+
+    console.log("========== FIM VALIDAÇÃO ==========");
     
     if (cotacaoExecutada) {
       console.log("Cotação já executada, ignorando.");
       return;
     }
-
-    const { 
-      nome_destinatario,
-      cep_destinatario, 
-      logradouro_destinatario, 
-      numero_endereco_destinatario, 
-      bairro_destinatario,
-      cidade_destinatario, 
-      estado_destinatario,
-      peso, 
-      produtos 
-    } = postagemData;
     
-    console.log("========== VALIDAÇÃO PRODUTOS ==========");
-    console.log("Produtos recebidos:", produtos);
-    console.log("Quantidade produtos:", produtos?.length);
-
-    if (!produtos || produtos.length === 0) {
-      console.error("Produtos vazio — cálculo cancelado");
-      return;
-    }
-
-    console.log("========== DESTINATÁRIO ==========");
-    console.log("Nome:", nome_destinatario);
-    console.log("CEP destino:", cep_destinatario);
-
-    // Validações
-    if (
-      !nome_destinatario ||
-      !cep_destinatario || cep_destinatario.length < 8 || 
-      !logradouro_destinatario || 
-      !numero_endereco_destinatario || 
-      !bairro_destinatario ||
-      !cidade_destinatario || 
-      !estado_destinatario || 
-      !peso || 
-      !produtos || produtos.length === 0
-    ) {
-      console.error("Dados incompletos para cotação");
-      return;
-    }
-
-    console.log("========== CHAMANDO API ==========");
-    console.log("CEP origem:", senderData.cep_remetente);
-    console.log("CEP destino:", cep_destinatario);
-    console.log("Produtos enviados:", produtos);
-
+    console.log("========== INÍCIO CÁLCULO FRETE ==========");
+    
     setCalculatingAutoQuote(true);
     
     try {
+      // Conversão de peso
+      const pesoGramas = parseFloat(peso) || 0;
+      const pesoFinal = converterPesoGramas(pesoGramas);
+      console.log("Peso produto (gramas):", pesoFinal);
+
       const { data: carriers } = await supabase
         .from('shipping_carriers')
         .select('api_key, config')
@@ -458,7 +484,7 @@ export default function CepCertoAdmin() {
         token_cliente_postagem: apiKey,
         cep_remetente: senderData.cep_remetente,
         cep_destinatario: cep_destinatario.replace(/\D/g, ''),
-        peso: peso,
+        peso: (pesoFinal / 1000).toString(), // API espera KG
         altura: postagemData.altura || "2",
         largura: postagemData.largura || "11",
         comprimento: postagemData.comprimento || "16",
@@ -549,6 +575,7 @@ export default function CepCertoAdmin() {
       formattedValue = formatarCEP(value);
       if (formattedValue.length === 9) {
         console.log("CEP validado:", formattedValue);
+        validarCEPOnline(formattedValue);
       }
     }
     
@@ -2303,7 +2330,7 @@ export default function CepCertoAdmin() {
                       </h4>
                       <div className="grid grid-cols-4 gap-2 mb-4">
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase">Peso (kg)</label>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Peso (gramas)</label>
                           <input type="text" value={postagemData.peso} onChange={e => setPostagemData({...postagemData, peso: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                         </div>
                         <div className="space-y-1">
