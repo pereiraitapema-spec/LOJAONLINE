@@ -92,7 +92,7 @@ function AppContent() {
       let finalRole = 'customer';
 
       if (!profile) {
-        console.log('🆕 Criando perfil inicial...');
+        console.log('🆕 Perfil não encontrado, criando perfil inicial...');
         const { data: newProfile } = await supabase.from('profiles').upsert({
           id: userId,
           email: email,
@@ -101,59 +101,68 @@ function AppContent() {
         }, { onConflict: 'id' }).select('role').single();
         finalRole = newProfile?.role || 'customer';
       } else {
+        console.log('📄 Perfil encontrado no banco. Role atual:', profile.role);
         finalRole = profile.role;
       }
 
-      // 4. Se for 'customer', verificar se é afiliado (apenas se necessário)
-      if (finalRole === 'customer') {
-        console.log('🔍 Verificando se o usuário é um afiliado aprovado...');
+      // 4. Se NÃO for admin, SEMPRE verificar se é um afiliado aprovado
+      // Mudamos de (finalRole === 'customer') para (finalRole !== 'admin') para cobrir roles como 'user'
+      if (finalRole !== 'admin') {
+        console.log('🔍 Iniciando verificação de Afiliado para:', email);
         
         // Tentar por user_id primeiro
-        const { data: affiliateById } = await withTimeout(supabase
+        const { data: affiliateById, error: affIdError } = await withTimeout(supabase
           .from('affiliates')
           .select('id, status, active, email')
           .eq('user_id', userId)
           .maybeSingle());
         
+        if (affIdError) console.error('❌ Erro ao buscar afiliado por ID:', affIdError);
+
         if (affiliateById) {
+          console.log('📍 Afiliado encontrado por ID:', affiliateById);
           const isApproved = affiliateById.status === 'approved' && affiliateById.active === true;
-          console.log('📊 Verificação de Afiliado (ID):', { status: affiliateById.status, active: affiliateById.active, isApproved });
           
           if (isApproved) {
+            console.log('✅ Afiliado aprovado via ID!');
             finalRole = 'affiliate';
             await supabase.from('profiles').update({ role: 'affiliate' }).eq('id', userId);
           } else {
-            finalRole = 'customer';
-            // Se o profile estava como affiliate mas agora não é mais aprovado, volta para customer
-            await supabase.from('profiles').update({ role: 'customer' }).eq('id', userId);
+            console.log('⚠️ Afiliado encontrado mas não está aprovado/ativo:', { status: affiliateById.status, active: affiliateById.active });
           }
         } else if (email) {
-          console.log('🔍 Buscando afiliado por e-mail:', email);
-          const { data: affiliateByEmail } = await withTimeout(supabase
+          console.log('🔍 Não encontrado por ID, buscando por e-mail:', email);
+          const { data: affiliateByEmail, error: affEmailError } = await withTimeout(supabase
             .from('affiliates')
             .select('id, status, active, user_id')
             .eq('email', email)
             .maybeSingle());
           
+          if (affEmailError) console.error('❌ Erro ao buscar afiliado por Email:', affEmailError);
+
           if (affiliateByEmail) {
+            console.log('📍 Afiliado encontrado por E-mail:', affiliateByEmail);
             const isApproved = affiliateByEmail.status === 'approved' && affiliateByEmail.active === true;
-            console.log('📊 Verificação de Afiliado (Email):', { status: affiliateByEmail.status, active: affiliateByEmail.active, isApproved });
             
             if (isApproved) {
+              console.log('✅ Afiliado aprovado via E-mail!');
               finalRole = 'affiliate';
+              // Vincula o user_id se estiver vazio
               if (!affiliateByEmail.user_id) {
+                console.log('🔗 Vinculando user_id ao registro de afiliado...');
                 await supabase.from('affiliates').update({ user_id: userId }).eq('id', affiliateByEmail.id);
               }
               await supabase.from('profiles').update({ role: 'affiliate' }).eq('id', userId);
             } else {
-              finalRole = 'customer';
-              await supabase.from('profiles').update({ role: 'customer' }).eq('id', userId);
+              console.log('⚠️ Afiliado por e-mail não está aprovado/ativo:', { status: affiliateByEmail.status, active: affiliateByEmail.active });
             }
+          } else {
+            console.log('❌ Nenhum registro de afiliado encontrado para este usuário.');
           }
         }
       }
 
-      console.log('✅ Role final definido:', finalRole);
+      console.log('🏁 Resultado da Sincronização:', { finalRole });
       setUserRole(finalRole);
       localStorage.setItem('user_role', finalRole);
       return finalRole;
