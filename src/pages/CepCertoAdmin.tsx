@@ -173,6 +173,13 @@ export default function CepCertoAdmin() {
     codigo: '',
     data: ''
   });
+  const [cancelarFiltros, setCancelarFiltros] = useState({
+    nome: '',
+    email: '',
+    cidade: '',
+    rastreador: '',
+    data: ''
+  });
   const [showRastreioModal, setShowRastreioModal] = useState(false);
   const [rastreioData, setRastreioData] = useState<any>(null);
   const [loadingRastreio, setLoadingRastreio] = useState(false);
@@ -194,6 +201,16 @@ export default function CepCertoAdmin() {
     const matchData = !rastreioFiltros.data || (item.data && item.data.includes(rastreioFiltros.data));
     
     return matchNome && matchEmail && matchCidade && matchCodigo && matchData;
+  });
+
+  const etiquetasCancelarFiltradas = etiquetasGeradas.filter(item => {
+    const matchNome = !cancelarFiltros.nome || item.nome?.toLowerCase().includes(cancelarFiltros.nome.toLowerCase());
+    const matchEmail = !cancelarFiltros.email || item.email?.toLowerCase().includes(cancelarFiltros.email.toLowerCase());
+    const matchCidade = !cancelarFiltros.cidade || item.cidade?.toLowerCase().includes(cancelarFiltros.cidade.toLowerCase());
+    const matchRastreador = !cancelarFiltros.rastreador || item.codigoObjeto?.toLowerCase().includes(cancelarFiltros.rastreador.toLowerCase());
+    const matchData = !cancelarFiltros.data || (item.data && item.data.includes(cancelarFiltros.data));
+    
+    return matchNome && matchEmail && matchCidade && matchRastreador && matchData;
   });
 
   useEffect(() => {
@@ -1234,26 +1251,37 @@ export default function CepCertoAdmin() {
 
     let tokenFinal = token;
 
-    // Se o token não foi passado (etiquetas antigas), buscar do banco
+    // Se o token não foi passado (etiquetas antigas), buscar do estado local ou banco
     if (!tokenFinal) {
-      console.log("Token não encontrado na etiqueta, buscando do banco...");
-      try {
-        const { data: carrierData } = await supabase
-          .from('shipping_carriers')
-          .select('*')
-          .eq('name', 'CepCerto')
-          .single();
-
-        if (carrierData) {
-          tokenFinal = carrierData.api_key;
-          if (!tokenFinal && carrierData.config) {
-            const config = typeof carrierData.config === 'string' ? JSON.parse(carrierData.config) : carrierData.config;
-            tokenFinal = config.api_key_postagem || config.api_key;
-          }
-          console.log("Token recuperado do banco:", tokenFinal);
+      if (carrier) {
+        console.log("Token não encontrado na etiqueta, usando do estado local...");
+        tokenFinal = carrier.api_key;
+        if (!tokenFinal && carrier.config) {
+          const config = typeof carrier.config === 'string' ? JSON.parse(carrier.config) : carrier.config;
+          tokenFinal = config.api_key_postagem || config.api_key;
         }
-      } catch (error) {
-        console.error("Erro ao recuperar token do banco", error);
+      }
+
+      if (!tokenFinal) {
+        console.log("Token não encontrado no estado, buscando do banco...");
+        try {
+          const { data: carrierData } = await supabase
+            .from('shipping_carriers')
+            .select('*')
+            .eq('provider', 'cepcerto')
+            .maybeSingle();
+
+          if (carrierData) {
+            tokenFinal = carrierData.api_key;
+            if (!tokenFinal && carrierData.config) {
+              const config = typeof carrierData.config === 'string' ? JSON.parse(carrierData.config) : carrierData.config;
+              tokenFinal = config.api_key_postagem || config.api_key;
+            }
+            console.log("Token recuperado do banco:", tokenFinal);
+          }
+        } catch (error) {
+          console.error("Erro ao recuperar token do banco", error);
+        }
       }
     }
 
@@ -2033,6 +2061,12 @@ export default function CepCertoAdmin() {
               className={`px-6 py-3 rounded-2xl font-bold transition-all ${logisticaSubTab === 'consulta-postagem' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
             >
               Consulta de Postagem
+            </button>
+            <button 
+              onClick={() => setLogisticaSubTab('cancelar-etiqueta')}
+              className={`px-6 py-3 rounded-2xl font-bold transition-all ${logisticaSubTab === 'cancelar-etiqueta' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+            >
+              Cancelar Etiqueta
             </button>
           </div>
 
@@ -3144,6 +3178,124 @@ export default function CepCertoAdmin() {
                       ) : (
                         <tr>
                           <td colSpan={6} className="py-12 text-center text-slate-400 italic">Nenhuma postagem encontrada com os filtros aplicados.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {logisticaSubTab === 'cancelar-etiqueta' && (
+            <div className="space-y-8">
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                  <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
+                    <Trash2 size={24} className="text-red-600" />
+                    Cancelar Etiqueta
+                  </h3>
+                </div>
+
+                {/* Filtros Cancelar */}
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome</label>
+                    <input 
+                      type="text"
+                      value={cancelarFiltros.nome}
+                      onChange={e => setCancelarFiltros({...cancelarFiltros, nome: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                      placeholder="Nome"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Email</label>
+                    <input 
+                      type="text"
+                      value={cancelarFiltros.email}
+                      onChange={e => setCancelarFiltros({...cancelarFiltros, email: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                      placeholder="Email"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Cidade</label>
+                    <input 
+                      type="text"
+                      value={cancelarFiltros.cidade}
+                      onChange={e => setCancelarFiltros({...cancelarFiltros, cidade: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                      placeholder="Cidade"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Rastreador</label>
+                    <input 
+                      type="text"
+                      value={cancelarFiltros.rastreador}
+                      onChange={e => setCancelarFiltros({...cancelarFiltros, rastreador: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                      placeholder="Código"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Data</label>
+                    <input 
+                      type="date"
+                      value={cancelarFiltros.data}
+                      onChange={e => setCancelarFiltros({...cancelarFiltros, data: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button 
+                      onClick={() => setCancelarFiltros({ nome: '', email: '', cidade: '', rastreador: '', data: '' })}
+                      className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all text-sm flex items-center justify-center gap-2"
+                    >
+                      <X size={18} />
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left border-b border-slate-100">
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nome</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Email</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cidade</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rastreador</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {etiquetasCancelarFiltradas.length > 0 ? (
+                        etiquetasCancelarFiltradas.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 transition-colors group">
+                            <td className="py-4 text-sm text-slate-600">{new Date(item.data).toLocaleDateString()}</td>
+                            <td className="py-4 text-sm font-bold text-slate-900">{item.nome || '-'}</td>
+                            <td className="py-4 text-sm text-slate-600">{item.email || '-'}</td>
+                            <td className="py-4 text-sm text-slate-600">{item.cidade || '-'}</td>
+                            <td className="py-4">
+                              <span className="font-mono text-sm font-bold text-slate-900">{item.codigoObjeto}</span>
+                            </td>
+                            <td className="py-4 text-right">
+                              <button 
+                                onClick={() => confirmarCancelarEtiqueta(item.token, item.codigoObjeto)}
+                                className="px-4 py-2 bg-red-50 text-red-600 rounded-lg font-bold text-xs hover:bg-red-600 hover:text-white transition-all flex items-center gap-1 ml-auto"
+                              >
+                                <Trash2 size={14} />
+                                Cancelar Etiqueta
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-slate-400 italic">Nenhuma postagem encontrada para cancelamento.</td>
                         </tr>
                       )}
                     </tbody>
