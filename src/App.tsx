@@ -106,7 +106,7 @@ function AppContent() {
           .eq('user_id', userId)
           .maybeSingle());
         
-        if (affiliate && (affiliate.status === 'approved' || affiliate.active)) {
+        if (affiliate && (affiliate.status === 'approved' || affiliate.active === true)) {
           finalRole = 'affiliate';
         }
       }
@@ -225,10 +225,17 @@ function AppContent() {
       return;
     }
 
+    // Redirecionamento forçado para Admin e Afiliado
     if (path === '/login' || path === '/register' || path === '/') {
-      if (role === 'admin') navigate('/dashboard');
-      else if (role === 'affiliate') navigate('/affiliate-dashboard');
-      else if (path !== '/' && !isUserPage) navigate('/');
+      if (role === 'admin') {
+        console.log('➡️ Redirecionando Admin para /dashboard');
+        navigate('/dashboard');
+      } else if (role === 'affiliate') {
+        console.log('➡️ Redirecionando Afiliado para /affiliate-dashboard');
+        navigate('/affiliate-dashboard');
+      } else if (path !== '/' && !isUserPage) {
+        navigate('/');
+      }
     }
     
     setLoading(false);
@@ -236,34 +243,35 @@ function AppContent() {
 
   const AdminRoute = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
-    console.log('🛡️ AdminRoute Check:', { 
-      session: !!session, 
-      email: session?.user?.email, 
-      userRole, 
-      path: location.pathname 
-    });
-
+    
     if (!session) {
-      console.log('🚫 AdminRoute: No session, redirecting to /login');
       return <Navigate to="/login" state={{ from: location }} replace />;
     }
     
     const isMasterAdmin = session?.user?.email === 'pereira.itapema@gmail.com';
     
-    console.log('🛡️ AdminRoute Debug:', {
-      userRole,
-      isMasterAdmin,
-      email: session?.user?.email,
-      path: location.pathname
-    });
-
     if (userRole !== 'admin' && !isMasterAdmin) {
-      console.log('🚫 AdminRoute: Access denied for', session.user.email, 'Role:', userRole, 'isMaster:', isMasterAdmin);
-      toast.error(`Acesso restrito a administradores. (Role: ${userRole || 'nenhum'})`);
+      toast.error(`Acesso restrito a administradores.`);
       return <Navigate to="/" replace />;
     }
     
-    console.log('✅ AdminRoute: Access granted');
+    return <>{children}</>;
+  };
+
+  const AffiliateRoute = ({ children }: { children: React.ReactNode }) => {
+    const location = useLocation();
+    
+    if (!session) {
+      return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+    
+    const isMasterAdmin = session?.user?.email === 'pereira.itapema@gmail.com';
+    
+    if (userRole !== 'affiliate' && userRole !== 'admin' && !isMasterAdmin) {
+      toast.error(`Acesso restrito a afiliados.`);
+      return <Navigate to="/" replace />;
+    }
+    
     return <>{children}</>;
   };
 
@@ -293,7 +301,10 @@ function AppContent() {
         />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/affiliate-register" element={<AffiliateRegister />} />
-        <Route path="/affiliate-dashboard" element={<AffiliateDashboard />} />
+        <Route 
+          path="/affiliate-dashboard" 
+          element={<AffiliateRoute><AffiliateDashboard /></AffiliateRoute>} 
+        />
         <Route path="/success" element={<Success />} />
         <Route path="/tracking/:trackingCode?" element={<Tracking />} />
         <Route path="/auth/callback" element={<Callback />} />

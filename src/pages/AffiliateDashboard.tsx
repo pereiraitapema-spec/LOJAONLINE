@@ -176,10 +176,12 @@ export default function AffiliateDashboard() {
         return;
       }
 
-      console.log('📊 Status do afiliado:', affiliateData.status, 'Ativo:', affiliateData.active);
-      const isApproved = affiliateData.status === 'approved' || (affiliateData.active && !affiliateData.status);
+      const isMasterAdmin = session.user.email === 'pereira.itapema@gmail.com';
+      console.log('📊 Status do afiliado:', affiliateData.status, 'Ativo:', affiliateData.active, 'Master:', isMasterAdmin);
       
-      if (!isApproved) {
+      const isApproved = affiliateData.status === 'approved' || affiliateData.active === true;
+      
+      if (!isApproved && !isMasterAdmin) {
         console.warn('🚫 Afiliado não aprovado, redirecionando para home');
         toast.error('Sua conta ainda está em análise.');
         navigate('/');
