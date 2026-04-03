@@ -1390,10 +1390,12 @@ export default function CepCertoAdmin() {
     }
 
     if (!tokenFinal) {
-      const forceCancel = window.confirm("Token de cancelamento não encontrado para esta etiqueta antiga. Deseja marcá-la como CANCELADA localmente para removê-la da lista ativa?");
-      if (forceCancel) {
+      const choice = window.confirm("Token de cancelamento não encontrado para esta etiqueta antiga.\n\nDeseja marcá-la como CANCELADA localmente (OK) ou EXCLUIR PERMANENTEMENTE (CANCELAR)?");
+      if (choice) {
         marcarEtiquetaComoCancelada(cod_objeto);
         toast.success("Etiqueta marcada como cancelada localmente.");
+      } else {
+        excluirEtiquetaPermanente(cod_objeto);
       }
       return;
     }
@@ -1418,9 +1420,11 @@ export default function CepCertoAdmin() {
         console.error("Erro parse cancelamento", error);
         // Se der erro de parse mas o status for 404 ou similar, pode ser que o objeto não exista mais
         if (response.status === 404 || response.status === 400) {
-          const force = window.confirm("A API retornou um erro (404/400). Esta etiqueta pode ser muito antiga ou já ter sido removida do sistema. Deseja marcá-la como CANCELADA localmente?");
-          if (force) {
+          const choice = window.confirm("A API retornou um erro (404/400). Esta etiqueta pode ser muito antiga ou já ter sido removida do sistema.\n\nDeseja marcá-la como CANCELADA localmente (OK) ou EXCLUIR PERMANENTEMENTE (CANCELAR)?");
+          if (choice) {
             marcarEtiquetaComoCancelada(cod_objeto);
+          } else {
+            excluirEtiquetaPermanente(cod_objeto);
           }
           return;
         }
@@ -1450,25 +1454,29 @@ export default function CepCertoAdmin() {
           msg.includes("prazo expirado");
 
         if (alreadyCanceled) {
-          toast(data.mensagem || "Etiqueta já estava cancelada ou não foi encontrada. Marcando como cancelada localmente.", { icon: 'ℹ️' });
-          marcarEtiquetaComoCancelada(cod_objeto);
+          const choice = window.confirm(`${data.mensagem || "Esta etiqueta já consta como cancelada no sistema."}\n\nClique em OK para manter o registro como CANCELADA (ela sairá da lista ativa).\nClique em CANCELAR para EXCLUIR PERMANENTEMENTE do sistema.`);
+          if (choice) {
+            marcarEtiquetaComoCancelada(cod_objeto);
+          } else {
+            excluirEtiquetaPermanente(cod_objeto);
+          }
         } else {
           console.error("Erro no cancelamento:", data.mensagem || data.erro);
-          const force = window.confirm(`Erro na API: ${data.mensagem || data.erro}. Deseja forçar o cancelamento local para remover da lista ativa?`);
+          const force = window.confirm(`Erro na API: ${data.mensagem || data.erro}.\n\nDeseja marcar como CANCELADA localmente (OK) ou EXCLUIR PERMANENTEMENTE (CANCELAR)?`);
           if (force) {
             marcarEtiquetaComoCancelada(cod_objeto);
           } else {
-            toast.error(data.erro || data.mensagem || "Erro ao cancelar etiqueta");
+            excluirEtiquetaPermanente(cod_objeto);
           }
         }
       }
     } catch (error) {
       console.error("Erro cancelamento", error);
-      const force = window.confirm("Erro de conexão ao tentar cancelar. Deseja marcar como CANCELADA localmente mesmo assim?");
-      if (force) {
+      const choice = window.confirm("Erro de conexão ao tentar cancelar.\n\nDeseja marcar como CANCELADA localmente (OK) ou EXCLUIR PERMANENTEMENTE (CANCELAR)?");
+      if (choice) {
         marcarEtiquetaComoCancelada(cod_objeto);
       } else {
-        toast.error("Erro conexão cancelamento");
+        excluirEtiquetaPermanente(cod_objeto);
       }
     }
     console.log("========== FIM CANCELAMENTO ==========");
@@ -1627,6 +1635,29 @@ export default function CepCertoAdmin() {
       console.error("Erro ao atualizar status no Supabase:", error);
     }
     console.log("Lista atualizada com status cancelado");
+  };
+
+  const excluirEtiquetaPermanente = async (cod_objeto: string) => {
+    console.log("Excluindo etiqueta permanentemente:", cod_objeto);
+    const novaLista = etiquetasGeradas.filter(e => e.codigoObjeto !== cod_objeto);
+    setEtiquetasGeradas(novaLista);
+    localStorage.setItem('cepcerto_etiquetas_geradas', JSON.stringify(novaLista));
+
+    // Excluir do Supabase
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await supabase
+          .from('shipping_labels')
+          .delete()
+          .eq('codigo_objeto', cod_objeto)
+          .eq('user_id', session.user.id);
+      }
+      toast.success("Etiqueta excluída permanentemente.");
+    } catch (error) {
+      console.error("Erro ao excluir do Supabase:", error);
+      toast.error("Erro ao excluir do banco de dados.");
+    }
   };
 
   const handleSelectQuote = (quote: any) => {
@@ -3141,10 +3172,18 @@ export default function CepCertoAdmin() {
                                   <ExternalLink size={18} />
                                 </button>
                                 <button 
-                                  onClick={() => confirmarCancelarEtiqueta(etq.token, etq.codigoObjeto)}
-                                  disabled={etq.status === 'cancelada'}
-                                  className={`p-2 rounded-lg transition-all ${etq.status === 'cancelada' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
-                                  title={etq.status === 'cancelada' ? "Etiqueta já cancelada" : "Excluir Etiqueta"}
+                                  onClick={() => {
+                                    if (etq.status === 'cancelada') {
+                                      const confirmDelete = window.confirm("Esta etiqueta já está cancelada. Deseja EXCLUÍ-LA PERMANENTEMENTE do sistema?");
+                                      if (confirmDelete) {
+                                        excluirEtiquetaPermanente(etq.codigoObjeto);
+                                      }
+                                    } else {
+                                      confirmarCancelarEtiqueta(etq.token, etq.codigoObjeto);
+                                    }
+                                  }}
+                                  className="p-2 rounded-lg transition-all text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                  title={etq.status === 'cancelada' ? "Excluir Permanentemente" : "Excluir Etiqueta"}
                                 >
                                   <Trash2 size={18} />
                                 </button>
