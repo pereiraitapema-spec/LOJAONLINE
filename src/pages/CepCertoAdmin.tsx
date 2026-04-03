@@ -1562,12 +1562,20 @@ export default function CepCertoAdmin() {
     setPrintType(type);
     setIsPrinting(true);
     
-    // Pequeno delay para garantir que o DOM foi atualizado antes de chamar o print
+    const loadingToast = toast.loading('Preparando documentos para impressão...');
+
+    // Aumentado o delay para 2.5 segundos para garantir o carregamento dos PDFs nos iframes
+    // Isso resolve o problema da página em branco na primeira tentativa
     setTimeout(() => {
+      toast.dismiss(loadingToast);
       window.print();
-      setIsPrinting(false);
-      setPrintType(null);
-    }, 500);
+      
+      // Pequeno delay após o comando de print para limpar o estado
+      setTimeout(() => {
+        setIsPrinting(false);
+        setPrintType(null);
+      }, 1000);
+    }, 2500);
   };
 
   // Função auxiliar para dividir array em chunks
@@ -3896,9 +3904,22 @@ export default function CepCertoAdmin() {
                           const label = pageLabels[cellIndex];
                           const url = label?.pdfUrlEtiqueta;
                           return (
-                            <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-2 flex flex-col items-center justify-center relative overflow-hidden rounded-xl">
+                            <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-0 flex flex-col items-center justify-center relative overflow-hidden rounded-xl bg-white">
                               {url ? (
-                                <iframe src={`${url}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0" title={`Print ${label.codigoObjeto}`} />
+                                <div className="w-full h-full relative overflow-hidden">
+                                  <iframe 
+                                    src={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
+                                    className="border-0 absolute top-0 left-0"
+                                    style={{ 
+                                      width: '200%', 
+                                      height: '200%',
+                                      transform: 'scale(1.1)',
+                                      transformOrigin: '15% 5%',
+                                      border: 'none'
+                                    }}
+                                    title={`Print ${label.codigoObjeto}`} 
+                                  />
+                                </div>
                               ) : (
                                 <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
                                   <Printer size={32} className="opacity-20" />
@@ -3919,9 +3940,20 @@ export default function CepCertoAdmin() {
                           const label = pageLabels[cellIndex];
                           const url = label?.pdfUrlDeclaracao || label?.declaracaoUrl;
                           return (
-                            <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-2 flex flex-col items-center justify-center relative overflow-hidden rounded-xl">
+                            <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-0 flex flex-col items-center justify-center relative overflow-hidden rounded-xl bg-white">
                               {url ? (
-                                <iframe src={`${url}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0" title={`Print ${label.codigoObjeto}`} />
+                                <div className="w-full h-full relative overflow-hidden">
+                                  <iframe 
+                                    src={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
+                                    className="border-0 absolute top-0 left-0"
+                                    style={{ 
+                                      width: '100%', 
+                                      height: '100%',
+                                      border: 'none'
+                                    }}
+                                    title={`Print ${label.codigoObjeto}`} 
+                                  />
+                                </div>
                               ) : (
                                 <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
                                   <Printer size={32} className="opacity-20" />
@@ -3944,13 +3976,22 @@ export default function CepCertoAdmin() {
                         const url = label ? (printType === 'etiqueta' ? label.pdfUrlEtiqueta : (label.pdfUrlDeclaracao || label.declaracaoUrl)) : null;
                         
                         return (
-                          <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-2 flex flex-col items-center justify-center relative overflow-hidden rounded-xl">
+                          <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-0 flex flex-col items-center justify-center relative overflow-hidden rounded-xl bg-white">
                             {url ? (
-                              <iframe 
-                                src={`${url}#toolbar=0&navpanes=0&scrollbar=0`} 
-                                className="w-full h-full border-0"
-                                title={`Print ${label.codigoObjeto}`}
-                              />
+                              <div className="w-full h-full relative overflow-hidden">
+                                <iframe 
+                                  src={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
+                                  className="border-0 absolute top-0 left-0"
+                                  style={{ 
+                                    width: printType === 'etiqueta' ? '200%' : '100%', 
+                                    height: printType === 'etiqueta' ? '200%' : '100%',
+                                    transform: printType === 'etiqueta' ? 'scale(1.1)' : 'none',
+                                    transformOrigin: '15% 5%',
+                                    border: 'none'
+                                  }}
+                                  title={`Print ${label.codigoObjeto}`}
+                                />
+                              </div>
                             ) : (
                               <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
                                 <Printer size={32} className="opacity-20" />
