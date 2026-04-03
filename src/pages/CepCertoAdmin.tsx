@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { 
   Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, 
   ShoppingBag, Megaphone, Users, Truck, CreditCard, Zap,
-  Search, ChevronRight, Check, Copy, RefreshCw, X, AlertCircle, AlertTriangle, Wallet, QrCode, Trash2, Printer,
+  Search, ChevronRight, Check, Copy, RefreshCw, X, AlertCircle, AlertTriangle, Wallet, QrCode, Trash2, Printer, Calendar,
   MapPin, Calculator, FileText, ArrowRight, ExternalLink, Activity
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -180,6 +180,12 @@ export default function CepCertoAdmin() {
     rastreador: '',
     data: ''
   });
+  const [listaEtiquetasFiltros, setListaEtiquetasFiltros] = useState({
+    nome: '',
+    rastreador: '',
+    data: '',
+    status: 'ativa'
+  });
   const [showRastreioModal, setShowRastreioModal] = useState(false);
   const [rastreioData, setRastreioData] = useState<any>(null);
   const [loadingRastreio, setLoadingRastreio] = useState(false);
@@ -201,6 +207,17 @@ export default function CepCertoAdmin() {
     const matchData = !rastreioFiltros.data || (item.data && item.data.includes(rastreioFiltros.data));
     
     return matchNome && matchEmail && matchCidade && matchCodigo && matchData;
+  });
+
+  const etiquetasListaFiltradas = etiquetasGeradas.filter(item => {
+    const matchNome = !listaEtiquetasFiltros.nome || item.nome?.toLowerCase().includes(listaEtiquetasFiltros.nome.toLowerCase());
+    const matchRastreador = !listaEtiquetasFiltros.rastreador || item.codigoObjeto?.toLowerCase().includes(listaEtiquetasFiltros.rastreador.toLowerCase());
+    const matchData = !listaEtiquetasFiltros.data || (item.data && item.data.includes(listaEtiquetasFiltros.data));
+    
+    const itemStatus = item.status || 'ativa';
+    const matchStatus = itemStatus === listaEtiquetasFiltros.status;
+    
+    return matchNome && matchRastreador && matchData && matchStatus;
   });
 
   const etiquetasCancelarFiltradas = etiquetasGeradas.filter(item => {
@@ -1320,12 +1337,15 @@ export default function CepCertoAdmin() {
         marcarEtiquetaComoCancelada(cod_objeto);
         console.log("Etiqueta marcada como cancelada");
       } else {
-        // Se o erro for que o token não foi recebido, mas nós enviamos, logar o erro
-        console.error("Erro no cancelamento:", data.mensagem || data.erro);
-        toast.error(data.erro || data.mensagem || "Erro ao cancelar etiqueta");
-        
-        // Opcional: Se o erro for "Etiqueta não encontrada" ou algo que indique que ela já foi cancelada ou não existe no CepCerto, podemos remover da lista local mesmo assim?
-        // Por enquanto vamos manter apenas se for sucesso.
+        const msg = (data.mensagem || data.erro || "").toLowerCase();
+        // Se a etiqueta já foi cancelada ou não existe no sistema do CepCerto, marcamos como cancelada localmente
+        if (msg.includes("já cancelado") || msg.includes("não encontrado") || msg.includes("objeto cancelado") || msg.includes("cancelado com sucesso")) {
+          toast(data.mensagem || "Etiqueta já estava cancelada ou não foi encontrada. Marcando como cancelada localmente.", { icon: 'ℹ️' });
+          marcarEtiquetaComoCancelada(cod_objeto);
+        } else {
+          console.error("Erro no cancelamento:", data.mensagem || data.erro);
+          toast.error(data.erro || data.mensagem || "Erro ao cancelar etiqueta");
+        }
       }
     } catch (error) {
       console.error("Erro cancelamento", error);
@@ -2856,6 +2876,59 @@ export default function CepCertoAdmin() {
                         </button>
                       </div>
                   </div>
+
+                  {/* Filtros */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-2">Nome</label>
+                      <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input 
+                          type="text"
+                          placeholder="Filtrar por nome..."
+                          className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+                          value={listaEtiquetasFiltros.nome}
+                          onChange={(e) => setListaEtiquetasFiltros({...listaEtiquetasFiltros, nome: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-2">Data</label>
+                      <div className="relative">
+                        <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input 
+                          type="date"
+                          className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+                          value={listaEtiquetasFiltros.data}
+                          onChange={(e) => setListaEtiquetasFiltros({...listaEtiquetasFiltros, data: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-2">Rastreador</label>
+                      <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input 
+                          type="text"
+                          placeholder="Código de rastreio..."
+                          className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+                          value={listaEtiquetasFiltros.rastreador}
+                          onChange={(e) => setListaEtiquetasFiltros({...listaEtiquetasFiltros, rastreador: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-2">Status</label>
+                      <select 
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+                        value={listaEtiquetasFiltros.status}
+                        onChange={(e) => setListaEtiquetasFiltros({...listaEtiquetasFiltros, status: e.target.value})}
+                      >
+                        <option value="ativa">Ativas</option>
+                        <option value="cancelada">Canceladas</option>
+                      </select>
+                    </div>
+                  </div>
                   
                   <div className="overflow-x-auto">
                     <table className="w-full">
@@ -2865,10 +2938,10 @@ export default function CepCertoAdmin() {
                             <input 
                               type="checkbox" 
                               className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
-                              checked={selectedLabels.length === etiquetasGeradas.length && etiquetasGeradas.length > 0}
+                              checked={selectedLabels.length === etiquetasListaFiltradas.length && etiquetasListaFiltradas.length > 0}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setSelectedLabels(etiquetasGeradas.map(l => l.id));
+                                  setSelectedLabels(etiquetasListaFiltradas.map(l => l.id));
                                 } else {
                                   setSelectedLabels([]);
                                 }
@@ -2884,8 +2957,9 @@ export default function CepCertoAdmin() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
-                        {etiquetasGeradas.map((etq, idx) => (
-                          <tr key={idx} className={`group transition-colors ${selectedLabels.includes(etq.id) ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}`}>
+                        {etiquetasListaFiltradas.length > 0 ? (
+                          etiquetasListaFiltradas.map((etq, idx) => (
+                            <tr key={idx} className={`group transition-colors ${selectedLabels.includes(etq.id) ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}`}>
                             <td className="py-4 pl-2">
                               <input 
                                 type="checkbox" 
@@ -2935,8 +3009,13 @@ export default function CepCertoAdmin() {
                               </div>
                             </td>
                           </tr>
-                        ))}
-                      </tbody>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400 italic">Nenhuma etiqueta encontrada com os filtros aplicados.</td>
+                        </tr>
+                      )}
+                    </tbody>
                     </table>
                   </div>
                 </div>
