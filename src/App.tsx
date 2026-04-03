@@ -115,8 +115,8 @@ function AppContent() {
           .eq('user_id', userId)
           .maybeSingle());
         
-        if (affiliateById && (affiliateById.status === 'approved' || affiliateById.active === true)) {
-          console.log('✅ Afiliado encontrado por ID e aprovado.');
+        if (affiliateById) {
+          console.log('✅ Registro de afiliado encontrado por ID. Status:', affiliateById.status);
           finalRole = 'affiliate';
           
           // Atualizar o role no profile para persistir e agilizar futuras consultas
@@ -130,8 +130,8 @@ function AppContent() {
             .eq('email', email)
             .maybeSingle());
           
-          if (affiliateByEmail && (affiliateByEmail.status === 'approved' || affiliateByEmail.active === true)) {
-            console.log('✅ Afiliado encontrado por e-mail e aprovado.');
+          if (affiliateByEmail) {
+            console.log('✅ Registro de afiliado encontrado por e-mail. Status:', affiliateByEmail.status);
             finalRole = 'affiliate';
             
             // Vincular o user_id se estiver faltando

@@ -453,7 +453,6 @@ export default function Store() {
               .from('affiliates')
               .select('*')
               .eq('user_id', session.user.id)
-              .eq('status', 'approved')
               .maybeSingle(),
             5000
           );
@@ -464,7 +463,6 @@ export default function Store() {
                 .from('affiliates')
                 .select('*')
                 .eq('email', session.user.email)
-                .eq('status', 'approved')
                 .maybeSingle(),
               5000
             );

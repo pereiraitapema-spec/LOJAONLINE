@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { 
   ShoppingBag, DollarSign, Link as LinkIcon, Copy, 
-  LogOut, User, BarChart, Tag, Percent, ArrowRight, ArrowLeft,
+  LogOut, User, BarChart, Tag, Percent, ArrowRight, ArrowLeft, Clock,
   ChevronRight, Package, Grid, Trash2, CheckCircle, Calendar, Info, TrendingUp, Filter, Users
 } from 'lucide-react';
 import { Loading } from '../components/Loading';
@@ -84,6 +84,7 @@ interface Lead {
 export default function AffiliateDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [isPending, setIsPending] = useState(false);
   const [affiliate, setAffiliate] = useState<AffiliateData | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -202,9 +203,10 @@ export default function AffiliateDashboard() {
       const isApproved = affiliateData.status === 'approved' || affiliateData.active === true;
       
       if (!isApproved && !isMasterAdmin) {
-        console.warn('🚫 Afiliado não aprovado, redirecionando para home');
-        toast.error('Sua conta ainda está em análise.');
-        navigate('/');
+        console.warn('⏳ Afiliado aguardando aprovação:', affiliateData.status);
+        setIsPending(true);
+        setAffiliate(affiliateData);
+        setLoading(false);
         return;
       }
 
@@ -566,6 +568,39 @@ export default function AffiliateDashboard() {
 
   if (loading) {
     return <Loading />;
+  }
+
+  if (isPending) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 text-center">
+          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Clock size={40} className="text-amber-600" />
+          </div>
+          <h1 className="text-2xl font-black text-slate-900 mb-2">Conta em Análise</h1>
+          <p className="text-slate-600 mb-8">
+            Olá, <span className="font-bold">{affiliate?.name}</span>! Sua solicitação para ser um afiliado está sendo analisada por nossa equipe. 
+            Você receberá um e-mail assim que sua conta for aprovada.
+          </p>
+          <div className="space-y-4">
+            <button
+              onClick={() => navigate('/')}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+            >
+              <ArrowLeft size={20} />
+              Voltar para a Loja
+            </button>
+            <button
+              onClick={handleLogout}
+              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2"
+            >
+              <LogOut size={20} />
+              Sair da Conta
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!affiliate) {
