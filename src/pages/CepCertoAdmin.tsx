@@ -293,151 +293,163 @@ export default function CepCertoAdmin() {
 
   const [calculatingAutoQuote, setCalculatingAutoQuote] = useState(false);
 
-  // Efeito para cotação automática
+  // Monitoramento contínuo para cotação automática
   useEffect(() => {
-    const calcularCotacaoAutomatica = async () => {
-      const { 
-        nome_destinatario,
-        cep_destinatario, 
-        logradouro_destinatario, 
-        numero_endereco_destinatario, 
-        bairro_destinatario,
-        cidade_destinatario, 
-        estado_destinatario,
-        peso, 
-        produtos 
-      } = postagemData;
-      
-      // Verifica se tem os dados mínimos
-      if (
-        !nome_destinatario ||
-        !cep_destinatario || cep_destinatario.length !== 8 || 
-        !logradouro_destinatario || 
-        !numero_endereco_destinatario || 
-        !bairro_destinatario ||
-        !cidade_destinatario || 
-        !estado_destinatario || 
-        !peso || 
-        !produtos || produtos.length === 0
-      ) {
-        return;
+    const interval = setInterval(() => {
+      verificarDestinatarioCompleto();
+    }, 800);
+    return () => clearInterval(interval);
+  }, []);
+
+  const verificarDestinatarioCompleto = () => {
+    const {
+      nome_destinatario,
+      cep_destinatario,
+      logradouro_destinatario,
+      numero_endereco_destinatario,
+      bairro_destinatario,
+      cidade_destinatario,
+      estado_destinatario
+    } = postagemData;
+
+    if (
+      nome_destinatario &&
+      cep_destinatario &&
+      logradouro_destinatario &&
+      numero_endereco_destinatario &&
+      bairro_destinatario &&
+      cidade_destinatario &&
+      estado_destinatario
+    ) {
+      if (!(window as any).cotacaoGerada) {
+        console.log("Destinatário completo — Gerando cotação online");
+        (window as any).cotacaoGerada = true;
+        calcularCotacaoOnline();
+      }
+    }
+  };
+
+  const calcularCotacaoOnline = async () => {
+    const { 
+      nome_destinatario,
+      cep_destinatario, 
+      logradouro_destinatario, 
+      numero_endereco_destinatario, 
+      bairro_destinatario,
+      cidade_destinatario, 
+      estado_destinatario,
+      peso, 
+      produtos 
+    } = postagemData;
+    
+    // Verifica se tem os dados mínimos
+    if (
+      !nome_destinatario ||
+      !cep_destinatario || cep_destinatario.length !== 8 || 
+      !logradouro_destinatario || 
+      !numero_endereco_destinatario || 
+      !bairro_destinatario ||
+      !cidade_destinatario || 
+      !estado_destinatario || 
+      !peso || 
+      !produtos || produtos.length === 0
+    ) {
+      return;
+    }
+
+    // Calcula o valor total dos produtos
+    const valorTotal = produtos.reduce((acc: number, prod: any) => acc + (parseFloat(prod.valor) || 0) * (parseInt(prod.quantidade) || 1), 0);
+    
+    if (valorTotal === 0) return;
+
+    console.log("========== CÁLCULO ONLINE ==========");
+    console.log("Destinatário preenchido");
+    console.log({
+      nome: nome_destinatario,
+      cep: cep_destinatario,
+      endereco: logradouro_destinatario,
+      numero: numero_endereco_destinatario,
+      bairro: bairro_destinatario,
+      cidade: cidade_destinatario,
+      estado: estado_destinatario
+    });
+    console.log("Calculando frete online");
+    
+    setCalculatingAutoQuote(true);
+    
+    try {
+      const { data: carriers } = await supabase
+        .from('shipping_carriers')
+        .select('api_key, config')
+        .eq('provider', 'cepcerto')
+        .eq('active', true)
+        .limit(1);
+
+      if (!carriers || carriers.length === 0) return;
+
+      const carrierData = carriers[0];
+      let apiKey = carrierData.api_key;
+      if (!apiKey && carrierData.config) {
+        const config = typeof carrierData.config === 'string' ? JSON.parse(carrierData.config) : carrierData.config;
+        apiKey = config.api_key_postagem || config.api_key;
       }
 
-      // Calcula o valor total dos produtos
-      const valorTotal = produtos.reduce((acc: number, prod: any) => acc + (parseFloat(prod.valor) || 0) * (parseInt(prod.quantidade) || 1), 0);
-      
-      if (valorTotal === 0) return;
+      if (!apiKey) return;
 
-      console.log("========== CÁLCULO ONLINE ==========");
-      console.log("Destinatário preenchido");
-      console.log({
-        nome: nome_destinatario,
-        cep: cep_destinatario,
-        endereco: logradouro_destinatario,
-        numero: numero_endereco_destinatario,
-        bairro: bairro_destinatario,
-        cidade: cidade_destinatario,
-        estado: estado_destinatario
+      const body = {
+        token_cliente_postagem: apiKey,
+        cep_remetente: senderData.cep_remetente,
+        cep_destinatario: cep_destinatario,
+        peso: peso,
+        altura: postagemData.altura || "2",
+        largura: postagemData.largura || "11",
+        comprimento: postagemData.comprimento || "16",
+        valor_encomenda: valorTotal.toString()
+      };
+
+      const response = await fetch('/api/cepcerto/cotacao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
       });
-      console.log("Calculando frete online");
-      
-      setCalculatingAutoQuote(true);
-      
-      try {
-        const { data: carriers } = await supabase
-          .from('shipping_carriers')
-          .select('api_key, config')
-          .eq('provider', 'cepcerto')
-          .eq('active', true)
-          .limit(1);
 
-        if (!carriers || carriers.length === 0) return;
-
-        const carrierData = carriers[0];
-        let apiKey = carrierData.api_key;
-        if (!apiKey && carrierData.config) {
-          const config = typeof carrierData.config === 'string' ? JSON.parse(carrierData.config) : carrierData.config;
-          apiKey = config.api_key_postagem || config.api_key;
-        }
-
-        if (!apiKey) return;
-
-        const body = {
-          token_cliente_postagem: apiKey,
-          cep_remetente: senderData.cep_remetente,
-          cep_destinatario: cep_destinatario,
-          peso: peso,
-          altura: postagemData.altura || "2",
-          largura: postagemData.largura || "11",
-          comprimento: postagemData.comprimento || "16",
-          valor_encomenda: valorTotal.toString()
-        };
-
-        const response = await fetch('/api/cepcerto/cotacao', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.dados_frete) {
-            console.log("Cotações retornadas");
-            console.log(data.dados_frete);
-            localStorage.setItem('cepcerto_cotacoes', JSON.stringify(data.dados_frete));
-            setAvailableQuotes(data.dados_frete);
-            
-            // Se já tinha um frete selecionado, tenta mantê-lo se ainda existir nas novas cotações
-            if (freteSelecionado) {
-              const aindaExiste = data.dados_frete.find((q: any) => q.tipo === freteSelecionado.tipo);
-              if (!aindaExiste) {
-                setFreteSelecionado(null);
-                setPostagemData((prev: any) => ({ ...prev, tipo_entrega: '' }));
-                localStorage.removeItem('cepcerto_cotacao_selecionada');
-              } else {
-                // Atualiza o valor/prazo caso tenha mudado
-                const updatedQuote = {
-                  ...freteSelecionado,
-                  valor: aindaExiste.valor,
-                  prazo: aindaExiste.prazo
-                };
-                setFreteSelecionado(updatedQuote);
-                localStorage.setItem('cepcerto_cotacao_selecionada', JSON.stringify(updatedQuote));
-              }
-            } else {
+      if (response.ok) {
+        const data = await response.json();
+        if (data.dados_frete) {
+          console.log("Cotações retornadas");
+          console.log(data.dados_frete);
+          localStorage.setItem('cepcerto_cotacoes', JSON.stringify(data.dados_frete));
+          setAvailableQuotes(data.dados_frete);
+          
+          // Se já tinha um frete selecionado, tenta mantê-lo se ainda existir nas novas cotações
+          if (freteSelecionado) {
+            const aindaExiste = data.dados_frete.find((q: any) => q.tipo === freteSelecionado.tipo);
+            if (!aindaExiste) {
+              setFreteSelecionado(null);
               setPostagemData((prev: any) => ({ ...prev, tipo_entrega: '' }));
+              localStorage.removeItem('cepcerto_cotacao_selecionada');
+            } else {
+              // Atualiza o valor/prazo caso tenha mudado
+              const updatedQuote = {
+                ...freteSelecionado,
+                valor: aindaExiste.valor,
+                prazo: aindaExiste.prazo
+              };
+              setFreteSelecionado(updatedQuote);
+              localStorage.setItem('cepcerto_cotacao_selecionada', JSON.stringify(updatedQuote));
             }
+          } else {
+            setPostagemData((prev: any) => ({ ...prev, tipo_entrega: '' }));
           }
         }
-      } catch (error) {
-        console.error("Erro no cálculo online");
-        console.error(error);
-      } finally {
-        setCalculatingAutoQuote(false);
       }
-    };
-
-    // Debounce para não chamar a API a cada tecla digitada
-    const timeoutId = setTimeout(() => {
-      calcularCotacaoAutomatica();
-    }, 1000);
-
-    return () => clearTimeout(timeoutId);
-  }, [
-    postagemData.nome_destinatario,
-    postagemData.cep_destinatario, 
-    postagemData.logradouro_destinatario,
-    postagemData.numero_endereco_destinatario,
-    postagemData.bairro_destinatario,
-    postagemData.cidade_destinatario,
-    postagemData.estado_destinatario,
-    postagemData.peso, 
-    postagemData.produtos, 
-    postagemData.altura, 
-    postagemData.largura, 
-    postagemData.comprimento, 
-    senderData.cep_remetente
-  ]);
+    } catch (error) {
+      console.error("Erro no cálculo online");
+      console.error(error);
+    } finally {
+      setCalculatingAutoQuote(false);
+    }
+  };
 
   const handleSaveSender = () => {
     if (!senderData.cep_remetente || senderData.cep_remetente.length !== 8) {
