@@ -114,6 +114,8 @@ export default function CepCertoAdmin() {
     valor_encomenda: ''
   });
   const [freteResultado, setFreteResultado] = useState<any>(null);
+  const [freteResultadoEtiqueta, setFreteResultadoEtiqueta] = useState<any>(null);
+  const [showQuoteModalEtiqueta, setShowQuoteModalEtiqueta] = useState(false);
   const [freteSelecionado, setFreteSelecionado] = useState<any>(null);
   const [showLabelConfirmModal, setShowLabelConfirmModal] = useState(false);
   const [calculatingQuote, setCalculatingQuote] = useState(false);
@@ -501,82 +503,13 @@ export default function CepCertoAdmin() {
       }
 
       logSistema("Resposta Processada", data);
-      renderizarCotacaoEtiqueta(data);
+      setFreteResultadoEtiqueta(data.dados_frete);
+      setShowQuoteModalEtiqueta(true);
     } catch (error) {
       console.error("Erro crítico no cálculo:", error);
       mostrarErro("Ocorreu um erro ao tentar calcular o frete. Verifique o console.");
     }
     console.log("========== FIM CÁLCULO ==========");
-  }
-
-  function renderizarCotacaoEtiqueta(data: any) {
-    console.log("Renderizando cotação:", data);
-    const fretesRaw = data.dados_frete;
-    if (!fretesRaw) {
-      mostrarErro("Nenhuma cotação retornada");
-      return;
-    }
-
-    const container = document.getElementById("cotacao-etiqueta");
-    if (!container) {
-      console.error("Container cotacao-etiqueta não encontrado");
-      return;
-    }
-    container.innerHTML = "";
-
-    // Mapear o objeto de frete para um array de opções
-    const options = [];
-    if (fretesRaw.valor_pac) {
-      options.push({
-        id: 'pac',
-        servico: 'PAC',
-        valor: fretesRaw.valor_pac,
-        prazo: fretesRaw.prazo_entrega_pac
-      });
-    }
-    if (fretesRaw.valor_sedex) {
-      options.push({
-        id: 'sedex',
-        servico: 'SEDEX',
-        valor: fretesRaw.valor_sedex,
-        prazo: fretesRaw.prazo_entrega_sedex
-      });
-    }
-    if (fretesRaw.valor_jadlog_package) {
-      options.push({
-        id: 'jadlog-package',
-        servico: 'JADLOG PACKAGE',
-        valor: fretesRaw.valor_jadlog_package,
-        prazo: fretesRaw.prazo_entrega_jadlog_package
-      });
-    }
-    if (fretesRaw.valor_jadlog_dotcom) {
-      options.push({
-        id: 'jadlog-dotcom',
-        servico: 'JADLOG DOTCOM',
-        valor: fretesRaw.valor_jadlog_dotcom,
-        prazo: fretesRaw.prazo_entrega_jadlog_dotcom
-      });
-    }
-
-    if (options.length === 0) {
-      container.innerHTML = '<p class="text-sm text-red-500 font-bold">Nenhuma opção de frete disponível para este CEP.</p>';
-      return;
-    }
-
-    options.forEach((frete: any) => {
-      const item = document.createElement("div");
-      item.className = "p-3 border border-slate-200 rounded-xl mb-2 hover:bg-slate-50 transition-colors";
-      item.innerHTML = `
-        <label class="flex items-center gap-3 cursor-pointer">
-          <input type="radio" name="freteSelecionado" value="${frete.id}" class="w-4 h-4 text-indigo-600">
-          <span class="text-sm font-medium text-slate-700">
-            ${frete.servico} - <span class="font-bold text-indigo-600">${frete.valor}</span> - <span class="text-slate-500 italic">${frete.prazo}</span>
-          </span>
-        </label>
-      `;
-      container.appendChild(item);
-    });
   }
 
   function limparCamposProduto() {
@@ -601,7 +534,7 @@ export default function CepCertoAdmin() {
     }
 
     if (field === 'cpf_cnpj_destinatario') {
-      const clean = value.replace(/\D/g, '');
+      const clean = value.replace(/\D/g, '').slice(0, 14);
       formattedValue = clean.length > 11 ? formatarCNPJ(clean) : formatarCPF(clean);
     }
 
@@ -621,7 +554,7 @@ export default function CepCertoAdmin() {
     }
 
     if (field === 'cpf_cnpj_remetente') {
-      const clean = value.replace(/\D/g, '');
+      const clean = value.replace(/\D/g, '').slice(0, 14);
       formattedValue = clean.length > 11 ? formatarCNPJ(clean) : formatarCPF(clean);
     }
 
@@ -637,6 +570,10 @@ export default function CepCertoAdmin() {
   const handleSaveSender = () => {
     if (!senderData.cep_remetente || senderData.cep_remetente.length !== 8) {
       toast.error('CEP do Remetente é obrigatório e deve ter 8 dígitos.');
+      return;
+    }
+    if (!validarCPFCNPJ(senderData.cpf_cnpj_remetente)) {
+      toast.error('CPF do remetente deve ter 11 dígitos e CNPJ 14 dígitos');
       return;
     }
     localStorage.setItem('cepcerto_remetente_padrao', JSON.stringify(senderData));
@@ -796,7 +733,12 @@ export default function CepCertoAdmin() {
       }
 
       console.log("PASSO 6 - LOADING");
-      setCalculatingQuote(true);
+      if (!validarCPFCNPJ(senderData.cpf_cnpj_remetente)) {
+      toast.error('CPF do remetente deve ter 11 dígitos e CNPJ 14 dígitos');
+      return;
+    }
+
+    setCalculatingQuote(true);
       setFreteResultado(null);
       setFreteSelecionado(null);
       setQuoteError(null);
@@ -937,7 +879,31 @@ export default function CepCertoAdmin() {
     toast.success('Dados transferidos para geração de etiqueta!');
   };
 
+  useEffect(() => {
+    if (showQuoteModal || showQuoteModalEtiqueta) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [showQuoteModal, showQuoteModalEtiqueta]);
+
+  const validarCPFCNPJ = (valor: string) => {
+    const clean = valor.replace(/\D/g, '');
+    if (clean.length === 11 || clean.length === 14) {
+      return true;
+    }
+    return false;
+  };
+
   const gerarEtiqueta = async () => {
+    // Validar CPF/CNPJ
+    if (!validarCPFCNPJ(postagemData.cpf_cnpj_destinatario)) {
+      toast.error('CPF deve ter 11 dígitos e CNPJ 14 dígitos');
+      return;
+    }
+    if (!validarCPFCNPJ(postagemData.cpf_cnpj_remetente)) {
+      toast.error('CPF do remetente deve ter 11 dígitos e CNPJ 14 dígitos');
+      return;
+    }
+
     // Validar produtos
     if (!postagemData.produtos || postagemData.produtos.length === 0) {
       toast.error('Adicione pelo menos um produto antes de gerar a etiqueta');
@@ -1123,6 +1089,8 @@ export default function CepCertoAdmin() {
             id: Date.now().toString(),
             data: new Date().toISOString(),
             codigoObjeto: codigoObjeto,
+            token: apiKey,
+            whatsapp: postagemData.whatsapp_destinatario,
             idRecibo: data?.frete?.idRecibo || data?.idRecibo,
             idStringCorreios: data?.frete?.idStringCorreios || data?.idStringCorreios,
             pdfUrlEtiqueta: data?.frete?.pdfUrlEtiqueta || data?.pdfUrlEtiqueta,
@@ -1169,6 +1137,67 @@ export default function CepCertoAdmin() {
       setShowLabelConfirmModal(false);
       console.log("========== FIM GERAR ETIQUETA ==========");
     }
+  };
+
+  const confirmarCancelarEtiqueta = (token: string, cod_objeto: string) => {
+    console.log("Solicitando cancelamento etiqueta");
+    const confirmar = window.confirm("Tem certeza que deseja excluir esta etiqueta?");
+    if (!confirmar) {
+      console.log("Cancelamento abortado");
+      return;
+    }
+    cancelarEtiqueta(token, cod_objeto);
+  };
+
+  const cancelarEtiqueta = async (token: string, cod_objeto: string) => {
+    console.log("========== CANCELAMENTO ETIQUETA ==========");
+    console.log("Token:", token);
+    console.log("Objeto:", cod_objeto);
+
+    try {
+      const response = await fetch("/api/cepcerto/cancelamento", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token_cliente_postagem: token,
+          cod_objeto: cod_objeto
+        })
+      });
+
+      const text = await response.text();
+      console.log("Resposta bruta:", text);
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (error) {
+        console.error("Erro parse cancelamento", error);
+        toast.error("Erro ao cancelar etiqueta");
+        return;
+      }
+
+      console.log("Resposta cancelamento:", data);
+
+      if (data.sucesso || data.status === "sucesso") {
+        toast.success(data.mensagem || "Etiqueta cancelada com sucesso!");
+        removerEtiquetaLista(cod_objeto);
+        console.log("Etiqueta cancelada");
+      } else {
+        toast.error(data.erro || data.mensagem || "Erro ao cancelar etiqueta");
+      }
+    } catch (error) {
+      console.error("Erro cancelamento", error);
+      toast.error("Erro conexão cancelamento");
+    }
+    console.log("========== FIM CANCELAMENTO ==========");
+  };
+
+  const removerEtiquetaLista = (cod_objeto: string) => {
+    console.log("Removendo etiqueta:", cod_objeto);
+    const novaLista = etiquetasGeradas.filter(e => e.codigoObjeto !== cod_objeto);
+    setEtiquetasGeradas(novaLista);
+    localStorage.setItem('cepcerto_etiquetas_geradas', JSON.stringify(novaLista));
+    console.log("Lista atualizada");
   };
 
   const handleSelectQuote = (quote: any) => {
@@ -1743,6 +1772,12 @@ export default function CepCertoAdmin() {
               Etiquetas
             </button>
             <button 
+              onClick={() => setLogisticaSubTab('lista-etiquetas')}
+              className={`px-6 py-3 rounded-2xl font-bold transition-all ${logisticaSubTab === 'lista-etiquetas' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+            >
+              Lista de Etiquetas
+            </button>
+            <button 
               onClick={() => setLogisticaSubTab('rastreio')}
               className={`px-6 py-3 rounded-2xl font-bold transition-all ${logisticaSubTab === 'rastreio' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
             >
@@ -1807,7 +1842,7 @@ export default function CepCertoAdmin() {
                             type="text" 
                             value={senderData.cpf_cnpj_remetente} 
                             onChange={e => {
-                              const clean = e.target.value.replace(/\D/g, '');
+                              const clean = e.target.value.replace(/\D/g, '').slice(0, 14);
                               const formatted = clean.length > 11 ? formatarCNPJ(clean) : formatarCPF(clean);
                               setSenderData({...senderData, cpf_cnpj_remetente: formatted});
                             }}
@@ -1935,7 +1970,10 @@ export default function CepCertoAdmin() {
                           <input 
                             type="text" 
                             value={recipientQuoteData.cep} 
-                            onChange={e => setRecipientQuoteData({...recipientQuoteData, cep: e.target.value.replace(/\D/g, '').slice(0, 8)})}
+                            onChange={e => {
+                              const clean = e.target.value.replace(/\D/g, '').slice(0, 8);
+                              setRecipientQuoteData({...recipientQuoteData, cep: clean});
+                            }}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                             placeholder="00000000"
                           />
@@ -2321,18 +2359,11 @@ export default function CepCertoAdmin() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                     {/* SEÇÃO 3 — PRODUTOS */}
                     <div className="space-y-4">
-                      <div className="flex justify-between items-center">
+                      <div className="flex items-center">
                         <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
                           <Package size={16} className="text-indigo-600" />
                           Seção 3 — Produtos
                         </h4>
-                        <button 
-                          onClick={() => setPostagemData({...postagemData, peso: '', altura: '', largura: '', comprimento: ''})}
-                          className="text-[10px] font-bold text-red-500 uppercase hover:text-red-600 flex items-center gap-1"
-                        >
-                          <RefreshCw size={10} />
-                          Limpar Dimensões
-                        </button>
                       </div>
                       <div className="grid grid-cols-4 gap-2 mb-4">
                         <div className="space-y-1">
@@ -2353,15 +2384,8 @@ export default function CepCertoAdmin() {
                         </div>
                       </div>
                       <div className="space-y-3">
-                        <div className="flex justify-between items-center">
+                        <div className="flex items-center">
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lista de Produtos</label>
-                          <button 
-                            onClick={() => setPostagemData({...postagemData, produtos: []})}
-                            className="text-[10px] font-bold text-red-500 uppercase hover:text-red-600 flex items-center gap-1"
-                          >
-                            <Trash2 size={10} />
-                            Limpar Lista
-                          </button>
                         </div>
                         {postagemData.produtos.map((prod: any, idx: number) => (
                           <div key={idx} className="grid grid-cols-12 gap-2">
@@ -2446,36 +2470,51 @@ export default function CepCertoAdmin() {
                     Seção 5 — Selecionar Frete
                   </h4>
                   
-                  <button 
-                    id="btn-calcular-etiqueta"
-                    onClick={calcularFreteEtiqueta}
-                    className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all text-sm flex items-center justify-center gap-2 mt-4"
-                  >
-                    <Calculator size={18} />
-                    Calcular Frete
-                  </button>
-                  
-                  <div id="cotacao-etiqueta" className="mt-4"></div>
+                  <div className="flex items-center gap-4">
+                    <button 
+                      id="btn-calcular-etiqueta"
+                      onClick={calcularFreteEtiqueta}
+                      className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
+                    >
+                      <Calculator size={18} />
+                      Calcular Frete
+                    </button>
+                    
+                    {freteSelecionado && (
+                      <div className="flex-[2] p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm">
+                            <Check size={20} />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Frete Selecionado</p>
+                            <p className="font-black text-slate-900">{freteSelecionado.tipo} — {freteSelecionado.valor}</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setShowQuoteModalEtiqueta(true)}
+                          className="text-[10px] font-bold text-indigo-600 uppercase hover:underline"
+                        >
+                          Alterar
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-12 pt-8 border-t border-slate-100">
                   <button 
                     id="btn-gerar-etiqueta"
                     onClick={() => {
-                      // Get the selected radio value
-                      const selectedRadio = document.querySelector('input[name="freteSelecionado"]:checked') as HTMLInputElement;
-                      if (!selectedRadio) {
-                        toast.error('Por favor, selecione uma opção de frete antes de gerar a etiqueta.');
+                      if (!freteSelecionado) {
+                        toast.error('Por favor, calcule e selecione uma opção de frete antes de gerar a etiqueta.');
                         return;
                       }
-                      // Update state with selected value before showing modal
-                      const selectedValue = selectedRadio.value;
-                      setPostagemData(prev => ({ ...prev, tipo_entrega: selectedValue }));
                       setShowLabelConfirmModal(true);
                     }}
                     disabled={generatingLabel}
                     className={`w-full py-5 rounded-2xl font-black text-xl uppercase italic tracking-tighter transition-all shadow-xl flex items-center justify-center gap-3 ${
-                      generatingLabel
+                      generatingLabel || !freteSelecionado
                         ? 'bg-slate-300 text-slate-500 shadow-none' 
                         : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'
                     }`}
@@ -2485,9 +2524,13 @@ export default function CepCertoAdmin() {
                   </button>
                 </div>
               </div>
+            </div>
+          )}
 
+          {logisticaSubTab === 'lista-etiquetas' && (
+            <div className="space-y-8">
               {/* Lista de Etiquetas */}
-              {etiquetasGeradas.length > 0 && (
+              {etiquetasGeradas.length > 0 ? (
                 <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
@@ -2531,10 +2574,9 @@ export default function CepCertoAdmin() {
                             />
                           </th>
                           <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nome</th>
-                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cidade/UF</th>
-                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Email</th>
-                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rastreamento</th>
-                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Transportadora</th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">WhatsApp</th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cidade</th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rastreador</th>
                           <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
                           <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Ações</th>
                         </tr>
@@ -2557,12 +2599,11 @@ export default function CepCertoAdmin() {
                               />
                             </td>
                             <td className="py-4 text-sm font-bold text-slate-900">{etq.nome || '-'}</td>
-                            <td className="py-4 text-sm text-slate-600">{etq.cidade ? `${etq.cidade} - ${etq.estado}` : '-'}</td>
-                            <td className="py-4 text-sm text-slate-600">{etq.email || '-'}</td>
+                            <td className="py-4 text-sm text-slate-600">{etq.whatsapp || '-'}</td>
+                            <td className="py-4 text-sm text-slate-600">{etq.cidade || '-'}</td>
                             <td className="py-4">
                               <span className="font-mono text-sm font-bold text-slate-900">{etq.codigoObjeto}</span>
                             </td>
-                            <td className="py-4 text-sm text-slate-600">{etq.transportadora}</td>
                             <td className="py-4 text-sm text-slate-600">{new Date(etq.data).toLocaleDateString()}</td>
                             <td className="py-4 text-right">
                               <div className="flex justify-end gap-2">
@@ -2572,6 +2613,13 @@ export default function CepCertoAdmin() {
                                 }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Ver Detalhes">
                                   <ExternalLink size={18} />
                                 </button>
+                                <button 
+                                  onClick={() => confirmarCancelarEtiqueta(etq.token, etq.codigoObjeto)}
+                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" 
+                                  title="Excluir Etiqueta"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -2579,6 +2627,19 @@ export default function CepCertoAdmin() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              ) : (
+                <div className="bg-white p-12 rounded-3xl shadow-sm border border-slate-200 text-center">
+                  <Package size={64} className="mx-auto mb-6 text-indigo-600 opacity-20" />
+                  <h3 className="text-2xl font-black text-slate-900 mb-4 uppercase italic tracking-tighter">Nenhuma Etiqueta Gerada</h3>
+                  <p className="text-slate-500 mb-8 max-w-md mx-auto">Você ainda não gerou nenhuma etiqueta de postagem. As etiquetas geradas aparecerão aqui.</p>
+                  <button 
+                    onClick={() => setLogisticaSubTab('etiquetas')}
+                    className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2 mx-auto"
+                  >
+                    <Zap size={20} />
+                    Gerar Nova Etiqueta
+                  </button>
                 </div>
               )}
             </div>
@@ -2692,6 +2753,122 @@ export default function CepCertoAdmin() {
                   >
                     Concluído
                   </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* Modal Resultado Cotação Etiqueta */}
+          {showQuoteModalEtiqueta && freteResultadoEtiqueta && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-start justify-center p-4 pt-4 overflow-y-auto">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-[2.5rem] w-full max-w-4xl shadow-2xl p-8 my-4"
+              >
+                <div className="flex justify-between items-center mb-8">
+                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Resultado da Cotação</h2>
+                  <button onClick={() => setShowQuoteModalEtiqueta(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                    <X size={24} className="text-slate-400" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                  {freteResultadoEtiqueta.valor_pac && (
+                    <div 
+                      onClick={() => {
+                        setFreteSelecionado({
+                          tipo: "PAC",
+                          valor: freteResultadoEtiqueta.valor_pac,
+                          prazo: freteResultadoEtiqueta.prazo_entrega_pac
+                        });
+                        setPostagemData(prev => ({ ...prev, tipo_entrega: 'pac' }));
+                        setShowQuoteModalEtiqueta(false);
+                      }}
+                      className={`bg-white p-6 rounded-3xl border-2 transition-all cursor-pointer relative ${freteSelecionado?.tipo === 'PAC' ? 'border-indigo-600 shadow-lg shadow-indigo-100' : 'border-slate-200 shadow-sm hover:border-slate-300'}`}
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                          <Package size={20} />
+                        </div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">PAC</p>
+                      </div>
+                      <p className="text-2xl font-black text-indigo-600 mb-1">{freteResultadoEtiqueta.valor_pac}</p>
+                      <p className="text-sm text-slate-500 font-medium">Prazo: {freteResultadoEtiqueta.prazo_entrega_pac}</p>
+                    </div>
+                  )}
+                  
+                  {freteResultadoEtiqueta.valor_sedex && (
+                    <div 
+                      onClick={() => {
+                        setFreteSelecionado({
+                          tipo: "SEDEX",
+                          valor: freteResultadoEtiqueta.valor_sedex,
+                          prazo: freteResultadoEtiqueta.prazo_entrega_sedex
+                        });
+                        setPostagemData(prev => ({ ...prev, tipo_entrega: 'sedex' }));
+                        setShowQuoteModalEtiqueta(false);
+                      }}
+                      className={`bg-white p-6 rounded-3xl border-2 transition-all cursor-pointer relative ${freteSelecionado?.tipo === 'SEDEX' ? 'border-emerald-600 shadow-lg shadow-emerald-100' : 'border-slate-200 shadow-sm hover:border-slate-300'}`}
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+                          <Zap size={20} />
+                        </div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">SEDEX</p>
+                      </div>
+                      <p className="text-2xl font-black text-emerald-600 mb-1">{freteResultadoEtiqueta.valor_sedex}</p>
+                      <p className="text-sm text-slate-500 font-medium">Prazo: {freteResultadoEtiqueta.prazo_entrega_sedex}</p>
+                    </div>
+                  )}
+
+                  {freteResultadoEtiqueta.valor_jadlog_package && (
+                    <div 
+                      onClick={() => {
+                        setFreteSelecionado({
+                          tipo: "JADLOG PACKAGE",
+                          valor: freteResultadoEtiqueta.valor_jadlog_package,
+                          prazo: freteResultadoEtiqueta.prazo_entrega_jadlog_package
+                        });
+                        setPostagemData(prev => ({ ...prev, tipo_entrega: 'jadlog-package' }));
+                        setShowQuoteModalEtiqueta(false);
+                      }}
+                      className={`bg-white p-6 rounded-3xl border-2 transition-all cursor-pointer relative ${freteSelecionado?.tipo === 'JADLOG PACKAGE' ? 'border-blue-600 shadow-lg shadow-blue-100' : 'border-slate-200 shadow-sm hover:border-slate-300'}`}
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                          <Truck size={20} />
+                        </div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">JADLOG PACKAGE</p>
+                      </div>
+                      <p className="text-2xl font-black text-blue-600 mb-1">{freteResultadoEtiqueta.valor_jadlog_package}</p>
+                      <p className="text-sm text-slate-500 font-medium">Prazo: {freteResultadoEtiqueta.prazo_entrega_jadlog_package}</p>
+                    </div>
+                  )}
+
+                  {freteResultadoEtiqueta.valor_jadlog_dotcom && (
+                    <div 
+                      onClick={() => {
+                        setFreteSelecionado({
+                          tipo: "JADLOG DOTCOM",
+                          valor: freteResultadoEtiqueta.valor_jadlog_dotcom,
+                          prazo: freteResultadoEtiqueta.prazo_entrega_jadlog_dotcom
+                        });
+                        setPostagemData(prev => ({ ...prev, tipo_entrega: 'jadlog-dotcom' }));
+                        setShowQuoteModalEtiqueta(false);
+                      }}
+                      className={`bg-white p-6 rounded-3xl border-2 transition-all cursor-pointer relative ${freteSelecionado?.tipo === 'JADLOG DOTCOM' ? 'border-orange-600 shadow-lg shadow-orange-100' : 'border-slate-200 shadow-sm hover:border-slate-300'}`}
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-600">
+                          <Truck size={20} />
+                        </div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">JADLOG DOTCOM</p>
+                      </div>
+                      <p className="text-2xl font-black text-orange-600 mb-1">{freteResultadoEtiqueta.valor_jadlog_dotcom}</p>
+                      <p className="text-sm text-slate-500 font-medium">Prazo: {freteResultadoEtiqueta.prazo_entrega_jadlog_dotcom}</p>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </div>

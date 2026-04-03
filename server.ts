@@ -115,6 +115,24 @@ async function startServer() {
     }
   });
 
+  // Proxy para Cancelamento CepCerto
+  app.post("/api/cepcerto/cancelamento", async (req, res) => {
+    console.log("CEP CERTO BACKEND REQUEST (CANCELAMENTO)", req.body);
+    try {
+      const response = await fetch('https://cepcerto.com/api-cancela-postagem/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await response.json();
+      console.log("CEP CERTO BACKEND RESPONSE (CANCELAMENTO)", data);
+      res.json(data);
+    } catch (error) {
+      console.error("CEP CERTO BACKEND ERROR (CANCELAMENTO)", error);
+      res.status(500).json({ error: 'Erro ao processar cancelamento no CepCerto' });
+    }
+  });
+
   // 5. Proxy para Rastreio Linketrack (CORS Fix)
   app.all("/api/tracking/linketrack", async (req, res) => {
     const { tracking_code } = { ...req.query, ...req.body };
