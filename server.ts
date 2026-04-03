@@ -151,6 +151,24 @@ async function startServer() {
     }
   });
 
+  // Proxy para Rastreio CepCerto (API-RASTREIO)
+  app.post("/api/cepcerto/rastreio-api", async (req, res) => {
+    console.log("CEP CERTO BACKEND REQUEST (RASTREIO-API)", req.body);
+    try {
+      const response = await fetch('https://cepcerto.com/api-rastreio/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await response.json();
+      console.log("CEP CERTO BACKEND RESPONSE (RASTREIO-API)", data);
+      res.json(data);
+    } catch (error) {
+      console.error("CEP CERTO BACKEND ERROR (RASTREIO-API)", error);
+      res.status(500).json({ error: 'Erro ao processar rastreio no CepCerto' });
+    }
+  });
+
   // 5. Proxy para Rastreio Linketrack (CORS Fix)
   app.all("/api/tracking/linketrack", async (req, res) => {
     const { tracking_code } = { ...req.query, ...req.body };

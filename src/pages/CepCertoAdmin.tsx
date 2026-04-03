@@ -166,6 +166,15 @@ export default function CepCertoAdmin() {
     cidade: '',
     data: ''
   });
+  const [rastreioFiltros, setRastreioFiltros] = useState({
+    nome: '',
+    email: '',
+    cidade: '',
+    codigo: ''
+  });
+  const [showRastreioModal, setShowRastreioModal] = useState(false);
+  const [rastreioData, setRastreioData] = useState<any>(null);
+  const [loadingRastreio, setLoadingRastreio] = useState(false);
 
   const etiquetasFiltradas = etiquetasGeradas.filter(item => {
     const matchNome = !consultaFiltros.nome || item.nome?.toLowerCase().includes(consultaFiltros.nome.toLowerCase());
@@ -174,6 +183,15 @@ export default function CepCertoAdmin() {
     const matchData = !consultaFiltros.data || item.data?.includes(consultaFiltros.data);
     
     return matchNome && matchRastreador && matchCidade && matchData;
+  });
+
+  const etiquetasRastreioFiltradas = etiquetasGeradas.filter(item => {
+    const matchNome = !rastreioFiltros.nome || item.nome?.toLowerCase().includes(rastreioFiltros.nome.toLowerCase());
+    const matchEmail = !rastreioFiltros.email || item.email?.toLowerCase().includes(rastreioFiltros.email.toLowerCase());
+    const matchCidade = !rastreioFiltros.cidade || item.cidade?.toLowerCase().includes(rastreioFiltros.cidade.toLowerCase());
+    const matchCodigo = !rastreioFiltros.codigo || item.codigoObjeto?.toLowerCase().includes(rastreioFiltros.codigo.toLowerCase());
+    
+    return matchNome && matchEmail && matchCidade && matchCodigo;
   });
 
   useEffect(() => {
@@ -1316,6 +1334,69 @@ export default function CepCertoAdmin() {
       toast.error("Erro na conexão da consulta");
     }
     console.log("========== FIM CONSULTA ==========");
+  };
+
+  const rastrearObjeto = async (codigo: string) => {
+    console.log("===== RASTREANDO OBJETO =====");
+    console.log("Código:", codigo);
+    setLoadingRastreio(true);
+
+    try {
+      // Buscar Token
+      const { data: carriers } = await supabase
+        .from('shipping_carriers')
+        .select('api_key, config')
+        .eq('provider', 'cepcerto')
+        .eq('active', true)
+        .limit(1);
+
+      if (!carriers || carriers.length === 0) {
+        toast.error('Configuração CEP CERTO não encontrada');
+        setLoadingRastreio(false);
+        return;
+      }
+
+      const carrierData = carriers[0];
+      let apiKey = carrierData.api_key;
+      if (!apiKey && carrierData.config) {
+        const config = typeof carrierData.config === 'string' ? JSON.parse(carrierData.config) : carrierData.config;
+        apiKey = config.api_key_postagem || config.api_key;
+      }
+
+      const response = await fetch("/api/cepcerto/rastreio-api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token_cliente_postagem: apiKey,
+          cod_objeto: codigo
+        })
+      });
+
+      const text = await response.text();
+      console.log("Resposta rastreio bruta:", text);
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (error) {
+        console.error("Erro parse rastreio", error);
+        toast.error("Erro ao rastrear objeto");
+        setLoadingRastreio(false);
+        return;
+      }
+
+      console.log("Rastreamento recebido:", data);
+      setRastreioData(data);
+      setShowRastreioModal(true);
+      console.log("Modal aberto");
+      console.log("Eventos renderizados");
+
+    } catch (error) {
+      console.error("Erro rastreio", error);
+      toast.error("Erro na conexão do rastreio");
+    } finally {
+      setLoadingRastreio(false);
+    }
   };
 
   const removerEtiquetaLista = (cod_objeto: string) => {
@@ -2777,6 +2858,116 @@ export default function CepCertoAdmin() {
             </div>
           )}
 
+          {logisticaSubTab === 'rastreio' && (
+            <div className="space-y-8">
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                  <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
+                    <Truck size={24} className="text-indigo-600" />
+                    Rastreamento de Postagens
+                  </h3>
+                </div>
+
+                {/* Filtros Rastreio */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome</label>
+                    <input 
+                      type="text"
+                      value={rastreioFiltros.nome}
+                      onChange={e => setRastreioFiltros({...rastreioFiltros, nome: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                      placeholder="Nome"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Email</label>
+                    <input 
+                      type="text"
+                      value={rastreioFiltros.email}
+                      onChange={e => setRastreioFiltros({...rastreioFiltros, email: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                      placeholder="Email"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Cidade</label>
+                    <input 
+                      type="text"
+                      value={rastreioFiltros.cidade}
+                      onChange={e => setRastreioFiltros({...rastreioFiltros, cidade: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                      placeholder="Cidade"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Rastreador</label>
+                    <input 
+                      type="text"
+                      value={rastreioFiltros.codigo}
+                      onChange={e => setRastreioFiltros({...rastreioFiltros, codigo: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                      placeholder="Código"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button 
+                      onClick={() => setRastreioFiltros({ nome: '', email: '', cidade: '', codigo: '' })}
+                      className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all text-sm flex items-center justify-center gap-2"
+                    >
+                      <X size={18} />
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left border-b border-slate-100">
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nome</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Email</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cidade</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rastreador</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {etiquetasRastreioFiltradas.length > 0 ? (
+                        etiquetasRastreioFiltradas.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 transition-colors group">
+                            <td className="py-4 text-sm font-bold text-slate-900">{item.nome || '-'}</td>
+                            <td className="py-4 text-sm text-slate-600">{new Date(item.data).toLocaleDateString()}</td>
+                            <td className="py-4 text-sm text-slate-600">{item.email || '-'}</td>
+                            <td className="py-4 text-sm text-slate-600">{item.cidade || '-'}</td>
+                            <td className="py-4">
+                              <span className="font-mono text-sm font-bold text-slate-900">{item.codigoObjeto}</span>
+                            </td>
+                            <td className="py-4 text-right">
+                              <button 
+                                onClick={() => rastrearObjeto(item.codigoObjeto)}
+                                disabled={loadingRastreio}
+                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-bold text-xs hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-1 ml-auto disabled:opacity-50"
+                              >
+                                {loadingRastreio ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
+                                Rastrear
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-slate-400 italic">Nenhuma postagem encontrada para rastreio.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {logisticaSubTab === 'consulta-postagem' && (
             <div className="space-y-8">
               <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
@@ -3125,6 +3316,88 @@ export default function CepCertoAdmin() {
                       <p className="text-sm text-slate-500 font-medium">Prazo: {freteResultadoEtiqueta.prazo_entrega_jadlog_dotcom}</p>
                     </div>
                   )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* Modal Rastreamento Completo */}
+          {showRastreioModal && rastreioData && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-start justify-center p-4 pt-4 overflow-y-auto">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-[2.5rem] w-full max-w-3xl shadow-2xl p-8 my-4"
+              >
+                <div className="flex justify-between items-center mb-8">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                      <Truck size={28} />
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Rastreamento da Encomenda</h2>
+                  </div>
+                  <button onClick={() => setShowRastreioModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                    <X size={24} className="text-slate-400" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Código</p>
+                    <p className="text-sm font-mono font-bold text-slate-900">{rastreioData.objeto}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Transportadora</p>
+                    <p className="text-sm font-bold text-slate-900">{rastreioData.transportadora || 'Não informada'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Previsão</p>
+                    <p className="text-sm font-bold text-indigo-600">{rastreioData.dt_prevista?.texto || 'Não disponível'}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-6 mb-8">
+                  <h4 className="font-bold text-slate-900 uppercase text-xs tracking-wider border-b border-slate-100 pb-2">Histórico de Eventos</h4>
+                  <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                    {rastreioData.eventos && rastreioData.eventos.length > 0 ? (
+                      rastreioData.eventos.map((evento: any, idx: number) => (
+                        <div key={idx} className="relative pl-8 pb-4 border-l-2 border-slate-100 last:border-0 last:pb-0">
+                          <div className="absolute left-[-9px] top-0 w-4 h-4 bg-white border-2 border-indigo-600 rounded-full"></div>
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold text-slate-400">{evento.data_br}</p>
+                            <p className="text-sm font-bold text-slate-900">{evento.descricao}</p>
+                            {evento.detalhe && <p className="text-xs text-slate-500 italic">{evento.detalhe}</p>}
+                            <p className="text-xs text-slate-600 flex items-center gap-1">
+                              <MapPin size={12} />
+                              {evento.unidade?.cidade} - {evento.unidade?.uf}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-center text-slate-400 italic py-8">Nenhum evento registrado até o momento.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  {rastreioData.link_cepcerto && (
+                    <a 
+                      href={rastreioData.link_cepcerto} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all text-center flex items-center justify-center gap-2"
+                    >
+                      <ExternalLink size={18} />
+                      Abrir rastreamento completo
+                    </a>
+                  )}
+                  <button 
+                    onClick={() => setShowRastreioModal(false)}
+                    className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all"
+                  >
+                    Fechar
+                  </button>
                 </div>
               </motion.div>
             </div>
