@@ -296,13 +296,68 @@ export default function CepCertoAdmin() {
   const [calculatingAutoQuote, setCalculatingAutoQuote] = useState(false);
   const [availableQuotes, setAvailableQuotes] = useState([]);
 
-  // Funções auxiliares de formatação e validação
+  // --- Funções de Formatação e Validação Profissional ---
+
+  function validarCEP(cep: string) {
+    const cepLimpo = cep.replace(/\D/g, '');
+    if (cepLimpo.length !== 8) {
+      console.error("CEP inválido");
+      toast.error("CEP inválido");
+      return false;
+    }
+    return true;
+  }
+
+  function formatarCEP(valor: string) {
+    valor = valor.replace(/\D/g, '');
+    if (valor.length > 8) valor = valor.slice(0, 8);
+    if (valor.length === 8) valor = valor.replace(/^(\d{5})(\d{3})$/, "$1-$2");
+    return valor;
+  }
+
+  function formatarWhatsapp(valor: string) {
+    valor = valor.replace(/\D/g, '');
+    if (valor.length > 11) valor = valor.slice(0, 11);
+    valor = valor.replace(/^(\d{2})(\d)/, "($1) $2");
+    valor = valor.replace(/(\d{5})(\d{4})$/, "$1-$2");
+    return valor;
+  }
+
+  function formatarCPF(valor: string) {
+    valor = valor.replace(/\D/g, '');
+    valor = valor.replace(/(\d{3})(\d)/, "$1.$2");
+    valor = valor.replace(/(\d{3})(\d)/, "$1.$2");
+    valor = valor.replace(/(\d{3})(\d{2})$/, "$1-$2");
+    return valor;
+  }
+
+  function formatarCNPJ(valor: string) {
+    valor = valor.replace(/\D/g, '');
+    valor = valor.replace(/^(\d{2})(\d)/, "$1.$2");
+    valor = valor.replace(/^(\d{2}).(\d{3})(\d)/, "$1.$2.$3");
+    valor = valor.replace(/.(\d{3})(\d)/, ".$1/$2");
+    valor = valor.replace(/(\d{4})(\d)/, "$1-$2");
+    return valor;
+  }
+
+  function validarProdutos(produtos: any[]) {
+    console.log("Produtos:", produtos);
+    if (!produtos || produtos.length === 0) {
+      console.error("Produtos vazio");
+      toast.error("Adicione produto");
+      return false;
+    }
+    return true;
+  }
+
   function converterPesoGramas(peso: number) {
     if (peso < 1) {
       return peso * 1000;
     }
     return peso;
   }
+
+  // --- Fim das Funções de Formatação e Validação ---
 
   async function buscarCEPAPI(cep: string) {
     try {
@@ -316,8 +371,6 @@ export default function CepCertoAdmin() {
         return;
       }
       console.log("CEP válido");
-      // Preencher endereço (assumindo que existe uma lógica para isso)
-      // preencherEndereco(data); 
     } catch (error) {
       console.error("Erro consulta CEP");
       console.error(error);
@@ -333,60 +386,6 @@ export default function CepCertoAdmin() {
     console.log("Consultando CEP online");
     buscarCEPAPI(cep);
   }
-
-  const formatarCEP = (cep: string) => {
-    cep = cep.replace(/\D/g, '');
-    if (cep.length > 8) cep = cep.slice(0, 8);
-    if (cep.length === 8) cep = cep.replace(/^(\d{5})(\d{3})$/, '$1-$2');
-    return cep;
-  };
-
-  const validarCEP = (cep: string) => {
-    const cepLimpo = cep.replace(/\D/g, '');
-    if (cepLimpo.length !== 8) {
-      console.error("CEP inválido");
-      toast.error("CEP inválido");
-      return false;
-    }
-    return true;
-  };
-
-  function formatarWhatsapp(numero: string) {
-    numero = numero.replace(/\D/g, '');
-    if (numero.length > 11) {
-      numero = numero.slice(0, 11);
-    }
-    numero = numero.replace(/^(\d{2})(\d)/g, "($1) $2");
-    numero = numero.replace(/(\d)(\d{4})$/, "$1-$2");
-    return numero;
-  }
-
-  function validarWhatsapp(numero: string) {
-    const limpo = numero.replace(/\D/g, '');
-    if (limpo.length !== 11) {
-      console.error("WhatsApp inválido");
-      toast.error("WhatsApp inválido");
-      return false;
-    }
-    return true;
-  }
-
-  const formatarCPF = (cpf: string) => {
-    cpf = cpf.replace(/\D/g, '');
-    cpf = cpf.replace(/(\d{3})(\d)/, "$1.$2");
-    cpf = cpf.replace(/(\d{3})(\d)/, "$1.$2");
-    cpf = cpf.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-    return cpf;
-  };
-
-  const formatarCNPJ = (cnpj: string) => {
-    cnpj = cnpj.replace(/\D/g, '');
-    cnpj = cnpj.replace(/^(\d{2})(\d)/, "$1.$2");
-    cnpj = cnpj.replace(/^(\d{2}).(\d{3})(\d)/, "$1.$2.$3");
-    cnpj = cnpj.replace(/.(\d{3})(\d)/, ".$1/$2");
-    cnpj = cnpj.replace(/(\d{4})(\d)/, "$1-$2");
-    return cnpj;
-  };
 
   // Função para mostrar cotações
   const mostrarCotacoes = (cotacao: any) => {
@@ -411,48 +410,28 @@ export default function CepCertoAdmin() {
     `;
   };
 
-  async function calcularCotacaoOnline() {
-    console.log("========== VALIDAÇÃO ==========");
-    const { 
-      cep_destinatario, 
-      peso, 
-      produtos 
-    } = postagemData;
-    const whatsapp = postagemData.whatsapp_destinatario || '';
-
-    console.log("CEP:", cep_destinatario);
-    console.log("WhatsApp:", whatsapp);
-    console.log("Produtos:", produtos);
-    console.log("Peso:", peso);
-    console.log("Chamando cálculo");
-
-    // Validação
-    if (
-      !validarCEP(cep_destinatario) ||
-      !validarWhatsapp(whatsapp) ||
-      !produtos || produtos.length === 0
-    ) {
-      console.log("Dados inválidos — cancelando cálculo");
-      console.log("========== FIM VALIDAÇÃO ==========");
+  async function calcularCotacao() {
+    console.log("========== INICIO COTAÇÃO ==========");
+    
+    const { cep_destinatario, peso, produtos } = postagemData;
+    
+    if (!validarCEP(cep_destinatario)) return;
+    if (!validarProdutos(produtos)) return;
+    
+    // Validação de peso
+    const pesoGramas = parseFloat(peso) || 0;
+    if (pesoGramas <= 0) {
+      console.error("Peso inválido");
+      toast.error("Peso inválido");
       return;
     }
 
-    console.log("========== FIM VALIDAÇÃO ==========");
-    
-    if (cotacaoExecutada) {
-      console.log("Cotação já executada, ignorando.");
-      return;
-    }
-    
-    console.log("========== INÍCIO CÁLCULO FRETE ==========");
-    
     setCalculatingAutoQuote(true);
     
     try {
-      // Conversão de peso
-      const pesoGramas = parseFloat(peso) || 0;
+      // Conversão de peso (API espera KG)
       const pesoFinal = converterPesoGramas(pesoGramas);
-      console.log("Peso produto (gramas):", pesoFinal);
+      console.log("Peso produto (gramas):", pesoGramas, "Peso final (KG):", pesoFinal / 1000);
 
       const { data: carriers } = await supabase
         .from('shipping_carriers')
@@ -463,6 +442,7 @@ export default function CepCertoAdmin() {
 
       if (!carriers || carriers.length === 0) {
         console.error("Nenhuma transportadora ativa encontrada");
+        toast.error("Transportadora não configurada");
         return;
       }
 
@@ -475,6 +455,7 @@ export default function CepCertoAdmin() {
 
       if (!apiKey) {
         console.error("API Key não encontrada");
+        toast.error("API Key não configurada");
         return;
       }
 
@@ -518,14 +499,17 @@ export default function CepCertoAdmin() {
         }
       } else {
         console.error("Erro na resposta da API");
+        toast.error("Erro ao calcular frete");
       }
 
     } catch (error) {
       console.error("Erro no cálculo de frete");
       console.error(error);
+      toast.error("Erro ao calcular frete");
     } finally {
       setCalculatingAutoQuote(false);
     }
+    console.log("========== FIM COTAÇÃO ==========");
   }
 
   function mostrarCotacao(response: any) {
@@ -557,10 +541,7 @@ export default function CepCertoAdmin() {
       postagemData.cidade_destinatario &&
       postagemData.estado_destinatario
     ) {
-      if (!cotacaoExecutada) {
-        console.log("Destinatário completo detectado — Gerando cotação");
-        calcularCotacaoOnline();
-      }
+      console.log("Destinatário completo detectado");
     } else {
       // Reseta se campos forem limpos
       setCotacaoExecutada(false);
@@ -1999,6 +1980,13 @@ export default function CepCertoAdmin() {
                           placeholder="Ex: 50"
                         />
                       </div>
+                      <button 
+                        onClick={handleCalculateQuote}
+                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+                      >
+                        <Calculator size={20} />
+                        Calcular Cotação
+                      </button>
                     </div>
 
                   </div>
@@ -2387,6 +2375,14 @@ export default function CepCertoAdmin() {
                           <Zap size={12} />
                           Adicionar Produto
                         </button>
+                        <button 
+                          onClick={calcularCotacao}
+                          className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all text-sm flex items-center justify-center gap-2 mt-4"
+                        >
+                          <Calculator size={18} />
+                          Calcular Frete
+                        </button>
+                        <div id="cotacao-gerar-etiqueta" className="mt-4 space-y-2"></div>
                       </div>
                       <div id="cotacao-opcoes" className="mt-4"></div>
                     </div>
