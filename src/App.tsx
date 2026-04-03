@@ -55,9 +55,15 @@ function AppContent() {
     
     // 1. Admin Master - Instantâneo
     if (email === 'pereira.itapema@gmail.com') {
-      console.log('👑 Admin Master detectado');
+      console.log('👑 Admin Master detectado via e-mail:', email);
       setUserRole('admin');
       localStorage.setItem('user_role', 'admin');
+      
+      // Garantir que o profile está como admin no banco
+      supabase.from('profiles').update({ role: 'admin' }).eq('id', userId).then(({ error }) => {
+        if (error) console.error('Erro ao atualizar profile do master admin:', error);
+      });
+      
       return 'admin';
     }
 
@@ -236,6 +242,7 @@ function AppContent() {
 
   const handleRoleRedirect = async (session: any, forcedRole?: string) => {
     if (!session) {
+      console.log('🚫 handleRoleRedirect: Sem sessão');
       setLoading(false);
       return;
     }
@@ -243,13 +250,19 @@ function AppContent() {
     const path = window.location.pathname;
     const role = forcedRole || userRole || localStorage.getItem('user_role') || 'customer';
 
-    console.log('🚀 Redirecionando baseado no role:', role, 'Path atual:', path);
+    console.log('🚀 handleRoleRedirect:', {
+      email: session.user.email,
+      role,
+      path,
+      forcedRole
+    });
     
     // Lista de caminhos que NÃO devem sofrer redirecionamento automático se o usuário for 'user'
     const isUserPage = path === '/profile' || path === '/success' || path.startsWith('/tracking');
     const isCallback = path === '/callback.html' || path === '/auth/callback';
 
     if (isCallback) {
+      console.log('🔄 handleRoleRedirect: Ignorando callback');
       setLoading(false);
       return;
     }
@@ -262,9 +275,12 @@ function AppContent() {
       } else if (role === 'affiliate') {
         console.log('➡️ Redirecionando Afiliado para /affiliate-dashboard');
         navigate('/affiliate-dashboard');
-      } else if (path !== '/' && !isUserPage) {
-        navigate('/');
+      } else {
+        console.log('➡️ Usuário comum ou sem role especial, mantendo ou indo para home');
+        if (path !== '/' && !isUserPage) navigate('/');
       }
+    } else {
+      console.log('ℹ️ handleRoleRedirect: Caminho atual não requer redirecionamento automático');
     }
     
     setLoading(false);

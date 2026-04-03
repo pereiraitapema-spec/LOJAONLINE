@@ -50,10 +50,30 @@ export default function Callback() {
   }, []);
 
   useEffect(() => {
-    // Tenta avisar a janela pai que o login foi um sucesso
+    // Tenta extrair o código da URL (para o fluxo PKCE)
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('code');
+    const error = url.searchParams.get('error');
+    const errorDescription = url.searchParams.get('error_description');
+
+    // Tenta avisar a janela pai
     try {
       if (window.opener) {
-        window.opener.postMessage({ type: 'AUTH_SUCCESS' }, '*');
+        if (code) {
+          console.log('✅ Code found, sending to opener');
+          window.opener.postMessage({ type: 'AUTH_CODE', code }, '*');
+        } else if (error) {
+          console.error('❌ Auth error found:', error);
+          window.opener.postMessage({ 
+            type: 'AUTH_ERROR', 
+            error, 
+            description: errorDescription 
+          }, '*');
+        } else {
+          // Fallback para fluxos sem PKCE ou se o código não estiver na URL
+          window.opener.postMessage({ type: 'AUTH_SUCCESS' }, '*');
+        }
+        
         // Dá um tempo para a mensagem ser processada antes de fechar
         setTimeout(() => {
           window.close();

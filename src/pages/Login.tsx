@@ -120,36 +120,7 @@ export default function Login() {
         if (data.user) {
           toast.success('Bem-vindo de volta!');
           leadService.updateStatus('frio').catch(console.error);
-          
-          // Garantir que o profile existe e tem o role correto se for master
-          const { data: existingProfile } = await withTimeout(supabase
-            .from('profiles')
-            .select('role, full_name, avatar_url')
-            .eq('id', data.user.id)
-            .maybeSingle());
-            
-          if (!existingProfile || (data.user.email === 'pereira.itapema@gmail.com' && existingProfile.role !== 'admin')) {
-            const profileData: any = {
-              id: data.user.id,
-              email: data.user.email,
-              role: (data.user.email === 'pereira.itapema@gmail.com') ? 'admin' : (existingProfile?.role || 'customer')
-            };
-
-            // Preserva dados existentes se houver
-            if (existingProfile?.full_name) {
-              profileData.full_name = existingProfile.full_name;
-            } else if (data.user.email) {
-              profileData.full_name = data.user.email.split('@')[0];
-            }
-
-            if (existingProfile?.avatar_url) {
-              profileData.avatar_url = existingProfile.avatar_url;
-            }
-
-            await withTimeout(supabase.from('profiles').upsert(profileData));
-          }
-
-          // O App.tsx cuidará do redirecionamento via onAuthStateChange
+          // O App.tsx cuidará do perfil e do redirecionamento via onAuthStateChange
         }
       } else {
         // Modo Cadastro
@@ -204,31 +175,13 @@ export default function Login() {
           setLoading(true);
           console.log('💾 Exchanging code for session (PKCE)...');
           
-          // Debug: Verificar se o code_verifier está no localStorage
-          const storageKeys = Object.keys(localStorage).filter(k => k.includes('supabase') || k.includes('sb-'));
-          console.log('📦 Current Storage Keys:', storageKeys);
-          
           const { data, error } = await withTimeout(supabase.auth.exchangeCodeForSession(code));
           
-          if (error) {
-            console.error('❌ Supabase Auth Exchange Error:', {
-              message: error.message,
-              status: error.status,
-              code: error.code,
-              name: error.name
-            });
-            throw error;
-          }
+          if (error) throw error;
 
           if (data.session) {
             console.log('✅ Session established successfully!');
             toast.success('Autenticado com sucesso!');
-            
-            // Forçar o App.tsx a ver a nova sessão
-            window.dispatchEvent(new Event('storage')); 
-            
-            // O App.tsx cuidará do redirecionamento via onAuthStateChange
-            // Não redirecionamos aqui para evitar conflitos com a lógica de roles
             setLoading(false);
           } else {
             throw new Error('Nenhuma sessão retornada após a troca do código.');
@@ -239,6 +192,12 @@ export default function Login() {
           toast.error('Erro ao sincronizar conta: ' + (err.message || 'Erro desconhecido'));
           setLoading(false);
         }
+      }
+
+      if (event.data?.type === 'AUTH_SUCCESS') {
+        console.log('✅ Auth Success received from popup');
+        toast.success('Autenticado com sucesso!');
+        setLoading(false);
       }
 
       if (event.data?.type === 'AUTH_ERROR') {
