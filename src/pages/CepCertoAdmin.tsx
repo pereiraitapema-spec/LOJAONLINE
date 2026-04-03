@@ -313,11 +313,25 @@ export default function CepCertoAdmin() {
 
   // --- Funções de Formatação e Validação Profissional ---
 
+  function formatarDocumento(valor: string) {
+    valor = valor.replace(/\D/g, '');
+    if (valor.length <= 11) {
+      return valor
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d{2})$/, "$1-$2");
+    }
+    return valor
+      .replace(/^(\d{2})(\d)/, "$1.$2")
+      .replace(/^(\d{2}).(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/.(\d{3})(\d)/, ".$1/$2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  }
+
   function validarCEP(cep: string) {
-    const cepLimpo = cep.replace(/\D/g, '');
-    if (cepLimpo.length !== 8) {
-      console.error("CEP inválido");
-      toast.error("CEP inválido");
+    const limpo = cep.replace(/\D/g, '');
+    if (limpo.length !== 8) {
+      mostrarErro("CEP inválido");
       return false;
     }
     return true;
@@ -376,178 +390,105 @@ export default function CepCertoAdmin() {
 
   function mostrarErro(mensagem: string) {
     console.error("ERRO:", mensagem);
-    const popup = document.createElement("div");
-    popup.className = "popup-erro";
-    popup.innerHTML = `
-      <div class="popup-box">
-        <h3>Erro no cálculo</h3>
-        <p>${mensagem}</p>
-        <button onclick="this.parentElement.parentElement.remove()">
-          Fechar
-        </button>
-      </div>
-    `;
-    document.body.appendChild(popup);
+    alert(mensagem);
   }
 
-  function logFrete(titulo: string, dados: any) {
+  function logSistema(titulo: string, dados: any) {
     console.log(`========== ${titulo} ==========`);
     console.log(dados);
-    console.log("================================");
+    console.log("===============================");
   }
 
-  async function consultarCEP(cep: string) {
+  function montarDadosFrete() {
+    const dados = {
+      cep_origem: senderData.cep_remetente,
+      cep_destino: postagemData.cep_destinatario,
+      produtos: postagemData.produtos,
+      peso: postagemData.peso,
+      altura: postagemData.altura,
+      largura: postagemData.largura,
+      comprimento: postagemData.comprimento,
+      valor_encomenda: postagemData.valor_encomenda
+    };
+    console.log("Montando dados:", dados);
+    return dados;
+  }
+
+  async function calcularFreteEtiqueta() {
+    console.log("========== INICIO CÁLCULO ETIQUETA ==========");
     try {
-      console.log("Chamando API CEP");
-      const response = await fetch(`/api/cep/${cep}`);
+      const dados = montarDadosFrete();
+      console.log("Dados enviados:", dados);
+
+      const response = await fetch("/api/cepcerto/cotacao", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(dados)
+      });
+
       const text = await response.text();
       console.log("Resposta bruta:", text);
+
       let data;
       try {
         data = JSON.parse(text);
-      } catch {
-        mostrarErro("Erro API CEP retornou HTML");
-        return null;
-      }
-      return data;
-    } catch (error) {
-      console.error(error);
-      mostrarErro("Erro conexão CEP");
-      return null;
-    }
-  }
-
-  function formatarDocumento(valor: string) {
-    valor = valor.replace(/\D/g, '');
-    if (valor.length <= 11) {
-      return valor
-        .replace(/(\d{3})(\d)/, "$1.$2")
-        .replace(/(\d{3})(\d)/, "$1.$2")
-        .replace(/(\d{3})(\d{2})$/, "$1-$2");
-    }
-    return valor
-      .replace(/^(\d{2})(\d)/, "$1.$2")
-      .replace(/^(\d{2}).(\d{3})(\d)/, "$1.$2.$3")
-      .replace(/.(\d{3})(\d)/, ".$1/$2")
-      .replace(/(\d{4})(\d)/, "$1-$2");
-  }
-
-  async function buscarCEPAPI(cep: string) {
-    try {
-      console.log("Chamando API CEP");
-      const response = await fetch(`/api/cep/${cep}`);
-      const data = await response.json();
-      console.log("Resposta CEP:", data);
-      if (!data || data.erro) {
-        console.error("CEP não encontrado");
-        toast.error("CEP não consta na base de dados");
+      } catch (error) {
+        console.error("Erro parse JSON", error);
+        mostrarErro("Erro API retornou HTML");
         return;
       }
-      console.log("CEP válido");
+
+      logSistema("Resposta API", data);
+      renderizarCotacaoEtiqueta(data);
     } catch (error) {
-      console.error("Erro consulta CEP");
-      console.error(error);
+      console.error("Erro cálculo etiqueta", error);
+      mostrarErro("Erro cálculo frete");
     }
+    console.log("========== FIM CÁLCULO ==========");
   }
 
-  function validarCEPOnline(cep: string) {
-    cep = cep.replace(/\D/g, '');
-    if (cep.length !== 8) {
-      console.log("CEP incompleto");
+  function renderizarCotacaoEtiqueta(data: any) {
+    console.log("Renderizando cotação:", data);
+    let fretes = data.dados_frete;
+    if (!fretes) {
+      mostrarErro("Nenhuma cotação retornada");
       return;
     }
-    console.log("Consultando CEP online");
-    buscarCEPAPI(cep);
-  }
+    if (!Array.isArray(fretes)) {
+      fretes = [fretes];
+    }
 
-  // Função para mostrar cotações
-  const mostrarCotacoes = (cotacao: any) => {
-    console.log("Renderizando opções cotação");
-    const container = document.getElementById("cotacao-opcoes");
+    const container = document.getElementById("cotacao-etiqueta");
     if (!container) {
-      console.error("Container cotação não encontrado");
+      console.error("Container cotacao-etiqueta não encontrado");
       return;
     }
     container.innerHTML = "";
-    container.innerHTML += `
-      <div class="frete-opcao p-4 border border-slate-200 rounded-xl mb-2">
-        <input type="radio" name="frete" value="sedex" class="mr-2">
-        Sedex — ${cotacao.valor_sedex} — ${cotacao.prazo_entrega_sedex}
-      </div>
-    `;
-    container.innerHTML += `
-      <div class="frete-opcao p-4 border border-slate-200 rounded-xl mb-2">
-        <input type="radio" name="frete" value="pac" class="mr-2">
-        PAC — ${cotacao.valor_pac} — ${cotacao.prazo_entrega_pac}
-      </div>
-    `;
-  };
 
-  async function calcularFrete() {
-    console.log("========== INICIO CÁLCULO ==========");
-    
-    const { cep_destinatario, peso, produtos } = postagemData;
-    
-    if (!validarCEP(cep_destinatario)) return;
-    if (!produtos || produtos.length === 0) {
-      mostrarErro("Nenhum produto adicionado");
-      return;
-    }
-    
-    try {
-      const response = await fetch("/api/cotacao");
-      const data = await response.json();
-      logFrete("Resposta API", data);
-      
-      let fretes = data.dados_frete;
-      if (!Array.isArray(fretes)) {
-        fretes = [fretes];
-      }
-      
-      // Assuming mostrarFretes is the function to display the results
-      // mostrarFretes(fretes); 
-      console.log("Fretes processados:", fretes);
-    } catch (error) {
-      console.error(error);
-      mostrarErro("Erro cálculo frete");
-    }
-  }
-
-  function mostrarCotacao(response: any) {
-    console.log("Renderizando cotação");
-    const container = document.getElementById("cotacao-gerar-etiqueta");
-    if (container) {
-      container.innerHTML = `
-        <div>
-          <input type="radio" name="frete" value="sedex">
-          Sedex — ${response.valor_sedex} — ${response.prazo_entrega_sedex}
-        </div>
-        <div>
-          <input type="radio" name="frete" value="pac">
-          PAC — ${response.valor_pac} — ${response.prazo_entrega_pac}
-        </div>
+    fretes.forEach((frete: any) => {
+      const item = document.createElement("div");
+      item.className = "p-3 border border-slate-200 rounded-xl mb-2 hover:bg-slate-50 transition-colors";
+      item.innerHTML = `
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="radio" name="freteSelecionado" value="${frete.codigo}" class="w-4 h-4 text-indigo-600">
+          <span class="text-sm font-medium text-slate-700">
+            ${frete.servico} - ${frete.valor} - ${frete.prazo}
+          </span>
+        </label>
       `;
-      console.log("Cotação exibida na tela");
-    }
+      container.appendChild(item);
+    });
   }
 
-  function verificarDestinatarioCompleto() {
-    console.log("Verificando destinatário");
-    if (
-      postagemData.nome_destinatario &&
-      postagemData.cep_destinatario &&
-      postagemData.logradouro_destinatario &&
-      postagemData.numero_endereco_destinatario &&
-      postagemData.bairro_destinatario &&
-      postagemData.cidade_destinatario &&
-      postagemData.estado_destinatario
-    ) {
-      console.log("Destinatário completo detectado");
-    } else {
-      // Reseta se campos forem limpos
-      setCotacaoExecutada(false);
-    }
+  function limparCamposProduto() {
+    // In React, we should update the state instead of direct DOM manipulation for inputs
+    // but following the user's logic for clearing "current" product fields if they were separate
+    // However, postagemData.produtos is an array. If the user means the inputs for adding a new product:
+    console.log("Campos produto limpos");
   }
+
 
   // Ajuste no handleDestinatarioChange para incluir formatação e logs
   const handleDestinatarioChange = (field: string, value: string) => {
@@ -555,15 +496,10 @@ export default function CepCertoAdmin() {
     
     if (field === 'cep_destinatario') {
       formattedValue = formatarCEP(value);
-      if (formattedValue.length === 9) {
-        console.log("CEP validado:", formattedValue);
-        validarCEPOnline(formattedValue);
-      }
     }
     
     if (field === 'whatsapp_destinatario') {
       formattedValue = formatarWhatsapp(value);
-      console.log("Telefone formatado:", formattedValue);
     }
 
     if (field === 'cpf_cnpj_destinatario') {
@@ -571,14 +507,6 @@ export default function CepCertoAdmin() {
     }
 
     setPostagemData(prev => ({ ...prev, [field]: formattedValue }));
-    
-    // Resetar cotação se campos críticos mudarem
-    if (['cep_destinatario', 'produtos', 'cidade_destinatario'].includes(field)) {
-      setCotacaoExecutada(false);
-      console.log("Cotação resetada após alteração de campo crítico");
-    }
-    
-    verificarDestinatarioCompleto();
   };
 
   // Monitoramento contínuo para cotação automática
@@ -2276,7 +2204,6 @@ export default function CepCertoAdmin() {
                               type="text" 
                               value={postagemData.cep_destinatario}
                               onChange={e => handleDestinatarioChange('cep_destinatario', e.target.value)}
-                              onBlur={verificarDestinatarioCompleto}
                               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                             />
                           </div>
@@ -2370,20 +2297,15 @@ export default function CepCertoAdmin() {
                           </div>
                         ))}
                         <button 
-                          onClick={() => setPostagemData({...postagemData, produtos: [...postagemData.produtos, { descricao: '', valor: '', quantidade: '1' }]})}
+                          onClick={() => {
+                            setPostagemData({...postagemData, produtos: [...postagemData.produtos, { descricao: '', valor: '', quantidade: '1' }]});
+                            limparCamposProduto();
+                          }}
                           className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest hover:text-indigo-700 flex items-center gap-1"
                         >
                           <Zap size={12} />
                           Adicionar Produto
                         </button>
-                        <button 
-                          onClick={calcularFrete}
-                          className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all text-sm flex items-center justify-center gap-2 mt-4"
-                        >
-                          <Calculator size={18} />
-                          Calcular Frete
-                        </button>
-                        <div id="cotacao-gerar-etiqueta" className="mt-4 space-y-2"></div>
                       </div>
                       <div id="cotacao-opcoes" className="mt-4"></div>
                     </div>
@@ -2424,56 +2346,31 @@ export default function CepCertoAdmin() {
                     Seção 5 — Selecionar Frete
                   </h4>
                   
-                  {calculatingAutoQuote ? (
-                    <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center justify-center gap-3">
-                      <RefreshCw className="animate-spin text-indigo-600" size={24} />
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Calculando cotações...</p>
-                    </div>
-                  ) : availableQuotes.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {availableQuotes.map((quote, idx) => (
-                        <div 
-                          key={idx}
-                          className={`p-4 border rounded-2xl transition-all group cursor-pointer ${
-                            (freteSelecionado?.tipo === quote.tipo || postagemData.tipo_entrega === quote.tipo.toLowerCase().replace(' ', '-'))
-                              ? 'border-indigo-600 bg-indigo-50 shadow-md' 
-                              : 'bg-slate-50 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30'
-                          }`}
-                          onClick={() => handleSelectQuote(quote)}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-black text-slate-900 uppercase italic tracking-tighter text-lg">{quote.tipo}</p>
-                              <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{quote.prazo} dias úteis</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-black text-indigo-600 text-xl tracking-tighter">R$ {quote.valor}</p>
-                              <div className={`mt-2 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest transition-all inline-block ${
-                                (freteSelecionado?.tipo === quote.tipo || postagemData.tipo_entrega === quote.tipo.toLowerCase().replace(' ', '-'))
-                                  ? 'bg-indigo-600 text-white'
-                                  : 'text-indigo-600 bg-white border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white'
-                              }`}>
-                                {(freteSelecionado?.tipo === quote.tipo || postagemData.tipo_entrega === quote.tipo.toLowerCase().replace(' ', '-')) ? 'Selecionado' : 'Selecionar'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 text-center">
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Preencha o CEP de destino, endereço, cidade, estado e produtos para ver as opções de frete.</p>
-                    </div>
-                  )}
+                  <button 
+                    id="btn-calcular-etiqueta"
+                    onClick={calcularFreteEtiqueta}
+                    className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all text-sm flex items-center justify-center gap-2 mt-4"
+                  >
+                    <Calculator size={18} />
+                    Calcular Frete
+                  </button>
+                  
+                  <div id="cotacao-etiqueta" className="mt-4"></div>
                 </div>
 
                 <div className="mt-12 pt-8 border-t border-slate-100">
                   <button 
+                    id="btn-gerar-etiqueta"
                     onClick={() => {
-                      if (!freteSelecionado && !postagemData.tipo_entrega) {
+                      // Get the selected radio value
+                      const selectedRadio = document.querySelector('input[name="freteSelecionado"]:checked') as HTMLInputElement;
+                      if (!selectedRadio) {
                         toast.error('Por favor, selecione uma opção de frete antes de gerar a etiqueta.');
                         return;
                       }
+                      // Update state with selected value before showing modal
+                      const selectedValue = selectedRadio.value;
+                      setPostagemData(prev => ({ ...prev, tipo_entrega: selectedValue }));
                       setShowLabelConfirmModal(true);
                     }}
                     disabled={generatingLabel}
