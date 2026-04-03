@@ -214,8 +214,8 @@ export default function CepCertoAdmin() {
     const matchRastreador = !listaEtiquetasFiltros.rastreador || item.codigoObjeto?.toLowerCase().includes(listaEtiquetasFiltros.rastreador.toLowerCase());
     const matchData = !listaEtiquetasFiltros.data || (item.data && item.data.includes(listaEtiquetasFiltros.data));
     
-    const itemStatus = item.status === 'cancelada' ? 'cancelada' : 'ativa';
-    const matchStatus = itemStatus === listaEtiquetasFiltros.status;
+    const isCancelada = item.status?.toLowerCase().trim() === 'cancelada';
+    const matchStatus = listaEtiquetasFiltros.status === 'cancelada' ? isCancelada : !isCancelada;
     
     return matchNome && matchRastreador && matchData && matchStatus;
   });
@@ -290,6 +290,16 @@ export default function CepCertoAdmin() {
   }, [logisticaSubTab]);
 
   const fetchLabels = async () => {
+    // Fallback: carregar do localStorage primeiro para mostrar algo imediatamente
+    const savedLabels = localStorage.getItem('cepcerto_etiquetas_geradas');
+    if (savedLabels) {
+      try {
+        setEtiquetasGeradas(JSON.parse(savedLabels));
+      } catch (e) {
+        console.error("Erro ao carregar etiquetas do localStorage", e);
+      }
+    }
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -336,7 +346,7 @@ export default function CepCertoAdmin() {
   };
 
   useEffect(() => {
-    if (logisticaSubTab === 'lista') {
+    if (logisticaSubTab === 'lista-etiquetas') {
       fetchLabels();
     }
   }, [logisticaSubTab]);
