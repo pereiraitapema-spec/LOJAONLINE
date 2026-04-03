@@ -183,6 +183,21 @@ export default function CepCertoAdmin() {
   }, []);
 
   useEffect(() => {
+    const inputs = document.querySelectorAll(".campo-cpf-cnpj");
+    const handleInput = (e: any) => {
+      e.target.value = formatarDocumento(e.target.value);
+    };
+    inputs.forEach(input => {
+      input.addEventListener("input", handleInput);
+    });
+    return () => {
+      inputs.forEach(input => {
+        input.removeEventListener("input", handleInput);
+      });
+    };
+  }, []);
+
+  useEffect(() => {
     if (logisticaSubTab === 'etiquetas') {
       const savedQuote = localStorage.getItem('cepcerto_dados_etiqueta');
       if (savedQuote) {
@@ -359,6 +374,64 @@ export default function CepCertoAdmin() {
 
   // --- Fim das Funções de Formatação e Validação ---
 
+  function mostrarErro(mensagem: string) {
+    console.error("ERRO:", mensagem);
+    const popup = document.createElement("div");
+    popup.className = "popup-erro";
+    popup.innerHTML = `
+      <div class="popup-box">
+        <h3>Erro no cálculo</h3>
+        <p>${mensagem}</p>
+        <button onclick="this.parentElement.parentElement.remove()">
+          Fechar
+        </button>
+      </div>
+    `;
+    document.body.appendChild(popup);
+  }
+
+  function logFrete(titulo: string, dados: any) {
+    console.log(`========== ${titulo} ==========`);
+    console.log(dados);
+    console.log("================================");
+  }
+
+  async function consultarCEP(cep: string) {
+    try {
+      console.log("Chamando API CEP");
+      const response = await fetch(`/api/cep/${cep}`);
+      const text = await response.text();
+      console.log("Resposta bruta:", text);
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        mostrarErro("Erro API CEP retornou HTML");
+        return null;
+      }
+      return data;
+    } catch (error) {
+      console.error(error);
+      mostrarErro("Erro conexão CEP");
+      return null;
+    }
+  }
+
+  function formatarDocumento(valor: string) {
+    valor = valor.replace(/\D/g, '');
+    if (valor.length <= 11) {
+      return valor
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d{2})$/, "$1-$2");
+    }
+    return valor
+      .replace(/^(\d{2})(\d)/, "$1.$2")
+      .replace(/^(\d{2}).(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/.(\d{3})(\d)/, ".$1/$2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  }
+
   async function buscarCEPAPI(cep: string) {
     try {
       console.log("Chamando API CEP");
@@ -410,106 +483,34 @@ export default function CepCertoAdmin() {
     `;
   };
 
-  async function calcularCotacao() {
-    console.log("========== INICIO COTAÇÃO ==========");
+  async function calcularFrete() {
+    console.log("========== INICIO CÁLCULO ==========");
     
     const { cep_destinatario, peso, produtos } = postagemData;
     
     if (!validarCEP(cep_destinatario)) return;
-    if (!validarProdutos(produtos)) return;
-    
-    // Validação de peso
-    const pesoGramas = parseFloat(peso) || 0;
-    if (pesoGramas <= 0) {
-      console.error("Peso inválido");
-      toast.error("Peso inválido");
+    if (!produtos || produtos.length === 0) {
+      mostrarErro("Nenhum produto adicionado");
       return;
     }
-
-    setCalculatingAutoQuote(true);
     
     try {
-      // Conversão de peso (API espera KG)
-      const pesoFinal = converterPesoGramas(pesoGramas);
-      console.log("Peso produto (gramas):", pesoGramas, "Peso final (KG):", pesoFinal / 1000);
-
-      const { data: carriers } = await supabase
-        .from('shipping_carriers')
-        .select('api_key, config')
-        .eq('provider', 'cepcerto')
-        .eq('active', true)
-        .limit(1);
-
-      if (!carriers || carriers.length === 0) {
-        console.error("Nenhuma transportadora ativa encontrada");
-        toast.error("Transportadora não configurada");
-        return;
+      const response = await fetch("/api/cotacao");
+      const data = await response.json();
+      logFrete("Resposta API", data);
+      
+      let fretes = data.dados_frete;
+      if (!Array.isArray(fretes)) {
+        fretes = [fretes];
       }
-
-      const carrierData = carriers[0];
-      let apiKey = carrierData.api_key;
-      if (!apiKey && carrierData.config) {
-        const config = typeof carrierData.config === 'string' ? JSON.parse(carrierData.config) : carrierData.config;
-        apiKey = config.api_key_postagem || config.api_key;
-      }
-
-      if (!apiKey) {
-        console.error("API Key não encontrada");
-        toast.error("API Key não configurada");
-        return;
-      }
-
-      const valorTotal = produtos.reduce((acc: number, prod: any) => acc + (parseFloat(prod.valor) || 0) * (parseInt(prod.quantidade) || 1), 0);
-
-      const body = {
-        token_cliente_postagem: apiKey,
-        cep_remetente: senderData.cep_remetente,
-        cep_destinatario: cep_destinatario.replace(/\D/g, ''),
-        peso: (pesoFinal / 1000).toString(), // API espera KG
-        altura: postagemData.altura || "2",
-        largura: postagemData.largura || "11",
-        comprimento: postagemData.comprimento || "16",
-        valor_encomenda: valorTotal.toString()
-      };
-
-      const response = await fetch('/api/cepcerto/cotacao', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      console.log("========== RESPOSTA API ==========");
-      console.log(response);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log("========== FINAL COTAÇÃO ==========");
-        console.log("Produtos:", produtos);
-        console.log("Cotação:", data);
-        
-        if (data.dados_frete) {
-          const cotacao = {
-            valor_pac: data.dados_frete.find((q: any) => q.tipo === 'PAC')?.valor || 'N/A',
-            prazo_entrega_pac: data.dados_frete.find((q: any) => q.tipo === 'PAC')?.prazo || 'N/A',
-            valor_sedex: data.dados_frete.find((q: any) => q.tipo === 'SEDEX')?.valor || 'N/A',
-            prazo_entrega_sedex: data.dados_frete.find((q: any) => q.tipo === 'SEDEX')?.prazo || 'N/A',
-          };
-          mostrarCotacao(cotacao);
-          setCotacaoExecutada(true);
-        }
-      } else {
-        console.error("Erro na resposta da API");
-        toast.error("Erro ao calcular frete");
-      }
-
+      
+      // Assuming mostrarFretes is the function to display the results
+      // mostrarFretes(fretes); 
+      console.log("Fretes processados:", fretes);
     } catch (error) {
-      console.error("Erro no cálculo de frete");
       console.error(error);
-      toast.error("Erro ao calcular frete");
-    } finally {
-      setCalculatingAutoQuote(false);
+      mostrarErro("Erro cálculo frete");
     }
-    console.log("========== FIM COTAÇÃO ==========");
   }
 
   function mostrarCotacao(response: any) {
@@ -2261,11 +2262,11 @@ export default function CepCertoAdmin() {
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CPF / CNPJ</label>
-                            <input type="text" value={postagemData.cpf_cnpj_destinatario} onChange={e => handleDestinatarioChange('cpf_cnpj_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.cpf_cnpj_destinatario} onChange={e => handleDestinatarioChange('cpf_cnpj_destinatario', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">WhatsApp</label>
-                            <input type="text" value={postagemData.whatsapp_destinatario} onChange={e => handleDestinatarioChange('whatsapp_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.whatsapp_destinatario} onChange={e => handleDestinatarioChange('whatsapp_destinatario', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -2287,21 +2288,21 @@ export default function CepCertoAdmin() {
                         <div className="grid grid-cols-3 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Número</label>
-                            <input type="text" value={postagemData.numero_endereco_destinatario} onChange={e => handleDestinatarioChange('numero_endereco_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.numero_endereco_destinatario} onChange={e => handleDestinatarioChange('numero_endereco_destinatario', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                           <div className="col-span-2 space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Bairro</label>
-                            <input type="text" value={postagemData.bairro_destinatario} onChange={e => handleDestinatarioChange('bairro_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.bairro_destinatario} onChange={e => handleDestinatarioChange('bairro_destinatario', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Cidade</label>
-                            <input type="text" value={postagemData.cidade_destinatario} onChange={e => handleDestinatarioChange('cidade_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.cidade_destinatario} onChange={e => handleDestinatarioChange('cidade_destinatario', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Estado</label>
-                            <input type="text" value={postagemData.estado_destinatario} onChange={e => handleDestinatarioChange('estado_destinatario', e.target.value.toUpperCase().slice(0, 2))} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.estado_destinatario} onChange={e => handleDestinatarioChange('estado_destinatario', e.target.value.toUpperCase().slice(0, 2))} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                       </div>
@@ -2376,7 +2377,7 @@ export default function CepCertoAdmin() {
                           Adicionar Produto
                         </button>
                         <button 
-                          onClick={calcularCotacao}
+                          onClick={calcularFrete}
                           className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all text-sm flex items-center justify-center gap-2 mt-4"
                         >
                           <Calculator size={18} />
