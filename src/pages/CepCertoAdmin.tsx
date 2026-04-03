@@ -158,7 +158,7 @@ export default function CepCertoAdmin() {
   const [showLabelResultModal, setShowLabelResultModal] = useState(false);
   const [etiquetasGeradas, setEtiquetasGeradas] = useState<any[]>([]);
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
-  const [printType, setPrintType] = useState<'etiqueta' | 'declaracao' | null>(null);
+  const [printType, setPrintType] = useState<'etiqueta' | 'declaracao' | 'ambos' | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const [consultaFiltros, setConsultaFiltros] = useState({
     nome: '',
@@ -1520,7 +1520,15 @@ export default function CepCertoAdmin() {
     }
   };
 
-  const handlePrint = (type: 'etiqueta' | 'declaracao') => {
+  const handlePrint = (type: 'etiqueta' | 'declaracao' | 'ambos') => {
+    const selected = etiquetasGeradas.filter(e => selectedLabels.includes(e.id));
+    const canceledCount = selected.filter(e => e.status === 'cancelada').length;
+    
+    if (canceledCount > 0) {
+      toast.error(`${canceledCount} etiqueta(s) selecionada(s) estão canceladas e não podem ser impressas.`);
+      return;
+    }
+
     if (selectedLabels.length === 0) {
       toast.error('Selecione pelo menos uma etiqueta para imprimir.');
       return;
@@ -2824,22 +2832,29 @@ export default function CepCertoAdmin() {
                       <Activity size={24} className="text-indigo-600" />
                       Lista de Etiquetas
                     </h3>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <button 
-                        onClick={() => handlePrint('etiqueta')}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md shadow-indigo-200"
-                      >
-                        <Printer size={16} />
-                        Imprimir Etiquetas
-                      </button>
-                      <button 
-                        onClick={() => handlePrint('declaracao')}
-                        className="px-4 py-2 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-slate-900 transition-all flex items-center gap-2 shadow-md shadow-slate-200"
-                      >
-                        <FileText size={16} />
-                        Imprimir Declaração
-                      </button>
-                    </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button 
+                          onClick={() => handlePrint('etiqueta')}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md shadow-indigo-200"
+                        >
+                          <Printer size={16} />
+                          Imprimir Etiquetas
+                        </button>
+                        <button 
+                          onClick={() => handlePrint('declaracao')}
+                          className="px-4 py-2 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-slate-900 transition-all flex items-center gap-2 shadow-md shadow-slate-200"
+                        >
+                          <FileText size={16} />
+                          Imprimir Declaração
+                        </button>
+                        <button 
+                          onClick={() => handlePrint('ambos')}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-md shadow-emerald-200"
+                        >
+                          <Printer size={16} />
+                          Imprimir Ambos
+                        </button>
+                      </div>
                   </div>
                   
                   <div className="overflow-x-auto">
@@ -2890,7 +2905,7 @@ export default function CepCertoAdmin() {
                             <td className="py-4 text-sm text-slate-600">{etq.cidade || '-'}</td>
                             <td className="py-4">
                               <div className="flex flex-col">
-                                <span className="font-mono text-sm font-bold text-slate-900">{etq.codigoObjeto}</span>
+                                <span className={`font-mono text-sm font-bold ${etq.status === 'cancelada' ? 'text-red-600' : 'text-slate-900'}`}>{etq.codigoObjeto}</span>
                                 {etq.status === 'cancelada' && (
                                   <span className="text-[10px] font-bold text-red-600 uppercase">Cancelada</span>
                                 )}
@@ -2900,6 +2915,10 @@ export default function CepCertoAdmin() {
                             <td className="py-4 text-right">
                               <div className="flex justify-end gap-2">
                                 <button onClick={() => {
+                                  if (etq.status === 'cancelada') {
+                                    toast.error('Esta etiqueta está cancelada e não pode ser impressa.');
+                                    return;
+                                  }
                                   setLabelResult(etq);
                                   setShowLabelResultModal(true);
                                 }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Ver Detalhes">
@@ -3788,33 +3807,84 @@ export default function CepCertoAdmin() {
                 }
               `}</style>
               
-              {chunkArray(etiquetasGeradas.filter(e => selectedLabels.includes(e.id)), printType === 'etiqueta' ? 4 : 2).map((pageLabels, pageIndex) => (
-                <div key={pageIndex} className="w-[210mm] h-[297mm] mx-auto p-[10mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
-                  <div className={`w-full h-full grid gap-4 ${printType === 'etiqueta' ? 'grid-cols-2 grid-rows-2' : 'grid-cols-1 grid-rows-2'}`}>
-                    {Array.from({ length: printType === 'etiqueta' ? 4 : 2 }).map((_, cellIndex) => {
-                      const label = pageLabels[cellIndex];
-                      const url = label ? (printType === 'etiqueta' ? label.pdfUrlEtiqueta : (label.pdfUrlDeclaracao || label.declaracaoUrl)) : null;
-                      
-                      return (
-                        <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-2 flex flex-col items-center justify-center relative overflow-hidden rounded-xl">
-                          {url ? (
-                            <iframe 
-                              src={`${url}#toolbar=0&navpanes=0&scrollbar=0`} 
-                              className="w-full h-full border-0"
-                              title={`Print ${label.codigoObjeto}`}
-                            />
-                          ) : (
-                            <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
-                              <Printer size={32} className="opacity-20" />
-                              <span>Espaço Vazio</span>
+              {printType === 'ambos' ? (
+                <>
+                  {/* Etiquetas */}
+                  {chunkArray(etiquetasGeradas.filter(e => selectedLabels.includes(e.id)), 4).map((pageLabels, pageIndex) => (
+                    <div key={`labels-${pageIndex}`} className="w-[210mm] h-[297mm] mx-auto p-[10mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
+                      <div className="w-full h-full grid gap-4 grid-cols-2 grid-rows-2">
+                        {Array.from({ length: 4 }).map((_, cellIndex) => {
+                          const label = pageLabels[cellIndex];
+                          const url = label?.pdfUrlEtiqueta;
+                          return (
+                            <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-2 flex flex-col items-center justify-center relative overflow-hidden rounded-xl">
+                              {url ? (
+                                <iframe src={`${url}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0" title={`Print ${label.codigoObjeto}`} />
+                              ) : (
+                                <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
+                                  <Printer size={32} className="opacity-20" />
+                                  <span>Espaço Vazio</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  {/* Declarações */}
+                  {chunkArray(etiquetasGeradas.filter(e => selectedLabels.includes(e.id)), 2).map((pageLabels, pageIndex) => (
+                    <div key={`decls-${pageIndex}`} className="w-[210mm] h-[297mm] mx-auto p-[10mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
+                      <div className="w-full h-full grid gap-4 grid-cols-1 grid-rows-2">
+                        {Array.from({ length: 2 }).map((_, cellIndex) => {
+                          const label = pageLabels[cellIndex];
+                          const url = label?.pdfUrlDeclaracao || label?.declaracaoUrl;
+                          return (
+                            <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-2 flex flex-col items-center justify-center relative overflow-hidden rounded-xl">
+                              {url ? (
+                                <iframe src={`${url}#toolbar=0&navpanes=0&scrollbar=0`} className="w-full h-full border-0" title={`Print ${label.codigoObjeto}`} />
+                              ) : (
+                                <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
+                                  <Printer size={32} className="opacity-20" />
+                                  <span>Espaço Vazio</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                chunkArray(etiquetasGeradas.filter(e => selectedLabels.includes(e.id)), printType === 'etiqueta' ? 4 : 2).map((pageLabels, pageIndex) => (
+                  <div key={pageIndex} className="w-[210mm] h-[297mm] mx-auto p-[10mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
+                    <div className={`w-full h-full grid gap-4 ${printType === 'etiqueta' ? 'grid-cols-2 grid-rows-2' : 'grid-cols-1 grid-rows-2'}`}>
+                      {Array.from({ length: printType === 'etiqueta' ? 4 : 2 }).map((_, cellIndex) => {
+                        const label = pageLabels[cellIndex];
+                        const url = label ? (printType === 'etiqueta' ? label.pdfUrlEtiqueta : (label.pdfUrlDeclaracao || label.declaracaoUrl)) : null;
+                        
+                        return (
+                          <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-2 flex flex-col items-center justify-center relative overflow-hidden rounded-xl">
+                            {url ? (
+                              <iframe 
+                                src={`${url}#toolbar=0&navpanes=0&scrollbar=0`} 
+                                className="w-full h-full border-0"
+                                title={`Print ${label.codigoObjeto}`}
+                              />
+                            ) : (
+                              <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
+                                <Printer size={32} className="opacity-20" />
+                                <span>Espaço Vazio</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           )}
 
