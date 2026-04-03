@@ -170,7 +170,8 @@ export default function CepCertoAdmin() {
     nome: '',
     email: '',
     cidade: '',
-    codigo: ''
+    codigo: '',
+    data: ''
   });
   const [showRastreioModal, setShowRastreioModal] = useState(false);
   const [rastreioData, setRastreioData] = useState<any>(null);
@@ -190,8 +191,9 @@ export default function CepCertoAdmin() {
     const matchEmail = !rastreioFiltros.email || item.email?.toLowerCase().includes(rastreioFiltros.email.toLowerCase());
     const matchCidade = !rastreioFiltros.cidade || item.cidade?.toLowerCase().includes(rastreioFiltros.cidade.toLowerCase());
     const matchCodigo = !rastreioFiltros.codigo || item.codigoObjeto?.toLowerCase().includes(rastreioFiltros.codigo.toLowerCase());
+    const matchData = !rastreioFiltros.data || (item.data && item.data.includes(rastreioFiltros.data));
     
-    return matchNome && matchEmail && matchCidade && matchCodigo;
+    return matchNome && matchEmail && matchCidade && matchCodigo && matchData;
   });
 
   useEffect(() => {
@@ -1404,7 +1406,7 @@ export default function CepCertoAdmin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token_cliente_postagem: apiKey,
-          cod_objeto: codigo
+          codigo_objeto: codigo
         })
       });
 
@@ -2905,7 +2907,7 @@ export default function CepCertoAdmin() {
                 </div>
 
                 {/* Filtros Rastreio */}
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome</label>
                     <input 
@@ -2946,9 +2948,18 @@ export default function CepCertoAdmin() {
                       placeholder="Código"
                     />
                   </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Data</label>
+                    <input 
+                      type="date"
+                      value={rastreioFiltros.data}
+                      onChange={e => setRastreioFiltros({...rastreioFiltros, data: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                    />
+                  </div>
                   <div className="flex items-end">
                     <button 
-                      onClick={() => setRastreioFiltros({ nome: '', email: '', cidade: '', codigo: '' })}
+                      onClick={() => setRastreioFiltros({ nome: '', email: '', cidade: '', codigo: '', data: '' })}
                       className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all text-sm flex items-center justify-center gap-2"
                     >
                       <X size={18} />
@@ -2980,14 +2991,21 @@ export default function CepCertoAdmin() {
                             <td className="py-4">
                               <span className="font-mono text-sm font-bold text-slate-900">{item.codigoObjeto}</span>
                             </td>
-                            <td className="py-4 text-right">
+                            <td className="py-4 text-right flex items-center justify-end gap-2">
                               <button 
                                 onClick={() => rastrearObjeto(item.codigoObjeto)}
                                 disabled={loadingRastreio}
-                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-bold text-xs hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-1 ml-auto disabled:opacity-50"
+                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-bold text-xs hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-1 disabled:opacity-50"
                               >
                                 {loadingRastreio ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
                                 Rastrear
+                              </button>
+                              <button 
+                                onClick={() => confirmarCancelarEtiqueta(item.token, item.codigoObjeto)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Excluir Etiqueta"
+                              >
+                                <Trash2 size={16} />
                               </button>
                             </td>
                           </tr>
@@ -3105,13 +3123,20 @@ export default function CepCertoAdmin() {
                             <td className="py-4">
                               <span className="font-mono text-sm font-bold text-slate-900">{item.codigoObjeto}</span>
                             </td>
-                            <td className="py-4 text-right">
+                            <td className="py-4 text-right flex items-center justify-end gap-2">
                               <button 
                                 onClick={() => consultarPostagem(item.token, item.codigoObjeto)}
-                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-bold text-xs hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-1 ml-auto"
+                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-bold text-xs hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-1"
                               >
                                 <Search size={14} />
                                 Consultar
+                              </button>
+                              <button 
+                                onClick={() => confirmarCancelarEtiqueta(item.token, item.codigoObjeto)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Excluir Etiqueta"
+                              >
+                                <Trash2 size={16} />
                               </button>
                             </td>
                           </tr>
