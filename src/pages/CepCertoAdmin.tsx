@@ -1390,8 +1390,11 @@ export default function CepCertoAdmin() {
     }
 
     if (!tokenFinal) {
-      toast.error("Token de cancelamento não encontrado");
-      console.log("Cancelamento abortado: Token ausente");
+      const forceCancel = window.confirm("Token de cancelamento não encontrado para esta etiqueta antiga. Deseja marcá-la como CANCELADA localmente para removê-la da lista ativa?");
+      if (forceCancel) {
+        marcarEtiquetaComoCancelada(cod_objeto);
+        toast.success("Etiqueta marcada como cancelada localmente.");
+      }
       return;
     }
 
@@ -1413,6 +1416,14 @@ export default function CepCertoAdmin() {
         data = JSON.parse(text);
       } catch (error) {
         console.error("Erro parse cancelamento", error);
+        // Se der erro de parse mas o status for 404 ou similar, pode ser que o objeto não exista mais
+        if (response.status === 404 || response.status === 400) {
+          const force = window.confirm("A API retornou um erro (404/400). Esta etiqueta pode ser muito antiga ou já ter sido removida do sistema. Deseja marcá-la como CANCELADA localmente?");
+          if (force) {
+            marcarEtiquetaComoCancelada(cod_objeto);
+          }
+          return;
+        }
         toast.error("Erro ao cancelar etiqueta");
         return;
       }
@@ -1426,17 +1437,39 @@ export default function CepCertoAdmin() {
       } else {
         const msg = (data.mensagem || data.erro || "").toLowerCase();
         // Se a etiqueta já foi cancelada ou não existe no sistema do CepCerto, marcamos como cancelada localmente
-        if (msg.includes("já cancelado") || msg.includes("não encontrado") || msg.includes("objeto cancelado") || msg.includes("cancelado com sucesso")) {
+        const alreadyCanceled = 
+          msg.includes("já cancelado") || 
+          msg.includes("não encontrado") || 
+          msg.includes("objeto cancelado") || 
+          msg.includes("cancelado com sucesso") ||
+          msg.includes("inexistente") ||
+          msg.includes("não existe") ||
+          msg.includes("inválido") ||
+          msg.includes("erro ao cancelar") ||
+          msg.includes("não permitida") ||
+          msg.includes("prazo expirado");
+
+        if (alreadyCanceled) {
           toast(data.mensagem || "Etiqueta já estava cancelada ou não foi encontrada. Marcando como cancelada localmente.", { icon: 'ℹ️' });
           marcarEtiquetaComoCancelada(cod_objeto);
         } else {
           console.error("Erro no cancelamento:", data.mensagem || data.erro);
-          toast.error(data.erro || data.mensagem || "Erro ao cancelar etiqueta");
+          const force = window.confirm(`Erro na API: ${data.mensagem || data.erro}. Deseja forçar o cancelamento local para remover da lista ativa?`);
+          if (force) {
+            marcarEtiquetaComoCancelada(cod_objeto);
+          } else {
+            toast.error(data.erro || data.mensagem || "Erro ao cancelar etiqueta");
+          }
         }
       }
     } catch (error) {
       console.error("Erro cancelamento", error);
-      toast.error("Erro conexão cancelamento");
+      const force = window.confirm("Erro de conexão ao tentar cancelar. Deseja marcar como CANCELADA localmente mesmo assim?");
+      if (force) {
+        marcarEtiquetaComoCancelada(cod_objeto);
+      } else {
+        toast.error("Erro conexão cancelamento");
+      }
     }
     console.log("========== FIM CANCELAMENTO ==========");
   };
