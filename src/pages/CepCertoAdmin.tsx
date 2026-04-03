@@ -277,6 +277,11 @@ export default function CepCertoAdmin() {
       setAvailableQuotes(JSON.parse(savedQuotes));
     }
     
+    const savedSelected = localStorage.getItem('cepcerto_cotacao_selecionada');
+    if (savedSelected) {
+      setFreteSelecionado(JSON.parse(savedSelected));
+    }
+
     const savedHistory = localStorage.getItem('cepcerto_etiquetas_geradas');
     if (savedHistory) {
       setEtiquetasGeradas(JSON.parse(savedHistory));
@@ -878,6 +883,7 @@ export default function CepCertoAdmin() {
     }));
     
     localStorage.setItem('cepcerto_cotacao_selecionada', JSON.stringify(selectedQuote));
+    setFreteSelecionado(selectedQuote);
     setShowSelectQuoteModal(false);
     setSelectedQuoteForConfirmation(null);
     toast.success(`Cotação ${quote.tipo} confirmada!`);
@@ -1833,6 +1839,72 @@ export default function CepCertoAdmin() {
                     <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Gerar Nova Etiqueta</h3>
                     <p className="text-sm text-slate-500">Preencha os dados abaixo para postagem via CepCerto.</p>
                   </div>
+                </div>
+
+                {/* SEÇÃO — SELECIONAR FRETE */}
+                <div className="mb-8 p-6 bg-slate-50 rounded-3xl border border-slate-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                      <Zap size={16} className="text-amber-500" />
+                      Selecionar Frete
+                    </h4>
+                    {!freteSelecionado && (
+                      <button 
+                        onClick={() => {
+                          const savedQuotes = localStorage.getItem('cepcerto_cotacoes');
+                          if (savedQuotes) {
+                            setAvailableQuotes(JSON.parse(savedQuotes));
+                            setShowSelectQuoteModal(true);
+                          } else {
+                            setLogisticaSubTab('cotacao');
+                            toast.error('Calcule o frete primeiro.');
+                          }
+                        }}
+                        className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest hover:bg-indigo-100 px-3 py-1 rounded-lg transition-all border border-indigo-200"
+                      >
+                        {availableQuotes.length > 0 ? 'Escolher Frete' : 'Calcular Cotação'}
+                      </button>
+                    )}
+                  </div>
+
+                  {freteSelecionado ? (
+                    <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-indigo-100 shadow-sm">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                          <Truck size={20} />
+                        </div>
+                        <div>
+                          <p className="font-black text-slate-900 uppercase italic tracking-tighter text-lg">
+                            {freteSelecionado.transportadora || 'Correios'} — {freteSelecionado.tipo_entrega?.toUpperCase() || freteSelecionado.tipo?.toUpperCase()}
+                          </p>
+                          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">
+                            Prazo: {freteSelecionado.prazo} dias úteis
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right flex items-center gap-4">
+                        <p className="font-black text-indigo-600 text-xl tracking-tighter">{freteSelecionado.valor}</p>
+                        <button 
+                          onClick={() => {
+                            const savedQuotes = localStorage.getItem('cepcerto_cotacoes');
+                            if (savedQuotes) {
+                              setAvailableQuotes(JSON.parse(savedQuotes));
+                              setShowSelectQuoteModal(true);
+                            } else {
+                              toast.error('Nenhuma cotação encontrada.');
+                            }
+                          }}
+                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                        >
+                          <RefreshCw size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Nenhuma cotação selecionada</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
