@@ -353,7 +353,7 @@ export default function CepCertoAdmin() {
   }
 
   function formatarCPF(valor: string) {
-    valor = valor.replace(/\D/g, '');
+    valor = valor.replace(/\D/g, '').slice(0, 11);
     valor = valor.replace(/(\d{3})(\d)/, "$1.$2");
     valor = valor.replace(/(\d{3})(\d)/, "$1.$2");
     valor = valor.replace(/(\d{3})(\d{2})$/, "$1-$2");
@@ -361,7 +361,7 @@ export default function CepCertoAdmin() {
   }
 
   function formatarCNPJ(valor: string) {
-    valor = valor.replace(/\D/g, '');
+    valor = valor.replace(/\D/g, '').slice(0, 14);
     valor = valor.replace(/^(\d{2})(\d)/, "$1.$2");
     valor = valor.replace(/^(\d{2}).(\d{3})(\d)/, "$1.$2.$3");
     valor = valor.replace(/.(\d{3})(\d)/, ".$1/$2");
@@ -511,13 +511,10 @@ export default function CepCertoAdmin() {
 
   function renderizarCotacaoEtiqueta(data: any) {
     console.log("Renderizando cotação:", data);
-    let fretes = data.dados_frete;
-    if (!fretes) {
+    const fretesRaw = data.dados_frete;
+    if (!fretesRaw) {
       mostrarErro("Nenhuma cotação retornada");
       return;
-    }
-    if (!Array.isArray(fretes)) {
-      fretes = [fretes];
     }
 
     const container = document.getElementById("cotacao-etiqueta");
@@ -527,14 +524,54 @@ export default function CepCertoAdmin() {
     }
     container.innerHTML = "";
 
-    fretes.forEach((frete: any) => {
+    // Mapear o objeto de frete para um array de opções
+    const options = [];
+    if (fretesRaw.valor_pac) {
+      options.push({
+        id: 'pac',
+        servico: 'PAC',
+        valor: fretesRaw.valor_pac,
+        prazo: fretesRaw.prazo_entrega_pac
+      });
+    }
+    if (fretesRaw.valor_sedex) {
+      options.push({
+        id: 'sedex',
+        servico: 'SEDEX',
+        valor: fretesRaw.valor_sedex,
+        prazo: fretesRaw.prazo_entrega_sedex
+      });
+    }
+    if (fretesRaw.valor_jadlog_package) {
+      options.push({
+        id: 'jadlog-package',
+        servico: 'JADLOG PACKAGE',
+        valor: fretesRaw.valor_jadlog_package,
+        prazo: fretesRaw.prazo_entrega_jadlog_package
+      });
+    }
+    if (fretesRaw.valor_jadlog_dotcom) {
+      options.push({
+        id: 'jadlog-dotcom',
+        servico: 'JADLOG DOTCOM',
+        valor: fretesRaw.valor_jadlog_dotcom,
+        prazo: fretesRaw.prazo_entrega_jadlog_dotcom
+      });
+    }
+
+    if (options.length === 0) {
+      container.innerHTML = '<p class="text-sm text-red-500 font-bold">Nenhuma opção de frete disponível para este CEP.</p>';
+      return;
+    }
+
+    options.forEach((frete: any) => {
       const item = document.createElement("div");
       item.className = "p-3 border border-slate-200 rounded-xl mb-2 hover:bg-slate-50 transition-colors";
       item.innerHTML = `
         <label class="flex items-center gap-3 cursor-pointer">
-          <input type="radio" name="freteSelecionado" value="${frete.codigo}" class="w-4 h-4 text-indigo-600">
+          <input type="radio" name="freteSelecionado" value="${frete.id}" class="w-4 h-4 text-indigo-600">
           <span class="text-sm font-medium text-slate-700">
-            ${frete.servico} - ${frete.valor} - ${frete.prazo}
+            ${frete.servico} - <span class="font-bold text-indigo-600">${frete.valor}</span> - <span class="text-slate-500 italic">${frete.prazo}</span>
           </span>
         </label>
       `;
@@ -868,82 +905,10 @@ export default function CepCertoAdmin() {
       return;
     }
 
-    // Validação de produtos para a aba de etiquetas
-    if (activeTab === 'label' && (!postagemData.produtos || postagemData.produtos.length === 0)) {
-      mostrarErro("Você precisa adicionar pelo menos um produto na Seção 3.");
-      return;
-    }
-
-    // VALIDAÇÃO OBRIGATÓRIA REMETENTE
-    const nomeRemetente = activeTab === 'label' ? postagemData.nome_remetente : senderData.nome_remetente;
-    const cpfCnpjRemetente = activeTab === 'label' ? postagemData.cpf_cnpj_remetente : senderData.cpf_cnpj_remetente;
-    const whatsappRemetente = activeTab === 'label' ? postagemData.whatsapp_remetente : senderData.whatsapp_remetente;
-    const emailRemetente = activeTab === 'label' ? postagemData.email_remetente : senderData.email_remetente;
-
-    if (!nomeRemetente) {
-      toast.error('Nome do remetente é obrigatório');
-      return;
-    }
-    if (!cpfCnpjRemetente) {
-      toast.error('CPF/CNPJ do remetente é obrigatório');
-      return;
-    }
-    if (!whatsappRemetente) {
-      toast.error('WhatsApp do remetente é obrigatório');
-      return;
-    }
-    if (!emailRemetente) {
-      toast.error('Email do remetente é obrigatório');
-      return;
-    }
-
-    const peso = activeTab === 'label' ? postagemData.peso : recipientQuoteData.peso;
-    const altura = activeTab === 'label' ? postagemData.altura : recipientQuoteData.altura;
-    const largura = activeTab === 'label' ? postagemData.largura : recipientQuoteData.largura;
-    const comprimento = activeTab === 'label' ? postagemData.comprimento : recipientQuoteData.comprimento;
-    const valorEncomenda = activeTab === 'label' ? postagemData.valor_encomenda : recipientQuoteData.valor_encomenda;
-
-    const pesoGramas = parseFloat(peso) || 0;
-    const pesoKg = pesoGramas / 1000;
-
-    const dadosEtiqueta = {
-      cep_remetente: activeTab === 'label' ? postagemData.cep_remetente : senderData.cep_remetente,
-      cep_destinatario: activeTab === 'label' ? postagemData.cep_destinatario : recipientQuoteData.cep,
-      peso: pesoKg.toString(),
-      altura: altura.toString(),
-      largura: largura.toString(),
-      comprimento: comprimento.toString(),
-      valor_encomenda: valorEncomenda,
-      frete_tipo: freteSelecionado.tipo,
-      frete_valor: freteSelecionado.valor,
-      frete_prazo: freteSelecionado.prazo
-    };
-
-    localStorage.setItem("cepcerto_dados_etiqueta", JSON.stringify(dadosEtiqueta));
-    
-    // Salvar cotação selecionada
-    const selectedQuote = {
-      tipo_entrega: freteSelecionado.tipo.toLowerCase().replace(' ', '-'),
-      valor: freteSelecionado.valor,
-      prazo: freteSelecionado.prazo,
-      transportadora: freteSelecionado.tipo.toLowerCase().includes('jadlog') ? 'Jadlog' : 'Correios'
-    };
-    localStorage.setItem('cepcerto_cotacao_selecionada', JSON.stringify(selectedQuote));
-    
-    console.log("CEP CERTO - Dados etiqueta preparados", dadosEtiqueta);
-    console.log("CEP CERTO - Cotação selecionada salva", selectedQuote);
-    
-    // Preencher postagemData com dados do remetente salvo
+    // Pre-encher postagemData com os dados da cotação
     setPostagemData((prev: any) => ({
       ...prev,
-      tipo_entrega: freteSelecionado.tipo.toLowerCase().replace(' ', '-'),
       cep_remetente: senderData.cep_remetente,
-      cep_destinatario: recipientQuoteData.cep,
-      peso: pesoKg.toString(),
-      altura: recipientQuoteData.altura,
-      largura: recipientQuoteData.largura,
-      comprimento: recipientQuoteData.comprimento,
-      valor_encomenda: recipientQuoteData.valor_encomenda,
       nome_remetente: senderData.nome_remetente,
       cpf_cnpj_remetente: senderData.cpf_cnpj_remetente,
       whatsapp_remetente: senderData.whatsapp_remetente,
@@ -953,15 +918,32 @@ export default function CepCertoAdmin() {
       complemento_remetente: senderData.complemento_remetente,
       bairro_remetente: senderData.bairro_remetente,
       cidade_remetente: senderData.cidade_remetente,
-      estado_remetente: senderData.estado_remetente
+      estado_remetente: senderData.estado_remetente,
+      
+      cep_destinatario: recipientQuoteData.cep,
+      peso: recipientQuoteData.peso,
+      altura: recipientQuoteData.altura,
+      largura: recipientQuoteData.largura,
+      comprimento: recipientQuoteData.comprimento,
+      valor_encomenda: recipientQuoteData.valor_encomenda,
+      
+      tipo_entrega: freteSelecionado.tipo.toLowerCase().replace(' ', '-'),
+      produtos: [{ descricao: 'Pacote', valor: recipientQuoteData.valor_encomenda || '', quantidade: '1' }]
     }));
 
+    // Mudar para a aba de etiquetas
     setLogisticaSubTab('etiquetas');
     setShowQuoteModal(false);
-    toast.success('Dados transferidos para postagem!');
+    toast.success('Dados transferidos para geração de etiqueta!');
   };
 
   const gerarEtiqueta = async () => {
+    // Validar produtos
+    if (!postagemData.produtos || postagemData.produtos.length === 0) {
+      toast.error('Adicione pelo menos um produto antes de gerar a etiqueta');
+      return;
+    }
+
     // Validar cotação selecionada
     const savedQuote = localStorage.getItem('cepcerto_cotacao_selecionada');
     const cotacao_selecionada = freteSelecionado || (savedQuote ? JSON.parse(savedQuote) : null);
@@ -1785,11 +1767,11 @@ export default function CepCertoAdmin() {
           )}
           {/* Modal Cotação */}
           {showQuoteModal && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-20 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-4 overflow-y-auto">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-[2.5rem] w-full max-w-4xl shadow-2xl p-8 my-8"
+                className="bg-white rounded-[2.5rem] w-full max-w-4xl shadow-2xl p-8 my-4"
               >
                 <div className="flex justify-between items-center mb-8">
                   <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Nova Cotação de Frete</h2>
@@ -1824,7 +1806,11 @@ export default function CepCertoAdmin() {
                           <input 
                             type="text" 
                             value={senderData.cpf_cnpj_remetente} 
-                            onChange={e => setSenderData({...senderData, cpf_cnpj_remetente: e.target.value.replace(/\D/g, '').slice(0, 14)})}
+                            onChange={e => {
+                              const clean = e.target.value.replace(/\D/g, '');
+                              const formatted = clean.length > 11 ? formatarCNPJ(clean) : formatarCPF(clean);
+                              setSenderData({...senderData, cpf_cnpj_remetente: formatted});
+                            }}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                             placeholder="Apenas números"
                             required
@@ -1835,7 +1821,7 @@ export default function CepCertoAdmin() {
                           <input 
                             type="text" 
                             value={senderData.whatsapp_remetente} 
-                            onChange={e => setSenderData({...senderData, whatsapp_remetente: e.target.value.replace(/\D/g, '').slice(0, 11)})}
+                            onChange={e => setSenderData({...senderData, whatsapp_remetente: formatarWhatsapp(e.target.value)})}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                             placeholder="DDD + Número"
                             required
@@ -2600,11 +2586,11 @@ export default function CepCertoAdmin() {
 
           {/* Modal Resultado Etiqueta */}
           {showLabelResultModal && labelResult && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-start justify-center p-4 pt-20 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-start justify-center p-4 pt-4 overflow-y-auto">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-8 my-8"
+                className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-8 my-4"
               >
                 <div className="flex justify-between items-center mb-8">
                   <div className="flex items-center gap-3">
@@ -2713,11 +2699,11 @@ export default function CepCertoAdmin() {
 
           {/* Modal Confirmação Etiqueta */}
           {showLabelConfirmModal && freteSelecionado && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-start justify-center p-4 pt-20 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-start justify-center p-4 pt-4 overflow-y-auto">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl p-8"
+                className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl p-8 my-4"
               >
                 <div className="text-center mb-8">
                   <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600 mx-auto mb-6">
@@ -2772,11 +2758,11 @@ export default function CepCertoAdmin() {
 
           {/* Modal PIX */}
           {showPixModal && pixData && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-20 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-4 overflow-y-auto">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center"
+                className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center my-4"
               >
                 <h2 className="text-2xl font-black text-slate-900 mb-6 uppercase italic tracking-tighter">PIX Gerado</h2>
                 <div className="bg-slate-50 p-4 rounded-2xl mb-6 flex justify-center">
