@@ -288,6 +288,110 @@ export default function CepCertoAdmin() {
     }
   }, []);
 
+  const [calculatingAutoQuote, setCalculatingAutoQuote] = useState(false);
+
+  // Efeito para cotação automática
+  useEffect(() => {
+    const calcularCotacaoAutomatica = async () => {
+      const { cep_destinatario, peso, produtos } = postagemData;
+      
+      // Verifica se tem os dados mínimos
+      if (!cep_destinatario || cep_destinatario.length !== 8 || !peso || !produtos || produtos.length === 0) {
+        return;
+      }
+
+      // Calcula o valor total dos produtos
+      const valorTotal = produtos.reduce((acc: number, prod: any) => acc + (parseFloat(prod.valor) || 0) * (parseInt(prod.quantidade) || 1), 0);
+      
+      if (valorTotal === 0) return;
+
+      console.log("========== COTAÇÃO AUTOMÁTICA ==========");
+      console.log("CEP DESTINATÁRIO", cep_destinatario);
+      console.log("PRODUTOS", produtos);
+      console.log("PESO", peso);
+
+      setCalculatingAutoQuote(true);
+      
+      try {
+        const { data: carriers } = await supabase
+          .from('shipping_carriers')
+          .select('api_key, config')
+          .eq('provider', 'cepcerto')
+          .eq('active', true)
+          .limit(1);
+
+        if (!carriers || carriers.length === 0) return;
+
+        const carrierData = carriers[0];
+        let apiKey = carrierData.api_key;
+        if (!apiKey && carrierData.config) {
+          const config = typeof carrierData.config === 'string' ? JSON.parse(carrierData.config) : carrierData.config;
+          apiKey = config.api_key_postagem || config.api_key;
+        }
+
+        if (!apiKey) return;
+
+        const body = {
+          token_cliente_postagem: apiKey,
+          cep_remetente: senderData.cep_remetente,
+          cep_destinatario: cep_destinatario,
+          peso: peso,
+          altura: postagemData.altura || "2",
+          largura: postagemData.largura || "11",
+          comprimento: postagemData.comprimento || "16",
+          valor_encomenda: valorTotal.toString()
+        };
+
+        const response = await fetch('/api/cepcerto/cotacao', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.dados_frete) {
+            console.log("COTAÇÕES RETORNADAS", data.dados_frete);
+            localStorage.setItem('cepcerto_cotacoes', JSON.stringify(data.dados_frete));
+            setAvailableQuotes(data.dados_frete);
+            
+            // Se já tinha um frete selecionado, tenta mantê-lo se ainda existir nas novas cotações
+            if (freteSelecionado) {
+              const aindaExiste = data.dados_frete.find((q: any) => q.tipo === freteSelecionado.tipo);
+              if (!aindaExiste) {
+                setFreteSelecionado(null);
+                setPostagemData((prev: any) => ({ ...prev, tipo_entrega: '' }));
+                localStorage.removeItem('cepcerto_cotacao_selecionada');
+              } else {
+                // Atualiza o valor/prazo caso tenha mudado
+                const updatedQuote = {
+                  ...freteSelecionado,
+                  valor: aindaExiste.valor,
+                  prazo: aindaExiste.prazo
+                };
+                setFreteSelecionado(updatedQuote);
+                localStorage.setItem('cepcerto_cotacao_selecionada', JSON.stringify(updatedQuote));
+              }
+            } else {
+              setPostagemData((prev: any) => ({ ...prev, tipo_entrega: '' }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Erro na cotação automática", error);
+      } finally {
+        setCalculatingAutoQuote(false);
+      }
+    };
+
+    // Debounce para não chamar a API a cada tecla digitada
+    const timeoutId = setTimeout(() => {
+      calcularCotacaoAutomatica();
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [postagemData.cep_destinatario, postagemData.peso, postagemData.produtos, postagemData.altura, postagemData.largura, postagemData.comprimento, senderData.cep_remetente]);
+
   const handleSaveSender = () => {
     if (!senderData.cep_remetente || senderData.cep_remetente.length !== 8) {
       toast.error('CEP do Remetente é obrigatório e deve ter 8 dígitos.');
@@ -643,28 +747,13 @@ export default function CepCertoAdmin() {
   const gerarEtiqueta = async () => {
     // Validar cotação selecionada
     const savedQuote = localStorage.getItem('cepcerto_cotacao_selecionada');
-    const cotacao_selecionada = savedQuote ? JSON.parse(savedQuote) : null;
+    const cotacao_selecionada = freteSelecionado || (savedQuote ? JSON.parse(savedQuote) : null);
 
     console.log("========== GERAR ETIQUETA ==========");
     
-    if (!cotacao_selecionada) {
-      console.error("CEP CERTO - Nenhuma cotação selecionada");
-      
-      // Tentar carregar cotações disponíveis
-      const savedQuotes = localStorage.getItem('cepcerto_cotacoes');
-      if (savedQuotes) {
-        const quotes = JSON.parse(savedQuotes);
-        setAvailableQuotes(quotes);
-        console.log("COTAÇÕES DISPONÍVEIS", quotes);
-        setShowSelectQuoteModal(true);
-        toast.error('Por favor, selecione e confirme uma cotação primeiro');
-      } else {
-        toast.error('Nenhuma cotação encontrada. Por favor, calcule o frete primeiro.');
-      }
-      return;
-    }
+    const tipo_entrega_final = postagemData.tipo_entrega || cotacao_selecionada?.tipo_entrega || cotacao_selecionada?.tipo?.toLowerCase().replace(' ', '-');
 
-    if (!postagemData.tipo_entrega) {
+    if (!tipo_entrega_final) {
       console.error("CEP CERTO - Tipo entrega não definido");
       toast.error('Tipo de entrega não definido. Selecione a cotação novamente.');
       return;
@@ -675,8 +764,8 @@ export default function CepCertoAdmin() {
     setGeneratingLabel(true);
     console.log("CEP CERTO - Iniciando geração de etiqueta (Proxy)", postagemData);
     
-    console.log("TIPO ENTREGA ENVIADO", postagemData.tipo_entrega);
-    console.log("VALOR FRETE", cotacao_selecionada.valor);
+    console.log("TIPO ENTREGA ENVIADO", tipo_entrega_final);
+    console.log("VALOR FRETE", cotacao_selecionada?.valor || 'Não disponível');
 
     try {
       // PASSO 1 — LOG DADOS FRETE
@@ -753,6 +842,7 @@ export default function CepCertoAdmin() {
       const body = {
         token_cliente_postagem: apiKey,
         ...postagemData,
+        tipo_entrega: tipo_entrega_final,
         // Garantir formatos e evitar undefined usando limparNumero
         nome_remetente: (postagemData.nome_remetente || '').trim(),
         cpf_cnpj_remetente: limparNumero(postagemData.cpf_cnpj_remetente, "cpf_cnpj_remetente"),
@@ -823,8 +913,8 @@ export default function CepCertoAdmin() {
             idStringCorreios: data?.frete?.idStringCorreios || data?.idStringCorreios,
             pdfUrlEtiqueta: data?.frete?.pdfUrlEtiqueta || data?.pdfUrlEtiqueta,
             pdfUrlDeclaracao: data?.frete?.pdfUrlDeclaracao || data?.pdfUrlDeclaracao,
-            transportadora: postagemData.tipo_entrega.includes('jadlog') ? 'Jadlog' : 'Correios',
-            tipo_entrega: postagemData.tipo_entrega,
+            transportadora: tipo_entrega_final.includes('jadlog') ? 'Jadlog' : 'Correios',
+            tipo_entrega: tipo_entrega_final,
             valor: cotacao_selecionada?.valor || freteSelecionado?.valor || `R$ ${postagemData.valor_encomenda}`,
             prazo: cotacao_selecionada?.prazo || freteSelecionado?.prazo || '',
             status: 'Gerada'
@@ -862,19 +952,12 @@ export default function CepCertoAdmin() {
   };
 
   const handleSelectQuote = (quote: any) => {
-    setSelectedQuoteForConfirmation(quote);
-    console.log("COTAÇÃO AGUARDANDO CONFIRMAÇÃO", quote);
-  };
-
-  const handleConfirmQuote = () => {
-    if (!selectedQuoteForConfirmation) return;
-    
-    const quote = selectedQuoteForConfirmation;
     const selectedQuote = {
       tipo_entrega: quote.tipo.toLowerCase().replace(' ', '-'),
       valor: quote.valor,
       prazo: quote.prazo,
-      transportadora: quote.tipo.toLowerCase().includes('jadlog') ? 'Jadlog' : 'Correios'
+      transportadora: quote.tipo.toLowerCase().includes('jadlog') ? 'Jadlog' : 'Correios',
+      tipo: quote.tipo
     };
     
     setPostagemData((prev: any) => ({
@@ -884,10 +967,17 @@ export default function CepCertoAdmin() {
     
     localStorage.setItem('cepcerto_cotacao_selecionada', JSON.stringify(selectedQuote));
     setFreteSelecionado(selectedQuote);
-    setShowSelectQuoteModal(false);
-    setSelectedQuoteForConfirmation(null);
-    toast.success(`Cotação ${quote.tipo} confirmada!`);
-    console.log("COTAÇÃO CONFIRMADA E SALVA", selectedQuote);
+    toast.success(`Cotação ${quote.tipo} selecionada!`);
+    console.log("COTAÇÃO SELECIONADA E SALVA", selectedQuote);
+  };
+
+  const handleConfirmQuote = () => {
+    // Mantido por compatibilidade, mas a seleção agora é direta
+    if (selectedQuoteForConfirmation) {
+      handleSelectQuote(selectedQuoteForConfirmation);
+      setShowSelectQuoteModal(false);
+      setSelectedQuoteForConfirmation(null);
+    }
   };
 
   const handleRefreshBalance = async () => {
@@ -1841,167 +1931,14 @@ export default function CepCertoAdmin() {
                   </div>
                 </div>
 
-                {/* SEÇÃO — SELECIONAR FRETE */}
-                <div className="mb-8 p-6 bg-slate-50 rounded-3xl border border-slate-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
-                      <Zap size={16} className="text-amber-500" />
-                      Selecionar Frete
-                    </h4>
-                    {!freteSelecionado && (
-                      <button 
-                        onClick={() => {
-                          const savedQuotes = localStorage.getItem('cepcerto_cotacoes');
-                          if (savedQuotes) {
-                            setAvailableQuotes(JSON.parse(savedQuotes));
-                            setShowSelectQuoteModal(true);
-                          } else {
-                            setLogisticaSubTab('cotacao');
-                            toast.error('Calcule o frete primeiro.');
-                          }
-                        }}
-                        className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest hover:bg-indigo-100 px-3 py-1 rounded-lg transition-all border border-indigo-200"
-                      >
-                        {availableQuotes.length > 0 ? 'Escolher Frete' : 'Calcular Cotação'}
-                      </button>
-                    )}
-                  </div>
-
-                  {freteSelecionado ? (
-                    <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-indigo-100 shadow-sm">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-                          <Truck size={20} />
-                        </div>
-                        <div>
-                          <p className="font-black text-slate-900 uppercase italic tracking-tighter text-lg">
-                            {freteSelecionado.transportadora || 'Correios'} — {freteSelecionado.tipo_entrega?.toUpperCase() || freteSelecionado.tipo?.toUpperCase()}
-                          </p>
-                          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">
-                            Prazo: {freteSelecionado.prazo} dias úteis
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right flex items-center gap-4">
-                        <p className="font-black text-indigo-600 text-xl tracking-tighter">{freteSelecionado.valor}</p>
-                        <button 
-                          onClick={() => {
-                            const savedQuotes = localStorage.getItem('cepcerto_cotacoes');
-                            if (savedQuotes) {
-                              setAvailableQuotes(JSON.parse(savedQuotes));
-                              setShowSelectQuoteModal(true);
-                            } else {
-                              toast.error('Nenhuma cotação encontrada.');
-                            }
-                          }}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                        >
-                          <RefreshCw size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-4">
-                      <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Nenhuma cotação selecionada</p>
-                    </div>
-                  )}
-                </div>
-
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                  {/* Coluna 1: Frete e Remetente */}
+                  {/* Coluna 1: Remetente e Destinatário */}
                   <div className="space-y-8">
-                    {/* Seção 1 — DADOS FRETE */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
-                          <Truck size={16} className="text-indigo-600" />
-                          Seção 1 — Dados do Frete
-                        </h4>
-                        <button 
-                          onClick={() => {
-                            const savedQuotes = localStorage.getItem('cepcerto_cotacoes');
-                            if (savedQuotes) {
-                              setAvailableQuotes(JSON.parse(savedQuotes));
-                              setShowSelectQuoteModal(true);
-                            } else {
-                              toast.error('Nenhuma cotação encontrada. Calcule o frete primeiro.');
-                            }
-                          }}
-                          className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest hover:bg-indigo-50 px-3 py-1 rounded-lg transition-all border border-indigo-100 flex items-center gap-1"
-                        >
-                          <Zap size={12} />
-                          Selecionar Cotação
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tipo Entrega</label>
-                          <select 
-                            value={postagemData.tipo_entrega}
-                            onChange={e => setPostagemData({...postagemData, tipo_entrega: e.target.value})}
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                          >
-                            <option value="sedex">SEDEX</option>
-                            <option value="pac">PAC</option>
-                            <option value="jadlog-package">Jadlog Package</option>
-                            <option value="jadlog-dotcom">Jadlog Dotcom</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Valor Encomenda (R$)</label>
-                          <input 
-                            type="number" 
-                            value={postagemData.valor_encomenda}
-                            onChange={e => setPostagemData({...postagemData, valor_encomenda: e.target.value})}
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Remetente</label>
-                          <input 
-                            type="text" 
-                            value={postagemData.cep_remetente}
-                            onChange={e => setPostagemData({...postagemData, cep_remetente: e.target.value})}
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Destinatário</label>
-                          <input 
-                            type="text" 
-                            value={postagemData.cep_destinatario}
-                            onChange={e => setPostagemData({...postagemData, cep_destinatario: e.target.value})}
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase">Peso (kg)</label>
-                          <input type="text" value={postagemData.peso} onChange={e => setPostagemData({...postagemData, peso: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase">Alt (cm)</label>
-                          <input type="text" value={postagemData.altura} onChange={e => setPostagemData({...postagemData, altura: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase">Larg (cm)</label>
-                          <input type="text" value={postagemData.largura} onChange={e => setPostagemData({...postagemData, largura: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase">Comp (cm)</label>
-                          <input type="text" value={postagemData.comprimento} onChange={e => setPostagemData({...postagemData, comprimento: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* SEÇÃO 2 — REMETENTE */}
+                    {/* SEÇÃO 1 — REMETENTE */}
                     <div className="space-y-4">
                       <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
                         <MapPin size={16} className="text-indigo-600" />
-                        Seção 2 — Remetente
+                        Seção 1 — Remetente
                       </h4>
                       <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1">
@@ -2024,9 +1961,20 @@ export default function CepCertoAdmin() {
                             <input type="email" value={postagemData.email_remetente} onChange={e => setPostagemData({...postagemData, email_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Logradouro</label>
-                          <input type="text" value={postagemData.logradouro_remetente} onChange={e => setPostagemData({...postagemData, logradouro_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Remetente</label>
+                            <input 
+                              type="text" 
+                              value={postagemData.cep_remetente}
+                              onChange={e => setPostagemData({...postagemData, cep_remetente: e.target.value})}
+                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Logradouro</label>
+                            <input type="text" value={postagemData.logradouro_remetente} onChange={e => setPostagemData({...postagemData, logradouro_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
                         </div>
                         <div className="grid grid-cols-3 gap-4">
                           <div className="space-y-1">
@@ -2054,15 +2002,12 @@ export default function CepCertoAdmin() {
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Coluna 2: Destinatário e Documentos */}
-                  <div className="space-y-8">
-                    {/* SEÇÃO 3 — DESTINATÁRIO */}
+                    {/* SEÇÃO 2 — DESTINATÁRIO */}
                     <div className="space-y-4">
                       <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
                         <Users size={16} className="text-indigo-600" />
-                        Seção 3 — Destinatário
+                        Seção 2 — Destinatário
                       </h4>
                       <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1">
@@ -2079,9 +2024,20 @@ export default function CepCertoAdmin() {
                             <input type="text" value={postagemData.whatsapp_destinatario} onChange={e => setPostagemData({...postagemData, whatsapp_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Logradouro</label>
-                          <input type="text" value={postagemData.logradouro_destinatario} onChange={e => setPostagemData({...postagemData, logradouro_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP Destinatário</label>
+                            <input 
+                              type="text" 
+                              value={postagemData.cep_destinatario}
+                              onChange={e => setPostagemData({...postagemData, cep_destinatario: e.target.value})}
+                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Logradouro</label>
+                            <input type="text" value={postagemData.logradouro_destinatario} onChange={e => setPostagemData({...postagemData, logradouro_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
                         </div>
                         <div className="grid grid-cols-3 gap-4">
                           <div className="space-y-1">
@@ -2095,40 +2051,34 @@ export default function CepCertoAdmin() {
                         </div>
                       </div>
                     </div>
+                  </div>
 
-                    {/* SEÇÃO 4 — DOCUMENTO */}
-                    <div className="space-y-4">
-                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
-                        <Shield size={16} className="text-indigo-600" />
-                        Seção 4 — Documento Fiscal
-                      </h4>
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tipo de Documento</label>
-                          <select 
-                            value={postagemData.tipo_doc_fiscal}
-                            onChange={e => setPostagemData({...postagemData, tipo_doc_fiscal: e.target.value})}
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                          >
-                            <option value="declaracao">Declaração de Conteúdo (Padrão)</option>
-                            <option value="danfe">DANFE (Nota Fiscal)</option>
-                          </select>
-                        </div>
-                        {postagemData.tipo_doc_fiscal === 'danfe' && (
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Chave NF-e</label>
-                            <input type="text" value={postagemData.chave_danfe} onChange={e => setPostagemData({...postagemData, chave_danfe: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="44 dígitos da chave" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* SEÇÃO PRODUTOS */}
+                  {/* Coluna 2: Produtos, Documentos e Frete */}
+                  <div className="space-y-8">
+                    {/* SEÇÃO 3 — PRODUTOS */}
                     <div className="space-y-4">
                       <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
                         <Package size={16} className="text-indigo-600" />
-                        Produtos
+                        Seção 3 — Produtos
                       </h4>
+                      <div className="grid grid-cols-4 gap-2 mb-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Peso (kg)</label>
+                          <input type="text" value={postagemData.peso} onChange={e => setPostagemData({...postagemData, peso: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Alt (cm)</label>
+                          <input type="text" value={postagemData.altura} onChange={e => setPostagemData({...postagemData, altura: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Larg (cm)</label>
+                          <input type="text" value={postagemData.largura} onChange={e => setPostagemData({...postagemData, largura: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Comp (cm)</label>
+                          <input type="text" value={postagemData.comprimento} onChange={e => setPostagemData({...postagemData, comprimento: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                        </div>
+                      </div>
                       <div className="space-y-3">
                         {postagemData.produtos.map((prod: any, idx: number) => (
                           <div key={idx} className="grid grid-cols-12 gap-2">
@@ -2172,14 +2122,101 @@ export default function CepCertoAdmin() {
                         </button>
                       </div>
                     </div>
+
+                    {/* SEÇÃO 4 — SELECIONAR FRETE (AUTOMÁTICO) */}
+                    <div className="space-y-4">
+                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                        <Truck size={16} className="text-indigo-600" />
+                        Seção 4 — Selecionar Frete
+                      </h4>
+                      
+                      {calculatingAutoQuote ? (
+                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center justify-center gap-3">
+                          <RefreshCw className="animate-spin text-indigo-600" size={24} />
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Calculando cotações...</p>
+                        </div>
+                      ) : availableQuotes.length > 0 ? (
+                        <div className="space-y-3">
+                          {availableQuotes.map((quote, idx) => (
+                            <div 
+                              key={idx}
+                              className={`p-4 border rounded-2xl transition-all group cursor-pointer ${
+                                (freteSelecionado?.tipo === quote.tipo || postagemData.tipo_entrega === quote.tipo.toLowerCase().replace(' ', '-'))
+                                  ? 'border-indigo-600 bg-indigo-50 shadow-md' 
+                                  : 'bg-slate-50 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30'
+                              }`}
+                              onClick={() => handleSelectQuote(quote)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-black text-slate-900 uppercase italic tracking-tighter text-lg">{quote.tipo}</p>
+                                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{quote.prazo} dias úteis</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-black text-indigo-600 text-xl tracking-tighter">R$ {quote.valor}</p>
+                                  <div className={`mt-2 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest transition-all inline-block ${
+                                    (freteSelecionado?.tipo === quote.tipo || postagemData.tipo_entrega === quote.tipo.toLowerCase().replace(' ', '-'))
+                                      ? 'bg-indigo-600 text-white'
+                                      : 'text-indigo-600 bg-white border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white'
+                                  }`}>
+                                    {(freteSelecionado?.tipo === quote.tipo || postagemData.tipo_entrega === quote.tipo.toLowerCase().replace(' ', '-')) ? 'Selecionado' : 'Selecionar'}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 text-center">
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Preencha o CEP de destino, peso e produtos para ver as opções de frete.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* SEÇÃO 5 — DOCUMENTO */}
+                    <div className="space-y-4">
+                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                        <Shield size={16} className="text-indigo-600" />
+                        Seção 5 — Documento Fiscal
+                      </h4>
+                      <div className="grid grid-cols-1 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tipo de Documento</label>
+                          <select 
+                            value={postagemData.tipo_doc_fiscal}
+                            onChange={e => setPostagemData({...postagemData, tipo_doc_fiscal: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
+                          >
+                            <option value="declaracao">Declaração de Conteúdo (Padrão)</option>
+                            <option value="danfe">DANFE (Nota Fiscal)</option>
+                          </select>
+                        </div>
+                        {postagemData.tipo_doc_fiscal === 'danfe' && (
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Chave NF-e</label>
+                            <input type="text" value={postagemData.chave_danfe} onChange={e => setPostagemData({...postagemData, chave_danfe: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="44 dígitos da chave" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 <div className="mt-12 pt-8 border-t border-slate-100">
                   <button 
-                    onClick={gerarEtiqueta}
+                    onClick={() => {
+                      if (!freteSelecionado && !postagemData.tipo_entrega) {
+                        toast.error('Por favor, selecione uma opção de frete antes de gerar a etiqueta.');
+                        return;
+                      }
+                      gerarEtiqueta();
+                    }}
                     disabled={generatingLabel}
-                    className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-xl uppercase italic tracking-tighter hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3"
+                    className={`w-full py-5 rounded-2xl font-black text-xl uppercase italic tracking-tighter transition-all shadow-xl flex items-center justify-center gap-3 ${
+                      (!freteSelecionado && !postagemData.tipo_entrega)
+                        ? 'bg-slate-300 text-slate-500 shadow-none' 
+                        : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'
+                    }`}
                   >
                     {generatingLabel ? <RefreshCw size={24} className="animate-spin" /> : <FileText size={24} />}
                     {generatingLabel ? 'Gerando Etiqueta...' : 'Gerar Etiqueta de Postagem'}
@@ -2235,87 +2272,6 @@ export default function CepCertoAdmin() {
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Modal de Seleção de Cotação */}
-          {showSelectQuoteModal && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100"
-              >
-                <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Selecionar Cotação</h3>
-                    <p className="text-xs text-slate-500 font-medium uppercase tracking-widest mt-1">Escolha o frete para a etiqueta</p>
-                  </div>
-                  <button onClick={() => setShowSelectQuoteModal(false)} className="p-2 hover:bg-white rounded-full transition-all text-slate-400 hover:text-slate-600 shadow-sm">
-                    <X size={20} />
-                  </button>
-                </div>
-
-                <div className="p-8 space-y-4 max-h-[60vh] overflow-y-auto">
-                  {availableQuotes.length > 0 ? (
-                    availableQuotes.map((quote, idx) => (
-                      <div 
-                        key={idx}
-                        className={`p-4 border rounded-2xl transition-all group cursor-pointer ${
-                          selectedQuoteForConfirmation?.tipo === quote.tipo 
-                            ? 'border-indigo-600 bg-indigo-50 shadow-md' 
-                            : 'bg-slate-50 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30'
-                        }`}
-                        onClick={() => handleSelectQuote(quote)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-black text-slate-900 uppercase italic tracking-tighter text-lg">{quote.tipo}</p>
-                            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{quote.prazo} dias úteis</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-black text-indigo-600 text-xl tracking-tighter">R$ {quote.valor}</p>
-                            <div className={`mt-2 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest transition-all ${
-                              selectedQuoteForConfirmation?.tipo === quote.tipo
-                                ? 'bg-indigo-600 text-white'
-                                : 'text-indigo-600 bg-white border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white'
-                            }`}>
-                              {selectedQuoteForConfirmation?.tipo === quote.tipo ? 'Selecionado' : 'Selecionar'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8">
-                      <Package size={48} className="mx-auto text-slate-200 mb-4" />
-                      <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Nenhuma cotação disponível</p>
-                      <p className="text-[10px] text-slate-400 mt-2">Calcule o frete na aba de cotação primeiro</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-8 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
-                  {selectedQuoteForConfirmation && (
-                    <button 
-                      onClick={handleConfirmQuote}
-                      className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg uppercase italic tracking-tighter hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
-                    >
-                      <Check size={20} />
-                      Confirmar Cotação
-                    </button>
-                  )}
-                  <button 
-                    onClick={() => {
-                      setShowSelectQuoteModal(false);
-                      setSelectedQuoteForConfirmation(null);
-                    }}
-                    className="w-full py-3 text-slate-500 font-bold uppercase text-xs tracking-widest hover:text-slate-700 transition-all"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </motion.div>
             </div>
           )}
 
