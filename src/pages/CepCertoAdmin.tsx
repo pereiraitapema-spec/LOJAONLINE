@@ -160,6 +160,21 @@ export default function CepCertoAdmin() {
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [printType, setPrintType] = useState<'etiqueta' | 'declaracao' | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [consultaFiltros, setConsultaFiltros] = useState({
+    nome: '',
+    rastreador: '',
+    cidade: '',
+    data: ''
+  });
+
+  const etiquetasFiltradas = etiquetasGeradas.filter(item => {
+    const matchNome = !consultaFiltros.nome || item.nome?.toLowerCase().includes(consultaFiltros.nome.toLowerCase());
+    const matchRastreador = !consultaFiltros.rastreador || item.codigoObjeto?.toLowerCase().includes(consultaFiltros.rastreador.toLowerCase());
+    const matchCidade = !consultaFiltros.cidade || item.cidade?.toLowerCase().includes(consultaFiltros.cidade.toLowerCase());
+    const matchData = !consultaFiltros.data || item.data?.includes(consultaFiltros.data);
+    
+    return matchNome && matchRastreador && matchCidade && matchData;
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem('cepcerto_remetente_padrao');
@@ -917,6 +932,13 @@ export default function CepCertoAdmin() {
     const cotacao_selecionada = freteSelecionado || (savedQuote ? JSON.parse(savedQuote) : null);
 
     console.log("========== GERAR ETIQUETA ==========");
+    console.log("Aguardando 3 segundos para garantir estabilidade...");
+    
+    setGeneratingLabel(true);
+    
+    // Time de atraso de 3 segundos solicitado pelo usuário
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
     console.log("DESTINATÁRIO", {
       nome: postagemData.nome_destinatario,
       cpf_cnpj: postagemData.cpf_cnpj_destinatario,
@@ -940,10 +962,10 @@ export default function CepCertoAdmin() {
     if (!tipo_entrega_final) {
       console.error("CEP CERTO - Tipo entrega não definido");
       toast.error('Tipo de entrega não definido. Selecione a cotação novamente.');
+      setGeneratingLabel(false);
       return;
     }
 
-    setGeneratingLabel(true);
     console.log("CEP CERTO - Iniciando geração de etiqueta (Proxy)", postagemData);
     
     console.log("TIPO ENTREGA ENVIADO", tipo_entrega_final);
@@ -1116,12 +1138,43 @@ export default function CepCertoAdmin() {
           setShowLabelResultModal(true);
           setShowLabelConfirmModal(false);
           toast.success('Etiqueta gerada com sucesso!');
+          console.log("Etiqueta adicionada");
 
           // Salvar no histórico
           const novasEtiquetas = [result, ...etiquetasGeradas];
           setEtiquetasGeradas(novasEtiquetas);
           localStorage.setItem('cepcerto_etiquetas_geradas', JSON.stringify(novasEtiquetas));
           localStorage.setItem('cepcerto_etiqueta_gerada', JSON.stringify(result));
+
+          // Limpar campos após gerar etiqueta para evitar duplicidade
+          setPostagemData((prev: any) => ({
+            ...prev,
+            nome_destinatario: '',
+            cpf_cnpj_destinatario: '',
+            whatsapp_destinatario: '',
+            email_destinatario: '',
+            logradouro_destinatario: '',
+            numero_endereco_destinatario: '',
+            complemento_destinatario: '',
+            bairro_destinatario: '',
+            cidade_destinatario: '',
+            estado_destinatario: '',
+            cep_destinatario: '',
+            produtos: [{ descricao: '', valor: '', quantidade: '1' }]
+          }));
+          setRecipientQuoteData({
+            cep: '',
+            peso: '',
+            altura: '',
+            largura: '',
+            comprimento: '',
+            valor_encomenda: ''
+          });
+          setFreteSelecionado(null);
+          setAvailableQuotes([]);
+          localStorage.removeItem('cepcerto_cotacao_selecionada');
+          console.log("Campos limpos após geração");
+
         } else {
           console.error("CEP CERTO - Resposta sem código de objeto");
           console.error("Resposta completa:", data);
@@ -1195,6 +1248,74 @@ export default function CepCertoAdmin() {
       toast.error("Erro conexão cancelamento");
     }
     console.log("========== FIM CANCELAMENTO ==========");
+  };
+
+  const consultarPostagem = async (token: string, cod_objeto: string) => {
+    console.log("========== CONSULTA POSTAGEM ==========");
+    console.log("Token:", token);
+    console.log("Objeto:", cod_objeto);
+    console.log("Consulta enviada:", { token_cliente_postagem: token, cod_objeto: cod_objeto });
+
+    try {
+      const response = await fetch("/api/cepcerto/consulta", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token_cliente_postagem: token,
+          cod_objeto: cod_objeto
+        })
+      });
+
+      const text = await response.text();
+      console.log("Resposta bruta:", text);
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (error) {
+        console.error("Erro parse consulta", error);
+        toast.error("Erro ao consultar postagem");
+        return;
+      }
+
+      console.log("Resposta consulta:", data);
+      console.log("Consulta realizada");
+      
+      const status = data.cancelada ? "Cancelada" : "Ativa";
+      
+      // Mostrar resultado em um toast informativo estilizado
+      toast((t) => (
+        <div className="flex flex-col gap-2 min-w-[200px]">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+            <Search size={16} className="text-indigo-600" />
+            <p className="font-bold text-slate-900 text-sm">Resultado da Consulta</p>
+          </div>
+          <div className="space-y-1 py-1">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rastreador</p>
+            <p className="text-xs font-mono font-bold text-slate-900 bg-slate-50 p-1 rounded">{data.codigo_objeto || cod_objeto}</p>
+          </div>
+          <div className="space-y-1 py-1">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</p>
+            <p className={`text-xs font-bold ${data.cancelada ? 'text-red-600' : 'text-emerald-600'}`}>{status}</p>
+          </div>
+          <div className="space-y-1 py-1">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</p>
+            <p className="text-xs text-slate-600">{data.data || 'Não informada'}</p>
+          </div>
+          <button 
+            onClick={() => toast.dismiss(t.id)}
+            className="mt-2 w-full py-2 bg-slate-900 text-white text-[10px] font-bold rounded-lg uppercase hover:bg-slate-800 transition-all"
+          >
+            Fechar
+          </button>
+        </div>
+      ), { duration: 8000, position: 'top-right' });
+
+    } catch (error) {
+      console.error("Erro consulta", error);
+      toast.error("Erro na conexão da consulta");
+    }
+    console.log("========== FIM CONSULTA ==========");
   };
 
   const removerEtiquetaLista = (cod_objeto: string) => {
@@ -1787,6 +1908,12 @@ export default function CepCertoAdmin() {
               className={`px-6 py-3 rounded-2xl font-bold transition-all ${logisticaSubTab === 'rastreio' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
             >
               Rastreio
+            </button>
+            <button 
+              onClick={() => setLogisticaSubTab('consulta-postagem')}
+              className={`px-6 py-3 rounded-2xl font-bold transition-all ${logisticaSubTab === 'consulta-postagem' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+            >
+              Consulta de Postagem
             </button>
           </div>
 
@@ -2650,6 +2777,130 @@ export default function CepCertoAdmin() {
             </div>
           )}
 
+          {logisticaSubTab === 'consulta-postagem' && (
+            <div className="space-y-8">
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                  <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
+                    <Search size={24} className="text-indigo-600" />
+                    Consulta de Postagem
+                  </h3>
+                </div>
+
+                {/* Filtros */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Filtrar por nome</label>
+                    <input 
+                      type="text"
+                      value={consultaFiltros.nome}
+                      onChange={e => {
+                        setConsultaFiltros({...consultaFiltros, nome: e.target.value});
+                        console.log("Filtro aplicado - Nome:", e.target.value);
+                      }}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                      placeholder="Nome do cliente"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Filtrar por rastreador</label>
+                    <input 
+                      type="text"
+                      value={consultaFiltros.rastreador}
+                      onChange={e => {
+                        setConsultaFiltros({...consultaFiltros, rastreador: e.target.value});
+                        console.log("Filtro aplicado - Rastreador:", e.target.value);
+                      }}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                      placeholder="Código de rastreio"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Filtrar por cidade</label>
+                    <input 
+                      type="text"
+                      value={consultaFiltros.cidade}
+                      onChange={e => {
+                        setConsultaFiltros({...consultaFiltros, cidade: e.target.value});
+                        console.log("Filtro aplicado - Cidade:", e.target.value);
+                      }}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                      placeholder="Cidade"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Filtrar por data</label>
+                    <input 
+                      type="date"
+                      value={consultaFiltros.data}
+                      onChange={e => {
+                        setConsultaFiltros({...consultaFiltros, data: e.target.value});
+                        console.log("Filtro aplicado - Data:", e.target.value);
+                      }}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button 
+                      onClick={() => {
+                        setConsultaFiltros({ nome: '', rastreador: '', cidade: '', data: '' });
+                        console.log("Filtros limpos");
+                      }}
+                      className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all text-sm flex items-center justify-center gap-2"
+                    >
+                      <X size={18} />
+                      Limpar Filtros
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tabela de Consultas */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left border-b border-slate-100">
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nome</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Email</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cidade</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rastreador</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {etiquetasFiltradas.length > 0 ? (
+                        etiquetasFiltradas.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 transition-colors group">
+                            <td className="py-4 text-sm text-slate-600">{new Date(item.data).toLocaleDateString()}</td>
+                            <td className="py-4 text-sm font-bold text-slate-900">{item.nome || '-'}</td>
+                            <td className="py-4 text-sm text-slate-600">{item.email || '-'}</td>
+                            <td className="py-4 text-sm text-slate-600">{item.cidade || '-'}</td>
+                            <td className="py-4">
+                              <span className="font-mono text-sm font-bold text-slate-900">{item.codigoObjeto}</span>
+                            </td>
+                            <td className="py-4 text-right">
+                              <button 
+                                onClick={() => consultarPostagem(item.token, item.codigoObjeto)}
+                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-bold text-xs hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-1 ml-auto"
+                              >
+                                <Search size={14} />
+                                Consultar
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-slate-400 italic">Nenhuma postagem encontrada com os filtros aplicados.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Modal Resultado Etiqueta */}
           {showLabelResultModal && labelResult && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-start justify-center p-4 pt-4 overflow-y-auto">
@@ -3052,6 +3303,31 @@ export default function CepCertoAdmin() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Modal de Erro Customizado */}
+          {errorModal.show && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center"
+              >
+                <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center text-red-600 mx-auto mb-6">
+                  <AlertTriangle size={40} />
+                </div>
+                <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter mb-2">Atenção</h2>
+                <p className="text-slate-600 mb-8 font-medium leading-relaxed">
+                  {errorModal.message}
+                </p>
+                <button 
+                  onClick={() => setErrorModal({ show: false, message: '' })}
+                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+                >
+                  Entendido
+                </button>
+              </motion.div>
             </div>
           )}
 

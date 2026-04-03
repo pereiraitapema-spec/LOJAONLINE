@@ -133,6 +133,24 @@ async function startServer() {
     }
   });
 
+  // Proxy para Consulta CepCerto
+  app.post("/api/cepcerto/consulta", async (req, res) => {
+    console.log("CEP CERTO BACKEND REQUEST (CONSULTA)", req.body);
+    try {
+      const response = await fetch('https://cepcerto.com/api-consulta-postagem/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await response.json();
+      console.log("CEP CERTO BACKEND RESPONSE (CONSULTA)", data);
+      res.json(data);
+    } catch (error) {
+      console.error("CEP CERTO BACKEND ERROR (CONSULTA)", error);
+      res.status(500).json({ error: 'Erro ao processar consulta no CepCerto' });
+    }
+  });
+
   // 5. Proxy para Rastreio Linketrack (CORS Fix)
   app.all("/api/tracking/linketrack", async (req, res) => {
     const { tracking_code } = { ...req.query, ...req.body };
