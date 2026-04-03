@@ -183,7 +183,7 @@ export default function Automations() {
     return (
       <div className="min-h-screen bg-slate-50 p-4 md:p-8">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 mb-6 transition-colors cursor-pointer" onClick={() => navigate('/dashboard')}>
+          <div className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 mb-6 transition-colors cursor-pointer" onClick={() => navigate('/admin/dashboard')}>
             <ArrowLeft size={18} />
             Voltar ao Painel
           </div>
@@ -211,7 +211,7 @@ export default function Automations() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <button 
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/admin/dashboard')}
               className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 mb-2 transition-colors"
             >
               <ArrowLeft size={18} />

@@ -34,7 +34,7 @@ export default function AdminReports() {
         const hasPermission = await checkPermission(session.user.id, 'manager');
         if (!hasPermission) {
           toast.error('Acesso negado aos relatórios.');
-          navigate('/dashboard');
+          navigate('/admin/dashboard');
           return;
         }
 
@@ -77,7 +77,7 @@ export default function AdminReports() {
     <div className="h-screen flex flex-col bg-slate-50">
       <header className="p-6 bg-white border-b border-slate-200 flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/dashboard')} className="p-2 hover:bg-slate-100 rounded-full"><ArrowLeft size={24} /></button>
+          <button onClick={() => navigate('/admin/dashboard')} className="p-2 hover:bg-slate-100 rounded-full"><ArrowLeft size={24} /></button>
           <h1 className="text-2xl font-bold text-slate-900">Relatórios Administrativos</h1>
         </div>
         <div className="flex gap-4">

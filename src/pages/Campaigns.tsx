@@ -368,7 +368,7 @@ export default function Campaigns() {
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
-          <button onClick={() => navigate('/dashboard')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors">
+          <button onClick={() => navigate('/admin/dashboard')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors">
             <LayoutDashboard size={20} /> Dashboard
           </button>
           <button onClick={() => navigate('/')} className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors">
@@ -401,7 +401,7 @@ export default function Campaigns() {
           <div className="flex justify-between items-center mb-8">
             <div>
               <button 
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/admin/dashboard')}
                 className="flex items-center gap-2 text-slate-500 hover:text-emerald-600 mb-2 transition-colors font-medium"
               >
                 <ArrowLeft size={18} />

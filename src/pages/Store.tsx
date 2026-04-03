@@ -926,7 +926,7 @@ export default function Store() {
 
             {isAdmin && (
               <button 
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/admin/dashboard')}
                 className="hidden md:flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-full text-sm font-bold border border-amber-200 hover:bg-amber-100 transition-colors"
               >
                 <ShieldCheck size={18} />
@@ -936,7 +936,7 @@ export default function Store() {
 
             {affiliateData && (
               <button 
-                onClick={() => navigate('/affiliate-dashboard')}
+                onClick={() => navigate('/afiliados/dashboard')}
                 className="hidden md:flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-sm font-bold border border-indigo-200 hover:bg-indigo-100 transition-colors"
               >
                 <BarChart size={18} />
@@ -1002,8 +1002,8 @@ export default function Store() {
                 <button 
                   onClick={() => {
                     const isMaster = session?.user?.email === 'pereira.itapema@gmail.com';
-                    if (userProfile?.role === 'admin' || isMaster) navigate('/dashboard');
-                    else if (userProfile?.role === 'affiliate' || affiliateData) navigate('/affiliate-dashboard');
+                    if (userProfile?.role === 'admin' || isMaster) navigate('/admin/dashboard');
+                    else if (userProfile?.role === 'affiliate' || affiliateData) navigate('/afiliados/dashboard');
                     else navigate('/profile');
                   }}
                   className="flex items-center gap-2 text-slate-600 hover:text-emerald-600 transition-colors group"

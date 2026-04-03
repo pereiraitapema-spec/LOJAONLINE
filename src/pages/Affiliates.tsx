@@ -206,7 +206,7 @@ export default function Affiliates() {
         // Não, aqui é a página de "Status" ou "Cadastro". 
         // Mas se ele já é aprovado, talvez queira ver o dashboard.
         if (data.status === 'approved') {
-            // Opcional: navigate('/affiliate-dashboard');
+            // Opcional: navigate('/afiliados/dashboard');
         }
       }
     } catch (error: any) {
@@ -575,7 +575,7 @@ export default function Affiliates() {
           <div className="flex justify-between items-center mb-8">
             <div>
               <button 
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/admin/dashboard')}
                 className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 mb-2 transition-colors"
               >
                 <ArrowLeft size={18} />
@@ -970,7 +970,7 @@ export default function Affiliates() {
         {/* Header */}
         <div className="mb-8">
           <button 
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/')}
             className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 mb-2 transition-colors"
           >
             <ArrowLeft size={18} />
@@ -1114,7 +1114,7 @@ export default function Affiliates() {
                   
                   <div className="mt-6">
                      <button
-                        onClick={() => navigate('/affiliate-dashboard')}
+                        onClick={() => navigate('/afiliados/dashboard')}
                         className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
                      >
                         Acessar Painel Completo de Afiliado

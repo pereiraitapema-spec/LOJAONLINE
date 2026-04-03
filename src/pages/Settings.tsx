@@ -838,7 +838,7 @@ create policy "Qualquer um pode atualizar conhecimento" on public.ai_knowledge_b
       <div className="flex justify-between items-center mb-8">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => window.location.href = '/dashboard'}
+            onClick={() => window.location.href = '/admin/dashboard'}
             className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-600"
             title="Voltar para Dashboard"
           >

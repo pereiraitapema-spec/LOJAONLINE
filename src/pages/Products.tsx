@@ -608,7 +608,7 @@ export default function Products() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <button 
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/admin/dashboard')}
               className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 mb-2 transition-colors"
             >
               <ArrowLeft size={18} />

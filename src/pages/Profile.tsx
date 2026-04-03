@@ -135,9 +135,9 @@ export default function Profile() {
       // Redirecionar após salvar baseado no cargo
       setTimeout(() => {
         if (profile.role === 'admin') {
-          navigate('/dashboard');
+          navigate('/admin/dashboard');
         } else if (profile.role === 'affiliate') {
-          navigate('/affiliate-dashboard');
+          navigate('/afiliados/dashboard');
         } else {
           navigate('/');
         }
@@ -155,7 +155,7 @@ export default function Profile() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
         <button 
-          onClick={() => profile.role === 'admin' ? navigate('/dashboard') : navigate('/')}
+          onClick={() => profile.role === 'admin' ? navigate('/admin/dashboard') : navigate('/')}
           className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 mb-8 transition-colors"
         >
           <ArrowLeft size={20} />
@@ -210,7 +210,7 @@ export default function Profile() {
                   </div>
                   <div className="mt-6">
                     <button
-                      onClick={() => navigate('/dashboard')}
+                      onClick={() => navigate('/admin/dashboard')}
                       className="w-full bg-amber-500 text-white py-4 rounded-2xl font-bold hover:bg-amber-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-100"
                     >
                       <LayoutDashboard size={20} />
@@ -227,7 +227,7 @@ export default function Profile() {
                   </div>
                   <div className="mt-6">
                     <button
-                      onClick={() => navigate('/affiliate-dashboard')}
+                      onClick={() => navigate('/afiliados/dashboard')}
                       className="w-full bg-indigo-500 text-white py-4 rounded-2xl font-bold hover:bg-indigo-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
                     >
                       <LayoutDashboard size={20} />

@@ -147,7 +147,7 @@ export default function AffiliateRegister() {
           
           if (existingAffiliate.status === 'approved') {
             toast.success('Você já é um afiliado aprovado!');
-            navigate('/affiliate-dashboard');
+            navigate('/afiliados/dashboard');
           } else {
             toast.error('Você já possui uma solicitação em análise.');
             setStep(3); // Pular para tela de sucesso/análise

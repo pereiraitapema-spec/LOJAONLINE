@@ -1401,7 +1401,7 @@ export default function Orders() {
                 if (params.get('from') === 'cepcerto') {
                   navigate('/shipping/cepcerto');
                 } else {
-                  navigate('/dashboard');
+                  navigate('/admin/dashboard');
                 }
               }}
               className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 mb-2 transition-colors"

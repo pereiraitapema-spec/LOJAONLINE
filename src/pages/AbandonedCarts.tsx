@@ -100,7 +100,7 @@ export default function AbandonedCarts() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => window.location.href = '/dashboard'}
+              onClick={() => window.location.href = '/admin/dashboard'}
               className="p-2 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-600 hover:text-indigo-600 transition-colors"
             >
               <ArrowLeft size={24} />

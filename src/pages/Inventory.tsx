@@ -149,7 +149,7 @@ export default function Inventory() {
       <div className="flex justify-between items-center mb-8">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/admin/dashboard')}
             className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-600"
           >
             <ArrowLeft size={24} />

@@ -277,11 +277,11 @@ function AppContent() {
     // Redirecionamento forçado para Admin e Afiliado
     if (path === '/login' || path === '/register' || path === '/') {
       if (role === 'admin') {
-        console.log('➡️ Redirecionando Admin para /dashboard');
-        navigate('/dashboard');
+        console.log('➡️ Redirecionando Admin para /admin/dashboard');
+        navigate('/admin/dashboard');
       } else if (role === 'affiliate') {
-        console.log('➡️ Redirecionando Afiliado para /affiliate-dashboard');
-        navigate('/affiliate-dashboard');
+        console.log('➡️ Redirecionando Afiliado para /afiliados/dashboard');
+        navigate('/afiliados/dashboard');
       } else {
         console.log('➡️ Usuário comum ou sem role especial, mantendo ou indo para home');
         if (path !== '/' && !isUserPage) navigate('/');
@@ -354,7 +354,7 @@ function AppContent() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/affiliate-register" element={<AffiliateRegister />} />
         <Route 
-          path="/affiliate-dashboard" 
+          path="/afiliados/dashboard" 
           element={<AffiliateRoute><AffiliateDashboard /></AffiliateRoute>} 
         />
         <Route path="/success" element={<Success />} />
@@ -375,7 +375,7 @@ function AppContent() {
         
         {/* Painel Administrativo */}
         <Route 
-          path="/dashboard" 
+          path="/admin/dashboard" 
           element={<AdminRoute><Dashboard /></AdminRoute>} 
         />
         <Route 
@@ -454,7 +454,7 @@ function AppContent() {
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-      {(location.pathname === '/affiliate-dashboard' || location.pathname === '/') && (
+      {(location.pathname === '/afiliados/dashboard' || location.pathname === '/') && (
         <SmartChat />
       )}
     </>
