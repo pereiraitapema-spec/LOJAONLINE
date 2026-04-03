@@ -4071,23 +4071,23 @@ export default function CepCertoAdmin() {
                 <>
                   {/* Etiquetas */}
                   {chunkArray(etiquetasGeradas.filter(e => selectedLabels.includes(e.id)), 4).map((pageLabels, pageIndex) => (
-                    <div key={`labels-${pageIndex}`} className="w-[210mm] h-[297mm] mx-auto p-[10mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
-                      <div className="w-full h-full grid gap-2 grid-cols-2 grid-rows-2">
+                    <div key={`labels-${pageIndex}`} className="w-[210mm] h-[297mm] mx-auto p-[2mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
+                      <div className="w-full h-full grid gap-0 grid-cols-2 grid-rows-2">
                         {Array.from({ length: 4 }).map((_, cellIndex) => {
                           const label = pageLabels[cellIndex];
                           const url = label?.pdfUrlEtiqueta;
                           return (
-                            <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-0 flex flex-col items-center justify-center relative overflow-hidden rounded-xl bg-white">
+                            <div key={cellIndex} className="border border-dashed border-slate-200 p-0 flex flex-col items-center justify-center relative overflow-hidden bg-white">
                               {url ? (
                                 <div className="w-full h-full relative overflow-hidden">
                                   <iframe 
                                     src={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
                                     className="border-0 absolute top-0 left-0"
                                     style={{ 
-                                      width: '200%', 
-                                      height: '200%',
-                                      transform: 'scale(1.05)',
-                                      transformOrigin: '10% 5%',
+                                      width: '190%', 
+                                      height: '210%',
+                                      transform: 'scale(1.0)',
+                                      transformOrigin: '0% 0%',
                                       border: 'none'
                                     }}
                                     title={`Print ${label.codigoObjeto}`} 
@@ -4107,8 +4107,8 @@ export default function CepCertoAdmin() {
                   ))}
                   {/* Declarações */}
                   {chunkArray(etiquetasGeradas.filter(e => selectedLabels.includes(e.id)), 2).map((pageLabels, pageIndex) => (
-                    <div key={`decls-${pageIndex}`} className="w-[210mm] h-[297mm] mx-auto p-[10mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
-                      <div className="w-full h-full grid gap-2 grid-cols-1 grid-rows-2">
+                    <div key={`decls-${pageIndex}`} className="w-[210mm] h-[297mm] mx-auto p-[2mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
+                      <div className="w-full h-full grid gap-0 grid-cols-1 grid-rows-2">
                         {Array.from({ length: 2 }).map((_, cellIndex) => {
                           const label = pageLabels[cellIndex];
                           const url = label?.pdfUrlDeclaracao || label?.declaracaoUrl;
@@ -4142,24 +4142,24 @@ export default function CepCertoAdmin() {
                 </>
               ) : (
                 chunkArray(etiquetasGeradas.filter(e => selectedLabels.includes(e.id)), printType === 'etiqueta' ? 4 : 2).map((pageLabels, pageIndex) => (
-                  <div key={pageIndex} className="w-[210mm] h-[297mm] mx-auto p-[10mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
-                    <div className={`w-full h-full grid gap-2 ${printType === 'etiqueta' ? 'grid-cols-2 grid-rows-2' : 'grid-cols-1 grid-rows-2'}`}>
+                  <div key={pageIndex} className="w-[210mm] h-[297mm] mx-auto p-[2mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
+                    <div className={`w-full h-full grid gap-0 ${printType === 'etiqueta' ? 'grid-cols-2 grid-rows-2' : 'grid-cols-1 grid-rows-2'}`}>
                       {Array.from({ length: printType === 'etiqueta' ? 4 : 2 }).map((_, cellIndex) => {
                         const label = pageLabels[cellIndex];
                         const url = label ? (printType === 'etiqueta' ? label.pdfUrlEtiqueta : (label.pdfUrlDeclaracao || label.declaracaoUrl)) : null;
                         
                         return (
-                          <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-0 flex flex-col items-center justify-center relative overflow-hidden rounded-xl bg-white">
+                          <div key={cellIndex} className="border border-dashed border-slate-200 p-0 flex flex-col items-center justify-center relative overflow-hidden bg-white">
                             {url ? (
                               <div className="w-full h-full relative overflow-hidden">
                                 <iframe 
                                   src={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
                                   className="border-0 absolute top-0 left-0"
                                   style={{ 
-                                    width: printType === 'etiqueta' ? '200%' : '100%', 
-                                    height: printType === 'etiqueta' ? '200%' : '100%',
-                                    transform: printType === 'etiqueta' ? 'scale(1.05)' : 'none',
-                                    transformOrigin: '10% 5%',
+                                    width: printType === 'etiqueta' ? '190%' : '100%', 
+                                    height: printType === 'etiqueta' ? '210%' : '100%',
+                                    transform: printType === 'etiqueta' ? 'scale(1.0)' : 'none',
+                                    transformOrigin: '0% 0%',
                                     border: 'none'
                                   }}
                                   title={`Print ${label.codigoObjeto}`}
