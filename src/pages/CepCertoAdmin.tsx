@@ -291,14 +291,90 @@ export default function CepCertoAdmin() {
     }
   }, []);
 
+  const [cotacaoGerada, setCotacaoGerada] = useState(false);
   const [calculatingAutoQuote, setCalculatingAutoQuote] = useState(false);
+  const [availableQuotes, setAvailableQuotes] = useState([]);
 
-  // Função de diagnóstico
+  // Funções de formatação e validação
+  const formatarCEP = (cep: string) => {
+    cep = cep.replace(/\D/g, '');
+    if (cep.length > 8) cep = cep.slice(0, 8);
+    if (cep.length === 8) cep = cep.replace(/^(\d{5})(\d{3})$/, '$1-$2');
+    return cep;
+  };
+
+  const validarCEP = (cep: string) => {
+    const cepLimpo = cep.replace(/\D/g, '');
+    if (cepLimpo.length !== 8) {
+      console.error("CEP inválido");
+      toast.error("CEP inválido");
+      return false;
+    }
+    return true;
+  };
+
+  const formatarWhatsapp = (numero: string) => {
+    numero = numero.replace(/\D/g, '');
+    numero = numero.replace(/^(\d{2})(\d)/g, "($1) $2");
+    numero = numero.replace(/(\d)(\d{4})$/, "$1-$2");
+    return numero;
+  };
+
+  const validarWhatsapp = (numero: string) => {
+    const limpo = numero.replace(/\D/g, '');
+    if (limpo.length !== 11) {
+      console.error("WhatsApp inválido");
+      toast.error("WhatsApp inválido");
+      return false;
+    }
+    return true;
+  };
+
+  const formatarCPF = (cpf: string) => {
+    cpf = cpf.replace(/\D/g, '');
+    cpf = cpf.replace(/(\d{3})(\d)/, "$1.$2");
+    cpf = cpf.replace(/(\d{3})(\d)/, "$1.$2");
+    cpf = cpf.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+    return cpf;
+  };
+
+  const formatarCNPJ = (cnpj: string) => {
+    cnpj = cnpj.replace(/\D/g, '');
+    cnpj = cnpj.replace(/^(\d{2})(\d)/, "$1.$2");
+    cnpj = cnpj.replace(/^(\d{2}).(\d{3})(\d)/, "$1.$2.$3");
+    cnpj = cnpj.replace(/.(\d{3})(\d)/, ".$1/$2");
+    cnpj = cnpj.replace(/(\d{4})(\d)/, "$1-$2");
+    return cnpj;
+  };
+
+  // Função para mostrar cotações
+  const mostrarCotacoes = (cotacao: any) => {
+    console.log("Renderizando opções cotação");
+    const container = document.getElementById("cotacao-opcoes");
+    if (!container) {
+      console.error("Container cotação não encontrado");
+      return;
+    }
+    container.innerHTML = "";
+    container.innerHTML += `
+      <div class="frete-opcao p-4 border border-slate-200 rounded-xl mb-2">
+        <input type="radio" name="frete" value="sedex" class="mr-2">
+        Sedex — ${cotacao.valor_sedex} — ${cotacao.prazo_entrega_sedex}
+      </div>
+    `;
+    container.innerHTML += `
+      <div class="frete-opcao p-4 border border-slate-200 rounded-xl mb-2">
+        <input type="radio" name="frete" value="pac" class="mr-2">
+        PAC — ${cotacao.valor_pac} — ${cotacao.prazo_entrega_pac}
+      </div>
+    `;
+  };
+
   async function calcularCotacaoOnline() {
-    console.log("========== INÍCIO CÁLCULO FRETE ==========");
+    console.log("========== CÁLCULO FRETE ==========");
     
     // Verifica se já foi gerada para evitar chamadas múltiplas
-    if ((window as any).cotacaoGerada) {
+    if (cotacaoGerada) {
       console.log("Cotação já gerada, ignorando.");
       return;
     }
@@ -336,7 +412,7 @@ export default function CepCertoAdmin() {
       
       if (
         !nome_destinatario ||
-        !cep_destinatario || cep_destinatario.length !== 8 || 
+        !cep_destinatario || cep_destinatario.length < 8 || 
         !logradouro_destinatario || 
         !numero_endereco_destinatario || 
         !bairro_destinatario ||
@@ -346,6 +422,10 @@ export default function CepCertoAdmin() {
         !produtos || produtos.length === 0
       ) {
         console.error("Dados incompletos para cotação");
+        if (!produtos || produtos.length === 0) {
+          console.error("Produtos vazio");
+          toast.error("Adicione pelo menos um produto");
+        }
         return;
       }
 
@@ -381,7 +461,7 @@ export default function CepCertoAdmin() {
       const body = {
         token_cliente_postagem: apiKey,
         cep_remetente: senderData.cep_remetente,
-        cep_destinatario: cep_destinatario,
+        cep_destinatario: cep_destinatario.replace(/\D/g, ''),
         peso: peso,
         altura: postagemData.altura || "2",
         largura: postagemData.largura || "11",
@@ -395,17 +475,15 @@ export default function CepCertoAdmin() {
         body: JSON.stringify(body)
       });
 
+      console.log("Resposta API");
+
       if (response.ok) {
         const data = await response.json();
         if (data.dados_frete) {
-          console.log("Cotações retornadas");
-          console.log(data.dados_frete);
-          localStorage.setItem('cepcerto_cotacoes', JSON.stringify(data.dados_frete));
+          console.log("Renderizando opções");
           setAvailableQuotes(data.dados_frete);
-          (window as any).cotacaoGerada = true; // Marca como gerada
+          setCotacaoGerada(true); // Marca como gerada
           
-          // Chamar mostrarCotacoes com os dados retornados
-          // Assumindo que data.dados_frete tem o formato esperado
           if (data.dados_frete.length > 0) {
             mostrarCotacoes({
               valor_pac: data.dados_frete.find((q: any) => q.tipo === 'PAC')?.valor || 'N/A',
@@ -426,7 +504,7 @@ export default function CepCertoAdmin() {
       console.error(error);
     } finally {
       setCalculatingAutoQuote(false);
-      console.log("========== FIM CÁLCULO FRETE ==========");
+      console.log("========== FIM ==========");
     }
   }
 
@@ -441,74 +519,46 @@ export default function CepCertoAdmin() {
       postagemData.cidade_destinatario &&
       postagemData.estado_destinatario
     ) {
-      if (!(window as any).cotacaoGerada) {
+      if (!cotacaoGerada) {
         console.log("Destinatário completo detectado — Gerando cotação");
         calcularCotacaoOnline();
       }
     } else {
       // Reseta se campos forem limpos
-      (window as any).cotacaoGerada = false;
+      setCotacaoGerada(false);
     }
   }
-
-  // Funções de formatação
-  const formatarCEP = (cep: string) => {
-    cep = cep.replace(/\D/g, "");
-    cep = cep.replace(/^(\d{5})(\d)/, "$1-$2");
-    return cep;
-  };
-
-  const formatarTelefone = (telefone: string) => {
-    telefone = telefone.replace(/\D/g, "");
-    telefone = telefone.replace(/^(\d{2})(\d)/g, "($1) $2");
-    telefone = telefone.replace(/(\d)(\d{4})$/, "$1-$2");
-    return telefone;
-  };
-
-  // Função para mostrar cotações
-  const mostrarCotacoes = (cotacao: any) => {
-    console.log("Renderizando opções cotação");
-    const container = document.getElementById("cotacao-opcoes");
-    if (!container) {
-      console.error("Container cotação não encontrado");
-      return;
-    }
-    container.innerHTML = "";
-    container.innerHTML += `
-      <div class="frete-opcao p-4 border border-slate-200 rounded-xl mb-2">
-        <input type="radio" name="frete" value="sedex" class="mr-2">
-        Sedex — ${cotacao.valor_sedex} — ${cotacao.prazo_entrega_sedex}
-      </div>
-    `;
-    container.innerHTML += `
-      <div class="frete-opcao p-4 border border-slate-200 rounded-xl mb-2">
-        <input type="radio" name="frete" value="pac" class="mr-2">
-        PAC — ${cotacao.valor_pac} — ${cotacao.prazo_entrega_pac}
-      </div>
-    `;
-  };
 
   // Ajuste no handleDestinatarioChange para incluir formatação e logs
   const handleDestinatarioChange = (field: string, value: string) => {
     let formattedValue = value;
+    
     if (field === 'cep_destinatario') {
       formattedValue = formatarCEP(value);
       if (formattedValue.length === 9) {
         console.log("CEP validado:", formattedValue);
-      } else if (formattedValue.length > 5) {
-        console.error("CEP inválido");
       }
     }
+    
     if (field === 'whatsapp_destinatario') {
-      formattedValue = formatarTelefone(value);
+      formattedValue = formatarWhatsapp(value);
       console.log("Telefone formatado:", formattedValue);
+    }
+
+    if (field === 'cpf_cnpj_destinatario') {
+      formattedValue = value.length > 14 ? formatarCNPJ(value) : formatarCPF(value);
     }
 
     setPostagemData(prev => ({ ...prev, [field]: formattedValue }));
     
+    // Resetar cotação se campos críticos mudarem
+    if (['cep_destinatario', 'produtos', 'cidade_destinatario'].includes(field)) {
+      setCotacaoGerada(false);
+      console.log("Cotação resetada após alteração de campo crítico");
+    }
+    
     // Resetar produtos se destinatário alterado
-    if (field !== 'nome_destinatario') { // Exemplo de lógica para detectar alteração
-      setPostagemData(prev => ({ ...prev, produtos: [] }));
+    if (field !== 'nome_destinatario') {
       console.log("Produtos resetados após alteração");
     }
     
@@ -517,10 +567,7 @@ export default function CepCertoAdmin() {
 
   // Monitoramento contínuo para cotação automática
   useEffect(() => {
-    const interval = setInterval(() => {
-      verificarDestinatarioCompleto();
-    }, 800);
-    return () => clearInterval(interval);
+    // Monitoramento contínuo removido conforme solicitado
   }, []);
 
 
@@ -534,7 +581,6 @@ export default function CepCertoAdmin() {
   };
 
   const [showSelectQuoteModal, setShowSelectQuoteModal] = useState(false);
-  const [availableQuotes, setAvailableQuotes] = useState<any[]>([]);
   const [selectedQuoteForConfirmation, setSelectedQuoteForConfirmation] = useState<any>(null);
 
   const limparNumero = (valor: any, campo: string) => {
@@ -2188,16 +2234,16 @@ export default function CepCertoAdmin() {
                       <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome Completo</label>
-                          <input type="text" value={postagemData.nome_destinatario} onChange={e => handleDestinatarioChange('nome_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Nome do destinatário" />
+                          <input type="text" value={postagemData.nome_destinatario} onChange={e => handleDestinatarioChange('nome_destinatario', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Nome do destinatário" />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CPF / CNPJ</label>
-                            <input type="text" value={postagemData.cpf_cnpj_destinatario} onChange={e => handleDestinatarioChange('cpf_cnpj_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.cpf_cnpj_destinatario} onChange={e => handleDestinatarioChange('cpf_cnpj_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">WhatsApp</label>
-                            <input type="text" value={postagemData.whatsapp_destinatario} onChange={e => handleDestinatarioChange('whatsapp_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.whatsapp_destinatario} onChange={e => handleDestinatarioChange('whatsapp_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -2208,13 +2254,12 @@ export default function CepCertoAdmin() {
                               value={postagemData.cep_destinatario}
                               onChange={e => handleDestinatarioChange('cep_destinatario', e.target.value)}
                               onBlur={verificarDestinatarioCompleto}
-                              onInput={verificarDestinatarioCompleto}
                               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                             />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Logradouro</label>
-                            <input type="text" value={postagemData.logradouro_destinatario} onChange={e => handleDestinatarioChange('logradouro_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.logradouro_destinatario} onChange={e => handleDestinatarioChange('logradouro_destinatario', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="grid grid-cols-3 gap-4">
