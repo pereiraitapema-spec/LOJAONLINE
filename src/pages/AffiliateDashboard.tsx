@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { 
   ShoppingBag, DollarSign, Link as LinkIcon, Copy, 
   LogOut, User, BarChart, Tag, Percent, ArrowRight, ArrowLeft, Clock,
-  ChevronRight, Package, Grid, Trash2, CheckCircle, Calendar, Info, TrendingUp, Filter, Users
+  ChevronRight, Package, Grid, Trash2, CheckCircle, Calendar, Info, TrendingUp, Filter
 } from 'lucide-react';
 import { Loading } from '../components/Loading';
 import { ConfirmationModal } from '../components/ConfirmationModal';
@@ -72,15 +72,6 @@ interface Order {
   status: string;
 }
 
-interface Lead {
-  id: string;
-  nome: string;
-  email: string;
-  whatsapp: string;
-  status_lead: string;
-  created_at: string;
-}
-
 export default function AffiliateDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -91,8 +82,7 @@ export default function AffiliateDashboard() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'coupons' | 'sales' | 'payments' | 'leads'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'coupons' | 'sales' | 'payments'>('products');
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<'7' | '30' | '90' | 'all' | 'custom'>('30');
   const [startDate, setStartDate] = useState('');
@@ -239,9 +229,6 @@ export default function AffiliateDashboard() {
       // Carregar pagamentos
       fetchPayments(affiliateData.id, dateRange);
 
-      // Carregar leads
-      fetchLeads(affiliateData.id);
-
     } catch (error: any) {
       console.error('❌ Erro crítico no dashboard:', error);
       toast.error('Erro ao carregar dashboard: ' + error.message);
@@ -365,24 +352,6 @@ export default function AffiliateDashboard() {
 
     const { data } = await query;
     if (data) setPayments(data);
-  };
-
-  const fetchLeads = async (affiliateId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('affiliate_id', affiliateId)
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.warn('⚠️ Erro ao buscar leads (pode ser falta da coluna affiliate_id):', error);
-        return;
-      }
-      if (data) setLeads(data);
-    } catch (err) {
-      console.error('❌ Erro ao buscar leads:', err);
-    }
   };
 
   const generateLink = (type: 'product' | 'category' | 'store', id?: string) => {
@@ -815,13 +784,6 @@ export default function AffiliateDashboard() {
             Minhas Vendas
           </button>
           <button 
-            onClick={() => setActiveTab('leads')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'leads' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
-          >
-            <Users size={20} />
-            Leads
-          </button>
-          <button 
             onClick={() => setActiveTab('payments')}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'payments' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
           >
@@ -1102,62 +1064,6 @@ export default function AffiliateDashboard() {
                               'bg-slate-100 text-slate-800'
                             }`}>
                               {order.status === 'paid' ? 'Pago' : order.status === 'pending' ? 'Pendente' : order.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Aba Leads */}
-          {activeTab === 'leads' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Seus Leads</h2>
-                <p className="text-xs text-slate-500 font-bold uppercase">Total: {leads.length}</p>
-              </div>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="py-4 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Data</th>
-                      <th className="py-4 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nome</th>
-                      <th className="py-4 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">WhatsApp</th>
-                      <th className="py-4 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leads.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-8 text-center text-slate-500">
-                          Nenhum lead capturado ainda.
-                        </td>
-                      </tr>
-                    ) : (
-                      leads.map(lead => (
-                        <tr key={lead.id} className="border-b border-slate-100 hover:bg-slate-50">
-                          <td className="py-4 px-4 text-sm text-slate-600">
-                            {formatDate(lead.created_at)}
-                          </td>
-                          <td className="py-4 px-4 text-sm font-bold text-slate-900">
-                            {lead.nome}
-                          </td>
-                          <td className="py-4 px-4 text-sm text-slate-600">
-                            {lead.whatsapp}
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className={`text-xs font-bold px-2 py-1 rounded-full uppercase ${
-                              lead.status_lead === 'quente' ? 'bg-red-100 text-red-800' :
-                              lead.status_lead === 'morno' ? 'bg-amber-100 text-amber-800' :
-                              lead.status_lead === 'cliente' ? 'bg-emerald-100 text-emerald-800' :
-                              'bg-slate-100 text-slate-800'
-                            }`}>
-                              {lead.status_lead}
                             </span>
                           </td>
                         </tr>
