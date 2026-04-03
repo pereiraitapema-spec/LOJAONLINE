@@ -214,7 +214,7 @@ export default function CepCertoAdmin() {
     const matchRastreador = !listaEtiquetasFiltros.rastreador || item.codigoObjeto?.toLowerCase().includes(listaEtiquetasFiltros.rastreador.toLowerCase());
     const matchData = !listaEtiquetasFiltros.data || (item.data && item.data.includes(listaEtiquetasFiltros.data));
     
-    const itemStatus = item.status || 'ativa';
+    const itemStatus = item.status === 'cancelada' ? 'cancelada' : 'ativa';
     const matchStatus = itemStatus === listaEtiquetasFiltros.status;
     
     return matchNome && matchRastreador && matchData && matchStatus;
@@ -286,11 +286,58 @@ export default function CepCertoAdmin() {
           produtos: [{ descricao: 'Pacote', valor: data.valor_encomenda || '', quantidade: '1' }]
         }));
       }
+    }
+  }, [logisticaSubTab]);
 
-      const savedLabels = localStorage.getItem('cepcerto_etiquetas_geradas');
-      if (savedLabels) {
-        setEtiquetasGeradas(JSON.parse(savedLabels));
+  const fetchLabels = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      const { data, error } = await supabase
+        .from('shipping_labels')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
+        
+      if (error) {
+        console.error("Erro ao buscar etiquetas do Supabase:", error);
+        return;
       }
+
+      if (data && data.length > 0) {
+        const formattedLabels = data.map(item => ({
+          id: item.id,
+          data: item.data_postagem,
+          codigoObjeto: item.codigo_objeto,
+          token: item.token,
+          whatsapp: item.whatsapp_destinatario,
+          idRecibo: item.id_recibo,
+          idStringCorreios: item.id_string_correios,
+          pdfUrlEtiqueta: item.pdf_url_etiqueta,
+          pdfUrlDeclaracao: item.pdf_url_declaracao,
+          transportadora: item.transportadora,
+          tipo_entrega: item.tipo_entrega,
+          valor: item.valor,
+          prazo: item.prazo,
+          status: item.status,
+          nome: item.nome_destinatario,
+          cidade: item.cidade_destinatario,
+          estado: item.estado_destinatario,
+          email: item.email_destinatario,
+          cep: item.cep_destinatario
+        }));
+        setEtiquetasGeradas(formattedLabels);
+        localStorage.setItem('cepcerto_etiquetas_geradas', JSON.stringify(formattedLabels));
+      }
+    } catch (error) {
+      console.error("Erro ao carregar etiquetas:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (logisticaSubTab === 'lista') {
+      fetchLabels();
     }
   }, [logisticaSubTab]);
 
@@ -1200,6 +1247,36 @@ export default function CepCertoAdmin() {
           localStorage.setItem('cepcerto_etiquetas_geradas', JSON.stringify(novasEtiquetas));
           localStorage.setItem('cepcerto_etiqueta_gerada', JSON.stringify(result));
 
+          // Salvar no Supabase para persistência permanente
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              await supabase.from('shipping_labels').insert({
+                user_id: session.user.id,
+                codigo_objeto: result.codigoObjeto,
+                nome_destinatario: result.nome,
+                whatsapp_destinatario: result.whatsapp,
+                cidade_destinatario: result.cidade,
+                estado_destinatario: result.estado,
+                cep_destinatario: result.cep,
+                email_destinatario: result.email,
+                valor: result.valor,
+                prazo: result.prazo,
+                status: 'ativa',
+                pdf_url_etiqueta: result.pdfUrlEtiqueta,
+                pdf_url_declaracao: result.pdfUrlDeclaracao,
+                id_recibo: result.idRecibo,
+                id_string_correios: result.idStringCorreios,
+                token: result.token,
+                transportadora: result.transportadora,
+                tipo_entrega: result.tipo_entrega,
+                data_postagem: result.data
+              });
+            }
+          } catch (error) {
+            console.error("Erro ao salvar etiqueta no Supabase:", error);
+          }
+
           // Limpar campos após gerar etiqueta para evitar duplicidade
           setPostagemData((prev: any) => ({
             ...prev,
@@ -1485,13 +1562,27 @@ export default function CepCertoAdmin() {
     }
   };
 
-  const marcarEtiquetaComoCancelada = (cod_objeto: string) => {
+  const marcarEtiquetaComoCancelada = async (cod_objeto: string) => {
     console.log("Marcando etiqueta como cancelada:", cod_objeto);
     const novaLista = etiquetasGeradas.map(e => 
       e.codigoObjeto === cod_objeto ? { ...e, status: 'cancelada' } : e
     );
     setEtiquetasGeradas(novaLista);
     localStorage.setItem('cepcerto_etiquetas_geradas', JSON.stringify(novaLista));
+    
+    // Atualizar no Supabase
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await supabase
+          .from('shipping_labels')
+          .update({ status: 'cancelada' })
+          .eq('codigo_objeto', cod_objeto)
+          .eq('user_id', session.user.id);
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar status no Supabase:", error);
+    }
     console.log("Lista atualizada com status cancelado");
   };
 
