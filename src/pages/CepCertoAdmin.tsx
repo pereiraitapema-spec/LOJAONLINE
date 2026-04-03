@@ -294,6 +294,7 @@ export default function CepCertoAdmin() {
 
   const [showSelectQuoteModal, setShowSelectQuoteModal] = useState(false);
   const [availableQuotes, setAvailableQuotes] = useState<any[]>([]);
+  const [selectedQuoteForConfirmation, setSelectedQuoteForConfirmation] = useState<any>(null);
 
   const limparNumero = (valor: any, campo: string) => {
     if (!valor) {
@@ -640,10 +641,9 @@ export default function CepCertoAdmin() {
     const cotacao_selecionada = savedQuote ? JSON.parse(savedQuote) : null;
 
     console.log("========== GERAR ETIQUETA ==========");
-    console.log("COTAÇÃO SELECIONADA", cotacao_selecionada);
-
-    if (!cotacao_selecionada || !postagemData.tipo_entrega) {
-      console.error("Nenhuma cotação selecionada");
+    
+    if (!cotacao_selecionada) {
+      console.error("CEP CERTO - Nenhuma cotação selecionada");
       
       // Tentar carregar cotações disponíveis
       const savedQuotes = localStorage.getItem('cepcerto_cotacoes');
@@ -652,12 +652,20 @@ export default function CepCertoAdmin() {
         setAvailableQuotes(quotes);
         console.log("COTAÇÕES DISPONÍVEIS", quotes);
         setShowSelectQuoteModal(true);
-        toast.error('Por favor, selecione uma cotação primeiro');
+        toast.error('Por favor, selecione e confirme uma cotação primeiro');
       } else {
         toast.error('Nenhuma cotação encontrada. Por favor, calcule o frete primeiro.');
       }
       return;
     }
+
+    if (!postagemData.tipo_entrega) {
+      console.error("CEP CERTO - Tipo entrega não definido");
+      toast.error('Tipo de entrega não definido. Selecione a cotação novamente.');
+      return;
+    }
+
+    console.log("COTAÇÃO SELECIONADA", cotacao_selecionada);
 
     setGeneratingLabel(true);
     console.log("CEP CERTO - Iniciando geração de etiqueta (Proxy)", postagemData);
@@ -812,8 +820,8 @@ export default function CepCertoAdmin() {
             pdfUrlDeclaracao: data?.frete?.pdfUrlDeclaracao || data?.pdfUrlDeclaracao,
             transportadora: postagemData.tipo_entrega.includes('jadlog') ? 'Jadlog' : 'Correios',
             tipo_entrega: postagemData.tipo_entrega,
-            valor: freteSelecionado?.valor || `R$ ${postagemData.valor_encomenda}`,
-            prazo: freteSelecionado?.prazo || '',
+            valor: cotacao_selecionada?.valor || freteSelecionado?.valor || `R$ ${postagemData.valor_encomenda}`,
+            prazo: cotacao_selecionada?.prazo || freteSelecionado?.prazo || '',
             status: 'Gerada'
           };
 
@@ -831,7 +839,8 @@ export default function CepCertoAdmin() {
           console.error("CEP CERTO - Resposta sem código de objeto");
           console.error("Resposta completa:", data);
           console.error("Mensagem API:", data?.mensagem);
-          toast.error('Erro ao gerar etiqueta: Resposta inválida da API');
+          toast.error('Erro ao gerar etiqueta: Resposta inválida da API (Sem código de objeto)');
+          return; // NÃO PROSSEGUIR
         }
       } else {
         const errorText = await response.text();
@@ -848,6 +857,14 @@ export default function CepCertoAdmin() {
   };
 
   const handleSelectQuote = (quote: any) => {
+    setSelectedQuoteForConfirmation(quote);
+    console.log("COTAÇÃO AGUARDANDO CONFIRMAÇÃO", quote);
+  };
+
+  const handleConfirmQuote = () => {
+    if (!selectedQuoteForConfirmation) return;
+    
+    const quote = selectedQuoteForConfirmation;
     const selectedQuote = {
       tipo_entrega: quote.tipo.toLowerCase().replace(' ', '-'),
       valor: quote.valor,
@@ -862,8 +879,9 @@ export default function CepCertoAdmin() {
     
     localStorage.setItem('cepcerto_cotacao_selecionada', JSON.stringify(selectedQuote));
     setShowSelectQuoteModal(false);
-    toast.success(`Cotação ${quote.tipo} selecionada!`);
-    console.log("COTAÇÃO SELECIONADA MANUALMENTE", selectedQuote);
+    setSelectedQuoteForConfirmation(null);
+    toast.success(`Cotação ${quote.tipo} confirmada!`);
+    console.log("COTAÇÃO CONFIRMADA E SALVA", selectedQuote);
   };
 
   const handleRefreshBalance = async () => {
@@ -2171,7 +2189,11 @@ export default function CepCertoAdmin() {
                     availableQuotes.map((quote, idx) => (
                       <div 
                         key={idx}
-                        className="p-4 bg-slate-50 border border-slate-200 rounded-2xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group cursor-pointer"
+                        className={`p-4 border rounded-2xl transition-all group cursor-pointer ${
+                          selectedQuoteForConfirmation?.tipo === quote.tipo 
+                            ? 'border-indigo-600 bg-indigo-50 shadow-md' 
+                            : 'bg-slate-50 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30'
+                        }`}
                         onClick={() => handleSelectQuote(quote)}
                       >
                         <div className="flex items-center justify-between">
@@ -2181,9 +2203,13 @@ export default function CepCertoAdmin() {
                           </div>
                           <div className="text-right">
                             <p className="font-black text-indigo-600 text-xl tracking-tighter">R$ {quote.valor}</p>
-                            <button className="mt-2 text-[10px] font-bold text-white bg-indigo-600 px-3 py-1 rounded-full uppercase tracking-widest group-hover:bg-indigo-700 transition-all">
-                              Selecionar
-                            </button>
+                            <div className={`mt-2 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest transition-all ${
+                              selectedQuoteForConfirmation?.tipo === quote.tipo
+                                ? 'bg-indigo-600 text-white'
+                                : 'text-indigo-600 bg-white border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white'
+                            }`}>
+                              {selectedQuoteForConfirmation?.tipo === quote.tipo ? 'Selecionado' : 'Selecionar'}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -2197,10 +2223,22 @@ export default function CepCertoAdmin() {
                   )}
                 </div>
 
-                <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <div className="p-8 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
+                  {selectedQuoteForConfirmation && (
+                    <button 
+                      onClick={handleConfirmQuote}
+                      className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg uppercase italic tracking-tighter hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+                    >
+                      <Check size={20} />
+                      Confirmar Cotação
+                    </button>
+                  )}
                   <button 
-                    onClick={() => setShowSelectQuoteModal(false)}
-                    className="px-6 py-3 text-slate-500 font-bold uppercase text-xs tracking-widest hover:text-slate-700 transition-all"
+                    onClick={() => {
+                      setShowSelectQuoteModal(false);
+                      setSelectedQuoteForConfirmation(null);
+                    }}
+                    className="w-full py-3 text-slate-500 font-bold uppercase text-xs tracking-widest hover:text-slate-700 transition-all"
                   >
                     Cancelar
                   </button>
