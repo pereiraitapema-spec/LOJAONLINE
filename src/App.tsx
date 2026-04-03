@@ -116,21 +116,18 @@ function AppContent() {
           .maybeSingle());
         
         if (affiliateById) {
-          const status = affiliateById.status;
-          console.log('✅ Registro de afiliado encontrado por ID. Status:', status);
+          const isApproved = affiliateById.status === 'approved' && affiliateById.active === true;
+          console.log('📊 Verificação de Afiliado (ID):', { status: affiliateById.status, active: affiliateById.active, isApproved });
           
-          // Lógica: Se aprovado ou pendente, tratamos como role 'affiliate' para redirecionamento
-          // Se rejeitado, tratamos como 'customer' comum
-          if (status === 'approved' || status === 'pending' || affiliateById.active === true) {
+          if (isApproved) {
             finalRole = 'affiliate';
             await supabase.from('profiles').update({ role: 'affiliate' }).eq('id', userId);
           } else {
-            console.log('❌ Afiliado rejeitado ou inativo. Mantendo como customer.');
             finalRole = 'customer';
+            // Se o profile estava como affiliate mas agora não é mais aprovado, volta para customer
             await supabase.from('profiles').update({ role: 'customer' }).eq('id', userId);
           }
         } else if (email) {
-          // Tentar por e-mail (caso o user_id não esteja vinculado)
           console.log('🔍 Buscando afiliado por e-mail:', email);
           const { data: affiliateByEmail } = await withTimeout(supabase
             .from('affiliates')
@@ -139,19 +136,14 @@ function AppContent() {
             .maybeSingle());
           
           if (affiliateByEmail) {
-            const status = affiliateByEmail.status;
-            console.log('✅ Registro de afiliado encontrado por e-mail. Status:', status);
+            const isApproved = affiliateByEmail.status === 'approved' && affiliateByEmail.active === true;
+            console.log('📊 Verificação de Afiliado (Email):', { status: affiliateByEmail.status, active: affiliateByEmail.active, isApproved });
             
-            if (status === 'approved' || status === 'pending' || affiliateByEmail.active === true) {
+            if (isApproved) {
               finalRole = 'affiliate';
-              
-              // Vincular o user_id se estiver faltando
               if (!affiliateByEmail.user_id) {
-                console.log('🔗 Vinculando user_id ao registro de afiliado...');
                 await supabase.from('affiliates').update({ user_id: userId }).eq('id', affiliateByEmail.id);
               }
-
-              // Atualizar o role no profile para persistir
               await supabase.from('profiles').update({ role: 'affiliate' }).eq('id', userId);
             } else {
               finalRole = 'customer';
