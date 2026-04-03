@@ -403,6 +403,17 @@ export default function CepCertoAdmin() {
           localStorage.setItem('cepcerto_cotacoes', JSON.stringify(data.dados_frete));
           setAvailableQuotes(data.dados_frete);
           (window as any).cotacaoGerada = true; // Marca como gerada
+          
+          // Chamar mostrarCotacoes com os dados retornados
+          // Assumindo que data.dados_frete tem o formato esperado
+          if (data.dados_frete.length > 0) {
+            mostrarCotacoes({
+              valor_pac: data.dados_frete.find((q: any) => q.tipo === 'PAC')?.valor || 'N/A',
+              prazo_entrega_pac: data.dados_frete.find((q: any) => q.tipo === 'PAC')?.prazo || 'N/A',
+              valor_sedex: data.dados_frete.find((q: any) => q.tipo === 'SEDEX')?.valor || 'N/A',
+              prazo_entrega_sedex: data.dados_frete.find((q: any) => q.tipo === 'SEDEX')?.prazo || 'N/A',
+            });
+          }
         } else {
           console.error("Erro: nenhuma cotação retornada");
         }
@@ -440,10 +451,67 @@ export default function CepCertoAdmin() {
     }
   }
 
-  // Helper para onChange dos campos do destinatário
+  // Funções de formatação
+  const formatarCEP = (cep: string) => {
+    cep = cep.replace(/\D/g, "");
+    cep = cep.replace(/^(\d{5})(\d)/, "$1-$2");
+    return cep;
+  };
+
+  const formatarTelefone = (telefone: string) => {
+    telefone = telefone.replace(/\D/g, "");
+    telefone = telefone.replace(/^(\d{2})(\d)/g, "($1) $2");
+    telefone = telefone.replace(/(\d)(\d{4})$/, "$1-$2");
+    return telefone;
+  };
+
+  // Função para mostrar cotações
+  const mostrarCotacoes = (cotacao: any) => {
+    console.log("Renderizando opções cotação");
+    const container = document.getElementById("cotacao-opcoes");
+    if (!container) {
+      console.error("Container cotação não encontrado");
+      return;
+    }
+    container.innerHTML = "";
+    container.innerHTML += `
+      <div class="frete-opcao p-4 border border-slate-200 rounded-xl mb-2">
+        <input type="radio" name="frete" value="sedex" class="mr-2">
+        Sedex — ${cotacao.valor_sedex} — ${cotacao.prazo_entrega_sedex}
+      </div>
+    `;
+    container.innerHTML += `
+      <div class="frete-opcao p-4 border border-slate-200 rounded-xl mb-2">
+        <input type="radio" name="frete" value="pac" class="mr-2">
+        PAC — ${cotacao.valor_pac} — ${cotacao.prazo_entrega_pac}
+      </div>
+    `;
+  };
+
+  // Ajuste no handleDestinatarioChange para incluir formatação e logs
   const handleDestinatarioChange = (field: string, value: string) => {
-    console.log("Campo alterado:", field);
-    setPostagemData(prev => ({ ...prev, [field]: value }));
+    let formattedValue = value;
+    if (field === 'cep_destinatario') {
+      formattedValue = formatarCEP(value);
+      if (formattedValue.length === 9) {
+        console.log("CEP validado:", formattedValue);
+      } else if (formattedValue.length > 5) {
+        console.error("CEP inválido");
+      }
+    }
+    if (field === 'whatsapp_destinatario') {
+      formattedValue = formatarTelefone(value);
+      console.log("Telefone formatado:", formattedValue);
+    }
+
+    setPostagemData(prev => ({ ...prev, [field]: formattedValue }));
+    
+    // Resetar produtos se destinatário alterado
+    if (field !== 'nome_destinatario') { // Exemplo de lógica para detectar alteração
+      setPostagemData(prev => ({ ...prev, produtos: [] }));
+      console.log("Produtos resetados após alteração");
+    }
+    
     verificarDestinatarioCompleto();
   };
 
@@ -2241,6 +2309,7 @@ export default function CepCertoAdmin() {
                           Adicionar Produto
                         </button>
                       </div>
+                      <div id="cotacao-opcoes" className="mt-4"></div>
                     </div>
 
                     {/* SEÇÃO 4 — DOCUMENTO */}
