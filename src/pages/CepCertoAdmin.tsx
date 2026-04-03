@@ -1317,8 +1317,8 @@ export default function CepCertoAdmin() {
 
       if (data.sucesso || data.status === "sucesso") {
         toast.success(data.mensagem || "Etiqueta cancelada com sucesso!");
-        removerEtiquetaLista(cod_objeto);
-        console.log("Etiqueta cancelada e removida da lista");
+        marcarEtiquetaComoCancelada(cod_objeto);
+        console.log("Etiqueta marcada como cancelada");
       } else {
         // Se o erro for que o token não foi recebido, mas nós enviamos, logar o erro
         console.error("Erro no cancelamento:", data.mensagem || data.erro);
@@ -1465,12 +1465,14 @@ export default function CepCertoAdmin() {
     }
   };
 
-  const removerEtiquetaLista = (cod_objeto: string) => {
-    console.log("Removendo etiqueta:", cod_objeto);
-    const novaLista = etiquetasGeradas.filter(e => e.codigoObjeto !== cod_objeto);
+  const marcarEtiquetaComoCancelada = (cod_objeto: string) => {
+    console.log("Marcando etiqueta como cancelada:", cod_objeto);
+    const novaLista = etiquetasGeradas.map(e => 
+      e.codigoObjeto === cod_objeto ? { ...e, status: 'cancelada' } : e
+    );
     setEtiquetasGeradas(novaLista);
     localStorage.setItem('cepcerto_etiquetas_geradas', JSON.stringify(novaLista));
-    console.log("Lista atualizada");
+    console.log("Lista atualizada com status cancelado");
   };
 
   const handleSelectQuote = (quote: any) => {
@@ -2887,7 +2889,12 @@ export default function CepCertoAdmin() {
                             <td className="py-4 text-sm text-slate-600">{etq.whatsapp || '-'}</td>
                             <td className="py-4 text-sm text-slate-600">{etq.cidade || '-'}</td>
                             <td className="py-4">
-                              <span className="font-mono text-sm font-bold text-slate-900">{etq.codigoObjeto}</span>
+                              <div className="flex flex-col">
+                                <span className="font-mono text-sm font-bold text-slate-900">{etq.codigoObjeto}</span>
+                                {etq.status === 'cancelada' && (
+                                  <span className="text-[10px] font-bold text-red-600 uppercase">Cancelada</span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-4 text-sm text-slate-600">{new Date(etq.data).toLocaleDateString()}</td>
                             <td className="py-4 text-right">
@@ -2900,8 +2907,9 @@ export default function CepCertoAdmin() {
                                 </button>
                                 <button 
                                   onClick={() => confirmarCancelarEtiqueta(etq.token, etq.codigoObjeto)}
-                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" 
-                                  title="Excluir Etiqueta"
+                                  disabled={etq.status === 'cancelada'}
+                                  className={`p-2 rounded-lg transition-all ${etq.status === 'cancelada' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+                                  title={etq.status === 'cancelada' ? "Etiqueta já cancelada" : "Excluir Etiqueta"}
                                 >
                                   <Trash2 size={18} />
                                 </button>
@@ -3023,12 +3031,17 @@ export default function CepCertoAdmin() {
                             <td className="py-4 text-sm text-slate-600">{item.email || '-'}</td>
                             <td className="py-4 text-sm text-slate-600">{item.cidade || '-'}</td>
                             <td className="py-4">
-                              <span className="font-mono text-sm font-bold text-slate-900">{item.codigoObjeto}</span>
+                              <div className="flex flex-col">
+                                <span className="font-mono text-sm font-bold text-slate-900">{item.codigoObjeto}</span>
+                                {item.status === 'cancelada' && (
+                                  <span className="text-[10px] font-bold text-red-600 uppercase">Cancelada</span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-4 text-right flex items-center justify-end gap-2">
                               <button 
                                 onClick={() => rastrearObjeto(item.codigoObjeto)}
-                                disabled={loadingRastreio}
+                                disabled={loadingRastreio || item.status === 'cancelada'}
                                 className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-bold text-xs hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-1 disabled:opacity-50"
                               >
                                 {loadingRastreio ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
@@ -3036,8 +3049,9 @@ export default function CepCertoAdmin() {
                               </button>
                               <button 
                                 onClick={() => confirmarCancelarEtiqueta(item.token, item.codigoObjeto)}
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                title="Excluir Etiqueta"
+                                disabled={item.status === 'cancelada'}
+                                className={`p-2 rounded-lg transition-all ${item.status === 'cancelada' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+                                title={item.status === 'cancelada' ? "Etiqueta já cancelada" : "Excluir Etiqueta"}
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -3155,7 +3169,12 @@ export default function CepCertoAdmin() {
                             <td className="py-4 text-sm text-slate-600">{item.email || '-'}</td>
                             <td className="py-4 text-sm text-slate-600">{item.cidade || '-'}</td>
                             <td className="py-4">
-                              <span className="font-mono text-sm font-bold text-slate-900">{item.codigoObjeto}</span>
+                              <div className="flex flex-col">
+                                <span className="font-mono text-sm font-bold text-slate-900">{item.codigoObjeto}</span>
+                                {item.status === 'cancelada' && (
+                                  <span className="text-[10px] font-bold text-red-600 uppercase">Cancelada</span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-4 text-right flex items-center justify-end gap-2">
                               <button 
@@ -3167,8 +3186,9 @@ export default function CepCertoAdmin() {
                               </button>
                               <button 
                                 onClick={() => confirmarCancelarEtiqueta(item.token, item.codigoObjeto)}
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                title="Excluir Etiqueta"
+                                disabled={item.status === 'cancelada'}
+                                className={`p-2 rounded-lg transition-all ${item.status === 'cancelada' ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+                                title={item.status === 'cancelada' ? "Etiqueta já cancelada" : "Excluir Etiqueta"}
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -3280,15 +3300,21 @@ export default function CepCertoAdmin() {
                             <td className="py-4 text-sm text-slate-600">{item.email || '-'}</td>
                             <td className="py-4 text-sm text-slate-600">{item.cidade || '-'}</td>
                             <td className="py-4">
-                              <span className="font-mono text-sm font-bold text-slate-900">{item.codigoObjeto}</span>
+                              <div className="flex flex-col">
+                                <span className="font-mono text-sm font-bold text-slate-900">{item.codigoObjeto}</span>
+                                {item.status === 'cancelada' && (
+                                  <span className="text-[10px] font-bold text-red-600 uppercase">Cancelada</span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-4 text-right">
                               <button 
                                 onClick={() => confirmarCancelarEtiqueta(item.token, item.codigoObjeto)}
-                                className="px-4 py-2 bg-red-50 text-red-600 rounded-lg font-bold text-xs hover:bg-red-600 hover:text-white transition-all flex items-center gap-1 ml-auto"
+                                disabled={item.status === 'cancelada'}
+                                className={`px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1 ml-auto ${item.status === 'cancelada' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-red-50 text-red-600 hover:bg-red-600 hover:text-white'}`}
                               >
                                 <Trash2 size={14} />
-                                Cancelar Etiqueta
+                                {item.status === 'cancelada' ? 'Cancelada' : 'Cancelar Etiqueta'}
                               </button>
                             </td>
                           </tr>
