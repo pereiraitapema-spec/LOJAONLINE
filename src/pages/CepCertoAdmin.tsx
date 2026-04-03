@@ -297,9 +297,11 @@ export default function CepCertoAdmin() {
   useEffect(() => {
     const calcularCotacaoAutomatica = async () => {
       const { 
+        nome_destinatario,
         cep_destinatario, 
         logradouro_destinatario, 
         numero_endereco_destinatario, 
+        bairro_destinatario,
         cidade_destinatario, 
         estado_destinatario,
         peso, 
@@ -308,9 +310,11 @@ export default function CepCertoAdmin() {
       
       // Verifica se tem os dados mínimos
       if (
+        !nome_destinatario ||
         !cep_destinatario || cep_destinatario.length !== 8 || 
         !logradouro_destinatario || 
         !numero_endereco_destinatario || 
+        !bairro_destinatario ||
         !cidade_destinatario || 
         !estado_destinatario || 
         !peso || 
@@ -324,18 +328,19 @@ export default function CepCertoAdmin() {
       
       if (valorTotal === 0) return;
 
-      console.log("========== COTAÇÃO AUTOMÁTICA ==========");
-      console.log("CEP CERTO - Iniciando cotação automática");
-      console.log("DESTINATÁRIO", {
+      console.log("========== CÁLCULO ONLINE ==========");
+      console.log("Destinatário preenchido");
+      console.log({
+        nome: nome_destinatario,
         cep: cep_destinatario,
         endereco: logradouro_destinatario,
         numero: numero_endereco_destinatario,
+        bairro: bairro_destinatario,
         cidade: cidade_destinatario,
         estado: estado_destinatario
       });
-      console.log("PRODUTOS", produtos);
-      console.log("PESO", peso);
-
+      console.log("Calculando frete online");
+      
       setCalculatingAutoQuote(true);
       
       try {
@@ -377,7 +382,8 @@ export default function CepCertoAdmin() {
         if (response.ok) {
           const data = await response.json();
           if (data.dados_frete) {
-            console.log("COTAÇÕES RETORNADAS", data.dados_frete);
+            console.log("Cotações retornadas");
+            console.log(data.dados_frete);
             localStorage.setItem('cepcerto_cotacoes', JSON.stringify(data.dados_frete));
             setAvailableQuotes(data.dados_frete);
             
@@ -404,7 +410,8 @@ export default function CepCertoAdmin() {
           }
         }
       } catch (error) {
-        console.error("Erro na cotação automática", error);
+        console.error("Erro no cálculo online");
+        console.error(error);
       } finally {
         setCalculatingAutoQuote(false);
       }
@@ -417,9 +424,11 @@ export default function CepCertoAdmin() {
 
     return () => clearTimeout(timeoutId);
   }, [
+    postagemData.nome_destinatario,
     postagemData.cep_destinatario, 
     postagemData.logradouro_destinatario,
     postagemData.numero_endereco_destinatario,
+    postagemData.bairro_destinatario,
     postagemData.cidade_destinatario,
     postagemData.estado_destinatario,
     postagemData.peso, 
@@ -1827,14 +1836,6 @@ export default function CepCertoAdmin() {
                       </div>
                     </div>
 
-                    <button 
-                      onClick={handleCalculateQuote}
-                      disabled={calculatingQuote}
-                      className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
-                    >
-                      {calculatingQuote ? <RefreshCw size={20} className="animate-spin" /> : <Calculator size={20} />}
-                      Calcular Frete
-                    </button>
                   </div>
                 </div>
 
