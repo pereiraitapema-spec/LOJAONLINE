@@ -414,11 +414,66 @@ export default function CepCertoAdmin() {
     return dados;
   }
 
+  async function getCepCertoToken() {
+    const { data: carriers } = await supabase
+      .from('shipping_carriers')
+      .select('api_key, config')
+      .eq('provider', 'cepcerto')
+      .eq('active', true)
+      .limit(1);
+
+    if (!carriers || carriers.length === 0) return null;
+
+    const carrierData = carriers[0];
+    let apiKey = carrierData.api_key;
+    if (!apiKey && carrierData.config) {
+      const config = typeof carrierData.config === 'string' ? JSON.parse(carrierData.config) : carrierData.config;
+      apiKey = config.api_key_postagem || config.api_key;
+    }
+    return apiKey;
+  }
+
   async function calcularFreteEtiqueta() {
     console.log("========== INICIO CÁLCULO ETIQUETA ==========");
     try {
-      const dados = montarDadosFrete();
-      console.log("Dados enviados:", dados);
+      // 1. Validação de Produtos
+      if (!postagemData.produtos || postagemData.produtos.length === 0) {
+        mostrarErro("Você precisa adicionar pelo menos um produto na Seção 3.");
+        return;
+      }
+
+      // 2. Validação de Campos Básicos
+      if (!postagemData.cep_remetente || !postagemData.cep_destinatario) {
+        mostrarErro("CEP de Origem e Destino são obrigatórios.");
+        return;
+      }
+
+      if (!postagemData.peso || !postagemData.altura || !postagemData.largura || !postagemData.comprimento) {
+        mostrarErro("Peso e dimensões (Alt, Larg, Comp) são obrigatórios na Seção 3.");
+        return;
+      }
+
+      // 3. Buscar Token
+      console.log("Buscando token CEP CERTO...");
+      const apiKey = await getCepCertoToken();
+      if (!apiKey) {
+        mostrarErro("Token CEP CERTO não configurado no sistema.");
+        return;
+      }
+
+      const dados = {
+        token_cliente_postagem: apiKey,
+        cep_remetente: postagemData.cep_remetente.replace(/\D/g, ''),
+        cep_destinatario: postagemData.cep_destinatario.replace(/\D/g, ''),
+        produtos: postagemData.produtos,
+        peso: postagemData.peso,
+        altura: postagemData.altura,
+        largura: postagemData.largura,
+        comprimento: postagemData.comprimento,
+        valor_encomenda: postagemData.valor_encomenda || "0"
+      };
+
+      logSistema("Dados Enviados para API", dados);
 
       const response = await fetch("/api/cepcerto/cotacao", {
         method: "POST",
@@ -429,22 +484,27 @@ export default function CepCertoAdmin() {
       });
 
       const text = await response.text();
-      console.log("Resposta bruta:", text);
+      console.log("Resposta bruta da API:", text);
 
       let data;
       try {
         data = JSON.parse(text);
       } catch (error) {
-        console.error("Erro parse JSON", error);
-        mostrarErro("Erro API retornou HTML");
+        console.error("Erro ao processar JSON:", error);
+        mostrarErro("A API retornou um formato inválido (HTML). Verifique se o endpoint está correto.");
         return;
       }
 
-      logSistema("Resposta API", data);
+      if (data.erro) {
+        mostrarErro(`Erro da API: ${data.erro}`);
+        return;
+      }
+
+      logSistema("Resposta Processada", data);
       renderizarCotacaoEtiqueta(data);
     } catch (error) {
-      console.error("Erro cálculo etiqueta", error);
-      mostrarErro("Erro cálculo frete");
+      console.error("Erro crítico no cálculo:", error);
+      mostrarErro("Ocorreu um erro ao tentar calcular o frete. Verifique o console.");
     }
     console.log("========== FIM CÁLCULO ==========");
   }
@@ -495,7 +555,8 @@ export default function CepCertoAdmin() {
     let formattedValue = value;
     
     if (field === 'cep_destinatario') {
-      formattedValue = formatarCEP(value);
+      const clean = value.replace(/\D/g, '').slice(0, 8);
+      formattedValue = clean.length === 8 ? formatarCEP(clean) : clean;
     }
     
     if (field === 'whatsapp_destinatario') {
@@ -503,7 +564,28 @@ export default function CepCertoAdmin() {
     }
 
     if (field === 'cpf_cnpj_destinatario') {
-      formattedValue = value.length > 14 ? formatarCNPJ(value) : formatarCPF(value);
+      const clean = value.replace(/\D/g, '');
+      formattedValue = clean.length > 11 ? formatarCNPJ(clean) : formatarCPF(clean);
+    }
+
+    setPostagemData(prev => ({ ...prev, [field]: formattedValue }));
+  };
+
+  const handleRemetenteChange = (field: string, value: string) => {
+    let formattedValue = value;
+    
+    if (field === 'cep_remetente') {
+      const clean = value.replace(/\D/g, '').slice(0, 8);
+      formattedValue = clean.length === 8 ? formatarCEP(clean) : clean;
+    }
+    
+    if (field === 'whatsapp_remetente') {
+      formattedValue = formatarWhatsapp(value);
+    }
+
+    if (field === 'cpf_cnpj_remetente') {
+      const clean = value.replace(/\D/g, '');
+      formattedValue = clean.length > 11 ? formatarCNPJ(clean) : formatarCPF(clean);
     }
 
     setPostagemData(prev => ({ ...prev, [field]: formattedValue }));
@@ -786,39 +868,52 @@ export default function CepCertoAdmin() {
       return;
     }
 
-    // VALIDAÇÃO OBRIGATÓRIA REMETENTE
-    if (!senderData.nome_remetente) {
-      toast.error('Nome do remetente é obrigatório');
-      console.error("NOME REMETENTE FALTANDO");
-      return;
-    }
-    if (!senderData.cpf_cnpj_remetente) {
-      toast.error('CPF/CNPJ do remetente é obrigatório');
-      console.error("CPF/CNPJ REMETENTE FALTANDO");
-      return;
-    }
-    if (!senderData.whatsapp_remetente) {
-      toast.error('WhatsApp do remetente é obrigatório');
-      console.error("WHATSAPP REMETENTE FALTANDO");
-      return;
-    }
-    if (!senderData.email_remetente) {
-      toast.error('Email do remetente é obrigatório');
-      console.error("EMAIL REMETENTE FALTANDO");
+    // Validação de produtos para a aba de etiquetas
+    if (activeTab === 'label' && (!postagemData.produtos || postagemData.produtos.length === 0)) {
+      mostrarErro("Você precisa adicionar pelo menos um produto na Seção 3.");
       return;
     }
 
-    const pesoGramas = parseFloat(recipientQuoteData.peso);
+    // VALIDAÇÃO OBRIGATÓRIA REMETENTE
+    const nomeRemetente = activeTab === 'label' ? postagemData.nome_remetente : senderData.nome_remetente;
+    const cpfCnpjRemetente = activeTab === 'label' ? postagemData.cpf_cnpj_remetente : senderData.cpf_cnpj_remetente;
+    const whatsappRemetente = activeTab === 'label' ? postagemData.whatsapp_remetente : senderData.whatsapp_remetente;
+    const emailRemetente = activeTab === 'label' ? postagemData.email_remetente : senderData.email_remetente;
+
+    if (!nomeRemetente) {
+      toast.error('Nome do remetente é obrigatório');
+      return;
+    }
+    if (!cpfCnpjRemetente) {
+      toast.error('CPF/CNPJ do remetente é obrigatório');
+      return;
+    }
+    if (!whatsappRemetente) {
+      toast.error('WhatsApp do remetente é obrigatório');
+      return;
+    }
+    if (!emailRemetente) {
+      toast.error('Email do remetente é obrigatório');
+      return;
+    }
+
+    const peso = activeTab === 'label' ? postagemData.peso : recipientQuoteData.peso;
+    const altura = activeTab === 'label' ? postagemData.altura : recipientQuoteData.altura;
+    const largura = activeTab === 'label' ? postagemData.largura : recipientQuoteData.largura;
+    const comprimento = activeTab === 'label' ? postagemData.comprimento : recipientQuoteData.comprimento;
+    const valorEncomenda = activeTab === 'label' ? postagemData.valor_encomenda : recipientQuoteData.valor_encomenda;
+
+    const pesoGramas = parseFloat(peso) || 0;
     const pesoKg = pesoGramas / 1000;
 
     const dadosEtiqueta = {
-      cep_remetente: senderData.cep_remetente,
-      cep_destinatario: recipientQuoteData.cep,
+      cep_remetente: activeTab === 'label' ? postagemData.cep_remetente : senderData.cep_remetente,
+      cep_destinatario: activeTab === 'label' ? postagemData.cep_destinatario : recipientQuoteData.cep,
       peso: pesoKg.toString(),
-      altura: recipientQuoteData.altura,
-      largura: recipientQuoteData.largura,
-      comprimento: recipientQuoteData.comprimento,
-      valor_encomenda: recipientQuoteData.valor_encomenda,
+      altura: altura.toString(),
+      largura: largura.toString(),
+      comprimento: comprimento.toString(),
+      valor_encomenda: valorEncomenda,
       frete_tipo: freteSelecionado.tipo,
       frete_valor: freteSelecionado.valor,
       frete_prazo: freteSelecionado.prazo
@@ -1690,7 +1785,7 @@ export default function CepCertoAdmin() {
           )}
           {/* Modal Cotação */}
           {showQuoteModal && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-20 overflow-y-auto">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -2116,22 +2211,22 @@ export default function CepCertoAdmin() {
                       <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome / Razão Social</label>
-                          <input type="text" value={postagemData.nome_remetente} onChange={e => setPostagemData({...postagemData, nome_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          <input type="text" value={postagemData.nome_remetente} onChange={e => handleRemetenteChange('nome_remetente', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                         </div>
                         <div className="grid grid-cols-1 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CPF / CNPJ</label>
-                            <input type="text" value={postagemData.cpf_cnpj_remetente} onChange={e => setPostagemData({...postagemData, cpf_cnpj_remetente: e.target.value.replace(/\D/g, '')})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.cpf_cnpj_remetente} onChange={e => handleRemetenteChange('cpf_cnpj_remetente', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">WhatsApp</label>
-                            <input type="text" value={postagemData.whatsapp_remetente} onChange={e => setPostagemData({...postagemData, whatsapp_remetente: e.target.value.replace(/\D/g, '')})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.whatsapp_remetente} onChange={e => handleRemetenteChange('whatsapp_remetente', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Email</label>
-                            <input type="email" value={postagemData.email_remetente} onChange={e => setPostagemData({...postagemData, email_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="email" value={postagemData.email_remetente} onChange={e => handleRemetenteChange('email_remetente', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -2140,38 +2235,38 @@ export default function CepCertoAdmin() {
                             <input 
                               type="text" 
                               value={postagemData.cep_remetente}
-                              onChange={e => setPostagemData({...postagemData, cep_remetente: e.target.value})}
+                              onChange={e => handleRemetenteChange('cep_remetente', e.target.value)}
                               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                             />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Logradouro</label>
-                            <input type="text" value={postagemData.logradouro_remetente} onChange={e => setPostagemData({...postagemData, logradouro_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.logradouro_remetente} onChange={e => handleRemetenteChange('logradouro_remetente', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="grid grid-cols-3 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Número</label>
-                            <input type="text" value={postagemData.numero_endereco_remetente} onChange={e => setPostagemData({...postagemData, numero_endereco_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.numero_endereco_remetente} onChange={e => handleRemetenteChange('numero_endereco_remetente', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                           <div className="col-span-2 space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Bairro</label>
-                            <input type="text" value={postagemData.bairro_remetente} onChange={e => setPostagemData({...postagemData, bairro_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.bairro_remetente} onChange={e => handleRemetenteChange('bairro_remetente', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Cidade</label>
-                            <input type="text" value={postagemData.cidade_remetente} onChange={e => setPostagemData({...postagemData, cidade_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.cidade_remetente} onChange={e => handleRemetenteChange('cidade_remetente', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Estado</label>
-                            <input type="text" value={postagemData.estado_remetente} onChange={e => setPostagemData({...postagemData, estado_remetente: e.target.value.toUpperCase().slice(0, 2)})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.estado_remetente} onChange={e => handleRemetenteChange('estado_remetente', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Complemento</label>
-                          <input type="text" value={postagemData.complemento_remetente} onChange={e => setPostagemData({...postagemData, complemento_remetente: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          <input type="text" value={postagemData.complemento_remetente} onChange={e => handleRemetenteChange('complemento_remetente', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                         </div>
                       </div>
                     </div>
@@ -2240,29 +2335,48 @@ export default function CepCertoAdmin() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                     {/* SEÇÃO 3 — PRODUTOS */}
                     <div className="space-y-4">
-                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
-                        <Package size={16} className="text-indigo-600" />
-                        Seção 3 — Produtos
-                      </h4>
+                      <div className="flex justify-between items-center">
+                        <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                          <Package size={16} className="text-indigo-600" />
+                          Seção 3 — Produtos
+                        </h4>
+                        <button 
+                          onClick={() => setPostagemData({...postagemData, peso: '', altura: '', largura: '', comprimento: ''})}
+                          className="text-[10px] font-bold text-red-500 uppercase hover:text-red-600 flex items-center gap-1"
+                        >
+                          <RefreshCw size={10} />
+                          Limpar Dimensões
+                        </button>
+                      </div>
                       <div className="grid grid-cols-4 gap-2 mb-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">Peso (gramas)</label>
-                          <input type="text" value={postagemData.peso} onChange={e => setPostagemData({...postagemData, peso: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                          <input type="text" value={postagemData.peso} onChange={e => setPostagemData({...postagemData, peso: e.target.value.replace(/\D/g, '')})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">Alt (cm)</label>
-                          <input type="text" value={postagemData.altura} onChange={e => setPostagemData({...postagemData, altura: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                          <input type="text" value={postagemData.altura} onChange={e => setPostagemData({...postagemData, altura: e.target.value.replace(/\D/g, '')})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">Larg (cm)</label>
-                          <input type="text" value={postagemData.largura} onChange={e => setPostagemData({...postagemData, largura: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                          <input type="text" value={postagemData.largura} onChange={e => setPostagemData({...postagemData, largura: e.target.value.replace(/\D/g, '')})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">Comp (cm)</label>
-                          <input type="text" value={postagemData.comprimento} onChange={e => setPostagemData({...postagemData, comprimento: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                          <input type="text" value={postagemData.comprimento} onChange={e => setPostagemData({...postagemData, comprimento: e.target.value.replace(/\D/g, '')})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                         </div>
                       </div>
                       <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lista de Produtos</label>
+                          <button 
+                            onClick={() => setPostagemData({...postagemData, produtos: []})}
+                            className="text-[10px] font-bold text-red-500 uppercase hover:text-red-600 flex items-center gap-1"
+                          >
+                            <Trash2 size={10} />
+                            Limpar Lista
+                          </button>
+                        </div>
                         {postagemData.produtos.map((prod: any, idx: number) => (
                           <div key={idx} className="grid grid-cols-12 gap-2">
                             <div className="col-span-6">
@@ -2486,7 +2600,7 @@ export default function CepCertoAdmin() {
 
           {/* Modal Resultado Etiqueta */}
           {showLabelResultModal && labelResult && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4 overflow-y-auto">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-start justify-center p-4 pt-20 overflow-y-auto">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -2599,7 +2713,7 @@ export default function CepCertoAdmin() {
 
           {/* Modal Confirmação Etiqueta */}
           {showLabelConfirmModal && freteSelecionado && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-start justify-center p-4 pt-20 overflow-y-auto">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -2658,7 +2772,7 @@ export default function CepCertoAdmin() {
 
           {/* Modal PIX */}
           {showPixModal && pixData && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-20 overflow-y-auto">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
