@@ -1970,9 +1970,9 @@ export default function CepCertoAdmin() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                  {/* Coluna 1: Remetente e Destinatário */}
-                  <div className="space-y-8">
+                <div className="space-y-12">
+                  {/* Linha 1: Remetente e Destinatário */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                     {/* SEÇÃO 1 — REMETENTE */}
                     <div className="space-y-4">
                       <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
@@ -2092,8 +2092,8 @@ export default function CepCertoAdmin() {
                     </div>
                   </div>
 
-                  {/* Coluna 2: Produtos, Documentos e Frete */}
-                  <div className="space-y-8">
+                  {/* Linha 2: Produtos e Documentos */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                     {/* SEÇÃO 3 — PRODUTOS */}
                     <div className="space-y-4">
                       <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
@@ -2162,61 +2162,11 @@ export default function CepCertoAdmin() {
                       </div>
                     </div>
 
-                    {/* SEÇÃO 4 — SELECIONAR FRETE (AUTOMÁTICO) */}
-                    <div className="space-y-4">
-                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
-                        <Truck size={16} className="text-indigo-600" />
-                        Seção 4 — Selecionar Frete
-                      </h4>
-                      
-                      {calculatingAutoQuote ? (
-                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center justify-center gap-3">
-                          <RefreshCw className="animate-spin text-indigo-600" size={24} />
-                          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Calculando cotações...</p>
-                        </div>
-                      ) : availableQuotes.length > 0 ? (
-                        <div className="space-y-3">
-                          {availableQuotes.map((quote, idx) => (
-                            <div 
-                              key={idx}
-                              className={`p-4 border rounded-2xl transition-all group cursor-pointer ${
-                                (freteSelecionado?.tipo === quote.tipo || postagemData.tipo_entrega === quote.tipo.toLowerCase().replace(' ', '-'))
-                                  ? 'border-indigo-600 bg-indigo-50 shadow-md' 
-                                  : 'bg-slate-50 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30'
-                              }`}
-                              onClick={() => handleSelectQuote(quote)}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-black text-slate-900 uppercase italic tracking-tighter text-lg">{quote.tipo}</p>
-                                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{quote.prazo} dias úteis</p>
-                                </div>
-                                <div className="text-right">
-                                  <p className="font-black text-indigo-600 text-xl tracking-tighter">R$ {quote.valor}</p>
-                                  <div className={`mt-2 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest transition-all inline-block ${
-                                    (freteSelecionado?.tipo === quote.tipo || postagemData.tipo_entrega === quote.tipo.toLowerCase().replace(' ', '-'))
-                                      ? 'bg-indigo-600 text-white'
-                                      : 'text-indigo-600 bg-white border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white'
-                                  }`}>
-                                    {(freteSelecionado?.tipo === quote.tipo || postagemData.tipo_entrega === quote.tipo.toLowerCase().replace(' ', '-')) ? 'Selecionado' : 'Selecionar'}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 text-center">
-                          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Preencha o CEP de destino, peso e produtos para ver as opções de frete.</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* SEÇÃO 5 — DOCUMENTO */}
+                    {/* SEÇÃO 4 — DOCUMENTO */}
                     <div className="space-y-4">
                       <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
                         <Shield size={16} className="text-indigo-600" />
-                        Seção 5 — Documento Fiscal
+                        Seção 4 — Documento Fiscal
                       </h4>
                       <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1">
@@ -2239,6 +2189,56 @@ export default function CepCertoAdmin() {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Linha 3: Opções de Frete */}
+                <div className="mt-8 pt-8 border-t border-slate-100 space-y-4">
+                  <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                    <Truck size={16} className="text-indigo-600" />
+                    Seção 5 — Selecionar Frete
+                  </h4>
+                  
+                  {calculatingAutoQuote ? (
+                    <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center justify-center gap-3">
+                      <RefreshCw className="animate-spin text-indigo-600" size={24} />
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Calculando cotações...</p>
+                    </div>
+                  ) : availableQuotes.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {availableQuotes.map((quote, idx) => (
+                        <div 
+                          key={idx}
+                          className={`p-4 border rounded-2xl transition-all group cursor-pointer ${
+                            (freteSelecionado?.tipo === quote.tipo || postagemData.tipo_entrega === quote.tipo.toLowerCase().replace(' ', '-'))
+                              ? 'border-indigo-600 bg-indigo-50 shadow-md' 
+                              : 'bg-slate-50 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30'
+                          }`}
+                          onClick={() => handleSelectQuote(quote)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-black text-slate-900 uppercase italic tracking-tighter text-lg">{quote.tipo}</p>
+                              <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{quote.prazo} dias úteis</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-black text-indigo-600 text-xl tracking-tighter">R$ {quote.valor}</p>
+                              <div className={`mt-2 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest transition-all inline-block ${
+                                (freteSelecionado?.tipo === quote.tipo || postagemData.tipo_entrega === quote.tipo.toLowerCase().replace(' ', '-'))
+                                  ? 'bg-indigo-600 text-white'
+                                  : 'text-indigo-600 bg-white border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white'
+                              }`}>
+                                {(freteSelecionado?.tipo === quote.tipo || postagemData.tipo_entrega === quote.tipo.toLowerCase().replace(' ', '-')) ? 'Selecionado' : 'Selecionar'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 text-center">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Preencha o CEP de destino, endereço, cidade, estado e produtos para ver as opções de frete.</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-12 pt-8 border-t border-slate-100">
