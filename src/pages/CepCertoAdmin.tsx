@@ -155,6 +155,9 @@ export default function CepCertoAdmin() {
   const [labelResult, setLabelResult] = useState<any>(null);
   const [showLabelResultModal, setShowLabelResultModal] = useState(false);
   const [etiquetasGeradas, setEtiquetasGeradas] = useState<any[]>([]);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [printType, setPrintType] = useState<'etiqueta' | 'declaracao' | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('cepcerto_remetente_padrao');
@@ -917,7 +920,12 @@ export default function CepCertoAdmin() {
             tipo_entrega: tipo_entrega_final,
             valor: cotacao_selecionada?.valor || freteSelecionado?.valor || `R$ ${postagemData.valor_encomenda}`,
             prazo: cotacao_selecionada?.prazo || freteSelecionado?.prazo || '',
-            status: 'Gerada'
+            status: 'Gerada',
+            nome: postagemData.nome_destinatario,
+            cidade: recipientQuoteData.cidade || postagemData.cidade_destinatario || '',
+            estado: recipientQuoteData.estado || postagemData.estado_destinatario || '',
+            email: postagemData.email_destinatario,
+            cep: postagemData.cep_destinatario
           };
 
           setLabelResult(result);
@@ -994,6 +1002,37 @@ export default function CepCertoAdmin() {
     } finally {
       setRefreshingBalance(false);
     }
+  };
+
+  const handlePrint = (type: 'etiqueta' | 'declaracao') => {
+    if (selectedLabels.length === 0) {
+      toast.error('Selecione pelo menos uma etiqueta para imprimir.');
+      return;
+    }
+    
+    console.log("========== IMPRESSÃO ETIQUETAS ==========");
+    console.log("Selecionadas", selectedLabels);
+    console.log("Tipo impressão", type);
+    console.log("Quantidade", selectedLabels.length);
+
+    setPrintType(type);
+    setIsPrinting(true);
+    
+    // Pequeno delay para garantir que o DOM foi atualizado antes de chamar o print
+    setTimeout(() => {
+      window.print();
+      setIsPrinting(false);
+      setPrintType(null);
+    }, 500);
+  };
+
+  // Função auxiliar para dividir array em chunks
+  const chunkArray = (arr: any[], size: number) => {
+    const chunks = [];
+    for (let i = 0; i < arr.length; i += size) {
+      chunks.push(arr.slice(i, i + size));
+    }
+    return chunks;
   };
 
   const formatCEP = (value: string) => {
@@ -2224,43 +2263,90 @@ export default function CepCertoAdmin() {
                 </div>
               </div>
 
-              {/* Histórico de Etiquetas */}
+              {/* Lista de Etiquetas */}
               {etiquetasGeradas.length > 0 && (
                 <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
-                  <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter mb-6 flex items-center gap-2">
-                    <Activity size={24} className="text-indigo-600" />
-                    Histórico de Etiquetas
-                  </h3>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-2">
+                      <Activity size={24} className="text-indigo-600" />
+                      Lista de Etiquetas
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button 
+                        onClick={() => handlePrint('etiqueta')}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md shadow-indigo-200"
+                      >
+                        <Printer size={16} />
+                        Imprimir Etiquetas
+                      </button>
+                      <button 
+                        onClick={() => handlePrint('declaracao')}
+                        className="px-4 py-2 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-slate-900 transition-all flex items-center gap-2 shadow-md shadow-slate-200"
+                      >
+                        <FileText size={16} />
+                        Imprimir Declaração
+                      </button>
+                    </div>
+                  </div>
+                  
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="text-left border-b border-slate-100">
-                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
-                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Código</th>
+                          <th className="pb-4 pl-2">
+                            <input 
+                              type="checkbox" 
+                              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
+                              checked={selectedLabels.length === etiquetasGeradas.length && etiquetasGeradas.length > 0}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedLabels(etiquetasGeradas.map(l => l.id));
+                                } else {
+                                  setSelectedLabels([]);
+                                }
+                              }}
+                            />
+                          </th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nome</th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cidade/UF</th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Email</th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rastreamento</th>
                           <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Transportadora</th>
-                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
                           <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
                         {etiquetasGeradas.map((etq, idx) => (
-                          <tr key={idx} className="group">
-                            <td className="py-4 text-sm text-slate-600">{new Date(etq.data).toLocaleDateString()}</td>
+                          <tr key={idx} className={`group transition-colors ${selectedLabels.includes(etq.id) ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}`}>
+                            <td className="py-4 pl-2">
+                              <input 
+                                type="checkbox" 
+                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
+                                checked={selectedLabels.includes(etq.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedLabels([...selectedLabels, etq.id]);
+                                  } else {
+                                    setSelectedLabels(selectedLabels.filter(id => id !== etq.id));
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td className="py-4 text-sm font-bold text-slate-900">{etq.nome || '-'}</td>
+                            <td className="py-4 text-sm text-slate-600">{etq.cidade ? `${etq.cidade} - ${etq.estado}` : '-'}</td>
+                            <td className="py-4 text-sm text-slate-600">{etq.email || '-'}</td>
                             <td className="py-4">
                               <span className="font-mono text-sm font-bold text-slate-900">{etq.codigoObjeto}</span>
                             </td>
                             <td className="py-4 text-sm text-slate-600">{etq.transportadora}</td>
-                            <td className="py-4">
-                              <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-bold uppercase tracking-widest">
-                                {etq.status}
-                              </span>
-                            </td>
+                            <td className="py-4 text-sm text-slate-600">{new Date(etq.data).toLocaleDateString()}</td>
                             <td className="py-4 text-right">
                               <div className="flex justify-end gap-2">
                                 <button onClick={() => {
                                   setLabelResult(etq);
                                   setShowLabelResultModal(true);
-                                }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                                }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Ver Detalhes">
                                   <ExternalLink size={18} />
                                 </button>
                               </div>
@@ -2477,6 +2563,62 @@ export default function CepCertoAdmin() {
               </motion.div>
             </div>
           )}
+
+          {/* Seção de Impressão (Oculta na tela, visível apenas na impressão) */}
+          {isPrinting && (
+            <div id="print-section" className="bg-white z-[9999] absolute top-0 left-0 w-full min-h-screen">
+              <style>{`
+                @media print {
+                  body * {
+                    visibility: hidden;
+                  }
+                  #print-section, #print-section * {
+                    visibility: visible;
+                  }
+                  #print-section {
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 100%;
+                    background: white;
+                  }
+                  @page {
+                    size: A4;
+                    margin: 0;
+                  }
+                }
+              `}</style>
+              
+              {chunkArray(etiquetasGeradas.filter(e => selectedLabels.includes(e.id)), printType === 'etiqueta' ? 4 : 2).map((pageLabels, pageIndex) => (
+                <div key={pageIndex} className="w-[210mm] h-[297mm] mx-auto p-[10mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
+                  <div className={`w-full h-full grid gap-4 ${printType === 'etiqueta' ? 'grid-cols-2 grid-rows-2' : 'grid-cols-1 grid-rows-2'}`}>
+                    {Array.from({ length: printType === 'etiqueta' ? 4 : 2 }).map((_, cellIndex) => {
+                      const label = pageLabels[cellIndex];
+                      const url = label ? (printType === 'etiqueta' ? label.pdfUrlEtiqueta : label.pdfUrlDeclaracao) : null;
+                      
+                      return (
+                        <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-2 flex flex-col items-center justify-center relative overflow-hidden rounded-xl">
+                          {url ? (
+                            <iframe 
+                              src={`${url}#toolbar=0&navpanes=0&scrollbar=0`} 
+                              className="w-full h-full border-0"
+                              title={`Print ${label.codigoObjeto}`}
+                            />
+                          ) : (
+                            <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
+                              <Printer size={32} className="opacity-20" />
+                              <span>Espaço Vazio</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
         </div>
       </div>
     </div>
