@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { 
   Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, 
   ShoppingBag, Megaphone, Users, Truck, CreditCard, Zap,
-  Search, ChevronRight, Check, Copy, RefreshCw, X, AlertCircle, Wallet, QrCode, Trash2, Printer,
+  Search, ChevronRight, Check, Copy, RefreshCw, X, AlertCircle, AlertTriangle, Wallet, QrCode, Trash2, Printer,
   MapPin, Calculator, FileText, ArrowRight, ExternalLink, Activity
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -390,9 +390,11 @@ export default function CepCertoAdmin() {
 
   // --- Fim das Funções de Formatação e Validação ---
 
+  const [errorModal, setErrorModal] = useState<{ show: boolean, message: string }>({ show: false, message: '' });
+
   function mostrarErro(mensagem: string) {
     console.error("ERRO:", mensagem);
-    alert(mensagem);
+    setErrorModal({ show: true, message: mensagem });
   }
 
   function logSistema(titulo: string, dados: any) {
@@ -1077,12 +1079,15 @@ export default function CepCertoAdmin() {
         if (data.erro || (data.sucesso === false)) {
           console.error("CEP CERTO - API RETORNOU ERRO");
           console.error(data);
-          toast.error(`Erro na postagem: ${data.erro || data.mensagem || 'Erro desconhecido'}`);
+          mostrarErro(`Erro na postagem: ${data.erro || data.mensagem || 'Erro desconhecido'}`);
           return;
         }
 
         // Tentar encontrar o código do objeto em diferentes estruturas possíveis
         const codigoObjeto = data?.frete?.codigoObjeto || data?.codigoObjeto;
+
+        const pdfUrlEtiqueta = data?.frete?.pdfUrlEtiqueta || data?.pdfUrlEtiqueta || data?.etiquetaUrl || data?.url_etiqueta;
+        const pdfUrlDeclaracao = data?.frete?.pdfUrlDeclaracao || data?.pdfUrlDeclaracao || data?.frete?.declaracaoUrl || data?.declaracaoUrl || data?.url_declaracao;
 
         if (codigoObjeto) {
           const result = {
@@ -1093,8 +1098,8 @@ export default function CepCertoAdmin() {
             whatsapp: postagemData.whatsapp_destinatario,
             idRecibo: data?.frete?.idRecibo || data?.idRecibo,
             idStringCorreios: data?.frete?.idStringCorreios || data?.idStringCorreios,
-            pdfUrlEtiqueta: data?.frete?.pdfUrlEtiqueta || data?.pdfUrlEtiqueta,
-            pdfUrlDeclaracao: data?.frete?.pdfUrlDeclaracao || data?.pdfUrlDeclaracao,
+            pdfUrlEtiqueta: pdfUrlEtiqueta,
+            pdfUrlDeclaracao: pdfUrlDeclaracao,
             transportadora: tipo_entrega_final.includes('jadlog') ? 'Jadlog' : 'Correios',
             tipo_entrega: tipo_entrega_final,
             valor: cotacao_selecionada?.valor || freteSelecionado?.valor || `R$ ${postagemData.valor_encomenda}`,
@@ -2874,6 +2879,31 @@ export default function CepCertoAdmin() {
             </div>
           )}
 
+          {/* Modal de Erro Customizado */}
+          {errorModal.show && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl p-8"
+              >
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center text-red-500 mb-6">
+                    <AlertTriangle size={40} />
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter mb-4">Atenção</h2>
+                  <p className="text-slate-600 font-medium mb-8">{errorModal.message}</p>
+                  <button 
+                    onClick={() => setErrorModal({ show: false, message: '' })}
+                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-xl shadow-slate-200"
+                  >
+                    Entendido
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
           {/* Modal Confirmação Etiqueta */}
           {showLabelConfirmModal && freteSelecionado && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-start justify-center p-4 pt-4 overflow-y-auto">
@@ -3000,7 +3030,7 @@ export default function CepCertoAdmin() {
                   <div className={`w-full h-full grid gap-4 ${printType === 'etiqueta' ? 'grid-cols-2 grid-rows-2' : 'grid-cols-1 grid-rows-2'}`}>
                     {Array.from({ length: printType === 'etiqueta' ? 4 : 2 }).map((_, cellIndex) => {
                       const label = pageLabels[cellIndex];
-                      const url = label ? (printType === 'etiqueta' ? label.pdfUrlEtiqueta : label.pdfUrlDeclaracao) : null;
+                      const url = label ? (printType === 'etiqueta' ? label.pdfUrlEtiqueta : (label.pdfUrlDeclaracao || label.declaracaoUrl)) : null;
                       
                       return (
                         <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-2 flex flex-col items-center justify-center relative overflow-hidden rounded-xl">
