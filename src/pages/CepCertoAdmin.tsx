@@ -296,10 +296,26 @@ export default function CepCertoAdmin() {
   // Efeito para cotação automática
   useEffect(() => {
     const calcularCotacaoAutomatica = async () => {
-      const { cep_destinatario, peso, produtos } = postagemData;
+      const { 
+        cep_destinatario, 
+        logradouro_destinatario, 
+        numero_endereco_destinatario, 
+        cidade_destinatario, 
+        estado_destinatario,
+        peso, 
+        produtos 
+      } = postagemData;
       
       // Verifica se tem os dados mínimos
-      if (!cep_destinatario || cep_destinatario.length !== 8 || !peso || !produtos || produtos.length === 0) {
+      if (
+        !cep_destinatario || cep_destinatario.length !== 8 || 
+        !logradouro_destinatario || 
+        !numero_endereco_destinatario || 
+        !cidade_destinatario || 
+        !estado_destinatario || 
+        !peso || 
+        !produtos || produtos.length === 0
+      ) {
         return;
       }
 
@@ -309,7 +325,14 @@ export default function CepCertoAdmin() {
       if (valorTotal === 0) return;
 
       console.log("========== COTAÇÃO AUTOMÁTICA ==========");
-      console.log("CEP DESTINATÁRIO", cep_destinatario);
+      console.log("CEP CERTO - Iniciando cotação automática");
+      console.log("DESTINATÁRIO", {
+        cep: cep_destinatario,
+        endereco: logradouro_destinatario,
+        numero: numero_endereco_destinatario,
+        cidade: cidade_destinatario,
+        estado: estado_destinatario
+      });
       console.log("PRODUTOS", produtos);
       console.log("PESO", peso);
 
@@ -393,7 +416,19 @@ export default function CepCertoAdmin() {
     }, 1000);
 
     return () => clearTimeout(timeoutId);
-  }, [postagemData.cep_destinatario, postagemData.peso, postagemData.produtos, postagemData.altura, postagemData.largura, postagemData.comprimento, senderData.cep_remetente]);
+  }, [
+    postagemData.cep_destinatario, 
+    postagemData.logradouro_destinatario,
+    postagemData.numero_endereco_destinatario,
+    postagemData.cidade_destinatario,
+    postagemData.estado_destinatario,
+    postagemData.peso, 
+    postagemData.produtos, 
+    postagemData.altura, 
+    postagemData.largura, 
+    postagemData.comprimento, 
+    senderData.cep_remetente
+  ]);
 
   const handleSaveSender = () => {
     if (!senderData.cep_remetente || senderData.cep_remetente.length !== 8) {
@@ -753,7 +788,24 @@ export default function CepCertoAdmin() {
     const cotacao_selecionada = freteSelecionado || (savedQuote ? JSON.parse(savedQuote) : null);
 
     console.log("========== GERAR ETIQUETA ==========");
-    
+    console.log("DESTINATÁRIO", {
+      nome: postagemData.nome_destinatario,
+      cpf_cnpj: postagemData.cpf_cnpj_destinatario,
+      whatsapp: postagemData.whatsapp_destinatario,
+      email: postagemData.email_destinatario,
+      cep: postagemData.cep_destinatario,
+      logradouro: postagemData.logradouro_destinatario,
+      numero: postagemData.numero_endereco_destinatario,
+      bairro: postagemData.bairro_destinatario,
+      cidade: postagemData.cidade_destinatario,
+      estado: postagemData.estado_destinatario
+    });
+    console.log("PRODUTOS", postagemData.produtos);
+    console.log("COTAÇÕES RETORNADAS", availableQuotes);
+    console.log("COTAÇÃO SELECIONADA", cotacao_selecionada);
+    console.log("STATUS COTAÇÃO");
+    console.log("Cotação automática executada");
+
     const tipo_entrega_final = postagemData.tipo_entrega || cotacao_selecionada?.tipo_entrega || cotacao_selecionada?.tipo?.toLowerCase().replace(' ', '-');
 
     if (!tipo_entrega_final) {
@@ -761,8 +813,6 @@ export default function CepCertoAdmin() {
       toast.error('Tipo de entrega não definido. Selecione a cotação novamente.');
       return;
     }
-
-    console.log("COTAÇÃO SELECIONADA", cotacao_selecionada);
 
     setGeneratingLabel(true);
     console.log("CEP CERTO - Iniciando geração de etiqueta (Proxy)", postagemData);
@@ -955,6 +1005,7 @@ export default function CepCertoAdmin() {
       toast.error('Erro inesperado ao gerar etiqueta');
     } finally {
       setGeneratingLabel(false);
+      setShowLabelConfirmModal(false);
       console.log("========== FIM GERAR ETIQUETA ==========");
     }
   };
@@ -2088,6 +2139,16 @@ export default function CepCertoAdmin() {
                             <input type="text" value={postagemData.bairro_destinatario} onChange={e => setPostagemData({...postagemData, bairro_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Cidade</label>
+                            <input type="text" value={postagemData.cidade_destinatario} onChange={e => setPostagemData({...postagemData, cidade_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Estado</label>
+                            <input type="text" value={postagemData.estado_destinatario} onChange={e => setPostagemData({...postagemData, estado_destinatario: e.target.value.toUpperCase().slice(0, 2)})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2248,11 +2309,11 @@ export default function CepCertoAdmin() {
                         toast.error('Por favor, selecione uma opção de frete antes de gerar a etiqueta.');
                         return;
                       }
-                      gerarEtiqueta();
+                      setShowLabelConfirmModal(true);
                     }}
                     disabled={generatingLabel}
                     className={`w-full py-5 rounded-2xl font-black text-xl uppercase italic tracking-tighter transition-all shadow-xl flex items-center justify-center gap-3 ${
-                      (!freteSelecionado && !postagemData.tipo_entrega)
+                      generatingLabel
                         ? 'bg-slate-300 text-slate-500 shadow-none' 
                         : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'
                     }`}
@@ -2518,9 +2579,15 @@ export default function CepCertoAdmin() {
                   </button>
                   <button 
                     onClick={gerarEtiqueta}
-                    className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
+                    disabled={generatingLabel}
+                    className={`flex-1 py-4 rounded-2xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${
+                      generatingLabel
+                        ? 'bg-emerald-400 text-white shadow-none cursor-not-allowed'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200'
+                    }`}
                   >
-                    Confirmar
+                    {generatingLabel ? <RefreshCw size={20} className="animate-spin" /> : null}
+                    {generatingLabel ? 'Gerando...' : 'Confirmar'}
                   </button>
                 </div>
               </motion.div>
