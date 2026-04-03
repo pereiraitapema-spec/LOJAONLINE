@@ -293,6 +293,78 @@ export default function CepCertoAdmin() {
 
   const [calculatingAutoQuote, setCalculatingAutoQuote] = useState(false);
 
+  // Função de diagnóstico
+  async function calcularCotacaoOnline() {
+    console.log("========== INÍCIO CÁLCULO FRETE ==========");
+    try {
+      console.log("Destinatário preenchido:");
+      console.log({
+        nome: postagemData.nome_destinatario,
+        cep: postagemData.cep_destinatario,
+        endereco: postagemData.logradouro_destinatario,
+        numero: postagemData.numero_endereco_destinatario,
+        bairro: postagemData.bairro_destinatario,
+        cidade: postagemData.cidade_destinatario,
+        estado: postagemData.estado_destinatario
+      });
+      console.log("Iniciando cálculo frete online...");
+      
+      console.log("Chamando API cotação");
+      console.log("CEP origem:", postagemData.cep_remetente);
+      console.log("CEP destino:", postagemData.cep_destinatario);
+      console.log("Produtos:", postagemData.produtos);
+
+      // Chamada real (assumindo que calcularCotacao existe ou precisa ser implementada)
+      // const response = await calcularCotacao(); 
+      // Por enquanto, apenas log para diagnóstico
+      const response = []; // Placeholder
+
+      console.log("Resposta da API:");
+      console.log(response);
+
+      if (!response) {
+        console.error("Erro: resposta vazia");
+        return;
+      }
+
+      if (response.length === 0) {
+        console.error("Erro: nenhuma cotação retornada");
+        return;
+      }
+
+      console.log("Cotações encontradas:");
+      console.log(response);
+
+    } catch (error) {
+      console.error("Erro no cálculo de frete");
+      console.error(error);
+    }
+    console.log("========== FIM CÁLCULO FRETE ==========");
+  }
+
+  function verificarDestinatarioCompleto() {
+    console.log("Verificando destinatário");
+    if (
+      postagemData.nome_destinatario &&
+      postagemData.cep_destinatario &&
+      postagemData.logradouro_destinatario &&
+      postagemData.numero_endereco_destinatario &&
+      postagemData.bairro_destinatario &&
+      postagemData.cidade_destinatario &&
+      postagemData.estado_destinatario
+    ) {
+      console.log("Destinatário completo detectado");
+      calcularCotacaoOnline();
+    }
+  }
+
+  // Helper para onChange dos campos do destinatário
+  const handleDestinatarioChange = (field: string, value: string) => {
+    console.log("Campo alterado:", field);
+    setPostagemData(prev => ({ ...prev, [field]: value }));
+    verificarDestinatarioCompleto();
+  };
+
   // Monitoramento contínuo para cotação automática
   useEffect(() => {
     const interval = setInterval(() => {
@@ -2115,16 +2187,16 @@ export default function CepCertoAdmin() {
                       <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome Completo</label>
-                          <input type="text" value={postagemData.nome_destinatario} onChange={e => setPostagemData({...postagemData, nome_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Nome do destinatário" />
+                          <input type="text" value={postagemData.nome_destinatario} onChange={e => handleDestinatarioChange('nome_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" placeholder="Nome do destinatário" />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CPF / CNPJ</label>
-                            <input type="text" value={postagemData.cpf_cnpj_destinatario} onChange={e => setPostagemData({...postagemData, cpf_cnpj_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.cpf_cnpj_destinatario} onChange={e => handleDestinatarioChange('cpf_cnpj_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">WhatsApp</label>
-                            <input type="text" value={postagemData.whatsapp_destinatario} onChange={e => setPostagemData({...postagemData, whatsapp_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.whatsapp_destinatario} onChange={e => handleDestinatarioChange('whatsapp_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -2133,33 +2205,35 @@ export default function CepCertoAdmin() {
                             <input 
                               type="text" 
                               value={postagemData.cep_destinatario}
-                              onChange={e => setPostagemData({...postagemData, cep_destinatario: e.target.value})}
+                              onChange={e => handleDestinatarioChange('cep_destinatario', e.target.value)}
+                              onBlur={verificarDestinatarioCompleto}
+                              onInput={verificarDestinatarioCompleto}
                               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
                             />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Logradouro</label>
-                            <input type="text" value={postagemData.logradouro_destinatario} onChange={e => setPostagemData({...postagemData, logradouro_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.logradouro_destinatario} onChange={e => handleDestinatarioChange('logradouro_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="grid grid-cols-3 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Número</label>
-                            <input type="text" value={postagemData.numero_endereco_destinatario} onChange={e => setPostagemData({...postagemData, numero_endereco_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.numero_endereco_destinatario} onChange={e => handleDestinatarioChange('numero_endereco_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                           <div className="col-span-2 space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Bairro</label>
-                            <input type="text" value={postagemData.bairro_destinatario} onChange={e => setPostagemData({...postagemData, bairro_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.bairro_destinatario} onChange={e => handleDestinatarioChange('bairro_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Cidade</label>
-                            <input type="text" value={postagemData.cidade_destinatario} onChange={e => setPostagemData({...postagemData, cidade_destinatario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.cidade_destinatario} onChange={e => handleDestinatarioChange('cidade_destinatario', e.target.value)} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Estado</label>
-                            <input type="text" value={postagemData.estado_destinatario} onChange={e => setPostagemData({...postagemData, estado_destinatario: e.target.value.toUpperCase().slice(0, 2)})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                            <input type="text" value={postagemData.estado_destinatario} onChange={e => handleDestinatarioChange('estado_destinatario', e.target.value.toUpperCase().slice(0, 2))} onBlur={verificarDestinatarioCompleto} onInput={verificarDestinatarioCompleto} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
                           </div>
                         </div>
                       </div>
