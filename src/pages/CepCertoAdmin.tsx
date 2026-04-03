@@ -292,6 +292,7 @@ export default function CepCertoAdmin() {
   }, []);
 
   const [cotacaoGerada, setCotacaoGerada] = useState(false);
+  const [cotacaoExecutada, setCotacaoExecutada] = useState(false);
   const [calculatingAutoQuote, setCalculatingAutoQuote] = useState(false);
   const [availableQuotes, setAvailableQuotes] = useState([]);
 
@@ -371,69 +372,62 @@ export default function CepCertoAdmin() {
   };
 
   async function calcularCotacaoOnline() {
-    console.log("========== CÁLCULO FRETE ==========");
+    console.log("========== INÍCIO CÁLCULO FRETE ==========");
     
-    // Verifica se já foi gerada para evitar chamadas múltiplas
-    if (cotacaoGerada) {
-      console.log("Cotação já gerada, ignorando.");
+    if (cotacaoExecutada) {
+      console.log("Cotação já executada, ignorando.");
       return;
     }
 
+    const { 
+      nome_destinatario,
+      cep_destinatario, 
+      logradouro_destinatario, 
+      numero_endereco_destinatario, 
+      bairro_destinatario,
+      cidade_destinatario, 
+      estado_destinatario,
+      peso, 
+      produtos 
+    } = postagemData;
+    
+    console.log("========== VALIDAÇÃO PRODUTOS ==========");
+    console.log("Produtos recebidos:", produtos);
+    console.log("Quantidade produtos:", produtos?.length);
+
+    if (!produtos || produtos.length === 0) {
+      console.error("Produtos vazio — cálculo cancelado");
+      return;
+    }
+
+    console.log("========== DESTINATÁRIO ==========");
+    console.log("Nome:", nome_destinatario);
+    console.log("CEP destino:", cep_destinatario);
+
+    // Validações
+    if (
+      !nome_destinatario ||
+      !cep_destinatario || cep_destinatario.length < 8 || 
+      !logradouro_destinatario || 
+      !numero_endereco_destinatario || 
+      !bairro_destinatario ||
+      !cidade_destinatario || 
+      !estado_destinatario || 
+      !peso || 
+      !produtos || produtos.length === 0
+    ) {
+      console.error("Dados incompletos para cotação");
+      return;
+    }
+
+    console.log("========== CHAMANDO API ==========");
+    console.log("CEP origem:", senderData.cep_remetente);
+    console.log("CEP destino:", cep_destinatario);
+    console.log("Produtos enviados:", produtos);
+
+    setCalculatingAutoQuote(true);
+    
     try {
-      console.log("Destinatário preenchido:");
-      console.log({
-        nome: postagemData.nome_destinatario,
-        cep: postagemData.cep_destinatario,
-        endereco: postagemData.logradouro_destinatario,
-        numero: postagemData.numero_endereco_destinatario,
-        bairro: postagemData.bairro_destinatario,
-        cidade: postagemData.cidade_destinatario,
-        estado: postagemData.estado_destinatario
-      });
-      console.log("Iniciando cálculo frete online...");
-      
-      console.log("Chamando API cotação");
-      console.log("CEP origem:", postagemData.cep_remetente);
-      console.log("CEP destino:", postagemData.cep_destinatario);
-      console.log("Produtos:", postagemData.produtos);
-
-      // Lógica original de cálculo
-      const { 
-        nome_destinatario,
-        cep_destinatario, 
-        logradouro_destinatario, 
-        numero_endereco_destinatario, 
-        bairro_destinatario,
-        cidade_destinatario, 
-        estado_destinatario,
-        peso, 
-        produtos 
-      } = postagemData;
-      
-      if (
-        !nome_destinatario ||
-        !cep_destinatario || cep_destinatario.length < 8 || 
-        !logradouro_destinatario || 
-        !numero_endereco_destinatario || 
-        !bairro_destinatario ||
-        !cidade_destinatario || 
-        !estado_destinatario || 
-        !peso || 
-        !produtos || produtos.length === 0
-      ) {
-        console.error("Dados incompletos para cotação");
-        if (!produtos || produtos.length === 0) {
-          console.error("Produtos vazio");
-          toast.error("Adicione pelo menos um produto");
-        }
-        return;
-      }
-
-      const valorTotal = produtos.reduce((acc: number, prod: any) => acc + (parseFloat(prod.valor) || 0) * (parseInt(prod.quantidade) || 1), 0);
-      if (valorTotal === 0) return;
-
-      setCalculatingAutoQuote(true);
-
       const { data: carriers } = await supabase
         .from('shipping_carriers')
         .select('api_key, config')
@@ -458,6 +452,8 @@ export default function CepCertoAdmin() {
         return;
       }
 
+      const valorTotal = produtos.reduce((acc: number, prod: any) => acc + (parseFloat(prod.valor) || 0) * (parseInt(prod.quantidade) || 1), 0);
+
       const body = {
         token_cliente_postagem: apiKey,
         cep_remetente: senderData.cep_remetente,
@@ -475,25 +471,24 @@ export default function CepCertoAdmin() {
         body: JSON.stringify(body)
       });
 
-      console.log("Resposta API");
+      console.log("========== RESPOSTA API ==========");
+      console.log(response);
 
       if (response.ok) {
         const data = await response.json();
+        console.log("========== FINAL COTAÇÃO ==========");
+        console.log("Produtos:", produtos);
+        console.log("Cotação:", data);
+        
         if (data.dados_frete) {
-          console.log("Renderizando opções");
-          setAvailableQuotes(data.dados_frete);
-          setCotacaoGerada(true); // Marca como gerada
-          
-          if (data.dados_frete.length > 0) {
-            mostrarCotacoes({
-              valor_pac: data.dados_frete.find((q: any) => q.tipo === 'PAC')?.valor || 'N/A',
-              prazo_entrega_pac: data.dados_frete.find((q: any) => q.tipo === 'PAC')?.prazo || 'N/A',
-              valor_sedex: data.dados_frete.find((q: any) => q.tipo === 'SEDEX')?.valor || 'N/A',
-              prazo_entrega_sedex: data.dados_frete.find((q: any) => q.tipo === 'SEDEX')?.prazo || 'N/A',
-            });
-          }
-        } else {
-          console.error("Erro: nenhuma cotação retornada");
+          const cotacao = {
+            valor_pac: data.dados_frete.find((q: any) => q.tipo === 'PAC')?.valor || 'N/A',
+            prazo_entrega_pac: data.dados_frete.find((q: any) => q.tipo === 'PAC')?.prazo || 'N/A',
+            valor_sedex: data.dados_frete.find((q: any) => q.tipo === 'SEDEX')?.valor || 'N/A',
+            prazo_entrega_sedex: data.dados_frete.find((q: any) => q.tipo === 'SEDEX')?.prazo || 'N/A',
+          };
+          mostrarCotacao(cotacao);
+          setCotacaoExecutada(true);
         }
       } else {
         console.error("Erro na resposta da API");
@@ -504,7 +499,24 @@ export default function CepCertoAdmin() {
       console.error(error);
     } finally {
       setCalculatingAutoQuote(false);
-      console.log("========== FIM ==========");
+    }
+  }
+
+  function mostrarCotacao(response: any) {
+    console.log("Renderizando cotação");
+    const container = document.getElementById("cotacao-gerar-etiqueta");
+    if (container) {
+      container.innerHTML = `
+        <div>
+          <input type="radio" name="frete" value="sedex">
+          Sedex — ${response.valor_sedex} — ${response.prazo_entrega_sedex}
+        </div>
+        <div>
+          <input type="radio" name="frete" value="pac">
+          PAC — ${response.valor_pac} — ${response.prazo_entrega_pac}
+        </div>
+      `;
+      console.log("Cotação exibida na tela");
     }
   }
 
@@ -519,13 +531,13 @@ export default function CepCertoAdmin() {
       postagemData.cidade_destinatario &&
       postagemData.estado_destinatario
     ) {
-      if (!cotacaoGerada) {
+      if (!cotacaoExecutada) {
         console.log("Destinatário completo detectado — Gerando cotação");
         calcularCotacaoOnline();
       }
     } else {
       // Reseta se campos forem limpos
-      setCotacaoGerada(false);
+      setCotacaoExecutada(false);
     }
   }
 
@@ -553,13 +565,8 @@ export default function CepCertoAdmin() {
     
     // Resetar cotação se campos críticos mudarem
     if (['cep_destinatario', 'produtos', 'cidade_destinatario'].includes(field)) {
-      setCotacaoGerada(false);
+      setCotacaoExecutada(false);
       console.log("Cotação resetada após alteração de campo crítico");
-    }
-    
-    // Resetar produtos se destinatário alterado
-    if (field !== 'nome_destinatario') {
-      console.log("Produtos resetados após alteração");
     }
     
     verificarDestinatarioCompleto();
