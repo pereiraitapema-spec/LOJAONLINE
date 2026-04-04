@@ -36,7 +36,8 @@ interface Category {
 interface Product {
   id: string;
   name: string;
-  sku?: string;
+  sku?: string | null;
+  slug?: string | null;
   description?: string;
   composition?: string;
   price: number;
@@ -58,6 +59,8 @@ interface Product {
   height?: number;
   width?: number;
   length?: number;
+  capsules?: number;
+  position?: number;
   category?: { name: string };
   tiers?: { quantity: number; discount_percentage: number }[];
   media?: { url: string; type: 'image' | 'video'; position: number }[];
@@ -90,6 +93,7 @@ export default function Products() {
     active: true,
     quantity_info: '60 cápsulas',
     usage_instructions: 'Tomar 2 cápsulas ao dia',
+    capsules: '60',
     weight: '0.5',
     height: '10',
     width: '10',
@@ -272,7 +276,16 @@ export default function Products() {
 
     setSaving(true);
     try {
-      const payload = {
+      const generateSlug = (name: string) => {
+        return name
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)+/g, '');
+      };
+
+      const payload: any = {
         name: productForm.name,
         sku: productForm.sku || null,
         description: productForm.description,
@@ -286,7 +299,7 @@ export default function Products() {
         discount_price: productForm.discount_price ? parseFloat(productForm.discount_price) : null,
         affiliate_commission: parseFloat(productForm.affiliate_commission),
         category_id: productForm.category_id || null,
-        stock: parseInt(productForm.stock),
+        stock: parseInt(productForm.stock || '0'),
         min_installment_value: parseFloat(productForm.min_installment_value || '50'),
         image_url: productForm.image_url,
         active: productForm.active,
@@ -295,8 +308,17 @@ export default function Products() {
         weight: parseFloat(productForm.weight || '0.5'),
         height: parseFloat(productForm.height || '10'),
         width: parseFloat(productForm.width || '10'),
-        length: parseFloat(productForm.length || '10')
+        length: parseFloat(productForm.length || '10'),
+        capsules: parseInt(productForm.capsules || '60')
       };
+
+      if (!editingProduct || editingProduct.name !== productForm.name) {
+        payload.slug = generateSlug(productForm.name);
+      }
+
+      if (!editingProduct) {
+        payload.position = products.length;
+      }
 
       console.log('💾 Salvando produto - Payload:', payload);
 
@@ -549,6 +571,7 @@ export default function Products() {
       active: true,
       quantity_info: '60 cápsulas',
       usage_instructions: 'Tomar 2 cápsulas ao dia',
+      capsules: '60',
       weight: '0.5',
       height: '10',
       width: '10',
@@ -581,6 +604,7 @@ export default function Products() {
       active: product.active,
       quantity_info: product.quantity_info || '60 cápsulas',
       usage_instructions: product.usage_instructions || 'Tomar 2 cápsulas ao dia',
+      capsules: product.capsules?.toString() || '60',
       weight: (product.weight ?? (product as any).weight_kg ?? 0.5).toString(),
       height: (product.height ?? (product as any).dimensions_cm?.height ?? 10).toString(),
       width: (product.width ?? (product as any).dimensions_cm?.width ?? 10).toString(),
@@ -956,25 +980,35 @@ export default function Products() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-3 gap-4">
                         <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-1">SKU (Identificação)</label>
+                          <label className="block text-sm font-bold text-slate-700 mb-1">SKU</label>
                           <input 
                             type="text" 
                             value={productForm.sku}
                             onChange={e => setProductForm({...productForm, sku: e.target.value.toUpperCase()})}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="Ex: PROD-001"
+                            placeholder="PROD-001"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-1">Quantidade (Cápsulas/ML)</label>
+                          <label className="block text-sm font-bold text-slate-700 mb-1">Qtd (Texto)</label>
                           <input 
                             type="text" 
                             value={productForm.quantity_info}
                             onChange={e => setProductForm({...productForm, quantity_info: e.target.value})}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="Ex: 60 cápsulas ou 500ml"
+                            placeholder="60 cápsulas"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-1">Cápsulas (Nº)</label>
+                          <input 
+                            type="number" 
+                            value={productForm.capsules}
+                            onChange={e => setProductForm({...productForm, capsules: e.target.value})}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="60"
                           />
                         </div>
                       </div>
