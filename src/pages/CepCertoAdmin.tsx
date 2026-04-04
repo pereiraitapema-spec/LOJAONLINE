@@ -346,14 +346,17 @@ export default function CepCertoAdmin() {
     }
   };
 
-  const handleSyncLabels = async () => {
+  const handleSyncLabels = async (silent = false) => {
     if (!carrier) {
-      toast.error('Configuração da transportadora não carregada');
+      if (!silent) toast.error('Configuração da transportadora não carregada');
       return;
     }
     
     setSyncingLabels(true);
-    const toastId = toast.loading('Sincronizando etiquetas com CepCerto...');
+    let toastId;
+    if (!silent) {
+      toastId = toast.loading('Sincronizando etiquetas com CepCerto...');
+    }
     
     try {
       const result = await shippingService.listPostages(carrier.config || {});
@@ -385,17 +388,27 @@ export default function CepCertoAdmin() {
               onConflict: 'codigo_objeto'
             });
             
-          if (!upsertError) syncedCount++;
+          if (upsertError) {
+            console.error(`❌ Erro ao sincronizar etiqueta ${post.cod_objeto || post.codigo_objeto}:`, upsertError);
+          } else {
+            syncedCount++;
+          }
         }
         
-        toast.success(`${syncedCount} etiquetas sincronizadas com sucesso!`, { id: toastId });
+        if (!silent) {
+          toast.success(`${syncedCount} etiquetas sincronizadas com sucesso!`, { id: toastId });
+        }
         fetchLabels();
       } else {
-        toast.error(result?.mensagem || 'Nenhuma postagem encontrada ou erro na API', { id: toastId });
+        if (!silent) {
+          toast.error(result?.mensagem || 'Nenhuma postagem encontrada ou erro na API', { id: toastId });
+        }
       }
     } catch (error: any) {
       console.error('Erro ao sincronizar etiquetas:', error);
-      toast.error('Erro: ' + error.message, { id: toastId });
+      if (!silent) {
+        toast.error('Erro: ' + error.message, { id: toastId });
+      }
     } finally {
       setSyncingLabels(false);
     }
@@ -1853,6 +1866,10 @@ export default function CepCertoAdmin() {
       
       setRecentOrders(orders || []);
 
+      // 5. Buscar etiquetas do banco e sincronizar com a API (silenciosamente)
+      fetchLabels();
+      handleSyncLabels(true);
+
     } catch (error: any) {
       console.error('Error fetching CepCerto data:', error);
       setBalance({ error: "Não foi possível consultar saldo" });
@@ -2209,6 +2226,7 @@ export default function CepCertoAdmin() {
               onClick={() => {
                 console.log('Botão Atualizar clicado!');
                 fetchData();
+                handleSyncLabels();
               }}
               className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2 font-bold text-sm"
             >
@@ -3051,7 +3069,7 @@ export default function CepCertoAdmin() {
                     </h3>
                       <div className="flex flex-wrap items-center gap-3">
                         <button 
-                          onClick={handleSyncLabels}
+                          onClick={() => handleSyncLabels()}
                           disabled={syncingLabels}
                           className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
                         >
@@ -3250,7 +3268,7 @@ export default function CepCertoAdmin() {
                       Gerar Nova Etiqueta
                     </button>
                     <button 
-                      onClick={handleSyncLabels}
+                      onClick={() => handleSyncLabels()}
                       disabled={syncingLabels}
                       className="px-8 py-4 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
                     >

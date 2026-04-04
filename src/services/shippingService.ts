@@ -742,7 +742,7 @@ const cepcertoProvider: ShippingProvider = {
       // Salvar no Supabase para persistência permanente
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        await supabase.from('shipping_labels').insert({
+        await supabase.from('shipping_labels').upsert({
           user_id: session?.user?.id || null,
           codigo_objeto: finalResult.tracking_code,
           nome_destinatario: finalResult.nome_destinatario,
@@ -762,6 +762,8 @@ const cepcertoProvider: ShippingProvider = {
           transportadora: finalResult.transportadora,
           tipo_entrega: finalResult.tipo_entrega,
           data_postagem: finalResult.data_postagem
+        }, {
+          onConflict: 'codigo_objeto'
         });
       } catch (saveErr) {
         console.error("Erro ao salvar etiqueta no Supabase (shippingService):", saveErr);
@@ -1839,5 +1841,9 @@ export const shippingService = {
 
   async getTrackingInfo(trackingCode: string, config: any) {
     return cepcertoProvider.getTrackingInfo!(trackingCode, config);
+  },
+
+  async listPostages(config: any) {
+    return cepcertoProvider.listPostages!(config);
   }
 };

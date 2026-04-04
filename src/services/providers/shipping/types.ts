@@ -25,4 +25,5 @@ export interface ShippingProvider {
   consultPostage?(trackingCode: string, config: any): Promise<any>;
   getFinancialStatement?(config: any): Promise<any>;
   getTrackingInfo?(trackingCode: string, config: any): Promise<any>;
+  listPostages?(config: any): Promise<any>;
 }
