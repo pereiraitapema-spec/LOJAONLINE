@@ -289,6 +289,8 @@ export default function CepCertoAdmin() {
     }
   }, [logisticaSubTab]);
 
+  const [syncingLabels, setSyncingLabels] = useState(false);
+
   const fetchLabels = async () => {
     // Fallback: carregar do localStorage primeiro para mostrar algo imediatamente
     const savedLabels = localStorage.getItem('cepcerto_etiquetas_geradas');
@@ -341,6 +343,61 @@ export default function CepCertoAdmin() {
       }
     } catch (error) {
       console.error("Erro ao carregar etiquetas:", error);
+    }
+  };
+
+  const handleSyncLabels = async () => {
+    if (!carrier) {
+      toast.error('Configuração da transportadora não carregada');
+      return;
+    }
+    
+    setSyncingLabels(true);
+    const toastId = toast.loading('Sincronizando etiquetas com CepCerto...');
+    
+    try {
+      const result = await shippingService.listPostages(carrier.config || {});
+      
+      if (result && result.sucesso && Array.isArray(result.postagens)) {
+        const postagens = result.postagens;
+        console.log(`📋 Sincronizando ${postagens.length} postagens`);
+        
+        let syncedCount = 0;
+        
+        for (const post of postagens) {
+          // Upsert no Supabase
+          const { error: upsertError } = await supabase
+            .from('shipping_labels')
+            .upsert({
+              codigo_objeto: post.cod_objeto || post.codigo_objeto,
+              data_postagem: post.data || post.data_postagem,
+              nome_destinatario: post.destinatario || post.nome_destinatario,
+              valor: Number(post.valor) || 0,
+              status: post.status === 'Cancelada' ? 'cancelada' : 'ativa',
+              token: post.token || '',
+              transportadora: post.transportadora || 'Correios',
+              tipo_entrega: post.servico || post.tipo_entrega || 'PAC',
+              // Campos adicionais se disponíveis
+              cidade_destinatario: post.cidade || '',
+              estado_destinatario: post.uf || '',
+              cep_destinatario: post.cep || ''
+            }, {
+              onConflict: 'codigo_objeto'
+            });
+            
+          if (!upsertError) syncedCount++;
+        }
+        
+        toast.success(`${syncedCount} etiquetas sincronizadas com sucesso!`, { id: toastId });
+        fetchLabels();
+      } else {
+        toast.error(result?.mensagem || 'Nenhuma postagem encontrada ou erro na API', { id: toastId });
+      }
+    } catch (error: any) {
+      console.error('Erro ao sincronizar etiquetas:', error);
+      toast.error('Erro: ' + error.message, { id: toastId });
+    } finally {
+      setSyncingLabels(false);
     }
   };
 
@@ -2994,6 +3051,14 @@ export default function CepCertoAdmin() {
                     </h3>
                       <div className="flex flex-wrap items-center gap-3">
                         <button 
+                          onClick={handleSyncLabels}
+                          disabled={syncingLabels}
+                          className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+                        >
+                          <RefreshCw size={16} className={syncingLabels ? 'animate-spin' : ''} />
+                          Sincronizar
+                        </button>
+                        <button 
                           onClick={() => handlePrint('etiqueta')}
                           className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md shadow-indigo-200"
                         >
@@ -3127,7 +3192,7 @@ export default function CepCertoAdmin() {
                               </div>
                             </td>
                             <td className="py-4 text-sm font-bold text-emerald-600">
-                              {etq.valor || '-'}
+                              {formatCurrency(etq.valor)}
                             </td>
                             <td className="py-4 text-sm text-slate-600">{new Date(etq.data).toLocaleDateString()}</td>
                             <td className="py-4 text-right">
@@ -3176,13 +3241,23 @@ export default function CepCertoAdmin() {
                   <Package size={64} className="mx-auto mb-6 text-indigo-600 opacity-20" />
                   <h3 className="text-2xl font-black text-slate-900 mb-4 uppercase italic tracking-tighter">Nenhuma Etiqueta Gerada</h3>
                   <p className="text-slate-500 mb-8 max-w-md mx-auto">Você ainda não gerou nenhuma etiqueta de postagem. As etiquetas geradas aparecerão aqui.</p>
-                  <button 
-                    onClick={() => setLogisticaSubTab('etiquetas')}
-                    className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2 mx-auto"
-                  >
-                    <Zap size={20} />
-                    Gerar Nova Etiqueta
-                  </button>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <button 
+                      onClick={() => setLogisticaSubTab('etiquetas')}
+                      className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2"
+                    >
+                      <Zap size={20} />
+                      Gerar Nova Etiqueta
+                    </button>
+                    <button 
+                      onClick={handleSyncLabels}
+                      disabled={syncingLabels}
+                      className="px-8 py-4 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+                    >
+                      <RefreshCw size={20} className={syncingLabels ? 'animate-spin' : ''} />
+                      Sincronizar com CepCerto
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -3428,7 +3503,7 @@ export default function CepCertoAdmin() {
                               </div>
                             </td>
                             <td className="py-4 text-sm font-bold text-emerald-600">
-                              {item.valor || '-'}
+                              {formatCurrency(item.valor)}
                             </td>
                             <td className="py-4 text-right flex items-center justify-end gap-2">
                               <button 

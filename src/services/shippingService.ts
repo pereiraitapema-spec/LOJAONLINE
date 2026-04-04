@@ -751,7 +751,7 @@ const cepcertoProvider: ShippingProvider = {
           estado_destinatario: finalResult.estado_destinatario,
           cep_destinatario: finalResult.cep_destinatario,
           email_destinatario: finalResult.email_destinatario,
-          valor: finalResult.valor,
+          valor: Number(finalResult.valor) || 0,
           prazo: finalResult.prazo,
           status: 'ativa',
           pdf_url_etiqueta: finalResult.shipping_label_url,
@@ -964,6 +964,53 @@ const cepcertoProvider: ShippingProvider = {
       throw err;
     }
   },
+
+  async listPostages(config: any) {
+    const apiKey = config?.api_key || config?.api_key_postagem;
+    if (!apiKey) throw new Error('Token de postagem não configurado');
+
+    const payload = {
+      token_cliente_postagem: apiKey
+    };
+
+    try {
+      console.log('📋 Listando todas as postagens CepCerto');
+      
+      const response = await fetch('https://cepcerto.com/api-lista-postagens/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      let result;
+      if (response.ok) {
+        result = await response.json();
+      } else {
+        // Fallback via proxy
+        const proxyRes = await fetch('https://bnqxinknkjvfbaqaopjc.supabase.co/functions/v1/cepcerto-proxy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            action: 'lista-postagens',
+            payload: payload
+          })
+        });
+        result = await proxyRes.json();
+      }
+
+      console.log('📡 Resposta lista postagens CepCerto:', result);
+      return result;
+    } catch (err: any) {
+      console.error('CepCerto List Postages Error:', err);
+      throw err;
+    }
+  },
+
   async getTrackingStatus(trackingCode: string, config: any) {
     console.log('🔍 Buscando rastreio para:', trackingCode, 'Config:', JSON.stringify(config));
     const cleanTrackingCode = trackingCode.trim();
