@@ -758,9 +758,15 @@ export default function Checkout() {
   const lastCalculatedCep = React.useRef<string>('');
 
   const handleCep = async (cep: string) => {
-    if (calculatingShipping || cep.length !== 8) return;
+    console.log('🚀 handleCep chamado com CEP:', cep);
+    console.log('🛒 Estado atual do carrinho no handleCep:', cart);
     
-    console.log('🚀 Iniciando handleCep para:', cep);
+    if (calculatingShipping || cep.length !== 8) {
+      console.log('⚠️ handleCep ignorado:', { calculatingShipping, cepLength: cep.length });
+      return;
+    }
+    
+    console.log('🚀 Iniciando processamento do CEP:', cep);
     lastCalculatedCep.current = cep;
     setCalculatingShipping(true);
     setShippingMethods([]); // Limpar métodos anteriores
@@ -796,41 +802,57 @@ export default function Checkout() {
         }
 
         // Fetch product dimensions from Supabase
-        const productIds = cart.map(item => item.product.id);
+        const productIds = cart.map(item => {
+          console.log('🛒 Item no carrinho (mapeando IDs):', item);
+          return item.product.id;
+        });
+        console.log('🔍 Buscando dimensões para os produtos no Checkout:', productIds);
+
+        if (productIds.length === 0) {
+          console.warn('⚠️ Carrinho vazio, pulando busca de dimensões.');
+        }
+
         const { data: dbProducts, error: productsError } = await supabase
           .from('products')
-          .select('id, name, weight, height, width, length')
+          .select('*')
           .in('id', productIds);
 
         if (productsError) {
           console.error('❌ Erro ao buscar dimensões dos produtos:', productsError);
+        } else {
+          console.log('✅ Dados dos produtos encontrados no Supabase:', dbProducts);
         }
 
         // Calculate shipping using Admin Endpoint
         const products = cart.map(item => {
-          const dbProduct = dbProducts?.find(p => p.id === item.product.id);
+          const dbProduct = dbProducts?.find(p => p.id === item.product.id) as any;
           
+          // Robust dimension extraction
+          const weight = dbProduct?.weight ?? dbProduct?.weight_kg ?? 0.5;
+          const height = dbProduct?.height ?? dbProduct?.dimensions_cm?.height ?? 10;
+          const width = dbProduct?.width ?? dbProduct?.dimensions_cm?.width ?? 10;
+          const length = dbProduct?.length ?? dbProduct?.dimensions_cm?.depth ?? dbProduct?.dimensions_cm?.length ?? 10;
+
           // Log missing dimensions
-          if (!dbProduct?.weight || !dbProduct?.height || !dbProduct?.width || !dbProduct?.length) {
+          if (!weight || !height || !width || !length) {
             console.warn(`⚠️ Produto ${item.product.name} (ID: ${item.product.id}) está com dimensões incompletas no Supabase:`, {
-              weight: dbProduct?.weight,
-              height: dbProduct?.height,
-              width: dbProduct?.width,
-              length: dbProduct?.length
+              weight, height, width, length
             });
           }
 
-          return {
+          const mappedProduct = {
             id: item.product.id,
             quantidade: item.quantity,
-            weight: dbProduct?.weight,
-            height: dbProduct?.height,
-            width: dbProduct?.width,
-            length: dbProduct?.length
+            weight: Number(weight) || 0.5,
+            height: Number(height) || 10,
+            width: Number(width) || 10,
+            length: Number(length) || 10
           };
+          console.log(`📦 Produto mapeado para frete (${item.product.name}):`, mappedProduct);
+          return mappedProduct;
         });
 
-        console.log('📦 Produtos para cálculo no Admin (com dimensões):', products);
+        console.log('📦 Lista final de produtos para cálculo no Admin:', products);
 
         let allQuotes: ShippingQuote[] = [];
 

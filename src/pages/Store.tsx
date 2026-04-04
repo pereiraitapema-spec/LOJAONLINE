@@ -84,6 +84,10 @@ interface Product {
   quantity_info?: string;
   usage_instructions?: string;
   affiliate_commission?: number;
+  weight?: number;
+  height?: number;
+  width?: number;
+  length?: number;
 }
 
 interface StoreSettings {

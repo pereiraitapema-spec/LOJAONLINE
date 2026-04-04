@@ -295,14 +295,10 @@ export default function Products() {
         weight: parseFloat(productForm.weight || '0.5'),
         height: parseFloat(productForm.height || '10'),
         width: parseFloat(productForm.width || '10'),
-        length: parseFloat(productForm.length || '10'),
-        weight_kg: parseFloat(productForm.weight || '0.5'),
-        dimensions_cm: {
-          width: parseFloat(productForm.width || '10'),
-          height: parseFloat(productForm.height || '10'),
-          depth: parseFloat(productForm.length || '10')
-        }
+        length: parseFloat(productForm.length || '10')
       };
+
+      console.log('💾 Salvando produto - Payload:', payload);
 
       let productId = editingProduct?.id;
 
