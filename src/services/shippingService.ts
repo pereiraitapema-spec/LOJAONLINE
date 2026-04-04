@@ -1262,6 +1262,56 @@ const providers: Record<string, ShippingProvider> = {
 };
 
 export const shippingService = {
+  async calculateAdminShipping(cepDestinatario: string, products: { id: string; quantidade: number }[]): Promise<ShippingQuote[]> {
+    const response = await fetch('/api/admin/frete/cotacao', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cep_destinatario: cepDestinatario,
+        produtos: products
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.mensagem || error.error || 'Erro ao calcular frete no Admin');
+    }
+
+    const data = await response.json();
+    if (data.status === 'erro') {
+      throw new Error(data.mensagem || 'Erro ao calcular frete no Admin');
+    }
+
+    const quotes: ShippingQuote[] = [];
+    if (data.frete.sedex) {
+      // Formatar valor: remover R$, pontos de milhar e trocar vírgula por ponto
+      const priceStr = data.frete.sedex.valor.toString().replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+      quotes.push({
+        id: 'admin-sedex',
+        name: 'SEDEX',
+        price: parseFloat(priceStr),
+        deadline: data.frete.sedex.prazo,
+        provider: 'admin',
+        carrierName: data.frete.sedex.transportadora || 'Correios'
+      });
+    }
+    if (data.frete.pac) {
+      const priceStr = data.frete.pac.valor.toString().replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+      quotes.push({
+        id: 'admin-pac',
+        name: 'PAC',
+        price: parseFloat(priceStr),
+        deadline: data.frete.pac.prazo,
+        provider: 'admin',
+        carrierName: data.frete.pac.transportadora || 'Correios'
+      });
+    }
+
+    return quotes;
+  },
+
   async calculateShipping(destZipCode: string, packages: ShippingPackage[], carrierId?: string): Promise<ShippingQuote[]> {
     try {
       let query = supabase.from('shipping_carriers').select('*').eq('active', true);

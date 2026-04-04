@@ -791,18 +791,15 @@ export default function Checkout() {
           }
         }
 
-        // Calculate shipping automatically
-        const packages: ShippingPackage[] = cart.map(item => ({
-          weight: (item.product as any).weight || 0.5,
-          height: (item.product as any).height || 10,
-          width: (item.product as any).width || 10,
-          length: (item.product as any).length || 10
+        // Calculate shipping using Admin Endpoint
+        const products = cart.map(item => ({
+          id: item.product.id,
+          quantidade: item.quantity
         }));
 
-        console.log('📦 Pacotes para cálculo:', packages);
+        console.log('📦 Produtos para cálculo no Admin:', products);
 
         let allQuotes: ShippingQuote[] = [];
-        let apiErrors: string[] = [];
 
         if (shipping.cep.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === 'BALCAO') {
           console.log('🏷️ CEP BALCAO aplicado, pulando cálculo de frete.');
@@ -815,21 +812,13 @@ export default function Checkout() {
             carrierName: 'Balcão'
           }];
         } else {
-          const activeCarriers = carriers.length > 0 ? carriers : (await supabase.from('shipping_carriers').select('*').eq('active', true)).data || [];
-          
-          for (const carrier of activeCarriers) {
-            if (!carrier.active) continue;
-            console.log(`🚚 Calculando frete para ${carrier.name} (${carrier.provider})...`);
-            try {
-              const quotes = await shippingService.calculateShipping(cep, packages, carrier.id);
-              console.log(`📊 Cotações para ${carrier.name}:`, quotes);
-              allQuotes = [...allQuotes, ...quotes];
-            } catch (err: any) {
-              console.error(`❌ Erro ao calcular frete para ${carrier.name}:`, err);
-              if (err.message) {
-                apiErrors.push(err.message);
-              }
-            }
+          console.log(`🚚 Chamando endpoint de frete do Admin para o CEP ${cep}...`);
+          try {
+            allQuotes = await shippingService.calculateAdminShipping(cep, products);
+            console.log('📊 Cotações recebidas do Admin:', allQuotes);
+          } catch (err: any) {
+            console.error('❌ Erro ao calcular frete no Admin:', err);
+            toast.error(err.message || 'Erro ao calcular frete. Tente novamente.');
           }
         }
         
@@ -838,12 +827,8 @@ export default function Checkout() {
           setShippingMethods(allQuotes);
           setSelectedShipping(0);
         } else {
-          console.warn('⚠️ Nenhuma cotação retornada pelas APIs');
-          if (apiErrors.length > 0) {
-            toast.error(`Erro na transportadora: ${apiErrors[0]}`);
-          } else {
-            toast.error('Nenhuma opção de frete disponível para este CEP. Verifique se o CEP é válido para entrega.');
-          }
+          console.warn('⚠️ Nenhuma cotação retornada pelo Admin');
+          toast.error('Nenhuma opção de frete disponível para este CEP. Verifique se o CEP é válido para entrega.');
         }
       } else {
         console.warn('⚠️ ViaCEP não retornou cidade para o CEP:', cep);
@@ -1067,8 +1052,15 @@ export default function Checkout() {
         subtotal: cartTotal,
         shipping_cost: shippingCost,
         payment_method: paymentMethod === 'pagarme' ? pagarmeMethod : paymentMethod,
-        shipping_method: currentShipping?.name || 'Padrão',
-        shipping_address: shipping,
+        shipping_method: `${currentShipping?.carrierName || 'Padrão'} - ${currentShipping?.name || 'Padrão'}`,
+        shipping_address: {
+          ...shipping,
+          tipo_frete: currentShipping?.name,
+          valor_frete: shippingCost,
+          prazo_frete: currentShipping?.deadline,
+          transportadora: currentShipping?.carrierName,
+          cep_destinatario: shipping.cep
+        },
         tracking_code: currentShipping?.id === 'balcao' ? 'CLIENTE BUSCA NA EMPRESA' : null
       };
 

@@ -169,6 +169,133 @@ async function startServer() {
     }
   });
 
+  // 6. Endpoint de Cotação de Frete Unificado para o Checkout
+  app.post("/api/admin/frete/cotacao", async (req, res) => {
+    const { cep_destinatario, produtos } = req.body;
+
+    if (!cep_destinatario || !produtos || !Array.isArray(produtos)) {
+      return res.status(400).json({ status: "erro", mensagem: "CEP e produtos são obrigatórios" });
+    }
+
+    try {
+      const { supabase } = await import("./src/lib/supabase");
+
+      // 1. Buscar produtos no banco
+      const productIds = produtos.map((p: any) => p.id);
+      const { data: dbProducts, error: prodError } = await supabase
+        .from('products')
+        .select('id, name, price, weight, height, width, length')
+        .in('id', productIds);
+
+      if (prodError || !dbProducts) {
+        throw new Error("Erro ao buscar produtos: " + (prodError?.message || "Produtos não encontrados"));
+      }
+
+      // 2. Somar dados dos produtos
+      let totalWeight = 0;
+      let maxHeight = 0;
+      let maxWidth = 0;
+      let maxLength = 0;
+      let totalValue = 0;
+
+      produtos.forEach((p: any) => {
+        const dbProd = dbProducts.find((dp: any) => dp.id === p.id);
+        if (dbProd) {
+          const qty = p.quantidade || 1;
+          totalWeight += (Number(dbProd.weight) || 0.5) * qty;
+          // Simulação simples de empilhamento: soma altura, pega maior largura/comprimento
+          maxHeight += (Number(dbProd.height) || 10) * qty;
+          maxWidth = Math.max(maxWidth, Number(dbProd.width) || 10);
+          maxLength = Math.max(maxLength, Number(dbProd.length) || 10);
+          totalValue += (Number(dbProd.price) || 0) * qty;
+        }
+      });
+
+      // 3. Buscar configurações do sistema (CEP remetente e API Key)
+      const { data: carrier, error: carrierError } = await supabase
+        .from('shipping_carriers')
+        .select('config')
+        .eq('provider', 'cepcerto')
+        .eq('active', true)
+        .maybeSingle();
+
+      const { data: settings, error: settingsError } = await supabase
+        .from('store_settings')
+        .select('origin_zip_code')
+        .maybeSingle();
+
+      if (carrierError || !carrier) {
+        throw new Error("Configuração do CepCerto não encontrada");
+      }
+
+      const apiKey = carrier.config?.api_key;
+      const originZip = settings?.origin_zip_code || carrier.config?.origin_zip || "88240000";
+
+      if (!apiKey) {
+        throw new Error("API Key do CepCerto não configurada");
+      }
+
+      // 4. Montar payload para CepCerto
+      const payload = {
+        token_cliente_postagem: apiKey,
+        cep_remetente: originZip.replace(/\D/g, ''),
+        cep_destinatario: cep_destinatario.replace(/\D/g, ''),
+        peso: totalWeight.toString(),
+        altura: Math.max(maxHeight, 2).toString(), // Mínimo 2cm
+        largura: Math.max(maxWidth, 11).toString(), // Mínimo 11cm
+        comprimento: Math.max(maxLength, 16).toString(), // Mínimo 16cm
+        valor_encomenda: totalValue.toFixed(2)
+      };
+
+      console.log("📦 Chamando CepCerto para cotação:", payload);
+
+      // 5. Chamar API CepCerto
+      const response = await fetch('https://cepcerto.com/api-cotacao-frete/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      console.log("📦 Resposta CepCerto:", data);
+
+      if (data.status === "erro" || !data.frete) {
+        return res.json({ 
+          status: "erro", 
+          mensagem: data.mensagem || "Erro na cotação do frete" 
+        });
+      }
+
+      // 6. Filtrar apenas SEDEX e PAC e formatar
+      const result: any = {
+        status: "sucesso",
+        frete: {}
+      };
+
+      if (data.frete.sedex) {
+        result.frete.sedex = {
+          valor: data.frete.sedex.valor,
+          prazo: data.frete.sedex.prazo,
+          transportadora: "Correios"
+        };
+      }
+
+      if (data.frete.pac) {
+        result.frete.pac = {
+          valor: data.frete.pac.valor,
+          prazo: data.frete.pac.prazo,
+          transportadora: "Correios"
+        };
+      }
+
+      res.json(result);
+
+    } catch (error: any) {
+      console.error("❌ Erro no endpoint de frete:", error);
+      res.status(500).json({ status: "erro", mensagem: error.message });
+    }
+  });
+
   // 5. Proxy para Rastreio Linketrack (CORS Fix)
   app.all("/api/tracking/linketrack", async (req, res) => {
     const { tracking_code } = { ...req.query, ...req.body };
