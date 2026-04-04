@@ -10,7 +10,7 @@ import {
   Heart, Truck, CreditCard, Phone, Instagram, Facebook, Twitter, Youtube, Linkedin,
   Star, Zap, Leaf, Droplets, Activity, Flame, Megaphone,
   QrCode, Barcode, Landmark, Package, DollarSign, Tag, BarChart, Users, Copy, Link as LinkIcon,
-  MapPin, Clock
+  MapPin, Clock, Minus, Plus, ArrowRight
 } from 'lucide-react';
 import { Loading } from '../components/Loading';
 import SmartChat from '../components/SmartChat';
@@ -2162,88 +2162,75 @@ export default function Store() {
               onClick={(e) => e.stopPropagation()}
               className="bg-white w-full md:w-[450px] h-[90vh] md:h-full md:max-h-[800px] md:rounded-[40px] shadow-2xl flex flex-col overflow-hidden"
             >
-              <div className="p-2 border-b border-slate-100 flex items-center justify-between bg-pink-600 text-white">
-                <div className="flex items-center gap-1.5">
-                  <ShoppingBag size={14} />
-                  <h2 className="text-[11px] font-black uppercase italic tracking-tighter">Meu Carrinho</h2>
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-pink-600 to-rose-500 text-white">
+                <div className="flex items-center gap-2">
+                  <div className="bg-white/20 p-1.5 rounded-lg backdrop-blur-sm">
+                    <ShoppingBag size={18} />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black uppercase italic tracking-tighter leading-none">Meu Carrinho</h2>
+                    <p className="text-[10px] opacity-80 font-bold uppercase tracking-widest mt-0.5">{cart.length} {cart.length === 1 ? 'item' : 'itens'}</p>
+                  </div>
                 </div>
-                <button onClick={() => setShowCart(false)} className="p-1 hover:bg-white/20 rounded-full transition-colors">
-                  <X size={14} />
+                <button onClick={() => setShowCart(false)} className="p-2 hover:bg-white/20 rounded-full transition-all hover:rotate-90">
+                  <X size={20} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                {/* Barra de Progresso Frete Grátis */}
-                {cartTotal > 0 && Number(settings?.free_shipping_threshold) > 0 && (
-                  <div className="bg-emerald-50 p-1.5 rounded-lg border border-emerald-100 mb-1 shadow-sm">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <p className="text-[8px] font-bold text-emerald-800 uppercase tracking-wider">
-                        {cartTotal >= Number(settings?.free_shipping_threshold) 
-                          ? "🎉 Frete Grátis!" 
-                          : `Faltam ${formatCurrency((Number(settings?.free_shipping_threshold) - cartTotal))}`}
-                      </p>
-                      <Truck size={10} className={cartTotal >= Number(settings?.free_shipping_threshold) ? 'text-emerald-600' : 'text-slate-400'} />
-                    </div>
-                    <div className="w-full bg-emerald-200 rounded-full h-1 overflow-hidden shadow-inner">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.min((cartTotal / Number(settings?.free_shipping_threshold)) * 100, 100)}%` }}
-                        className={`h-full rounded-full transition-all duration-700 ${cartTotal >= Number(settings?.free_shipping_threshold) ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-indigo-500'}`}
-                      />
-                    </div>
-                  </div>
-                )}
-
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {cart.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center py-8">
-                    <ShoppingBag size={48} className="mb-3 opacity-20" />
-                    <p className="font-bold text-sm">Seu carrinho está vazio</p>
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center py-12">
+                    <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6">
+                      <ShoppingBag size={48} className="opacity-20" />
+                    </div>
+                    <p className="font-bold text-lg text-slate-600 mb-2">Seu carrinho está vazio</p>
+                    <p className="text-sm text-slate-400 mb-6">Explore nossa loja e encontre produtos incríveis!</p>
                     <button 
                       onClick={() => setShowCart(false)}
-                      className="mt-3 text-pink-600 font-bold hover:underline text-xs"
+                      className="px-8 py-3 bg-pink-600 text-white font-bold rounded-full hover:bg-pink-700 transition-all shadow-lg shadow-pink-600/20 active:scale-95"
                     >
                       Continuar Comprando
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-1.5">
+                  <div className="space-y-3">
                     {cart.map((item) => {
                       const { unitPrice, total } = calculatePrice(item.product, item.quantity);
                       return (
-                        <div key={item.product.id} className="flex gap-2 bg-white p-1.5 rounded-lg border border-slate-100 shadow-sm group">
-                          <div className="w-12 h-12 bg-slate-50 rounded-md overflow-hidden flex-shrink-0 border border-slate-100">
+                        <div key={item.product.id} className="flex gap-4 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group relative">
+                          <div className="w-20 h-20 bg-slate-50 rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 group-hover:scale-105 transition-transform duration-300">
                             {item.product.image_url ? (
-                              <img src={item.product.image_url} className="w-full h-full object-contain p-0.5" referrerPolicy="no-referrer" />
+                              <img src={item.product.image_url} className="w-full h-full object-contain p-2" referrerPolicy="no-referrer" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={16} /></div>
+                              <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24} /></div>
                             )}
                           </div>
-                          <div className="flex-1 min-w-0 flex flex-col justify-between">
+                          <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                             <div>
-                              <h4 className="font-bold text-slate-900 truncate text-[10px] uppercase italic">{item.product.name}</h4>
-                              <p className="text-[8px] text-slate-500">{formatCurrency(unitPrice)} cada</p>
+                              <h4 className="font-bold text-slate-900 truncate text-sm uppercase italic leading-tight mb-1">{item.product.name}</h4>
+                              <p className="text-xs text-slate-500 font-medium">{formatCurrency(unitPrice)} cada</p>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center bg-slate-100 rounded-full px-1 py-0.5">
+                            <div className="flex items-center justify-between mt-2">
+                              <div className="flex items-center bg-slate-100 rounded-xl p-1">
                                 <button 
                                   onClick={() => addToCart(item.product, -1)}
-                                  className="w-4 h-4 flex items-center justify-center text-slate-600 hover:text-emerald-600 transition-colors text-[10px]"
+                                  className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-white hover:text-pink-600 rounded-lg transition-all shadow-sm active:scale-90"
                                 >
-                                  -
+                                  <Minus size={14} />
                                 </button>
-                                <span className="w-4 text-center text-[9px] font-black text-slate-900">{item.quantity}</span>
+                                <span className="w-8 text-center text-xs font-black text-slate-900">{item.quantity}</span>
                                 <button 
                                   onClick={() => addToCart(item.product, 1)}
-                                  className="w-4 h-4 flex items-center justify-center text-slate-600 hover:text-emerald-600 transition-colors text-[10px]"
+                                  className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-white hover:text-emerald-600 rounded-lg transition-all shadow-sm active:scale-90"
                                 >
-                                  +
+                                  <Plus size={14} />
                                 </button>
                               </div>
                               <div className="flex flex-col items-end">
-                                <span className="font-black text-emerald-600 text-xs tracking-tighter">{formatCurrency(total)}</span>
+                                <span className="font-black text-emerald-600 text-sm tracking-tighter">{formatCurrency(total)}</span>
                                 <button 
                                   onClick={() => removeFromCart(item.product.id)}
-                                  className="text-slate-400 hover:text-rose-500 text-[8px] font-bold transition-colors uppercase"
+                                  className="text-slate-400 hover:text-rose-500 text-[10px] font-bold transition-colors uppercase tracking-wider mt-1"
                                 >
                                   Remover
                                 </button>
@@ -2333,73 +2320,39 @@ export default function Store() {
               </div>
 
               {cart.length > 0 && (
-                <div className="p-2 bg-slate-50 border-t border-slate-100">
-                  {/* Cálculo de Frete no Carrinho */}
-                  <div className="mb-1.5 p-1.5 bg-white rounded-lg border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-1 mb-1">
-                      <Truck size={10} className="text-indigo-600" />
-                      <span className="text-[8px] font-black uppercase tracking-widest text-slate-900">Calcular Frete</span>
-                    </div>
-                    <div className="flex gap-1">
-                      <input 
-                        type="text"
-                        placeholder="Seu CEP"
-                        value={cep}
-                        onChange={(e) => setCep(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                        className="flex-1 px-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
-                      />
-                      <button 
-                        onClick={handleCalculateShipping}
-                        disabled={calculatingShipping}
-                        className="px-1.5 py-0.5 bg-slate-900 text-white rounded text-[8px] font-bold uppercase tracking-wider hover:bg-slate-800 transition-all disabled:opacity-50"
-                      >
-                        {calculatingShipping ? '...' : 'OK'}
-                      </button>
-                    </div>
-                    {city && (
-                      <div className="mt-1 space-y-1">
-                        <p className="text-[7px] font-bold text-emerald-600 uppercase tracking-widest flex items-center gap-0.5">
-                          <MapPin size={7} /> {city}
-                        </p>
-                        
-                        {shippingQuotes.length > 0 ? (
-                          <div className="space-y-1 mt-1">
-                            {shippingQuotes.map((quote, index) => (
-                              <button 
-                                key={index}
-                                onClick={() => {
-                                  setSelectedShippingQuote(quote);
-                                  localStorage.setItem('last_shipping_quote', JSON.stringify(quote));
-                                }}
-                                className={`w-full flex justify-between items-center p-1.5 rounded-lg border text-[9px] transition-all ${
-                                  selectedShippingQuote?.id === quote.id 
-                                    ? 'border-emerald-500 bg-emerald-50 shadow-sm' 
-                                    : 'border-slate-100 bg-slate-50 hover:border-slate-200'
-                                }`}
-                              >
-                                <div className="flex flex-col items-start">
-                                  <span className="font-bold text-slate-700">{quote.name}</span>
-                                  <span className="text-[7px] text-slate-400 font-bold uppercase tracking-widest">Prazo: {quote.deadline}</span>
-                                </div>
-                                <span className="font-black text-emerald-600">
-                                  {quote.price === 0 ? 'Grátis' : `${formatCurrency(quote.price)}`}
-                                </span>
-                              </button>
-                            ))}
+                <div className="p-4 bg-white border-t border-slate-100 space-y-4">
+                  {/* Barra de Progresso Frete Grátis - Movida para baixo conforme solicitado */}
+                  {Number(settings?.free_shipping_threshold) > 0 && (
+                    <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-100 shadow-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`p-1.5 rounded-lg ${cartTotal >= Number(settings?.free_shipping_threshold) ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                            <Truck size={14} />
                           </div>
-                        ) : !calculatingShipping && (
-                          <p className="text-[7px] text-amber-600 font-bold uppercase tracking-widest mt-1">
-                            Nenhuma opção disponível
+                          <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">
+                            {cartTotal >= Number(settings?.free_shipping_threshold) 
+                              ? "🎉 Você ganhou Frete Grátis!" 
+                              : `Faltam ${formatCurrency((Number(settings?.free_shipping_threshold) - cartTotal))} para Frete Grátis`}
                           </p>
+                        </div>
+                        {cartTotal < Number(settings?.free_shipping_threshold) && (
+                          <span className="text-[10px] font-bold text-emerald-600">{Math.round((cartTotal / Number(settings?.free_shipping_threshold)) * 100)}%</span>
                         )}
                       </div>
-                    )}
-                  </div>
+                      <div className="w-full bg-emerald-200/50 rounded-full h-2 overflow-hidden shadow-inner">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min((cartTotal / Number(settings?.free_shipping_threshold)) * 100, 100)}%` }}
+                          className={`h-full rounded-full transition-all duration-1000 ease-out ${cartTotal >= Number(settings?.free_shipping_threshold) ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-gradient-to-r from-indigo-500 to-purple-500'}`}
+                        />
+                      </div>
+                    </div>
+                  )}
 
-                  <div className="flex flex-col mb-1.5">
+                  <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-slate-500 font-bold text-[8px] uppercase tracking-wider">Subtotal</span>
-                      <span className={`font-black text-slate-900 tracking-tighter ${discountValue > 0 ? 'text-[10px] line-through opacity-50' : 'text-xs'}`}>
+                      <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">Subtotal</span>
+                      <span className={`font-black text-slate-900 tracking-tighter ${discountValue > 0 ? 'text-xs line-through opacity-50' : 'text-sm'}`}>
                         {formatCurrency(cartTotal)}
                       </span>
                     </div>
@@ -2407,10 +2360,10 @@ export default function Store() {
                     {selectedShippingQuote && (
                       <div className="flex items-center justify-between mb-0.5 text-slate-600">
                         <div className="flex items-center gap-1">
-                          <Truck size={8} className="text-emerald-600" />
-                          <span className="text-[8px] font-bold uppercase tracking-wider">Frete ({selectedShippingQuote.name})</span>
+                          <Truck size={12} className="text-emerald-600" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Frete ({selectedShippingQuote.name})</span>
                         </div>
-                        <span className="text-[10px] font-black tracking-tighter">
+                        <span className="text-xs font-black tracking-tighter">
                           {isFreeShipping ? 'GRÁTIS' : `${formatCurrency(selectedShippingQuote.price)}`}
                         </span>
                       </div>
@@ -2419,52 +2372,55 @@ export default function Store() {
                     {discountValue > 0 && (
                       <div className="flex items-center justify-between mb-0.5 text-emerald-600">
                         <div className="flex items-center gap-1">
-                          <Tag size={8} />
-                          <span className="text-[8px] font-bold uppercase tracking-wider">Cupom {affiliateCoupon.code}</span>
+                          <Tag size={12} />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Cupom {affiliateCoupon.code}</span>
                         </div>
-                        <span className="text-[10px] font-black tracking-tighter">- {formatCurrency(discountValue)}</span>
+                        <span className="text-xs font-black tracking-tighter">- {formatCurrency(discountValue)}</span>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-slate-900 font-black uppercase text-[8px] tracking-wider">Total</span>
-                      <span className="text-sm font-black text-slate-900 tracking-tighter">{formatCurrency(finalTotal)}</span>
-                    </div>
-
-                    <div className="flex flex-col items-end">
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
-                        ou em até {(() => {
-                          const minInstallmentValue = cart.reduce((min, item) => {
-                            const productMin = item.product.min_installment_value || 50;
-                            return productMin < min ? productMin : min;
-                          }, 50);
-                          const maxInstallments = 10;
-                          let possibleInstallments = Math.floor(finalTotal / minInstallmentValue);
-                          if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
-                          if (possibleInstallments < 1) possibleInstallments = 1;
-                          return possibleInstallments;
-                        })()}x de R$ {(finalTotal / (() => {
-                          const minInstallmentValue = cart.reduce((min, item) => {
-                            const productMin = item.product.min_installment_value || 50;
-                            return productMin < min ? productMin : min;
-                          }, 50);
-                          const maxInstallments = 10;
-                          let possibleInstallments = Math.floor(finalTotal / minInstallmentValue);
-                          if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
-                          if (possibleInstallments < 1) possibleInstallments = 1;
-                          return possibleInstallments;
-                        })()).toFixed(2)} sem juros
-                      </p>
+                    <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100">
+                      <span className="text-sm font-black text-slate-900 uppercase italic tracking-tighter">Total</span>
+                      <div className="flex flex-col items-end">
+                        <span className="text-2xl font-black text-emerald-600 tracking-tighter leading-none">{formatCurrency(finalTotal)}</span>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                          Ou em até {(() => {
+                            const minInstallmentValue = cart.reduce((min, item) => {
+                              const productMin = item.product.min_installment_value || 50;
+                              return productMin < min ? productMin : min;
+                            }, 50);
+                            const maxInstallments = 10;
+                            let possibleInstallments = Math.floor(finalTotal / minInstallmentValue);
+                            if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
+                            if (possibleInstallments < 1) possibleInstallments = 1;
+                            return possibleInstallments;
+                          })()}x de R$ {(finalTotal / (() => {
+                            const minInstallmentValue = cart.reduce((min, item) => {
+                              const productMin = item.product.min_installment_value || 50;
+                              return productMin < min ? productMin : min;
+                            }, 50);
+                            const maxInstallments = 10;
+                            let possibleInstallments = Math.floor(finalTotal / minInstallmentValue);
+                            if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
+                            if (possibleInstallments < 1) possibleInstallments = 1;
+                            return possibleInstallments;
+                          })()).toFixed(2)} sem juros
+                        </p>
+                      </div>
                     </div>
                   </div>
+
                   <button 
                     onClick={() => navigate('/checkout')}
-                    className="w-full bg-emerald-600 text-white py-1.5 rounded-lg font-black text-[10px] uppercase italic tracking-tighter hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-1.5"
+                    className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-600/20 hover:shadow-emerald-600/40 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-3 uppercase italic tracking-tighter text-lg"
                   >
                     Finalizar Compra
+                    <ArrowRight size={20} />
                   </button>
-                  <p className="text-center text-[8px] text-slate-400 mt-2 uppercase font-bold tracking-widest">
-                    Pagamento Seguro via Pagar.me
+                  
+                  <p className="text-center text-[9px] text-slate-400 font-bold uppercase tracking-widest flex items-center justify-center gap-1.5">
+                    <ShieldCheck size={12} className="text-emerald-500" />
+                    Pagamento 100% Seguro via Pagar.me
                   </p>
                 </div>
               )}
