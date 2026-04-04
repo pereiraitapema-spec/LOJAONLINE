@@ -583,6 +583,8 @@ const cepcertoProvider: ShippingProvider = {
     
     try {
       let payload: any;
+      let order: any = null;
+      let tipoEntrega = 'sedex';
 
       if (manualData) {
         payload = {
@@ -591,13 +593,14 @@ const cepcertoProvider: ShippingProvider = {
         };
       } else {
         // 1. Buscar dados completos do pedido e itens
-        const { data: order, error: orderError } = await supabase
+        const { data: orderData, error: orderError } = await supabase
           .from('orders')
           .select('*, order_items(*)')
           .eq('id', orderId)
           .maybeSingle();
 
-        if (orderError || !order) throw new Error('Pedido não encontrado');
+        if (orderError || !orderData) throw new Error('Pedido não encontrado');
+        order = orderData;
 
         // 2. Buscar dados da loja (remetente)
         const { data: settings } = await supabase
@@ -610,7 +613,6 @@ const cepcertoProvider: ShippingProvider = {
 
         // 3. Mapear tipo de entrega
         const method = (order.shipping_method || '').toLowerCase();
-        let tipoEntrega = 'sedex';
         if (method.includes('pac')) tipoEntrega = 'pac';
         else if (method.includes('jadlog-package')) tipoEntrega = 'jadlog-package';
         else if (method.includes('jadlog-dotcom')) tipoEntrega = 'jadlog-dotcom';
@@ -716,11 +718,56 @@ const cepcertoProvider: ShippingProvider = {
       
       const labelData = await labelRes.json();
       
-      return { 
+      const finalResult = { 
         success: true, 
         tracking_code: labelData.cod_objeto || labelData.Encomenda, 
-        shipping_label_url: labelData.url 
+        shipping_label_url: labelData.url,
+        pdf_url_declaracao: labelData.url_declaracao || null,
+        id_recibo: recibo,
+        id_string_correios: labelData.id_string_correios || null,
+        token: key,
+        transportadora: (manualData?.tipo_entrega || tipoEntrega || '').includes('jadlog') ? 'Jadlog' : 'Correios',
+        tipo_entrega: manualData?.tipo_entrega || tipoEntrega || 'sedex',
+        valor: manualData?.valor_encomenda || payload.valor_encomenda,
+        prazo: manualData ? '' : (order?.shipping_address?.prazo_frete || ''),
+        data_postagem: new Date().toLocaleDateString('pt-BR'),
+        nome_destinatario: manualData?.nome_destinatario || (order?.customer_name || order?.shipping_address?.nome || 'Cliente'),
+        whatsapp_destinatario: manualData?.whatsapp_destinatario || (order?.customer_phone || order?.shipping_address?.whatsapp || ''),
+        cidade_destinatario: manualData?.cidade_destinatario || (order?.shipping_address?.city || ''),
+        estado_destinatario: manualData?.estado_destinatario || (order?.shipping_address?.state || ''),
+        cep_destinatario: manualData?.cep_destinatario || (order?.shipping_address?.cep || ''),
+        email_destinatario: manualData?.email_destinatario || (order?.customer_email || order?.shipping_address?.email || '')
       };
+
+      // Salvar no Supabase para persistência permanente
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await supabase.from('shipping_labels').insert({
+          user_id: session?.user?.id || null,
+          codigo_objeto: finalResult.tracking_code,
+          nome_destinatario: finalResult.nome_destinatario,
+          whatsapp_destinatario: finalResult.whatsapp_destinatario,
+          cidade_destinatario: finalResult.cidade_destinatario,
+          estado_destinatario: finalResult.estado_destinatario,
+          cep_destinatario: finalResult.cep_destinatario,
+          email_destinatario: finalResult.email_destinatario,
+          valor: finalResult.valor,
+          prazo: finalResult.prazo,
+          status: 'ativa',
+          pdf_url_etiqueta: finalResult.shipping_label_url,
+          pdf_url_declaracao: finalResult.pdf_url_declaracao,
+          id_recibo: finalResult.id_recibo,
+          id_string_correios: finalResult.id_string_correios,
+          token: finalResult.token,
+          transportadora: finalResult.transportadora,
+          tipo_entrega: finalResult.tipo_entrega,
+          data_postagem: finalResult.data_postagem
+        });
+      } catch (saveErr) {
+        console.error("Erro ao salvar etiqueta no Supabase (shippingService):", saveErr);
+      }
+
+      return finalResult;
     } catch (err: any) {
       console.error('❌ Erro na geração de etiqueta CepCerto:', err);
       return { success: false, error: err.message };

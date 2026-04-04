@@ -307,7 +307,6 @@ export default function CepCertoAdmin() {
       const { data, error } = await supabase
         .from('shipping_labels')
         .select('*')
-        .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
         
       if (error) {
@@ -1252,41 +1251,8 @@ export default function CepCertoAdmin() {
           toast.success('Etiqueta gerada com sucesso!');
           console.log("Etiqueta adicionada");
 
-          // Salvar no histórico
-          const novasEtiquetas = [result, ...etiquetasGeradas];
-          setEtiquetasGeradas(novasEtiquetas);
-          localStorage.setItem('cepcerto_etiquetas_geradas', JSON.stringify(novasEtiquetas));
-          localStorage.setItem('cepcerto_etiqueta_gerada', JSON.stringify(result));
-
-          // Salvar no Supabase para persistência permanente
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-              await supabase.from('shipping_labels').insert({
-                user_id: session.user.id,
-                codigo_objeto: result.codigoObjeto,
-                nome_destinatario: result.nome,
-                whatsapp_destinatario: result.whatsapp,
-                cidade_destinatario: result.cidade,
-                estado_destinatario: result.estado,
-                cep_destinatario: result.cep,
-                email_destinatario: result.email,
-                valor: result.valor,
-                prazo: result.prazo,
-                status: 'ativa',
-                pdf_url_etiqueta: result.pdfUrlEtiqueta,
-                pdf_url_declaracao: result.pdfUrlDeclaracao,
-                id_recibo: result.idRecibo,
-                id_string_correios: result.idStringCorreios,
-                token: result.token,
-                transportadora: result.transportadora,
-                tipo_entrega: result.tipo_entrega,
-                data_postagem: result.data
-              });
-            }
-          } catch (error) {
-            console.error("Erro ao salvar etiqueta no Supabase:", error);
-          }
+          // Atualizar lista local
+          fetchLabels();
 
           // Limpar campos após gerar etiqueta para evitar duplicidade
           setPostagemData((prev: any) => ({
@@ -3126,6 +3092,7 @@ export default function CepCertoAdmin() {
                           <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">WhatsApp</th>
                           <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cidade</th>
                           <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rastreador</th>
+                          <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Valor</th>
                           <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
                           <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Ações</th>
                         </tr>
@@ -3158,6 +3125,9 @@ export default function CepCertoAdmin() {
                                   <span className="text-[10px] font-bold text-red-600 uppercase">Cancelada</span>
                                 )}
                               </div>
+                            </td>
+                            <td className="py-4 text-sm font-bold text-emerald-600">
+                              {etq.valor || '-'}
                             </td>
                             <td className="py-4 text-sm text-slate-600">{new Date(etq.data).toLocaleDateString()}</td>
                             <td className="py-4 text-right">
@@ -3437,6 +3407,7 @@ export default function CepCertoAdmin() {
                         <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Email</th>
                         <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cidade</th>
                         <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rastreador</th>
+                        <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Valor</th>
                         <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Ações</th>
                       </tr>
                     </thead>
@@ -3455,6 +3426,9 @@ export default function CepCertoAdmin() {
                                   <span className="text-[10px] font-bold text-red-600 uppercase">Cancelada</span>
                                 )}
                               </div>
+                            </td>
+                            <td className="py-4 text-sm font-bold text-emerald-600">
+                              {item.valor || '-'}
                             </td>
                             <td className="py-4 text-right flex items-center justify-end gap-2">
                               <button 
