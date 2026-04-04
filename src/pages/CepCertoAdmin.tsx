@@ -348,8 +348,10 @@ export default function CepCertoAdmin() {
     }
   };
 
-  const handleSyncLabels = async (silent = false) => {
-    if (!carrier) {
+  const handleSyncLabels = async (silent = false, config?: any) => {
+    const activeConfig = config || carrier?.config;
+    
+    if (!activeConfig) {
       if (!silent) toast.error('Configuração da transportadora não carregada');
       return;
     }
@@ -361,7 +363,7 @@ export default function CepCertoAdmin() {
     }
     
     try {
-      const result = await shippingService.listPostages(carrier.config || {});
+      const result = await shippingService.listPostages(activeConfig || {});
       
       if (result && result.sucesso && Array.isArray(result.postagens)) {
         const postagens = result.postagens;
@@ -374,14 +376,14 @@ export default function CepCertoAdmin() {
           const { error: upsertError } = await supabase
             .from('shipping_labels')
             .upsert({
-              codigo_objeto: post.cod_objeto || post.codigo_objeto,
+              codigo_objeto: post.cod_objeto || post.codigo_objeto || post.codigo,
               data_postagem: post.data || post.data_postagem,
               nome_destinatario: post.destinatario || post.nome_destinatario,
               valor: Number(post.valor) || 0,
               status: (post.status?.toLowerCase() === 'cancelada' || post.status?.toLowerCase() === 'cancelado') ? 'cancelada' : 'ativa',
               token: post.token || '',
               transportadora: post.transportadora || 'Correios',
-              tipo_entrega: post.servico || post.tipo_entrega || 'PAC',
+              tipo_entrega: post.servico || post.tipo_entrega || post.tipo || 'PAC',
               // Campos adicionais se disponíveis
               cidade_destinatario: post.cidade || '',
               estado_destinatario: post.uf || '',
@@ -391,7 +393,7 @@ export default function CepCertoAdmin() {
             });
             
           if (upsertError) {
-            console.error(`❌ Erro ao sincronizar etiqueta ${post.cod_objeto || post.codigo_objeto}:`, upsertError);
+            console.error(`❌ Erro ao sincronizar etiqueta ${post.cod_objeto || post.codigo_objeto || post.codigo}:`, upsertError);
           } else {
             syncedCount++;
           }
@@ -400,7 +402,7 @@ export default function CepCertoAdmin() {
         if (!silent) {
           toast.success(`${syncedCount} etiquetas sincronizadas com sucesso!`, { id: toastId });
         }
-        fetchLabels();
+        await fetchLabels();
       } else {
         if (!silent) {
           toast.error(result?.mensagem || 'Nenhuma postagem encontrada ou erro na API', { id: toastId });
@@ -1869,8 +1871,8 @@ export default function CepCertoAdmin() {
       setRecentOrders(orders || []);
 
       // 5. Buscar etiquetas do banco e sincronizar com a API (silenciosamente)
-      fetchLabels();
-      handleSyncLabels(true);
+      await fetchLabels();
+      await handleSyncLabels(true, carrierData.config);
 
     } catch (error: any) {
       console.error('Error fetching CepCerto data:', error);
