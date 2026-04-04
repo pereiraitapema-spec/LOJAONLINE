@@ -602,14 +602,51 @@ const cepcertoProvider: ShippingProvider = {
         if (orderError || !orderData) throw new Error('Pedido não encontrado');
         order = orderData;
 
+        // Buscar produtos para pegar dimensões
+        const productIds = order.order_items.map((item: any) => item.product_id);
+        const { data: productsData } = await supabase
+          .from('products')
+          .select('id, weight, height, width, length')
+          .in('id', productIds);
+
+        let totalWeight = 0;
+        let maxHeight = 0;
+        let maxWidth = 0;
+        let totalLength = 0;
+        let totalProductsValue = 0;
+        let totalQuantity = 0;
+
+        order.order_items.forEach((item: any) => {
+          const product = productsData?.find(p => p.id === item.product_id);
+          const qty = item.quantity || 1;
+          const weight = Number(product?.weight) || 0.5;
+          const height = Number(product?.height) || 10;
+          const width = Number(product?.width) || 10;
+          const length = Number(product?.length) || 10;
+
+          totalWeight += weight * qty;
+          maxHeight = Math.max(maxHeight, height);
+          maxWidth = Math.max(maxWidth, width);
+          totalLength += length * qty;
+          
+          totalProductsValue += Number(item.price) * qty;
+          totalQuantity += qty;
+        });
+
         // 2. Buscar dados da loja (remetente)
+        const savedSenderStr = localStorage.getItem('cepcerto_remetente_padrao');
+        let senderData: any = null;
+        if (savedSenderStr) {
+          try {
+            senderData = JSON.parse(savedSenderStr);
+          } catch (e) {}
+        }
+
         const { data: settings } = await supabase
           .from('store_settings')
           .select('*')
           .limit(1)
           .maybeSingle();
-
-        if (!settings) throw new Error('Configurações da loja não encontradas');
 
         // 3. Mapear tipo de entrega
         const method = (order.shipping_method || '').toLowerCase();
@@ -617,13 +654,20 @@ const cepcertoProvider: ShippingProvider = {
         else if (method.includes('jadlog-package')) tipoEntrega = 'jadlog-package';
         else if (method.includes('jadlog-dotcom')) tipoEntrega = 'jadlog-dotcom';
 
-        // 4. Preparar dados do remetente (parsing do endereço se necessário)
-        const senderAddress = settings.address || '';
+        // 4. Preparar dados do remetente
+        const senderAddress = settings?.address || '';
         const senderParts = senderAddress.split(',').map((s: string) => s.trim());
-        const senderLogradouro = senderParts[0] || 'Endereço não informado';
         const senderRest = (senderParts[1] || '').split('-').map((s: string) => s.trim());
-        const senderNumero = senderRest[0] || 'SN';
-        const senderBairro = senderRest[1] || 'Centro';
+        
+        const senderLogradouro = senderData?.logradouro_remetente || senderParts[0] || 'Endereço não informado';
+        const senderNumero = senderData?.numero_remetente || senderData?.numero_endereco_remetente || senderRest[0] || 'SN';
+        const senderBairro = senderData?.bairro_remetente || senderRest[1] || 'Centro';
+        const senderCep = senderData?.cep_remetente || (settings?.origin_zip_code || settings?.cep || '').replace(/\D/g, '');
+        const senderNome = senderData?.nome_remetente || settings?.company_name?.substring(0, 50) || 'Remetente';
+        const senderCpfCnpj = senderData?.cpf_cnpj_remetente || settings?.cnpj?.replace(/\D/g, '') || '';
+        const senderWhatsapp = senderData?.whatsapp_remetente || (settings?.whatsapp || settings?.phone || '').replace(/\D/g, '').substring(0, 11);
+        const senderEmail = senderData?.email_remetente || settings?.email?.substring(0, 50) || '';
+        const senderComplemento = senderData?.complemento_remetente || "";
 
         // 5. Preparar dados do destinatário
         const dest = order.shipping_address || {};
@@ -633,23 +677,23 @@ const cepcertoProvider: ShippingProvider = {
           token_cliente_postagem: key,
           tipo_entrega: tipoEntrega,
           logistica_reversa: "",
-          cep_remetente: (settings.origin_zip_code || settings.cep || '').replace(/\D/g, ''),
+          cep_remetente: senderCep.replace(/\D/g, ''),
           cep_destinatario: (dest.cep || '').replace(/\D/g, ''),
-          peso: (order.weight_kg || 1).toString(),
-          altura: (order.height_cm || 20).toString(),
-          largura: (order.width_cm || 20).toString(),
-          comprimento: (order.length_cm || 20).toString(),
-          valor_encomenda: Math.max(50, order.total).toFixed(2),
+          peso: totalWeight.toFixed(3).replace('.', ','),
+          altura: Math.ceil(maxHeight).toString(),
+          largura: Math.ceil(maxWidth).toString(),
+          comprimento: Math.ceil(totalLength).toString(),
+          valor_encomenda: Math.max(50, totalProductsValue).toFixed(2),
           
           // Remetente
-          nome_remetente: settings.company_name.substring(0, 50),
-          cpf_cnpj_remetente: settings.cnpj.replace(/\D/g, ''),
-          whatsapp_remetente: (settings.whatsapp || settings.phone || '').replace(/\D/g, '').substring(0, 11),
-          email_remetente: settings.email.substring(0, 50),
+          nome_remetente: senderNome.substring(0, 50),
+          cpf_cnpj_remetente: senderCpfCnpj.replace(/\D/g, ''),
+          whatsapp_remetente: senderWhatsapp.replace(/\D/g, '').substring(0, 11),
+          email_remetente: senderEmail.substring(0, 50),
           logradouro_remetente: senderLogradouro.substring(0, 50),
           bairro_remetente: senderBairro.substring(0, 40),
           numero_endereco_remetente: senderNumero.substring(0, 10),
-          complemento_remetente: "",
+          complemento_remetente: senderComplemento.substring(0, 20),
           
           // Destinatário
           nome_destinatario: (order.customer_name || dest.nome || 'Cliente').substring(0, 50),
@@ -662,11 +706,13 @@ const cepcertoProvider: ShippingProvider = {
           complemento_destinatario: (dest.complemento || '').substring(0, 20),
           
           tipo_doc_fiscal: "declaracao",
-          produtos: (order.order_items || []).map((item: any) => ({
-            descricao: item.product_name.substring(0, 50),
-            valor: item.price.toFixed(2),
-            quantidade: item.quantity.toString()
-          })),
+          produtos: [
+            {
+              descricao: "pacote",
+              valor: totalProductsValue.toFixed(2),
+              quantidade: totalQuantity.toString()
+            }
+          ],
           chave_danfe: ""
         };
       }
@@ -742,8 +788,13 @@ const cepcertoProvider: ShippingProvider = {
       // Salvar no Supabase para persistência permanente
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        
+        // Se for manual, orderId vem como 'manual', então não podemos salvar como UUID
+        const isManual = orderId === 'manual';
+        
         await supabase.from('shipping_labels').upsert({
           user_id: session?.user?.id || null,
+          order_id: isManual ? null : orderId,
           codigo_objeto: finalResult.tracking_code,
           nome_destinatario: finalResult.nome_destinatario,
           whatsapp_destinatario: finalResult.whatsapp_destinatario,

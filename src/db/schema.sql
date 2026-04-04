@@ -456,6 +456,47 @@ create policy "Public read tracking history" on public.tracking_history for sele
 drop policy if exists "Admin manage tracking history" on public.tracking_history;
 create policy "Admin manage tracking history" on public.tracking_history for all using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
 
+-- Tabela de Etiquetas de Envio
+create table if not exists public.shipping_labels (
+  id uuid default gen_random_uuid() primary key,
+  order_id uuid references public.orders(id) on delete set null,
+  user_id uuid references auth.users(id) on delete set null,
+  codigo_objeto text unique not null,
+  data_postagem text,
+  nome_destinatario text,
+  valor numeric(10,2) default 0,
+  status text default 'ativa',
+  token text,
+  transportadora text default 'Correios',
+  tipo_entrega text,
+  cidade_destinatario text,
+  estado_destinatario text,
+  cep_destinatario text,
+  email_destinatario text,
+  whatsapp_destinatario text,
+  id_recibo text,
+  id_string_correios text,
+  pdf_url_etiqueta text,
+  pdf_url_declaracao text,
+  prazo text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.shipping_labels enable row level security;
+
+drop policy if exists "Public read shipping_labels" on public.shipping_labels;
+create policy "Public read shipping_labels" on public.shipping_labels for select using (true);
+
+drop policy if exists "Public insert shipping_labels" on public.shipping_labels;
+create policy "Public insert shipping_labels" on public.shipping_labels for insert with check (true);
+
+drop policy if exists "Public update shipping_labels" on public.shipping_labels;
+create policy "Public update shipping_labels" on public.shipping_labels for update using (true);
+
+drop policy if exists "Admin manage shipping_labels" on public.shipping_labels;
+create policy "Admin manage shipping_labels" on public.shipping_labels for all using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+
 -- Policies para Affiliates
 drop policy if exists "Public read affiliates" on public.affiliates;
 create policy "Public read affiliates" on public.affiliates for select using (true);

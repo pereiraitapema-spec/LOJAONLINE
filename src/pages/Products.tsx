@@ -303,13 +303,10 @@ export default function Products() {
         min_installment_value: parseFloat(productForm.min_installment_value || '50'),
         image_url: productForm.image_url,
         active: productForm.active,
-        quantity_info: productForm.quantity_info,
-        usage_instructions: productForm.usage_instructions,
         weight: parseFloat(productForm.weight || '0.5'),
         height: parseFloat(productForm.height || '10'),
         width: parseFloat(productForm.width || '10'),
-        length: parseFloat(productForm.length || '10'),
-        capsules: parseInt(productForm.capsules || '60')
+        length: parseFloat(productForm.length || '10')
       };
 
       if (!editingProduct || editingProduct.name !== productForm.name) {

@@ -828,16 +828,14 @@ export default function Checkout() {
           const dbProduct = dbProducts?.find(p => p.id === item.product.id) as any;
           
           // Robust dimension extraction
-          const weight = dbProduct?.weight ?? dbProduct?.weight_kg ?? 0.5;
-          const height = dbProduct?.height ?? dbProduct?.dimensions_cm?.height ?? 10;
-          const width = dbProduct?.width ?? dbProduct?.dimensions_cm?.width ?? 10;
-          const length = dbProduct?.length ?? dbProduct?.dimensions_cm?.depth ?? dbProduct?.dimensions_cm?.length ?? 10;
+          const weight = dbProduct?.weight ?? dbProduct?.weight_kg;
+          const height = dbProduct?.height ?? dbProduct?.dimensions_cm?.height;
+          const width = dbProduct?.width ?? dbProduct?.dimensions_cm?.width;
+          const length = dbProduct?.length ?? dbProduct?.dimensions_cm?.depth ?? dbProduct?.dimensions_cm?.length;
 
           // Log missing dimensions
           if (!weight || !height || !width || !length) {
-            console.warn(`⚠️ Produto ${item.product.name} (ID: ${item.product.id}) está com dimensões incompletas no Supabase:`, {
-              weight, height, width, length
-            });
+            console.warn(`⚠️ Produto ${item.product.name} (ID: ${item.product.id}) está com dimensões incompletas no Supabase. Usando valores padrão.`);
           }
 
           const mappedProduct = {
@@ -1302,25 +1300,51 @@ export default function Checkout() {
               setTrackingCode(finalTrackingCode);
               toast.success('Pagamento aprovado! Seu pedido está sendo preparado para retirada.');
             } else {
-              console.log('📦 Comunicando com CepCerto para gerar etiqueta...');
+              console.log('📦 Solicitando geração de etiqueta via Admin...');
               
               // Aguardar um pouco para garantir consistência no banco
               await new Promise(resolve => setTimeout(resolve, 2000));
               
-              const labelResponse = await shippingService.generateLabel(orderId);
-              
-              if (labelResponse.success && labelResponse.tracking_code) {
-                console.log('✅ Etiqueta gerada com sucesso.');
-                finalTrackingCode = labelResponse.tracking_code;
-                await supabase
-                  .from('orders')
-                  .update({ tracking_code: labelResponse.tracking_code })
-                  .eq('id', orderId);
-                setTrackingCode(labelResponse.tracking_code);
-                toast.success('Pagamento aprovado e etiqueta gerada!');
-              } else {
-                console.warn('⚠️ Falha na geração automática da etiqueta:', labelResponse.error);
-                toast.success('Pagamento aprovado! A etiqueta será gerada manualmente por nossa equipe.');
+              try {
+                const labelResponse = await fetch('/api/admin/gerar-etiqueta', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    id_pedido: orderId,
+                    tipo_entrega: currentShipping?.id?.toLowerCase().includes('sedex') ? 'sedex' : 'pac'
+                  })
+                });
+                
+                const labelData = await labelResponse.json();
+                
+                if (labelResponse.ok && labelData.success && labelData.tracking_code) {
+                  console.log('✅ Etiqueta gerada com sucesso via Admin.');
+                  
+                  // Buscar do Supabase para confirmar
+                  const { data: orderData } = await supabase
+                    .from('orders')
+                    .select('tracking_code, status_envio')
+                    .eq('id', orderId)
+                    .maybeSingle();
+                    
+                  if (orderData?.tracking_code) {
+                    finalTrackingCode = orderData.tracking_code;
+                    setTrackingCode(orderData.tracking_code);
+                  } else {
+                    finalTrackingCode = labelData.tracking_code;
+                    setTrackingCode(labelData.tracking_code);
+                  }
+                  
+                  toast.success('Pagamento aprovado e etiqueta gerada!');
+                } else {
+                  console.warn('⚠️ Falha na geração automática da etiqueta via Admin:', labelData.error);
+                  await supabase.from('orders').update({ status_envio: 'preparando' }).eq('id', orderId);
+                  toast.success('Pagamento aprovado! Seu pedido está sendo preparado.');
+                }
+              } catch (labelErr: any) {
+                console.error('⚠️ Erro na comunicação com Admin para gerar etiqueta:', labelErr);
+                await supabase.from('orders').update({ status_envio: 'preparando' }).eq('id', orderId);
+                toast.success('Pagamento aprovado! Seu pedido está sendo preparado.');
               }
             }
           } catch (labelErr: any) {

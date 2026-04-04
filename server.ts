@@ -202,6 +202,11 @@ async function startServer() {
         const dbProd = dbProducts.find((dp: any) => dp.id === p.id);
         if (dbProd) {
           const qty = p.quantidade || 1;
+          
+          if (!dbProd.weight || !dbProd.height || !dbProd.width || !dbProd.length) {
+            console.warn(`⚠️ Produto ${dbProd.name} (ID: ${dbProd.id}) está com dimensões incompletas no Supabase. Usando valores padrão.`);
+          }
+
           totalWeight += (Number(dbProd.weight) || 0.5) * qty;
           // Simulação simples de empilhamento: soma altura, pega maior largura/comprimento
           maxHeight += (Number(dbProd.height) || 10) * qty;
@@ -293,6 +298,217 @@ async function startServer() {
     } catch (error: any) {
       console.error("❌ Erro no endpoint de frete:", error);
       res.status(500).json({ status: "erro", mensagem: error.message });
+    }
+  });
+
+  // 7. Endpoint para Gerar Etiqueta (Seguro, chamado pelo Checkout ou Admin)
+  app.post("/api/admin/gerar-etiqueta", async (req, res) => {
+    const { id_pedido, tipo_entrega } = req.body;
+
+    if (!id_pedido) {
+      return res.status(400).json({ success: false, error: "ID do pedido é obrigatório" });
+    }
+
+    try {
+      const { supabase } = await import("./src/lib/supabase");
+
+      // 1. Buscar dados completos do pedido e itens
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('id', id_pedido)
+        .maybeSingle();
+
+      if (orderError || !order) {
+        throw new Error('Pedido não encontrado');
+      }
+
+      // 2. Buscar produtos para pegar dimensões
+      const productIds = order.order_items.map((item: any) => item.product_id);
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('id, weight, height, width, length')
+        .in('id', productIds);
+
+      let totalWeight = 0;
+      let maxHeight = 0;
+      let maxWidth = 0;
+      let totalLength = 0;
+      let totalProductsValue = 0;
+      let totalQuantity = 0;
+
+      order.order_items.forEach((item: any) => {
+        const product = productsData?.find(p => p.id === item.product_id);
+        const qty = item.quantity || 1;
+        const weight = Number(product?.weight) || 0.5;
+        const height = Number(product?.height) || 10;
+        const width = Number(product?.width) || 10;
+        const length = Number(product?.length) || 10;
+
+        totalWeight += weight * qty;
+        maxHeight = Math.max(maxHeight, height);
+        maxWidth = Math.max(maxWidth, width);
+        totalLength += length * qty;
+        
+        totalProductsValue += Number(item.price) * qty;
+        totalQuantity += qty;
+      });
+
+      // 3. Buscar configurações do sistema (Remetente e API Key)
+      const { data: carrier, error: carrierError } = await supabase
+        .from('shipping_carriers')
+        .select('config')
+        .eq('provider', 'cepcerto')
+        .eq('active', true)
+        .maybeSingle();
+
+      const { data: settings } = await supabase
+        .from('store_settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+
+      if (carrierError || !carrier || !carrier.config?.api_key) {
+        throw new Error("Configuração ou API Key do CepCerto não encontrada");
+      }
+
+      const apiKey = carrier.config.api_key;
+
+      // 4. Mapear tipo de entrega
+      let tipoEntregaFinal = tipo_entrega || 'sedex';
+      const method = (order.shipping_method || '').toLowerCase();
+      if (method.includes('pac')) tipoEntregaFinal = 'pac';
+      else if (method.includes('jadlog-package')) tipoEntregaFinal = 'jadlog-package';
+      else if (method.includes('jadlog-dotcom')) tipoEntregaFinal = 'jadlog-dotcom';
+
+      // 5. Preparar dados do remetente
+      const senderAddress = settings?.address || '';
+      const senderParts = senderAddress.split(',').map((s: string) => s.trim());
+      const senderRest = (senderParts[1] || '').split('-').map((s: string) => s.trim());
+      
+      const senderLogradouro = senderParts[0] || 'Endereço não informado';
+      const senderNumero = senderRest[0] || 'SN';
+      const senderBairro = senderRest[1] || 'Centro';
+      const senderCep = (settings?.origin_zip_code || settings?.cep || '').replace(/\D/g, '');
+      const senderNome = settings?.company_name?.substring(0, 50) || 'Remetente';
+      const senderCpfCnpj = settings?.cnpj?.replace(/\D/g, '') || '';
+      const senderWhatsapp = (settings?.whatsapp || settings?.phone || '').replace(/\D/g, '').substring(0, 11);
+      const senderEmail = settings?.email?.substring(0, 50) || '';
+      const senderComplemento = "";
+
+      // 6. Preparar dados do destinatário
+      const dest = order.shipping_address || {};
+      
+      // 7. Montar o payload
+      const payload = {
+        token_cliente_postagem: apiKey,
+        tipo_entrega: tipoEntregaFinal,
+        logistica_reversa: "",
+        cep_remetente: senderCep,
+        cep_destinatario: (dest.cep || '').replace(/\D/g, ''),
+        peso: totalWeight.toFixed(3).replace('.', ','),
+        altura: Math.ceil(maxHeight).toString(),
+        largura: Math.ceil(maxWidth).toString(),
+        comprimento: Math.ceil(totalLength).toString(),
+        valor_encomenda: Math.max(50, totalProductsValue).toFixed(2),
+        
+        // Remetente
+        nome_remetente: senderNome,
+        cpf_cnpj_remetente: senderCpfCnpj,
+        whatsapp_remetente: senderWhatsapp,
+        email_remetente: senderEmail,
+        logradouro_remetente: senderLogradouro.substring(0, 50),
+        bairro_remetente: senderBairro.substring(0, 40),
+        numero_endereco_remetente: senderNumero.substring(0, 10),
+        complemento_remetente: senderComplemento.substring(0, 20),
+        
+        // Destinatário
+        nome_destinatario: (order.customer_name || dest.nome || 'Cliente').substring(0, 50),
+        cpf_cnpj_destinatario: (order.customer_document || '').replace(/\D/g, ''),
+        whatsapp_destinatario: (order.customer_phone || '').replace(/\D/g, '').substring(0, 11),
+        email_destinatario: (order.customer_email || '').substring(0, 50),
+        logradouro_destinatario: (dest.logradouro || '').substring(0, 50),
+        bairro_destinatario: (dest.bairro || '').substring(0, 40),
+        numero_endereco_destinatario: (dest.numero || 'SN').toString().substring(0, 10),
+        complemento_destinatario: (dest.complemento || '').substring(0, 20),
+        
+        tipo_doc_fiscal: "declaracao",
+        produtos: [
+          {
+            descricao: "pacote",
+            valor: totalProductsValue.toFixed(2),
+            quantidade: totalQuantity.toString()
+          }
+        ],
+        chave_danfe: ""
+      };
+
+      console.log('🚀 Enviando payload para CepCerto (Admin):', JSON.stringify(payload, null, 2));
+
+      // 8. Chamar API CepCerto
+      const response = await fetch('https://cepcerto.com/api-postagem-frete/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      const responseText = await response.text();
+      console.log('📡 Resposta da API CepCerto (Admin):', responseText);
+
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error("Resposta inválida da API CepCerto");
+      }
+
+      if (result.status === 'erro' || !result.sucesso) {
+        throw new Error(result.mensagem || result.error || 'Erro ao gerar etiqueta no CepCerto');
+      }
+
+      const finalResult = result.postagem || result;
+      const trackingCode = finalResult.codigo_objeto || finalResult.tracking_code || finalResult.codigo;
+
+      if (!trackingCode) {
+        throw new Error('Código de rastreio não retornado pela API');
+      }
+
+      // 9. Salvar no Supabase (orders e shipping_labels)
+      await supabase
+        .from('orders')
+        .update({ 
+          tracking_code: trackingCode,
+          status_envio: 'enviado'
+        })
+        .eq('id', id_pedido);
+
+      await supabase.from('shipping_labels').upsert({
+        order_id: id_pedido,
+        codigo_objeto: trackingCode,
+        nome_destinatario: finalResult.nome_destinatario || payload.nome_destinatario,
+        whatsapp_destinatario: finalResult.whatsapp_destinatario || payload.whatsapp_destinatario,
+        cidade_destinatario: finalResult.cidade_destinatario || dest.cidade,
+        estado_destinatario: finalResult.estado_destinatario || dest.estado,
+        cep_destinatario: finalResult.cep_destinatario || payload.cep_destinatario,
+        email_destinatario: finalResult.email_destinatario || payload.email_destinatario,
+        valor: Number(finalResult.valor) || 0,
+        prazo: finalResult.prazo || '',
+        status: 'ativa',
+        pdf_url_etiqueta: finalResult.pdf_url_etiqueta || finalResult.shipping_label_url || '',
+        pdf_url_declaracao: finalResult.pdf_url_declaracao || '',
+        id_recibo: finalResult.id_recibo || '',
+        id_string_correios: finalResult.id_string_correios || '',
+        token: apiKey,
+        transportadora: 'CepCerto',
+        tipo_entrega: tipoEntregaFinal,
+        data_postagem: new Date().toISOString()
+      }, { onConflict: 'codigo_objeto' });
+
+      res.json({ success: true, tracking_code: trackingCode, result: finalResult });
+
+    } catch (error: any) {
+      console.error("❌ Erro ao gerar etiqueta via Admin:", error);
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 

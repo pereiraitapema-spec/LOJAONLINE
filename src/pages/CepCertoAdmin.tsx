@@ -1961,14 +1961,22 @@ export default function CepCertoAdmin() {
     if (!carrier) return;
     try {
       toast.loading('Gerando etiqueta...', { id: 'gen-label' });
-      const result = await shippingService.generateLabel(orderId);
+      const response = await fetch('/api/admin/gerar-etiqueta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_pedido: orderId })
+      });
+      const result = await response.json();
       
-      if (result.success) {
+      if (response.ok && result.success) {
+        const trackingCode = result.tracking_code || '';
+        const labelUrl = result.result?.pdf_url_etiqueta || result.result?.shipping_label_url || '';
+
         const { error } = await supabase
           .from('orders')
           .update({
-            tracking_code: result.tracking_code,
-            shipping_label_url: result.shipping_label_url,
+            tracking_code: trackingCode,
+            shipping_label_url: labelUrl,
             status: 'shipped'
           })
           .eq('id', orderId);

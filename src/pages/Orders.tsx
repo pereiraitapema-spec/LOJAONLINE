@@ -509,12 +509,18 @@ export default function Orders() {
   const handleGenerateLabel = async (orderId: string, currentStatus?: string) => {
     setProcessingShipping(true);
     try {
-      const result = await shippingService.generateLabel(orderId);
+      const response = await fetch('/api/admin/gerar-etiqueta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_pedido: orderId })
+      });
+      const result = await response.json();
+      
       console.log('🔍 Resultado da geração de etiqueta:', result);
-      if (result.success) {
+      if (response.ok && result.success) {
         // Garantir que tracking_code e shipping_label_url não sejam nulos ou indefinidos
         const trackingCode = result.tracking_code || '';
-        const labelUrl = result.shipping_label_url || '';
+        const labelUrl = result.result?.pdf_url_etiqueta || result.result?.shipping_label_url || '';
         
         await updateTrackingCode(orderId, trackingCode, labelUrl, currentStatus);
         await fetchTrackingStatus(orderId);
@@ -548,10 +554,18 @@ export default function Orders() {
       const id = targetIds[i];
       try {
         toast.loading(`Gerando etiqueta ${i + 1}/${targetIds.length}...`, { id: toastId });
-        const result = await shippingService.generateLabel(id);
-        if (result.success) {
+        const response = await fetch('/api/admin/gerar-etiqueta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id_pedido: id })
+        });
+        const result = await response.json();
+
+        if (response.ok && result.success) {
           // updateTrackingCode handles status update and state refresh
-          await updateTrackingCode(id, result.tracking_code || '', result.shipping_label_url);
+          const trackingCode = result.tracking_code || '';
+          const labelUrl = result.result?.pdf_url_etiqueta || result.result?.shipping_label_url || '';
+          await updateTrackingCode(id, trackingCode, labelUrl);
           successCount++;
         } else {
           console.error(`Falha no pedido ${id}:`, result.error);
