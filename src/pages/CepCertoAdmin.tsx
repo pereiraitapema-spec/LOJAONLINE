@@ -184,7 +184,7 @@ export default function CepCertoAdmin() {
     nome: '',
     rastreador: '',
     data: '',
-    status: 'ativa'
+    status: 'todas'
   });
   const [showRastreioModal, setShowRastreioModal] = useState(false);
   const [rastreioData, setRastreioData] = useState<any>(null);
@@ -214,8 +214,10 @@ export default function CepCertoAdmin() {
     const matchRastreador = !listaEtiquetasFiltros.rastreador || item.codigoObjeto?.toLowerCase().includes(listaEtiquetasFiltros.rastreador.toLowerCase());
     const matchData = !listaEtiquetasFiltros.data || (item.data && item.data.includes(listaEtiquetasFiltros.data));
     
-    const isCancelada = item.status?.toLowerCase().trim() === 'cancelada';
-    const matchStatus = listaEtiquetasFiltros.status === 'cancelada' ? isCancelada : !isCancelada;
+    const status = item.status?.toLowerCase().trim();
+    const matchStatus = listaEtiquetasFiltros.status === 'todas' || 
+                       (listaEtiquetasFiltros.status === 'cancelada' && status === 'cancelada') ||
+                       (listaEtiquetasFiltros.status === 'ativa' && status !== 'cancelada');
     
     return matchNome && matchRastreador && matchData && matchStatus;
   });
@@ -376,7 +378,7 @@ export default function CepCertoAdmin() {
               data_postagem: post.data || post.data_postagem,
               nome_destinatario: post.destinatario || post.nome_destinatario,
               valor: Number(post.valor) || 0,
-              status: post.status === 'Cancelada' ? 'cancelada' : 'ativa',
+              status: (post.status?.toLowerCase() === 'cancelada' || post.status?.toLowerCase() === 'cancelado') ? 'cancelada' : 'ativa',
               token: post.token || '',
               transportadora: post.transportadora || 'Correios',
               tipo_entrega: post.servico || post.tipo_entrega || 'PAC',
@@ -3074,7 +3076,7 @@ export default function CepCertoAdmin() {
                           className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
                         >
                           <RefreshCw size={16} className={syncingLabels ? 'animate-spin' : ''} />
-                          Sincronizar
+                          Atualizar
                         </button>
                         <button 
                           onClick={() => handlePrint('etiqueta')}
@@ -3147,6 +3149,7 @@ export default function CepCertoAdmin() {
                         value={listaEtiquetasFiltros.status}
                         onChange={(e) => setListaEtiquetasFiltros({...listaEtiquetasFiltros, status: e.target.value})}
                       >
+                        <option value="todas">Todas</option>
                         <option value="ativa">Ativas</option>
                         <option value="cancelada">Canceladas</option>
                       </select>
