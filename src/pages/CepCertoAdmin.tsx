@@ -900,6 +900,7 @@ export default function CepCertoAdmin() {
         setCalculatingQuote(false);
         return;
       }
+      apiKey = apiKey.trim();
       console.log("CEP CERTO - Token encontrado", apiKey);
 
       // LOG 5 — BODY COMPLETO API

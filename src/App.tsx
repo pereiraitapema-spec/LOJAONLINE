@@ -284,7 +284,7 @@ function AppContent() {
     }
 
     // Redirecionamento forçado para Admin e Afiliado
-    if (path === '/login' || path === '/register' || path === '/') {
+    if (path === '/login' || path === '/register') {
       if (role === 'admin') {
         console.log('➡️ Redirecionando Admin para /admin/dashboard');
         navigate('/admin/dashboard');
@@ -293,8 +293,12 @@ function AppContent() {
         navigate('/afiliados/dashboard');
       } else {
         console.log('➡️ Usuário comum ou sem role especial, mantendo ou indo para home');
-        if (path !== '/' && !isUserPage) navigate('/');
+        if (!isUserPage) navigate('/');
       }
+    } else if (path === '/' && role === 'admin') {
+      // Se o admin está na home, não redirecionamos automaticamente para o dashboard
+      // para permitir que ele veja a loja.
+      console.log('ℹ️ Admin na Home: Mantendo na loja.');
     } else {
       console.log('ℹ️ handleRoleRedirect: Caminho atual não requer redirecionamento automático');
     }

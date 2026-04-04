@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { 
   ShoppingBag, DollarSign, Link as LinkIcon, Copy, 
   LogOut, User, BarChart, Tag, Percent, ArrowRight, ArrowLeft, Clock,
-  ChevronRight, Package, Grid, Trash2, CheckCircle, Calendar, Info, TrendingUp, Filter
+  ChevronRight, Package, Grid, Trash2, CheckCircle, Calendar, Info, TrendingUp, Filter, Users
 } from 'lucide-react';
 import { Loading } from '../components/Loading';
 import { ConfirmationModal } from '../components/ConfirmationModal';
@@ -72,6 +72,17 @@ interface Order {
   status: string;
 }
 
+interface Lead {
+  id: string;
+  email: string;
+  nome: string | null;
+  phone: string | null;
+  status_lead: string;
+  score: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function AffiliateDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -82,7 +93,8 @@ export default function AffiliateDashboard() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'coupons' | 'sales' | 'payments'>('products');
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'coupons' | 'sales' | 'payments' | 'leads'>('products');
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<'7' | '30' | '90' | 'all' | 'custom'>('30');
   const [startDate, setStartDate] = useState('');
@@ -229,6 +241,9 @@ export default function AffiliateDashboard() {
       // Carregar pagamentos
       fetchPayments(affiliateData.id, dateRange);
 
+      // Carregar leads
+      fetchLeads(affiliateData.id, dateRange);
+
     } catch (error: any) {
       console.error('❌ Erro crítico no dashboard:', error);
       toast.error('Erro ao carregar dashboard: ' + error.message);
@@ -243,6 +258,7 @@ export default function AffiliateDashboard() {
     if (affiliate) {
       fetchOrders(affiliate.id, dateRange);
       fetchPayments(affiliate.id, dateRange);
+      fetchLeads(affiliate.id, dateRange);
     }
   }, [dateRange, startDate, endDate]);
 
@@ -352,6 +368,33 @@ export default function AffiliateDashboard() {
 
     const { data } = await query;
     if (data) setPayments(data);
+  };
+
+  const fetchLeads = async (affiliateId: string, range: string) => {
+    let query = supabase
+      .from('leads')
+      .select('*')
+      .eq('affiliate_id', affiliateId)
+      .order('created_at', { ascending: false });
+
+    if (range !== 'all') {
+      if (range === 'custom') {
+        if (startDate) query = query.gte('created_at', new Date(startDate).toISOString());
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          query = query.lte('created_at', end.toISOString());
+        }
+      } else {
+        const days = parseInt(range);
+        const date = new Date();
+        date.setDate(date.getDate() - days);
+        query = query.gte('created_at', date.toISOString());
+      }
+    }
+
+    const { data } = await query;
+    if (data) setLeads(data);
   };
 
   const generateLink = (type: 'product' | 'category' | 'store', id?: string) => {
@@ -777,6 +820,13 @@ export default function AffiliateDashboard() {
             Meus Cupons
           </button>
           <button 
+            onClick={() => setActiveTab('leads')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'leads' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
+          >
+            <Users size={20} />
+            Meus Leads
+          </button>
+          <button 
             onClick={() => setActiveTab('sales')}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'sales' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
           >
@@ -1008,6 +1058,73 @@ export default function AffiliateDashboard() {
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Aba Leads */}
+          {activeTab === 'leads' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Meus Leads</h2>
+                <div className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-sm font-bold">
+                  Total: {leads.length} leads
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Data</th>
+                      <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Nome</th>
+                      <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">E-mail</th>
+                      <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                      <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leads.length > 0 ? (
+                      leads.map((lead) => (
+                        <tr key={lead.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                          <td className="py-4 px-2 text-sm text-slate-600">{formatDate(lead.created_at)}</td>
+                          <td className="py-4 px-2 text-sm font-bold text-slate-900">{lead.nome || 'N/A'}</td>
+                          <td className="py-4 px-2 text-sm text-slate-600">{lead.email}</td>
+                          <td className="py-4 px-2">
+                            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${
+                              lead.status_lead === 'quente' ? 'bg-red-100 text-red-600' :
+                              lead.status_lead === 'morno' ? 'bg-amber-100 text-amber-600' :
+                              'bg-blue-100 text-blue-600'
+                            }`}>
+                              {lead.status_lead}
+                            </span>
+                          </td>
+                          <td className="py-4 px-2">
+                            <div className="flex items-center gap-1">
+                              <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full rounded-full ${
+                                    lead.score >= 70 ? 'bg-emerald-500' :
+                                    lead.score >= 30 ? 'bg-amber-500' :
+                                    'bg-blue-500'
+                                  }`}
+                                  style={{ width: `${Math.min(lead.score, 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-400">{lead.score}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="py-12 text-center text-slate-400 italic">
+                          Nenhum lead encontrado no período selecionado.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

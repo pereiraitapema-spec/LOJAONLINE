@@ -30,6 +30,9 @@ export const leadService = {
       // Se status novo não for superior, não faz nada
       if (statusOrder[status] <= statusOrder[currentStatus]) return;
 
+      // 3. Get affiliate_id from localStorage if exists
+      const affiliateId = localStorage.getItem('affiliate_code');
+
       // 2. Upsert atômico
       const { data: updatedLead, error } = await supabase
         .from('leads')
@@ -38,6 +41,7 @@ export const leadService = {
           nome: lead?.nome || name,
           email: email,
           status_lead: status,
+          affiliate_id: affiliateId,
           score: status === 'morno' ? 30 : (status === 'quente' ? 100 : 10),
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' })
