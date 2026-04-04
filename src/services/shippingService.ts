@@ -1358,7 +1358,7 @@ const providers: Record<string, ShippingProvider> = {
 };
 
 export const shippingService = {
-  async calculateAdminShipping(cepDestinatario: string, products: { id: string; quantidade: number }[]): Promise<ShippingQuote[]> {
+  async calculateAdminShipping(cepDestinatario: string, products: { id: string; quantidade: number; weight?: number; height?: number; width?: number; length?: number }[]): Promise<ShippingQuote[]> {
     const response = await fetch('/api/admin/frete/cotacao', {
       method: 'POST',
       headers: {

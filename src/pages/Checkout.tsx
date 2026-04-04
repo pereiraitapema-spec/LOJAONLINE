@@ -36,6 +36,10 @@ interface Product {
   image_url?: string;
   min_installment_value?: number;
   affiliate_commission?: number;
+  weight?: number;
+  height?: number;
+  width?: number;
+  length?: number;
 }
 
 interface CartItem {
@@ -791,13 +795,42 @@ export default function Checkout() {
           }
         }
 
-        // Calculate shipping using Admin Endpoint
-        const products = cart.map(item => ({
-          id: item.product.id,
-          quantidade: item.quantity
-        }));
+        // Fetch product dimensions from Supabase
+        const productIds = cart.map(item => item.product.id);
+        const { data: dbProducts, error: productsError } = await supabase
+          .from('products')
+          .select('id, name, weight, height, width, length')
+          .in('id', productIds);
 
-        console.log('📦 Produtos para cálculo no Admin:', products);
+        if (productsError) {
+          console.error('❌ Erro ao buscar dimensões dos produtos:', productsError);
+        }
+
+        // Calculate shipping using Admin Endpoint
+        const products = cart.map(item => {
+          const dbProduct = dbProducts?.find(p => p.id === item.product.id);
+          
+          // Log missing dimensions
+          if (!dbProduct?.weight || !dbProduct?.height || !dbProduct?.width || !dbProduct?.length) {
+            console.warn(`⚠️ Produto ${item.product.name} (ID: ${item.product.id}) está com dimensões incompletas no Supabase:`, {
+              weight: dbProduct?.weight,
+              height: dbProduct?.height,
+              width: dbProduct?.width,
+              length: dbProduct?.length
+            });
+          }
+
+          return {
+            id: item.product.id,
+            quantidade: item.quantity,
+            weight: dbProduct?.weight,
+            height: dbProduct?.height,
+            width: dbProduct?.width,
+            length: dbProduct?.length
+          };
+        });
+
+        console.log('📦 Produtos para cálculo no Admin (com dimensões):', products);
 
         let allQuotes: ShippingQuote[] = [];
 
@@ -2026,7 +2059,7 @@ export default function Checkout() {
                   <span className="font-medium">
                     {calculatingShipping ? (
                       <span className="text-slate-400 text-xs animate-pulse">Calculando...</span>
-                    ) : shippingCost === null ? (
+                    ) : (shippingCost === undefined || shippingCost === null) ? (
                       <span className="text-slate-400 text-xs">Informe o CEP</span>
                     ) : shippingCost === 0 ? (
                       <span className="text-emerald-500 font-bold uppercase text-xs">Grátis</span>
