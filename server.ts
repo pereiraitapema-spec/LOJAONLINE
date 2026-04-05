@@ -452,14 +452,19 @@ async function startServer() {
         declaracaoItems: [
           {
             descricao: "pacote",
-            valor: totalProductsValue.toFixed(2),
-            quantidade: "1"
+            valor: Number(totalProductsValue.toFixed(2)),
+            quantidade: 1
           }
         ],
         chave_danfe: ""
       };
 
       console.log('🚀 Enviando payload para CepCerto (Admin):', JSON.stringify(payload, null, 2));
+      
+      // Validate payload before sending
+      if (!payload.declaracaoItems || payload.declaracaoItems.length === 0) {
+        throw new Error("Payload inválido: declaracaoItems está vazio ou faltando.");
+      }
 
       // 8. Chamar API CepCerto
       const response = await fetch('https://cepcerto.com/api-postagem-frete/', {
