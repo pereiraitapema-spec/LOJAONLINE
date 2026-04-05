@@ -450,16 +450,20 @@ async function startServer() {
         estado_destinatario: (dest.estado || dest.state || '').substring(0, 2),
         
         tipo_doc_fiscal: "declaracao",
-        produtos: (order.items || []).map((item: any) => ({
-          descricao: `pacote - ${item.product_name || 'Produto'}`,
-          valor: Number(item.price) * item.quantity,
-          quantidade: item.quantity
-        })),
-        declaracaoItems: (order.items || []).map((item: any) => ({
-          descricao: `pacote - ${item.product_name || 'Produto'}`,
-          valor: Number(item.price) * item.quantity,
-          quantidade: item.quantity
-        })),
+        produtos: [
+          {
+            descricao: "pacote",
+            valor: Number((totalProductsValue - (shippingCost || 0)).toFixed(2)),
+            quantidade: 1
+          }
+        ],
+        declaracaoItems: [
+          {
+            descricao: "pacote",
+            valor: Number((totalProductsValue - (shippingCost || 0)).toFixed(2)),
+            quantidade: 1
+          }
+        ],
         chave_danfe: ""
       };
 
