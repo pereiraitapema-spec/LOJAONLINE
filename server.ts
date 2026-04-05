@@ -413,6 +413,19 @@ async function startServer() {
       console.log("DEBUG: Destinatário completo:", JSON.stringify(dest, null, 2));
       
       // 7. Montar o payload
+      console.log("📦 [ETIQUETA] Payload recebido:", JSON.stringify(req.body, null, 2));
+      const orderItems = order.order_items || [];
+      console.log("📦 [ETIQUETA] Produtos recebidos:", orderItems);
+      console.log("📦 [ETIQUETA] Tipo dos produtos:", typeof orderItems);
+      console.log("📦 [ETIQUETA] Quantidade de produtos:", orderItems?.length);
+
+      const totalQty = orderItems.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0);
+      const totalProdValue = orderItems.reduce((acc: number, item: any) => acc + ((item.price || 0) * (item.quantity || 0)), 0);
+
+      console.log("📦 [ETIQUETA] Gerando declaração automática...");
+      console.log("📦 [ETIQUETA] Quantidade total:", totalQty);
+      console.log("📦 [ETIQUETA] Valor total produtos:", totalProdValue);
+
       const payload = {
         token_cliente_postagem: apiKey,
         tipo_entrega: tipoEntregaFinal,
@@ -453,16 +466,14 @@ async function startServer() {
         produtos: [
           {
             descricao: "frasco",
-            valor: totalProductsValue.toFixed(2),
-            quantidade: (order.items || []).reduce((acc: number, item: any) => acc + (item.quantity || 0), 0)
+            valor: totalProdValue.toFixed(2),
+            quantidade: totalQty
           }
         ],
         chave_danfe: ""
       };
 
-      console.log("📦 Gerando declaração automática");
-      console.log("📦 Declaração enviada:", payload.produtos);
-      console.log('🚀 Enviando para CepCerto:', JSON.stringify(payload, null, 2));
+      console.log("📦 [ETIQUETA] Payload CEPCERTO:", JSON.stringify(payload, null, 2));
 
       // 8. Chamar API CepCerto
       const response = await fetch('https://cepcerto.com/api-postagem-frete/', {
@@ -493,12 +504,16 @@ async function startServer() {
       }
 
       // 9. Salvar no Supabase (orders e shipping_labels)
+      // Corrigindo status: mapear 'failed' para 'pending' se necessário, ou garantir status válido
+      // Após gerar etiqueta: status_envio = 'processing'
+      
       await supabase
         .from('orders')
         .update({ 
           tracking_code: trackingCode,
-          status_envio: 'enviado',
-          erro_etiqueta: false
+          status_envio: 'processing',
+          erro_etiqueta: false,
+          status: order.status === 'failed' ? 'pending' : order.status // Garantir status válido
         })
         .eq('id', id_pedido);
 
