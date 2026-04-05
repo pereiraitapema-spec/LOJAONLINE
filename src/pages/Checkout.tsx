@@ -17,7 +17,8 @@ import {
   Settings,
   LayoutDashboard,
   Copy,
-  X
+  X,
+  Store
 } from 'lucide-react';
 import { isValidDocument } from '../lib/validation';
 import { toast } from 'react-hot-toast';
@@ -58,7 +59,7 @@ export default function Checkout() {
   const [selectedGateway, setSelectedGateway] = useState<string | null>(null);
   const [pagarmeMethod, setPagarmeMethod] = useState<'credit_card' | 'pix' | 'debit_card' | 'boleto' | null>(null);
   const [shippingMethods, setShippingMethods] = useState<ShippingQuote[]>([]);
-  const [selectedShipping, setSelectedShipping] = useState<number>(0);
+  const [selectedShipping, setSelectedShipping] = useState<number | null>(null);
   const [discountRules, setDiscountRules] = useState<any[]>([]);
   const [appliedDiscounts, setAppliedDiscounts] = useState<{ name: string; value: number }[]>([]);
   const [isFirstPurchase, setIsFirstPurchase] = useState(false);
@@ -461,7 +462,6 @@ export default function Checkout() {
         city: savedCity || prev.city,
         state: savedState || prev.state
       }));
-      handleCep(savedCep);
     }
   }, []);
 
@@ -523,25 +523,10 @@ export default function Checkout() {
 
   // Recalcular frete quando o carrinho ou cupom mudar
   useEffect(() => {
-    if (shipping.cep && (shipping.cep.length === 8 || shipping.cep.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === 'BALCAO')) {
-      if (shipping.cep.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === 'BALCAO') {
-        setShippingMethods([{
-          id: 'balcao',
-          name: 'CLIENTE BUSCA NA EMPRESA',
-          price: 0,
-          deadline: '0 dias',
-          provider: 'Balcão',
-          carrierName: 'Balcão'
-        }]);
-        setSelectedShipping(0);
-      } else if (shippingMethods.length > 0 && shippingMethods[0].id === 'balcao') {
-        // Se era BALCAO e agora não é mais, força recálculo
-        lastCalculatedCep.current = '';
-        handleCepBlur();
-      } else if (shippingMethods.length > 0) {
+    if (shipping.cep && shipping.cep.length === 8) {
+      if (shippingMethods.length > 0) {
         // Se o carrinho mudou, recalcula
         lastCalculatedCep.current = '';
-        handleCepBlur();
       }
     }
   }, [cart, couponCode]);
@@ -628,7 +613,7 @@ export default function Checkout() {
   }, [cartTotal, discountRules, campaigns, paymentMethod, isFirstPurchase, couponCode, affiliateCoupon]);
 
   const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
-  const isBalcao = shipping.cep.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === 'BALCAO';
+  const isBalcao = couponCode?.toLowerCase() === "balcao";
   const displayShippingMethods = isBalcao ? [{
     id: 'balcao',
     name: 'CLIENTE BUSCA NA EMPRESA',
@@ -638,7 +623,7 @@ export default function Checkout() {
     carrierName: 'Balcão'
   }] : shippingMethods;
 
-  const currentShipping = displayShippingMethods[isBalcao ? 0 : selectedShipping];
+  const currentShipping = isBalcao ? displayShippingMethods[0] : (selectedShipping !== null ? displayShippingMethods[selectedShipping] : null);
   console.log('DEBUG: cartTotal=', cartTotal, 'threshold=', settings?.free_shipping_threshold || 0, 'selectedShipping=', selectedShipping, 'currentShipping=', currentShipping);
   
   const threshold = Number(settings?.free_shipping_threshold) || 0;
@@ -724,38 +709,33 @@ export default function Checkout() {
 
   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
-    
-    // Check if the user is typing "balcao" or "balcão"
-    const normalizedRawValue = rawValue.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const isTypingBalcao = 'balcao'.startsWith(normalizedRawValue);
-    if (isTypingBalcao && rawValue.length > 0) {
-      setShipping(prev => ({ ...prev, cep: rawValue.toUpperCase() }));
-      
-      if (normalizedRawValue === 'balcao') {
-        setShippingMethods([{
-          id: 'balcao',
-          name: 'CLIENTE BUSCA NA EMPRESA',
-          price: 0,
-          deadline: '0 dias',
-          provider: 'Balcão',
-          carrierName: 'Balcão'
-        }]);
-        setSelectedShipping(0);
-      }
-      return;
-    }
-
     const value = rawValue.replace(/\D/g, '').slice(0, 8);
     console.log('⌨️ CEP Input Change:', { raw: rawValue, clean: value, length: value.length });
     setShipping(prev => ({ ...prev, cep: value }));
-
-    if (value.length === 8 && value !== lastCalculatedCep.current) {
-      console.log('🎯 CEP atingiu 8 dígitos, disparando handleCep...');
-      await handleCep(value);
-    }
   };
 
   const lastCalculatedCep = React.useRef<string>('');
+
+  const handleGerarCotacao = async () => {
+    console.log("🚀 Botão gerar cotação clicado");
+    console.log("🛒 Carrinho checkout:", cart);
+    
+    if (!cart || cart.length === 0) {
+      console.log("❌ Carrinho não carregado ainda");
+      toast.error('Carrinho vazio. Adicione produtos antes de calcular o frete.');
+      return;
+    }
+
+    const cep = shipping.cep.replace(/\D/g, '');
+    console.log("📍 CEP:", cep);
+
+    if (cep.length !== 8) {
+      toast.error('CEP deve ter 8 dígitos.');
+      return;
+    }
+
+    await handleCep(cep);
+  };
 
   const handleCep = async (cep: string) => {
     console.log('🚀 handleCep chamado com CEP:', cep);
@@ -767,6 +747,7 @@ export default function Checkout() {
     }
     
     console.log('🚀 Iniciando processamento do CEP:', cep);
+    console.log("🚀 Iniciando cotação");
     lastCalculatedCep.current = cep;
     setCalculatingShipping(true);
     setShippingMethods([]); // Limpar métodos anteriores
@@ -800,6 +781,10 @@ export default function Checkout() {
             return;
           }
         }
+
+        console.log("📦 Produtos carregados");
+        console.log("📏 Dimensões calculadas");
+        console.log("🚀 Chamando API cotação");
 
         // Calcular frete via Admin
         console.log('🚚 Solicitando cotação de frete ao Admin...');
@@ -845,8 +830,9 @@ export default function Checkout() {
 
             if (quotes.length > 0) {
               setShippingMethods(quotes);
-              setSelectedShipping(0);
+              setSelectedShipping(null); // Reset selection so user has to choose
               console.log('✅ Opções de frete carregadas:', quotes);
+              console.log("📥 Cotação recebida");
             } else {
               toast.error('Nenhuma opção de frete retornada.');
             }
@@ -871,12 +857,8 @@ export default function Checkout() {
   };
 
   const handleCepBlur = async () => {
-    if (shipping.cep.toUpperCase() === 'BALCAO') return;
-    if (isBalcao) return;
     const cep = shipping.cep.replace(/\D/g, '');
-    if (cep.length === 8 && cep !== lastCalculatedCep.current) {
-      await handleCep(cep);
-    } else if (cep.length > 0 && cep.length < 8) {
+    if (cep.length > 0 && cep.length < 8) {
       toast.error('CEP deve ter 8 dígitos.');
     }
   };
@@ -960,6 +942,11 @@ export default function Checkout() {
 
     if (!isBalcao && (!shipping.cep || !shipping.street || !shipping.number || !shipping.city || !shipping.state)) {
       toast.error('Preencha todos os campos obrigatórios do endereço.');
+      return;
+    }
+
+    if (!isBalcao && selectedShipping === null) {
+      alert("Selecione o tipo de entrega antes de finalizar a compra");
       return;
     }
 
@@ -1662,10 +1649,20 @@ export default function Checkout() {
                       onChange={handleCepChange}
                       maxLength={8}
                       onBlur={handleCepBlur}
-                      placeholder="00000-000 (ou digite 'balcao')"
+                      placeholder="00000-000"
                       className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       required
                     />
+                    {!isBalcao && (
+                      <button
+                        type="button"
+                        onClick={handleGerarCotacao}
+                        disabled={calculatingShipping || shipping.cep.replace(/\D/g, '').length !== 8}
+                        className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                      >
+                        {calculatingShipping ? 'Calculando...' : 'Calcular Frete'}
+                      </button>
+                    )}
                   </div>
                 </div>
                 
@@ -1756,7 +1753,37 @@ export default function Checkout() {
               </div>
 
               <div className="space-y-3">
-                {displayShippingMethods.length > 0 ? (
+                {isBalcao ? (
+                  <div className="p-6 bg-indigo-50 border border-indigo-100 rounded-2xl">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
+                        <Store size={24} />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-indigo-900">Retirada no Balcão</h3>
+                        <p className="text-sm text-indigo-700">Retirada na empresa após confirmação do pagamento</p>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white p-4 rounded-xl border border-indigo-50 text-sm text-slate-600 space-y-2">
+                      <p className="font-bold text-slate-900 mb-2">Instruções para retirada:</p>
+                      <p>Você escolheu retirar no balcão.</p>
+                      <p>Após o pagamento ser aprovado, compareça na empresa portando:</p>
+                      <ul className="list-disc pl-5 space-y-1 mt-2">
+                        <li>Comprovante de pagamento</li>
+                        <li>Documento de identificação</li>
+                        <li>Número do pedido</li>
+                      </ul>
+                      
+                      <div className="mt-4 pt-4 border-t border-slate-100">
+                        <p className="font-bold text-slate-900 mb-1">Endereço da Empresa:</p>
+                        <p>{settings?.company_name}</p>
+                        <p>{settings?.address}</p>
+                        {settings?.phone && <p className="mt-1">Telefone: {settings?.phone}</p>}
+                      </div>
+                    </div>
+                  </div>
+                ) : displayShippingMethods.length > 0 ? (
                   displayShippingMethods.map((method, index) => (
                     <button
                       key={index}
@@ -1778,13 +1805,13 @@ export default function Checkout() {
                       </p>
                     </button>
                   ))
-                ) : shipping.cep.length === 8 && !calculatingShipping ? (
+                ) : shipping.cep.replace(/\D/g, '').length === 8 && !calculatingShipping && shippingMethods.length === 0 ? (
                   <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl text-amber-700 text-sm font-bold text-center">
-                    Nenhuma opção de frete disponível para este CEP.
+                    Clique em "Calcular Frete" para ver as opções disponíveis.
                   </div>
                 ) : (
                   <div className="p-4 bg-slate-50 border border-slate-100 border-dashed rounded-2xl text-slate-400 text-sm font-bold text-center italic">
-                    {calculatingShipping ? 'Calculando opções de frete...' : 'Informe seu CEP para ver as opções de entrega.'}
+                    {calculatingShipping ? 'Calculando opções de frete...' : 'Informe seu CEP e clique em Calcular Frete.'}
                   </div>
                 )}
                 
