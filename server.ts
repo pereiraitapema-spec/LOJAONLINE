@@ -531,10 +531,18 @@ async function startServer() {
       // 9. Salvar no Supabase (orders e shipping_labels)
       const novoStatus = rastreador ? "processing" : "pending";
       
-      console.log(`DEBUG: Atualizando pedido ${id_pedido} com tracking_code: ${rastreador}, status: ${novoStatus}`);
+      // Re-buscar status atual do pedido para garantir que não estamos usando status stale
+      const { data: orderAtual, error: fetchOrderError } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', id_pedido)
+        .single();
       
-      // Atualiza status para 'processing' ao gerar etiqueta, se o pedido estiver pago/aprovado
-      const statusFinal = (order.status === 'paid' || order.status === 'approved') ? 'processing' : order.status;
+      const statusFinal = (fetchOrderError || !orderAtual) 
+        ? (order.status === 'paid' || order.status === 'approved' ? 'processing' : order.status)
+        : (orderAtual.status === 'paid' || orderAtual.status === 'approved' ? 'processing' : orderAtual.status);
+
+      console.log(`DEBUG: Atualizando pedido ${id_pedido} com tracking_code: ${rastreador}, status_final: ${statusFinal}, status_original: ${order.status}`);
       
       const { error: updateError } = await supabase
         .from('orders')
