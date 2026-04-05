@@ -450,22 +450,20 @@ async function startServer() {
         estado_destinatario: (dest.estado || dest.state || '').substring(0, 2),
         
         tipo_doc_fiscal: "declaracao",
-        declaracaoItems: [
-          {
-            descricao: "pacote",
-            valor: Number((totalProductsValue - (shippingCost || 0)).toFixed(2)),
-            quantidade: 1
-          }
-        ],
+        produtos: order.items.map((item: any) => ({
+          descricao: `pacote - ${item.product_name || 'Produto'}`,
+          valor: Number(item.price) * item.quantity,
+          quantidade: item.quantity
+        })),
+        declaracaoItems: order.items.map((item: any) => ({
+          descricao: `pacote - ${item.product_name || 'Produto'}`,
+          valor: Number(item.price) * item.quantity,
+          quantidade: item.quantity
+        })),
         chave_danfe: ""
       };
 
-      console.log('🚀 Enviando payload para CepCerto (Admin):', JSON.stringify(payload, null, 2));
-      
-      // Validate payload before sending
-      if (!payload.declaracaoItems || payload.declaracaoItems.length === 0) {
-        throw new Error("Payload inválido: declaracaoItems está vazio ou faltando.");
-      }
+      console.log('🚀 Payload final enviado para CepCerto:', JSON.stringify(payload, null, 2));
 
       // 8. Chamar API CepCerto
       const response = await fetch('https://cepcerto.com/api-postagem-frete/', {
