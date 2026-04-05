@@ -764,7 +764,8 @@ export default function CepCertoAdmin() {
 
   const handleSalvarRemetente = async () => {
     try {
-      const { supabase } = await import("../lib/supabase");
+      const { getSupabase } = await import("../lib/supabase");
+      const supabase = getSupabase();
       const { data, error } = await supabase
         .from('sender_settings')
         .upsert({
