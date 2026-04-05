@@ -10,12 +10,14 @@ export default function ShippingLabel() {
   const [order, setOrder] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [descricao, setDescricao] = useState('Frasco');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       if (!orderId) return;
       try {
-        const [orderRes, settingsRes] = await Promise.all([
+        const [orderRes, settingsRes, configRes] = await Promise.all([
           supabase
             .from('orders')
             .select('*')
@@ -24,12 +26,18 @@ export default function ShippingLabel() {
           supabase
             .from('store_settings')
             .select('*')
+            .maybeSingle(),
+          supabase
+            .from('shipping_label_config')
+            .select('descricao')
+            .eq('id', '0000000000000000000000000001')
             .maybeSingle()
         ]);
         
         if (orderRes.error) throw orderRes.error;
         setOrder(orderRes.data);
         setSettings(settingsRes.data);
+        if (configRes.data) setDescricao(configRes.data.descricao);
       } catch (err) {
         console.error('Error fetching data for label:', err);
       } finally {
@@ -38,6 +46,27 @@ export default function ShippingLabel() {
     };
     fetchData();
   }, [orderId]);
+
+  const salvarConfiguracao = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("shipping_label_config")
+        .upsert({
+          id: "0000000000000000000000000001",
+          descricao: descricao,
+          tipo_doc_fiscal: "declaracao",
+          updated_at: new Date().toISOString()
+        });
+      if (error) throw error;
+      alert("Configuração salva com sucesso!");
+    } catch (err) {
+      console.error('Error saving config:', err);
+      alert("Erro ao salvar configuração.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) return <Loading message="Carregando etiqueta..." />;
   if (!order) return <div className="p-8 text-center text-rose-600 font-bold">Pedido não encontrado.</div>;
@@ -49,27 +78,51 @@ export default function ShippingLabel() {
   return (
     <div className="min-h-screen bg-slate-100 p-8 print:p-0 print:bg-white">
       {/* Controles (Não aparecem na impressão) */}
-      <div className="max-w-3xl mx-auto mb-8 flex justify-between items-center print:hidden">
-        <button 
-          onClick={() => {
-            const params = new URLSearchParams(window.location.search);
-            if (params.get('from') === 'cepcerto') {
-              navigate('/shipping/cepcerto');
-            } else {
-              navigate('/orders');
-            }
-          }}
-          className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold"
-        >
-          <ArrowLeft size={20} /> 
-          {new URLSearchParams(window.location.search).get('from') === 'cepcerto' ? 'Voltar para Logística CepCerto' : 'Voltar para Pedidos'}
-        </button>
-        <button 
-          onClick={handlePrint}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
-        >
-          <Printer size={20} /> Imprimir Etiqueta
-        </button>
+      <div className="max-w-3xl mx-auto mb-8 print:hidden">
+        <div className="bg-white p-6 rounded-xl shadow-sm mb-6 border border-slate-200">
+          <h3 className="font-bold text-lg mb-4">Configuração da Declaração</h3>
+          <div className="flex gap-4 items-end">
+            <div className="flex-1">
+              <label className="block text-sm font-bold text-slate-600 mb-1">Descrição Produto:</label>
+              <input 
+                type="text" 
+                value={descricao} 
+                onChange={(e) => setDescricao(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg"
+              />
+            </div>
+            <button 
+              onClick={salvarConfiguracao}
+              disabled={saving}
+              className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 transition-colors"
+            >
+              {saving ? 'Salvando...' : 'Salvar Configuração'}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center">
+          <button 
+            onClick={() => {
+              const params = new URLSearchParams(window.location.search);
+              if (params.get('from') === 'cepcerto') {
+                navigate('/shipping/cepcerto');
+              } else {
+                navigate('/orders');
+              }
+            }}
+            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold"
+          >
+            <ArrowLeft size={20} /> 
+            {new URLSearchParams(window.location.search).get('from') === 'cepcerto' ? 'Voltar para Logística CepCerto' : 'Voltar para Pedidos'}
+          </button>
+          <button 
+            onClick={handlePrint}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+          >
+            <Printer size={20} /> Imprimir Etiqueta
+          </button>
+        </div>
       </div>
 
       {/* Etiqueta (Aparece na impressão) */}
