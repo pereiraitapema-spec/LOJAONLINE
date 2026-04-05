@@ -409,6 +409,7 @@ async function startServer() {
 
       // 6. Preparar dados do destinatário
       const dest = order.shipping_address || {};
+      console.log("DEBUG: Destinatário completo:", JSON.stringify(dest, null, 2));
       
       // 7. Montar o payload
       const payload = {
@@ -438,10 +439,10 @@ async function startServer() {
         cpf_cnpj_destinatario: (order.customer_document || '').replace(/\D/g, ''),
         whatsapp_destinatario: (order.customer_phone || '').replace(/\D/g, '').substring(0, 11),
         email_destinatario: (order.customer_email || '').substring(0, 50),
-        logradouro_destinatario: (dest.logradouro || '').substring(0, 50),
-        bairro_destinatario: (dest.bairro || '').substring(0, 40),
-        numero_endereco_destinatario: (dest.numero || 'SN').toString().substring(0, 10),
-        complemento_destinatario: (dest.complemento || '').substring(0, 20),
+        logradouro_destinatario: (dest.logradouro || dest.address || dest.street || 'Endereço não informado').substring(0, 50),
+        bairro_destinatario: (dest.bairro || dest.neighborhood || 'Centro').substring(0, 40),
+        numero_endereco_destinatario: (dest.numero || dest.number || 'SN').toString().substring(0, 10),
+        complemento_destinatario: (dest.complemento || dest.complement || '').substring(0, 20),
         
         tipo_doc_fiscal: "declaracao",
         produtos: [
