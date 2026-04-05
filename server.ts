@@ -490,6 +490,36 @@ async function startServer() {
 
       console.log("📦 [ETIQUETA] Payload CEPCERTO:", JSON.stringify(payload, null, 2));
 
+      // 7.5. Validar Pagamento antes de gerar etiqueta
+      if (order.etiqueta_gerada) {
+        console.log("⚠️ Etiqueta já gerada para este pedido, ignorando.");
+        return res.json({ success: true, message: "Etiqueta já gerada" });
+      }
+
+      const { data: webhook } = await supabase
+        .from("webhook_logs")
+        .select("*")
+        .eq("status", "processed")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      const paymentStatus = webhook && webhook.length > 0 ? webhook[0].payload?.status : 'pending';
+      const approvedStatuses = ['approved', 'paid', 'confirmed', 'success'];
+      const paymentApproved = approvedStatuses.includes(paymentStatus);
+
+      console.log("💰 Webhook encontrado:", webhook && webhook.length > 0 ? webhook[0] : 'Nenhum');
+      console.log("💰 Status pagamento:", paymentStatus);
+      console.log("📦 Gerar etiqueta:", paymentApproved);
+
+      if (paymentStatus === "failed" || paymentStatus === "error" || paymentStatus === "cancelled" || paymentStatus === "refused") {
+        return res.status(400).json({ success: false, message: webhook && webhook[0]?.error_message || "Pagamento não aprovado" });
+      }
+
+      if (!paymentApproved) {
+        console.log("❌ Pagamento não aprovado, não gerar etiqueta");
+        return res.status(400).json({ success: false, message: "Pagamento pendente ou não aprovado" });
+      }
+
       // 8. Chamar API CepCerto
       const response = await fetch('https://cepcerto.com/api-postagem-frete/', {
         method: 'POST',
