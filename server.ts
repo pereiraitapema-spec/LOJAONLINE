@@ -433,6 +433,8 @@ async function startServer() {
         bairro_remetente: senderBairro.substring(0, 40),
         numero_endereco_remetente: senderNumero.substring(0, 10),
         complemento_remetente: senderComplemento.substring(0, 20),
+        cidade_remetente: senderCidade.substring(0, 50),
+        estado_remetente: senderEstado.substring(0, 2),
         
         // Destinatário
         nome_destinatario: (order.customer_name || dest.nome || 'Cliente').substring(0, 50),
@@ -443,9 +445,11 @@ async function startServer() {
         bairro_destinatario: (dest.bairro || dest.neighborhood || 'Centro').substring(0, 40),
         numero_endereco_destinatario: (dest.numero || dest.number || 'SN').toString().substring(0, 10),
         complemento_destinatario: (dest.complemento || dest.complement || '').substring(0, 20),
+        cidade_destinatario: (dest.cidade || dest.city || '').substring(0, 50),
+        estado_destinatario: (dest.estado || dest.state || '').substring(0, 2),
         
         tipo_doc_fiscal: "declaracao",
-        produtos: [
+        declaracaoItems: [
           {
             descricao: "pacote",
             valor: totalProductsValue.toFixed(2),
