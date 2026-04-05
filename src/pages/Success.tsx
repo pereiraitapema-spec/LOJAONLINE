@@ -271,6 +271,12 @@ export default function Success() {
                   <span className={`px-3 py-1 ${(order.status === 'paid' || order.status === 'approved') ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} rounded-full text-xs font-bold uppercase`}>
                     {(order.status === 'paid' || order.status === 'approved') ? 'Pago' : 'Aguardando Pagamento'}
                   </span>
+                  {order.tracking_code && (
+                    <div className="mt-2">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Rastreio</p>
+                      <p className="text-sm font-black text-indigo-600">{order.tracking_code}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 

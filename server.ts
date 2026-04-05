@@ -524,7 +524,8 @@ async function startServer() {
       // Corrigindo status: mapear 'failed' para 'pending' se necessário, ou garantir status válido
       // Após gerar etiqueta: status_envio = 'processing'
       
-      await supabase
+      console.log(`DEBUG: Atualizando pedido ${id_pedido} com tracking_code: ${trackingCode}`);
+      const { data: updateData, error: updateError } = await supabase
         .from('orders')
         .update({ 
           tracking_code: trackingCode,
@@ -533,6 +534,12 @@ async function startServer() {
           status: order.status === 'failed' ? 'pending' : order.status // Garantir status válido
         })
         .eq('id', id_pedido);
+      
+      if (updateError) {
+        console.error('DEBUG: Erro ao atualizar pedido:', updateError);
+        throw new Error(`Erro ao atualizar pedido no Supabase: ${updateError.message}`);
+      }
+      console.log('DEBUG: Pedido atualizado com sucesso');
 
       await supabase.from('shipping_labels').upsert({
         order_id: id_pedido,
