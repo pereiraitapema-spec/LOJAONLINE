@@ -449,6 +449,13 @@ async function startServer() {
         estado_destinatario: (dest.estado || dest.state || '').substring(0, 2),
         
         tipo_doc_fiscal: "declaracao",
+        produtos: [
+          {
+            descricao: "pacote",
+            valor: Number(totalProductsValue.toFixed(2)),
+            quantidade: 1
+          }
+        ],
         declaracaoItems: [
           {
             descricao: "pacote",
