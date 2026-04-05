@@ -533,8 +533,8 @@ async function startServer() {
       
       console.log(`DEBUG: Atualizando pedido ${id_pedido} com tracking_code: ${rastreador}, status: ${novoStatus}`);
       
-      // Mantém o status original do pedido, garantindo que não seja 'failed'
-      const statusAtual = order.status === 'failed' ? 'pending' : order.status;
+      // Atualiza status para 'processing' ao gerar etiqueta, se o pedido estiver pago/aprovado
+      const statusFinal = (order.status === 'paid' || order.status === 'approved') ? 'processing' : order.status;
       
       const { error: updateError } = await supabase
         .from('orders')
@@ -546,7 +546,7 @@ async function startServer() {
           shipping_status: novoStatus,
           etiqueta_gerada: true,
           erro_etiqueta: 'false',
-          status: statusAtual
+          status: statusFinal
         })
         .eq('id', id_pedido);
       
