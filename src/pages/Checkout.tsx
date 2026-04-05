@@ -760,10 +760,10 @@ export default function Checkout() {
         console.log('✅ Endereço encontrado:', address);
         setShipping(prev => ({
           ...prev,
-          street: address.street || '',
-          neighborhood: address.neighborhood || '',
-          city: address.city,
-          state: address.state
+          street: address.street || prev.street || '',
+          neighborhood: address.neighborhood || prev.neighborhood || '',
+          city: address.city || prev.city || '',
+          state: address.state || prev.state || ''
         }));
         toast.success(`Endereço encontrado: ${address.city} - ${address.state}`);
 
