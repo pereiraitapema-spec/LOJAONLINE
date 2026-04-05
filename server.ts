@@ -507,30 +507,42 @@ async function startServer() {
         throw new Error("Resposta inválida da API CepCerto");
       }
 
-      if (result.status === 'erro' || !result.sucesso) {
+      console.log("📦 Resposta CEP CERTO:", result);
+
+      if (result.status === 'erro' || result.sucesso === false) {
         throw new Error(result.mensagem || result.error || 'Erro ao gerar etiqueta no CepCerto');
       }
 
-      const finalResult = result.postagem || result;
-      // Ajuste: buscar 'codigoObjeto' dentro de 'frete' conforme a estrutura da resposta fornecida
-      const trackingCode = finalResult.codigoObjeto || finalResult.frete?.codigoObjeto || finalResult.codigo_objeto || finalResult.tracking_code || finalResult.codigo;
+      // Captura correta conforme estrutura da API
+      const frete = result.frete || {};
+      const rastreador = frete.codigoObjeto || result.codigoObjeto || result.codigo_objeto || result.tracking_code || result.codigo;
+      const etiquetaPdf = frete.pdfUrlEtiqueta || result.pdfUrlEtiqueta || result.shipping_label_url || '';
+      const declaracaoUrl = frete.declaracaoUrl || result.declaracaoUrl || '';
+      const recibo = frete.idRecibo || result.idRecibo || '';
 
-      if (!trackingCode) {
+      console.log("📦 Código rastreador:", rastreador);
+      console.log("📦 URL etiqueta:", etiquetaPdf);
+
+      if (!rastreador) {
         console.error('DEBUG: Resposta completa para debug:', JSON.stringify(result, null, 2));
         throw new Error('Código de rastreio não retornado pela API');
       }
 
       // 9. Salvar no Supabase (orders e shipping_labels)
-      // Corrigindo status: mapear 'failed' para 'pending' se necessário, ou garantir status válido
-      // Após gerar etiqueta: status_envio = 'processing'
+      const novoStatus = rastreador ? "processing" : "pending";
       
-      console.log(`DEBUG: Atualizando pedido ${id_pedido} com tracking_code: ${trackingCode}`);
-      const { data: updateData, error: updateError } = await supabase
+      console.log(`DEBUG: Atualizando pedido ${id_pedido} com tracking_code: ${rastreador}, status: ${novoStatus}`);
+      
+      const { error: updateError } = await supabase
         .from('orders')
         .update({ 
-          tracking_code: trackingCode,
-          status_envio: 'processing',
-          erro_etiqueta: false,
+          tracking_code: rastreador,
+          shipping_label_url: etiquetaPdf,
+          shipping_declaration_url: declaracaoUrl,
+          shipping_receipt: recibo,
+          shipping_status: novoStatus,
+          etiqueta_gerada: true,
+          erro_etiqueta: 'false', // Armazenando como texto conforme schema solicitado
           status: order.status === 'failed' ? 'pending' : order.status // Garantir status válido
         })
         .eq('id', id_pedido);
@@ -539,31 +551,31 @@ async function startServer() {
         console.error('DEBUG: Erro ao atualizar pedido:', updateError);
         throw new Error(`Erro ao atualizar pedido no Supabase: ${updateError.message}`);
       }
-      console.log('DEBUG: Pedido atualizado com sucesso');
+      console.log('📦 Atualizado com sucesso');
 
       await supabase.from('shipping_labels').upsert({
         order_id: id_pedido,
-        codigo_objeto: trackingCode,
-        nome_destinatario: finalResult.nome_destinatario || finalResult.frete?.nome_destinatario || payload.nome_destinatario,
-        whatsapp_destinatario: finalResult.whatsapp_destinatario || finalResult.frete?.whatsapp_destinatario || payload.whatsapp_destinatario,
-        cidade_destinatario: finalResult.cidade_destinatario || finalResult.frete?.cidade_destinatario || dest.cidade,
-        estado_destinatario: finalResult.estado_destinatario || finalResult.frete?.estado_destinatario || dest.estado,
-        cep_destinatario: finalResult.cep_destinatario || finalResult.frete?.cep_destinatario || payload.cep_destinatario,
-        email_destinatario: finalResult.email_destinatario || finalResult.frete?.email_destinatario || payload.email_destinatario,
-        valor: Number(finalResult.valor || finalResult.frete?.valor) || 0,
-        prazo: finalResult.prazo || finalResult.frete?.prazo || '',
+        codigo_objeto: rastreador,
+        nome_destinatario: frete.nome_destinatario || payload.nome_destinatario,
+        whatsapp_destinatario: frete.whatsapp_destinatario || payload.whatsapp_destinatario,
+        cidade_destinatario: frete.cidade_destinatario || dest.cidade,
+        estado_destinatario: frete.estado_destinatario || dest.estado,
+        cep_destinatario: frete.cep_destinatario || payload.cep_destinatario,
+        email_destinatario: frete.email_destinatario || payload.email_destinatario,
+        valor: Number(frete.valor || result.valor) || 0,
+        prazo: frete.prazo || '',
         status: 'ativa',
-        pdf_url_etiqueta: finalResult.pdf_url_etiqueta || finalResult.frete?.pdfUrlEtiqueta || finalResult.shipping_label_url || '',
-        pdf_url_declaracao: finalResult.pdf_url_declaracao || finalResult.frete?.declaracaoUrl || '',
-        id_recibo: finalResult.id_recibo || finalResult.frete?.idRecibo || '',
-        id_string_correios: finalResult.id_string_correios || finalResult.frete?.idStringCorreios || '',
+        pdf_url_etiqueta: etiquetaPdf,
+        pdf_url_declaracao: declaracaoUrl,
+        id_recibo: recibo,
+        id_string_correios: frete.idStringCorreios || '',
         token: apiKey,
         transportadora: 'CepCerto',
         tipo_entrega: tipoEntregaFinal,
         data_postagem: new Date().toISOString()
       }, { onConflict: 'codigo_objeto' });
 
-      res.json({ success: true, tracking_code: trackingCode, result: finalResult });
+      res.json({ success: true, tracking_code: rastreador, result: result });
 
     } catch (error: any) {
       console.error("❌ Erro ao gerar etiqueta via Admin:", error);
