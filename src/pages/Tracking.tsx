@@ -19,7 +19,7 @@ export default function Tracking() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      let query = supabase.from('orders').select('id, status, tracking_code, tracking_history(*), created_at, customer_email, customer_document');
+      let query = supabase.from('orders').select('id, status, tracking_code, tracking_history(*), created_at, customer_email, customer_document, erro_etiqueta');
       
       if (term) {
         // Se houver termo de busca, busca por email ou documento
@@ -207,7 +207,9 @@ export default function Tracking() {
                       <p className="text-sm text-slate-500 font-medium">
                         {selectedOrder.tracking_code 
                           ? 'Enviado para transportadora.' 
-                          : 'Preparando seu pedido.'}
+                          : selectedOrder.erro_etiqueta 
+                            ? 'Preparando seu pedido. (Aguardando geração manual de etiqueta)'
+                            : 'Preparando seu pedido.'}
                       </p>
                     </div>
                   )}

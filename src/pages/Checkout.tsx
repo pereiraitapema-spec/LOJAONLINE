@@ -801,87 +801,62 @@ export default function Checkout() {
           }
         }
 
-        // Fetch product dimensions from Supabase
-        const productIds = cart.map(item => {
-          console.log('🛒 Item no carrinho (mapeando IDs):', item);
-          return item.product.id;
-        });
-        console.log('🔍 Buscando dimensões para os produtos no Checkout:', productIds);
+        // Calcular frete via Admin
+        console.log('🚚 Solicitando cotação de frete ao Admin...');
+        try {
+          const response = await fetch('/api/admin/frete/cotacao', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              cep_destinatario: cep,
+              produtos: cart.map(item => ({
+                id: item.product.id,
+                quantidade: item.quantity
+              }))
+            })
+          });
 
-        if (productIds.length === 0) {
-          console.warn('⚠️ Carrinho vazio, pulando busca de dimensões.');
-        }
-
-        const { data: dbProducts, error: productsError } = await supabase
-          .from('products')
-          .select('*')
-          .in('id', productIds);
-
-        if (productsError) {
-          console.error('❌ Erro ao buscar dimensões dos produtos:', productsError);
-        } else {
-          console.log('✅ Dados dos produtos encontrados no Supabase:', dbProducts);
-        }
-
-        // Calculate shipping using Admin Endpoint
-        const products = cart.map(item => {
-          const dbProduct = dbProducts?.find(p => p.id === item.product.id) as any;
+          const data = await response.json();
           
-          // Robust dimension extraction
-          const weight = dbProduct?.weight ?? dbProduct?.weight_kg;
-          const height = dbProduct?.height ?? dbProduct?.dimensions_cm?.height;
-          const width = dbProduct?.width ?? dbProduct?.dimensions_cm?.width;
-          const length = dbProduct?.length ?? dbProduct?.dimensions_cm?.depth ?? dbProduct?.dimensions_cm?.length;
+          if (data.status === 'sucesso' && data.frete) {
+            const quotes: ShippingQuote[] = [];
+            
+            if (data.frete.pac) {
+              quotes.push({
+                id: 'pac',
+                name: 'PAC',
+                price: Number(data.frete.pac.valor),
+                deadline: `${data.frete.pac.prazo} dias úteis`,
+                provider: data.frete.pac.transportadora || 'Correios',
+                carrierName: 'Correios'
+              });
+            }
+            
+            if (data.frete.sedex) {
+              quotes.push({
+                id: 'sedex',
+                name: 'SEDEX',
+                price: Number(data.frete.sedex.valor),
+                deadline: `${data.frete.sedex.prazo} dias úteis`,
+                provider: data.frete.sedex.transportadora || 'Correios',
+                carrierName: 'Correios'
+              });
+            }
 
-          // Log missing dimensions
-          if (!weight || !height || !width || !length) {
-            console.warn(`⚠️ Produto ${item.product.name} (ID: ${item.product.id}) está com dimensões incompletas no Supabase. Usando valores padrão.`);
+            if (quotes.length > 0) {
+              setShippingMethods(quotes);
+              setSelectedShipping(0);
+              console.log('✅ Opções de frete carregadas:', quotes);
+            } else {
+              toast.error('Nenhuma opção de frete retornada.');
+            }
+          } else {
+            console.error('❌ Erro na cotação:', data);
+            toast.error(data.mensagem || 'Erro ao calcular frete.');
           }
-
-          const mappedProduct = {
-            id: item.product.id,
-            quantidade: item.quantity,
-            weight: Number(weight) || 0.5,
-            height: Number(height) || 10,
-            width: Number(width) || 10,
-            length: Number(length) || 10
-          };
-          console.log(`📦 Produto mapeado para frete (${item.product.name}):`, mappedProduct);
-          return mappedProduct;
-        });
-
-        console.log('📦 Lista final de produtos para cálculo no Admin:', products);
-
-        let allQuotes: ShippingQuote[] = [];
-
-        if (shipping.cep.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === 'BALCAO') {
-          console.log('🏷️ CEP BALCAO aplicado, pulando cálculo de frete.');
-          allQuotes = [{
-            id: 'balcao',
-            name: 'CLIENTE BUSCA NA EMPRESA',
-            price: 0,
-            deadline: '0 dias',
-            provider: 'Balcão',
-            carrierName: 'Balcão'
-          }];
-        } else {
-          console.log(`🚚 Chamando endpoint de frete do Admin para o CEP ${cep}...`);
-          try {
-            allQuotes = await shippingService.calculateAdminShipping(cep, products);
-            console.log('📊 Cotações recebidas do Admin:', allQuotes);
-          } catch (err: any) {
-            console.error('❌ Erro ao calcular frete no Admin:', err);
-            toast.error(err.message || 'Erro ao calcular frete. Tente novamente.');
-          }
-        }
-        
-        console.log('🏁 Total de cotações recebidas:', allQuotes.length);
-        if (allQuotes.length > 0) {
-          setShippingMethods(allQuotes);
-          setSelectedShipping(0);
-        } else {
-          console.warn('⚠️ Nenhuma cotação retornada pelo Admin');
-          toast.error('Nenhuma opção de frete disponível para este CEP. Verifique se o CEP é válido para entrega.');
+        } catch (err) {
+          console.error('❌ Erro na requisição de cotação:', err);
+          toast.error('Falha ao conectar com o servidor de frete.');
         }
       } else {
         console.warn('⚠️ ViaCEP não retornou cidade para o CEP:', cep);
@@ -1338,12 +1313,12 @@ export default function Checkout() {
                   toast.success('Pagamento aprovado e etiqueta gerada!');
                 } else {
                   console.warn('⚠️ Falha na geração automática da etiqueta via Admin:', labelData.error);
-                  await supabase.from('orders').update({ status_envio: 'preparando' }).eq('id', orderId);
+                  await supabase.from('orders').update({ status_envio: 'preparando', erro_etiqueta: true }).eq('id', orderId);
                   toast.success('Pagamento aprovado! Seu pedido está sendo preparado.');
                 }
               } catch (labelErr: any) {
                 console.error('⚠️ Erro na comunicação com Admin para gerar etiqueta:', labelErr);
-                await supabase.from('orders').update({ status_envio: 'preparando' }).eq('id', orderId);
+                await supabase.from('orders').update({ status_envio: 'preparando', erro_etiqueta: true }).eq('id', orderId);
                 toast.success('Pagamento aprovado! Seu pedido está sendo preparado.');
               }
             }

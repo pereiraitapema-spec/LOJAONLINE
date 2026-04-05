@@ -169,7 +169,7 @@ async function startServer() {
     }
   });
 
-  // 6. Endpoint de Cotação de Frete Unificado para o Checkout
+  // 6. Endpoint de Cotação de Frete Unificado
   app.post("/api/admin/frete/cotacao", async (req, res) => {
     const { cep_destinatario, produtos } = req.body;
 
@@ -203,12 +203,7 @@ async function startServer() {
         if (dbProd) {
           const qty = p.quantidade || 1;
           
-          if (!dbProd.weight || !dbProd.height || !dbProd.width || !dbProd.length) {
-            console.warn(`⚠️ Produto ${dbProd.name} (ID: ${dbProd.id}) está com dimensões incompletas no Supabase. Usando valores padrão.`);
-          }
-
           totalWeight += (Number(dbProd.weight) || 0.5) * qty;
-          // Simulação simples de empilhamento: soma altura, pega maior largura/comprimento
           maxHeight += (Number(dbProd.height) || 10) * qty;
           maxWidth = Math.max(maxWidth, Number(dbProd.width) || 10);
           maxLength = Math.max(maxLength, Number(dbProd.length) || 10);
@@ -216,7 +211,7 @@ async function startServer() {
         }
       });
 
-      // 3. Buscar configurações do sistema (CEP remetente e API Key)
+      // 3. Buscar configurações do sistema
       const { data: carrier, error: carrierError } = await supabase
         .from('shipping_carriers')
         .select('config')
@@ -246,9 +241,9 @@ async function startServer() {
         cep_remetente: originZip.replace(/\D/g, ''),
         cep_destinatario: cep_destinatario.replace(/\D/g, ''),
         peso: totalWeight.toString(),
-        altura: Math.max(maxHeight, 2).toString(), // Mínimo 2cm
-        largura: Math.max(maxWidth, 11).toString(), // Mínimo 11cm
-        comprimento: Math.max(maxLength, 16).toString(), // Mínimo 16cm
+        altura: Math.max(maxHeight, 2).toString(),
+        largura: Math.max(maxWidth, 11).toString(),
+        comprimento: Math.max(maxLength, 16).toString(),
         valor_encomenda: totalValue.toFixed(2)
       };
 
@@ -272,32 +267,29 @@ async function startServer() {
       }
 
       // 6. Filtrar apenas SEDEX e PAC e formatar
-      const result: any = {
-        status: "sucesso",
-        frete: {}
-      };
-
+      const freteFiltrado: any = {};
+      
       if (data.frete.sedex) {
-        result.frete.sedex = {
+        freteFiltrado.sedex = {
           valor: data.frete.sedex.valor,
           prazo: data.frete.sedex.prazo,
-          transportadora: "Correios"
+          transportadora: data.frete.sedex.transportadora || 'Correios'
         };
       }
-
+      
       if (data.frete.pac) {
-        result.frete.pac = {
+        freteFiltrado.pac = {
           valor: data.frete.pac.valor,
           prazo: data.frete.pac.prazo,
-          transportadora: "Correios"
+          transportadora: data.frete.pac.transportadora || 'Correios'
         };
       }
 
-      res.json(result);
+      return res.json({ status: "sucesso", frete: freteFiltrado });
 
     } catch (error: any) {
-      console.error("❌ Erro no endpoint de frete:", error);
-      res.status(500).json({ status: "erro", mensagem: error.message });
+      console.error("❌ Erro no endpoint de cotação:", error);
+      return res.status(500).json({ status: "erro", mensagem: error.message || "Erro interno no servidor" });
     }
   });
 
@@ -478,7 +470,8 @@ async function startServer() {
         .from('orders')
         .update({ 
           tracking_code: trackingCode,
-          status_envio: 'enviado'
+          status_envio: 'enviado',
+          erro_etiqueta: false
         })
         .eq('id', id_pedido);
 
@@ -508,6 +501,22 @@ async function startServer() {
 
     } catch (error: any) {
       console.error("❌ Erro ao gerar etiqueta via Admin:", error);
+      
+      // Fallback: Salvar status_envio = 'preparando' e erro_etiqueta = true
+      try {
+        const { supabase } = await import("./src/lib/supabase");
+        await supabase
+          .from('orders')
+          .update({ 
+            status_envio: 'preparando',
+            erro_etiqueta: true
+          })
+          .eq('id', id_pedido);
+        console.log(`⚠️ Fallback aplicado para o pedido ${id_pedido}: status_envio = preparando, erro_etiqueta = true`);
+      } catch (fallbackError) {
+        console.error("❌ Erro ao aplicar fallback no Supabase:", fallbackError);
+      }
+
       res.status(500).json({ success: false, error: error.message });
     }
   });

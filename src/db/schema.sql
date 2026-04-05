@@ -158,6 +158,8 @@ create table if not exists public.orders (
   tracking_code text,
   logistics_history jsonb default '[]'::jsonb,
   current_logistics_status text,
+  status_envio text default 'pendente',
+  erro_etiqueta boolean default false,
   notes text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null

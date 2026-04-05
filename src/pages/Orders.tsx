@@ -26,7 +26,8 @@ import {
   QrCode,
   ExternalLink,
   FileText,
-  Copy
+  Copy,
+  AlertCircle
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'react-hot-toast';
@@ -50,6 +51,7 @@ interface Order {
   tracking_code?: string;
   shipping_label_url?: string;
   shipping_method?: string;
+  erro_etiqueta?: boolean;
 }
 
 interface AbandonedCart {
@@ -1985,7 +1987,12 @@ export default function Orders() {
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-500">Rastreio:</span>
-                        {order.tracking_code ? (
+                        {order.erro_etiqueta ? (
+                          <div className="flex items-center gap-2 text-rose-600 bg-rose-50 px-2 py-1 rounded border border-rose-100">
+                            <AlertCircle size={14} />
+                            <span className="text-xs font-bold">Falha (Gerar Manual)</span>
+                          </div>
+                        ) : order.tracking_code ? (
                           <div className="flex flex-col items-end gap-1">
                             <div className="flex items-center gap-2">
                               <button 
@@ -2131,6 +2138,12 @@ export default function Orders() {
                     {getStatusIcon(selectedOrder.status)}
                     {getStatusText(selectedOrder.status)}
                   </span>
+                  {selectedOrder.erro_etiqueta && (
+                    <div className="mt-2 flex items-center gap-2 text-rose-600 bg-rose-50 px-2 py-1 rounded border border-rose-100">
+                      <AlertCircle size={14} />
+                      <span className="text-xs font-bold">Falha na Geração Automática. Gere Manualmente.</span>
+                    </div>
+                  )}
                 </div>
                 
                 {isAdmin && (

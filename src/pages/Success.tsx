@@ -134,17 +134,30 @@ export default function Success() {
                   <Truck size={24} />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Código de Rastreio</p>
-                  <p className="text-lg font-black text-slate-900 tracking-tight">
-                    {order.tracking_code || 'Aguardando Postagem'}
-                  </p>
-                  <button 
-                    onClick={() => setIsTrackingModalOpen(true)}
-                    className="text-xs font-bold text-indigo-600 hover:underline mt-1 flex items-center gap-1"
-                  >
-                    <LayoutDashboard size={14} />
-                    Acompanhar Entrega
-                  </button>
+                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Status do Envio</p>
+                  {order.tracking_code ? (
+                    <>
+                      <p className="text-lg font-black text-slate-900 tracking-tight">
+                        {order.tracking_code}
+                      </p>
+                      <button 
+                        onClick={() => setIsTrackingModalOpen(true)}
+                        className="text-xs font-bold text-indigo-600 hover:underline mt-1 flex items-center gap-1"
+                      >
+                        <LayoutDashboard size={14} />
+                        Acompanhar Entrega
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-lg font-black text-slate-900 tracking-tight">
+                        Preparando Envio
+                      </p>
+                      <p className="text-xs text-slate-600 mt-1">
+                        Seu produto está sendo preparado. Assim que possível enviaremos o código de rastreamento. Você será informado para acompanhar a entrega.
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             </motion.div>
