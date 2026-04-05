@@ -754,6 +754,7 @@ export default function Checkout() {
     
     try {
       console.log('⏱️ Buscando endereço no ViaCEP...');
+      console.log("📦 Endereço antes cálculo:", shipping);
       const address = await cepService.fetchAddress(cep);
       
       if (address && address.city) {
@@ -765,6 +766,13 @@ export default function Checkout() {
           city: address.city || prev.city || '',
           state: address.state || prev.state || ''
         }));
+        console.log("📦 Endereço após cálculo:", {
+          ...shipping,
+          street: address.street || shipping.street || '',
+          neighborhood: address.neighborhood || shipping.neighborhood || '',
+          city: address.city || shipping.city || '',
+          state: address.state || shipping.state || ''
+        });
         toast.success(`Endereço encontrado: ${address.city} - ${address.state}`);
 
         // Verificar se temos transportadoras ativas
