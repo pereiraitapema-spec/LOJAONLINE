@@ -452,9 +452,9 @@ async function startServer() {
         tipo_doc_fiscal: "declaracao",
         declaracaoItems: [
           {
-            descricao: "pacote",
+            desc: "pacote",
             valor: Number((totalProductsValue - (shippingCost || 0)).toFixed(2)),
-            quantidade: 1
+            qtd: 1
           }
         ],
         chave_danfe: ""
