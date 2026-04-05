@@ -414,13 +414,18 @@ async function startServer() {
       
       // 7. Montar o payload
       console.log("📦 [ETIQUETA] Payload recebido:", JSON.stringify(req.body, null, 2));
-      const orderItems = order.order_items || [];
+      let orderItems = order.order_items || [];
       console.log("📦 [ETIQUETA] Produtos recebidos:", orderItems);
-      console.log("📦 [ETIQUETA] Tipo dos produtos:", typeof orderItems);
-      console.log("📦 [ETIQUETA] Quantidade de produtos:", orderItems?.length);
+      
+      let totalQty = orderItems.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0);
+      let totalProdValue = orderItems.reduce((acc: number, item: any) => acc + ((item.price || 0) * (item.quantity || 0)), 0);
 
-      const totalQty = orderItems.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0);
-      const totalProdValue = orderItems.reduce((acc: number, item: any) => acc + ((item.price || 0) * (item.quantity || 0)), 0);
+      // Fallback se não houver itens
+      if (orderItems.length === 0) {
+        console.log("📦 [ETIQUETA] Nenhum item encontrado, usando fallback.");
+        totalQty = 1;
+        totalProdValue = Number(order.total) - Number(order.shipping_cost || 0);
+      }
 
       console.log("📦 [ETIQUETA] Gerando declaração automática...");
       console.log("📦 [ETIQUETA] Quantidade total:", totalQty);
