@@ -512,9 +512,11 @@ async function startServer() {
       }
 
       const finalResult = result.postagem || result;
-      const trackingCode = finalResult.codigo_objeto || finalResult.tracking_code || finalResult.codigo;
+      // Ajuste: buscar 'codigoObjeto' dentro de 'frete' conforme a estrutura da resposta fornecida
+      const trackingCode = finalResult.codigoObjeto || finalResult.frete?.codigoObjeto || finalResult.codigo_objeto || finalResult.tracking_code || finalResult.codigo;
 
       if (!trackingCode) {
+        console.error('DEBUG: Resposta completa para debug:', JSON.stringify(result, null, 2));
         throw new Error('Código de rastreio não retornado pela API');
       }
 
@@ -535,19 +537,19 @@ async function startServer() {
       await supabase.from('shipping_labels').upsert({
         order_id: id_pedido,
         codigo_objeto: trackingCode,
-        nome_destinatario: finalResult.nome_destinatario || payload.nome_destinatario,
-        whatsapp_destinatario: finalResult.whatsapp_destinatario || payload.whatsapp_destinatario,
-        cidade_destinatario: finalResult.cidade_destinatario || dest.cidade,
-        estado_destinatario: finalResult.estado_destinatario || dest.estado,
-        cep_destinatario: finalResult.cep_destinatario || payload.cep_destinatario,
-        email_destinatario: finalResult.email_destinatario || payload.email_destinatario,
-        valor: Number(finalResult.valor) || 0,
-        prazo: finalResult.prazo || '',
+        nome_destinatario: finalResult.nome_destinatario || finalResult.frete?.nome_destinatario || payload.nome_destinatario,
+        whatsapp_destinatario: finalResult.whatsapp_destinatario || finalResult.frete?.whatsapp_destinatario || payload.whatsapp_destinatario,
+        cidade_destinatario: finalResult.cidade_destinatario || finalResult.frete?.cidade_destinatario || dest.cidade,
+        estado_destinatario: finalResult.estado_destinatario || finalResult.frete?.estado_destinatario || dest.estado,
+        cep_destinatario: finalResult.cep_destinatario || finalResult.frete?.cep_destinatario || payload.cep_destinatario,
+        email_destinatario: finalResult.email_destinatario || finalResult.frete?.email_destinatario || payload.email_destinatario,
+        valor: Number(finalResult.valor || finalResult.frete?.valor) || 0,
+        prazo: finalResult.prazo || finalResult.frete?.prazo || '',
         status: 'ativa',
-        pdf_url_etiqueta: finalResult.pdf_url_etiqueta || finalResult.shipping_label_url || '',
-        pdf_url_declaracao: finalResult.pdf_url_declaracao || '',
-        id_recibo: finalResult.id_recibo || '',
-        id_string_correios: finalResult.id_string_correios || '',
+        pdf_url_etiqueta: finalResult.pdf_url_etiqueta || finalResult.frete?.pdfUrlEtiqueta || finalResult.shipping_label_url || '',
+        pdf_url_declaracao: finalResult.pdf_url_declaracao || finalResult.frete?.declaracaoUrl || '',
+        id_recibo: finalResult.id_recibo || finalResult.frete?.idRecibo || '',
+        id_string_correios: finalResult.id_string_correios || finalResult.frete?.idStringCorreios || '',
         token: apiKey,
         transportadora: 'CepCerto',
         tipo_entrega: tipoEntregaFinal,
