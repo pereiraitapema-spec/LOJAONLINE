@@ -1654,6 +1654,16 @@ export default function Checkout() {
                       className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       required
                     />
+                    {!isBalcao && (
+                      <button
+                        type="button"
+                        onClick={handleGerarCotacao}
+                        disabled={calculatingShipping || shipping.cep.replace(/\D/g, '').length !== 8}
+                        className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                      >
+                        {calculatingShipping ? 'Calculando...' : 'Calcular Frete'}
+                      </button>
+                    )}
                   </div>
                 </div>
                 
@@ -1736,23 +1746,11 @@ export default function Checkout() {
 
             {/* Entrega */}
             <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
-              <div className="flex items-center justify-between gap-3 mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
-                    <Truck size={20} />
-                  </div>
-                  <h2 className="text-xl font-bold text-slate-900">Forma de Entrega</h2>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
+                  <Truck size={20} />
                 </div>
-                {!isBalcao && (
-                  <button
-                    type="button"
-                    onClick={handleGerarCotacao}
-                    disabled={calculatingShipping || shipping.cep.replace(/\D/g, '').length !== 8}
-                    className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                  >
-                    {calculatingShipping ? 'Calculando...' : 'Calcular Frete'}
-                  </button>
-                )}
+                <h2 className="text-xl font-bold text-slate-900">Forma de Entrega</h2>
               </div>
 
               <div className="space-y-3">
