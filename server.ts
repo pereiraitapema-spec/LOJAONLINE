@@ -533,6 +533,9 @@ async function startServer() {
       
       console.log(`DEBUG: Atualizando pedido ${id_pedido} com tracking_code: ${rastreador}, status: ${novoStatus}`);
       
+      // Mantém o status original do pedido, garantindo que não seja 'failed'
+      const statusAtual = order.status === 'failed' ? 'pending' : order.status;
+      
       const { error: updateError } = await supabase
         .from('orders')
         .update({ 
@@ -542,8 +545,8 @@ async function startServer() {
           shipping_receipt: recibo,
           shipping_status: novoStatus,
           etiqueta_gerada: true,
-          erro_etiqueta: 'false', // Armazenando como texto conforme schema solicitado
-          status: order.status === 'failed' ? 'pending' : order.status // Garantir status válido
+          erro_etiqueta: 'false',
+          status: statusAtual
         })
         .eq('id', id_pedido);
       
