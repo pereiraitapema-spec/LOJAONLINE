@@ -762,6 +762,33 @@ export default function CepCertoAdmin() {
     setPostagemData(prev => ({ ...prev, [field]: formattedValue }));
   };
 
+  const handleSalvarRemetente = async () => {
+    try {
+      const { supabase } = await import("../lib/supabase");
+      const { data, error } = await supabase
+        .from('sender_settings')
+        .upsert({
+          nome_razao_social: postagemData.nome_remetente,
+          cpf_cnpj: postagemData.cpf_cnpj_remetente,
+          whatsapp: postagemData.whatsapp_remetente,
+          email: postagemData.email_remetente,
+          cep: postagemData.cep_remetente,
+          logradouro: postagemData.logradouro_remetente,
+          numero: postagemData.numero_endereco_remetente,
+          bairro: postagemData.bairro_remetente,
+          cidade: postagemData.cidade_remetente,
+          estado: postagemData.estado_remetente,
+          complemento: postagemData.complemento_remetente
+        });
+
+      if (error) throw error;
+      alert("Remetente salvo com sucesso!");
+    } catch (error) {
+      console.error("Erro ao salvar remetente:", error);
+      alert("Erro ao salvar remetente.");
+    }
+  };
+
   // Monitoramento contínuo para cotação automática
   useEffect(() => {
     // Monitoramento contínuo removido conforme solicitado
@@ -2770,9 +2797,17 @@ export default function CepCertoAdmin() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                     {/* SEÇÃO 1 — REMETENTE */}
                     <div className="space-y-4">
-                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center gap-2">
-                        <MapPin size={16} className="text-indigo-600" />
-                        Seção 1 — Remetente
+                      <h4 className="font-bold text-slate-900 uppercase text-xs tracking-widest flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-2">
+                          <MapPin size={16} className="text-indigo-600" />
+                          Seção 1 — Remetente
+                        </span>
+                        <button 
+                          onClick={handleSalvarRemetente}
+                          className="px-3 py-1 bg-emerald-600 text-white text-[10px] font-bold rounded-lg hover:bg-emerald-700 transition-colors"
+                        >
+                          SALVAR REMETENTE
+                        </button>
                       </h4>
                       <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1">
