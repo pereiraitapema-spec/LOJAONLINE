@@ -390,6 +390,7 @@ async function startServer() {
 
       // 5. Preparar dados do remetente
       const senderCep = (senderSettings?.cep || '').replace(/\D/g, '');
+      const shippingCost = order.shipping_cost || 0;
       console.log("DEBUG: senderCep extraído do sender_settings:", senderCep);
       
       if (!senderCep) {
