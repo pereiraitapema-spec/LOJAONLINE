@@ -211,6 +211,11 @@ async function startServer() {
         }
       });
 
+      if (totalWeight < 0.3) totalWeight = 0.5;
+      if (maxHeight < 2) maxHeight = 2;
+      if (maxWidth < 11) maxWidth = 11;
+      if (maxLength < 16) maxLength = 16;
+
       // 3. Buscar configurações do sistema
       const { data: carrier, error: carrierError } = await supabase
         .from('shipping_carriers')
@@ -346,6 +351,11 @@ async function startServer() {
         totalQuantity += qty;
       });
 
+      if (totalWeight < 0.3) totalWeight = 0.5;
+      if (maxHeight < 2) maxHeight = 2;
+      if (maxWidth < 11) maxWidth = 11;
+      if (totalLength < 16) totalLength = 16;
+
       // 3. Buscar configurações do sistema (Remetente e API Key)
       const { data: carrier, error: carrierError } = await supabase
         .from('shipping_carriers')
@@ -398,7 +408,7 @@ async function startServer() {
         logistica_reversa: "",
         cep_remetente: senderCep,
         cep_destinatario: (dest.cep || '').replace(/\D/g, ''),
-        peso: totalWeight.toFixed(3).replace('.', ','),
+        peso: totalWeight.toString(),
         altura: Math.ceil(maxHeight).toString(),
         largura: Math.ceil(maxWidth).toString(),
         comprimento: Math.ceil(totalLength).toString(),
