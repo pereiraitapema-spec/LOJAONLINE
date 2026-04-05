@@ -764,29 +764,40 @@ export default function CepCertoAdmin() {
 
   const handleSalvarRemetente = async () => {
     try {
+      console.log("🚀 Iniciando salvamento do remetente...");
       const { getSupabase } = await import("../lib/supabase");
       const supabase = getSupabase();
+      
+      const payload = {
+        nome_razao_social: postagemData.nome_remetente,
+        cpf_cnpj: postagemData.cpf_cnpj_remetente,
+        whatsapp: postagemData.whatsapp_remetente,
+        email: postagemData.email_remetente,
+        cep: postagemData.cep_remetente,
+        logradouro: postagemData.logradouro_remetente,
+        numero: postagemData.numero_endereco_remetente,
+        bairro: postagemData.bairro_remetente,
+        cidade: postagemData.cidade_remetente,
+        estado: postagemData.estado_remetente,
+        complemento: postagemData.complemento_remetente
+      };
+      
+      console.log("📦 Payload para salvar:", payload);
+
       const { data, error } = await supabase
         .from('sender_settings')
-        .upsert({
-          nome_razao_social: postagemData.nome_remetente,
-          cpf_cnpj: postagemData.cpf_cnpj_remetente,
-          whatsapp: postagemData.whatsapp_remetente,
-          email: postagemData.email_remetente,
-          cep: postagemData.cep_remetente,
-          logradouro: postagemData.logradouro_remetente,
-          numero: postagemData.numero_endereco_remetente,
-          bairro: postagemData.bairro_remetente,
-          cidade: postagemData.cidade_remetente,
-          estado: postagemData.estado_remetente,
-          complemento: postagemData.complemento_remetente
-        });
+        .upsert(payload);
 
-      if (error) throw error;
+      if (error) {
+        console.error("❌ Erro do Supabase:", error);
+        throw error;
+      }
+      
+      console.log("✅ Sucesso ao salvar:", data);
       alert("Remetente salvo com sucesso!");
     } catch (error) {
-      console.error("Erro ao salvar remetente:", error);
-      alert("Erro ao salvar remetente.");
+      console.error("❌ Erro ao salvar remetente:", error);
+      alert("Erro ao salvar remetente. Verifique o console.");
     }
   };
 
