@@ -412,6 +412,16 @@ async function startServer() {
       const dest = order.shipping_address || {};
       console.log("DEBUG: Destinatário completo:", JSON.stringify(dest, null, 2));
       
+      // 6.1 Buscar configuração de etiqueta
+      const { data: config } = await supabase
+        .from("shipping_label_config")
+        .select("*")
+        .eq("id", "0000000000000000000000000001")
+        .maybeSingle();
+      
+      const descricaoPadrao = config?.descricao || "Frasco";
+      console.log("📦 [ETIQUETA] Configuração carregada:", config);
+
       // 7. Montar o payload
       console.log("📦 [ETIQUETA] Payload recebido:", JSON.stringify(req.body, null, 2));
       let orderItems = order.order_items || [];
@@ -470,7 +480,7 @@ async function startServer() {
         tipo_doc_fiscal: "declaracao",
         produtos: [
           {
-            descricao: "frasco",
+            descricao: descricaoPadrao,
             valor: totalProdValue.toFixed(2),
             quantidade: totalQty
           }
