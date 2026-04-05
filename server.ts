@@ -449,7 +449,7 @@ async function startServer() {
           {
             descricao: "pacote",
             valor: totalProductsValue.toFixed(2),
-            quantidade: totalQuantity.toString()
+            quantidade: "1"
           }
         ],
         chave_danfe: ""
