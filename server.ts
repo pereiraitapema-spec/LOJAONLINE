@@ -397,6 +397,7 @@ async function startServer() {
       const senderNumero = senderRest[0] || 'SN';
       const senderBairro = senderRest[1] || 'Centro';
       const senderCep = (settings?.origin_zip_code || settings?.cep || '').replace(/\D/g, '');
+      console.log("DEBUG: senderCep extraído:", senderCep);
       const senderNome = settings?.company_name?.substring(0, 50) || 'Remetente';
       const senderCpfCnpj = settings?.cnpj?.replace(/\D/g, '') || '';
       const senderWhatsapp = (settings?.whatsapp || settings?.phone || '').replace(/\D/g, '').substring(0, 11);
