@@ -369,8 +369,8 @@ async function startServer() {
         .eq('active', true)
         .maybeSingle();
 
-      const { data: settings } = await supabase
-        .from('store_settings')
+      const { data: senderSettings } = await supabase
+        .from('sender_settings')
         .select('*')
         .limit(1)
         .maybeSingle();
@@ -389,20 +389,23 @@ async function startServer() {
       else if (method.includes('jadlog-dotcom')) tipoEntregaFinal = 'jadlog-dotcom';
 
       // 5. Preparar dados do remetente
-      const senderAddress = settings?.address || '';
-      const senderParts = senderAddress.split(',').map((s: string) => s.trim());
-      const senderRest = (senderParts[1] || '').split('-').map((s: string) => s.trim());
+      const senderCep = (senderSettings?.cep || '').replace(/\D/g, '');
+      console.log("DEBUG: senderCep extraído do sender_settings:", senderCep);
       
-      const senderLogradouro = senderParts[0] || 'Endereço não informado';
-      const senderNumero = senderRest[0] || 'SN';
-      const senderBairro = senderRest[1] || 'Centro';
-      const senderCep = (settings?.origin_zip_code || settings?.cep || '').replace(/\D/g, '');
-      console.log("DEBUG: senderCep extraído:", senderCep);
-      const senderNome = settings?.company_name?.substring(0, 50) || 'Remetente';
-      const senderCpfCnpj = settings?.cnpj?.replace(/\D/g, '') || '';
-      const senderWhatsapp = (settings?.whatsapp || settings?.phone || '').replace(/\D/g, '').substring(0, 11);
-      const senderEmail = settings?.email?.substring(0, 50) || '';
-      const senderComplemento = "";
+      if (!senderCep) {
+        throw new Error("CEP do remetente não configurado na tabela sender_settings");
+      }
+
+      const senderNome = senderSettings?.nome_razao_social?.substring(0, 50) || 'Remetente';
+      const senderCpfCnpj = senderSettings?.cpf_cnpj?.replace(/\D/g, '') || '';
+      const senderWhatsapp = (senderSettings?.whatsapp || '').replace(/\D/g, '').substring(0, 11);
+      const senderEmail = senderSettings?.email?.substring(0, 50) || '';
+      const senderLogradouro = senderSettings?.logradouro || 'Endereço não informado';
+      const senderNumero = senderSettings?.numero || 'SN';
+      const senderBairro = senderSettings?.bairro || 'Centro';
+      const senderCidade = senderSettings?.cidade || '';
+      const senderEstado = senderSettings?.estado || '';
+      const senderComplemento = senderSettings?.complemento || "";
 
       // 6. Preparar dados do destinatário
       const dest = order.shipping_address || {};
