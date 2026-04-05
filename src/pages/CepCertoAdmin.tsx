@@ -768,7 +768,11 @@ export default function CepCertoAdmin() {
       const { getSupabase } = await import("../lib/supabase");
       const supabase = getSupabase();
       
+      // ID fixo para garantir que sempre atualize a mesma linha
+      const FIXED_ID = '00000000-0000-0000-0000-000000000001';
+      
       const payload = {
+        id: FIXED_ID,
         nome_razao_social: postagemData.nome_remetente,
         cpf_cnpj: postagemData.cpf_cnpj_remetente,
         whatsapp: postagemData.whatsapp_remetente,
@@ -786,7 +790,7 @@ export default function CepCertoAdmin() {
 
       const { data, error } = await supabase
         .from('sender_settings')
-        .upsert(payload);
+        .upsert(payload, { onConflict: 'id' });
 
       if (error) {
         console.error("❌ Erro do Supabase:", error);
