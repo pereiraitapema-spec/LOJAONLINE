@@ -450,13 +450,6 @@ async function startServer() {
         estado_destinatario: (dest.estado || dest.state || '').substring(0, 2),
         
         tipo_doc_fiscal: "declaracao",
-        produtos: [
-          {
-            descricao: "pacote",
-            valor: Number((totalProductsValue - (shippingCost || 0)).toFixed(2)),
-            quantidade: 1
-          }
-        ],
         declaracaoItems: [
           {
             descricao: "pacote",
@@ -467,7 +460,9 @@ async function startServer() {
         chave_danfe: ""
       };
 
-      console.log('🚀 Payload final enviado para CepCerto:', JSON.stringify(payload, null, 2));
+      console.log('🔍 Payload detalhado para CepCerto:', JSON.stringify(payload, null, 2));
+      console.log('🔍 Tipo Documento Fiscal:', payload.tipo_doc_fiscal);
+      console.log('🔍 DeclaracaoItems:', JSON.stringify(payload.declaracaoItems, null, 2));
 
       // 8. Chamar API CepCerto
       const response = await fetch('https://cepcerto.com/api-postagem-frete/', {
