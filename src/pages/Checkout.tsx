@@ -807,27 +807,18 @@ export default function Checkout() {
           if (data.status === 'sucesso' && data.frete) {
             const quotes: ShippingQuote[] = [];
             
-            if (data.frete.pac) {
+            // Itera sobre as chaves do objeto frete retornado pelo servidor
+            Object.keys(data.frete).forEach((key) => {
+              const method = data.frete[key];
               quotes.push({
-                id: 'pac',
-                name: 'PAC',
-                price: Number(data.frete.pac.valor),
-                deadline: `${data.frete.pac.prazo} dias úteis`,
-                provider: data.frete.pac.transportadora || 'Correios',
-                carrierName: 'Correios'
+                id: key,
+                name: key.toUpperCase(), // Nome do método (ex: PAC, SEDEX, JADLOG_PACKAGE)
+                price: Number(method.valor),
+                deadline: method.prazo,
+                provider: method.transportadora || 'Transportadora',
+                carrierName: method.transportadora || 'Transportadora'
               });
-            }
-            
-            if (data.frete.sedex) {
-              quotes.push({
-                id: 'sedex',
-                name: 'SEDEX',
-                price: Number(data.frete.sedex.valor),
-                deadline: `${data.frete.sedex.prazo} dias úteis`,
-                provider: data.frete.sedex.transportadora || 'Correios',
-                carrierName: 'Correios'
-              });
-            }
+            });
 
             if (quotes.length > 0) {
               setShippingMethods(quotes);

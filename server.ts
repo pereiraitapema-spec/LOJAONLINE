@@ -272,24 +272,28 @@ async function startServer() {
         });
       }
 
-      // 6. Filtrar apenas SEDEX e PAC e formatar
+      // 6. Formatar todas as opções de frete retornadas pela API
       const freteFiltrado: any = {};
       
-      if (data.frete.sedex) {
-        freteFiltrado.sedex = {
-          valor: data.frete.sedex.valor,
-          prazo: data.frete.sedex.prazo,
-          transportadora: data.frete.sedex.transportadora || 'Correios'
-        };
-      }
-      
-      if (data.frete.pac) {
-        freteFiltrado.pac = {
-          valor: data.frete.pac.valor,
-          prazo: data.frete.pac.prazo,
-          transportadora: data.frete.pac.transportadora || 'Correios'
-        };
-      }
+      // Itera sobre as chaves do objeto frete (ex: valor_pac, prazo_pac, valor_sedex, etc.)
+      // e agrupa por tipo de frete
+      const tiposFrete = new Set(
+        Object.keys(data.frete)
+          .map(key => key.replace('valor_', '').replace('prazo_', ''))
+      );
+
+      tiposFrete.forEach(tipo => {
+        const valor = data.frete[`valor_${tipo}`];
+        const prazo = data.frete[`prazo_${tipo}`];
+        
+        if (valor && prazo) {
+          freteFiltrado[tipo] = {
+            valor: valor.replace(',', '.'), // Converte "20,81" para "20.81"
+            prazo: prazo,
+            transportadora: tipo.toUpperCase()
+          };
+        }
+      });
 
       return res.json({ status: "sucesso", frete: freteFiltrado });
 
