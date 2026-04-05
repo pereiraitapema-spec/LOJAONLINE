@@ -262,9 +262,10 @@ async function startServer() {
       });
 
       const data = await response.json();
-      console.log("📦 Resposta CepCerto:", data);
+      console.log("📦 Resposta CepCerto (raw):", JSON.stringify(data, null, 2));
 
       if (data.status === "erro" || !data.frete) {
+        console.log("❌ Erro na resposta do CepCerto ou frete vazio:", data);
         return res.json({ 
           status: "erro", 
           mensagem: data.mensagem || "Erro na cotação do frete" 
