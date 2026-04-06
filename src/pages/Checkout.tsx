@@ -1273,12 +1273,30 @@ export default function Checkout() {
                 console.log("LOG — Dados originais:", order);
                 const normalized = { ...order };
                 
-                if (!normalized.products && normalized.order_items) {
-                    normalized.products = normalized.order_items;
-                } else if (!normalized.products && normalized.products_fallback) {
-                    normalized.products = normalized.products_fallback;
+                // Normalização de produtos: busca em várias fontes possíveis
+                if (!normalized.products || normalized.products.length === 0) {
+                    if (normalized.order_items && normalized.order_items.length > 0) {
+                        normalized.products = normalized.order_items;
+                        console.log("LOG — Produtos carregados de order_items");
+                    } else if (normalized.items && normalized.items.length > 0) {
+                        normalized.products = normalized.items;
+                        console.log("LOG — Produtos carregados de items");
+                    } else if (normalized.payment_data?.items && normalized.payment_data.items.length > 0) {
+                        normalized.products = normalized.payment_data.items;
+                        console.log("LOG — Produtos carregados do payload de pagamento");
+                    } else if (normalized.shipping_payload?.items && normalized.shipping_payload.items.length > 0) {
+                        normalized.products = normalized.shipping_payload.items;
+                        console.log("LOG — Produtos carregados do payload de frete");
+                    } else {
+                        const cart = localStorage.getItem("cart");
+                        if (cart) {
+                            normalized.products = JSON.parse(cart);
+                            console.log("LOG — Produtos carregados do carrinho local");
+                        }
+                    }
                 }
                 
+                // Normalização de endereço
                 if (!normalized.shipping && normalized.shipping_address) {
                     const addr = normalized.shipping_address;
                     normalized.shipping = {
