@@ -515,6 +515,19 @@ export default function Orders() {
     });
   };
 
+  const handleBatchPrint = (type: 'etiqueta' | 'declaracao') => {
+    const selectedOrders = filteredOrders.filter(o => selectedOrderIds.includes(o.id));
+    selectedOrders.forEach(order => {
+      if (type === 'etiqueta' && order.shipping_label_url) {
+        console.log("Imprimir etiqueta", order.shipping_label_url);
+        window.open(order.shipping_label_url, '_blank');
+      } else if (type === 'declaracao' && order.shipping_declaration_url) {
+        console.log("Imprimir declaração", order.shipping_declaration_url);
+        window.open(order.shipping_declaration_url, '_blank');
+      }
+    });
+  };
+
   const handleGenerateLabel = async (orderId: string, currentStatus?: string, retryCount = 0) => {
     const order = orders.find(o => o.id === orderId);
     
@@ -1567,6 +1580,20 @@ export default function Orders() {
                       <Package size={16} />
                       Gerar Separação ({selectedOrderIds.length})
                     </button>
+                    <button 
+                      onClick={() => handleBatchPrint('etiqueta')}
+                      className="px-4 py-2 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-all flex items-center gap-2"
+                    >
+                      <Tag size={16} />
+                      Imprimir Etiquetas ({selectedOrderIds.length})
+                    </button>
+                    <button 
+                      onClick={() => handleBatchPrint('declaracao')}
+                      className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all flex items-center gap-2"
+                    >
+                      <FileText size={16} />
+                      Imprimir Declarações ({selectedOrderIds.length})
+                    </button>
                     <button
                       onClick={() => navigate('/tracking')}
                       className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all flex items-center gap-2"
@@ -1659,7 +1686,7 @@ export default function Orders() {
                   {isAdmin && <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cliente</th>}
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações Logística</th>
                 </tr>
               </thead>
               <tbody>
@@ -1736,11 +1763,12 @@ export default function Orders() {
                         <MessageCircle size={16} />
                       </button>
                       <button 
-                        onClick={async () => {
+                        onClick={() => {
                           if (order.shipping_label_url) {
+                            console.log("Imprimir etiqueta", order.shipping_label_url);
                             window.open(order.shipping_label_url, '_blank');
                           } else {
-                            await handleGenerateLabel(order.id);
+                            toast.error('Etiqueta não disponível');
                           }
                         }}
                         className="p-1.5 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 transition-colors"
@@ -1749,11 +1777,12 @@ export default function Orders() {
                         <Tag size={16} />
                       </button>
                       <button 
-                        onClick={async () => {
+                        onClick={() => {
                           if (order.shipping_declaration_url) {
+                            console.log("Imprimir declaração", order.shipping_declaration_url);
                             window.open(order.shipping_declaration_url, '_blank');
                           } else {
-                            await handleGenerateLabel(order.id);
+                            toast.error('Declaração não disponível');
                           }
                         }}
                         className="p-1.5 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
