@@ -967,58 +967,123 @@ export default function Orders() {
       return;
     }
 
+    console.log("Declarações encontradas:", urls.length);
+
     const pages = [];
     for (let i = 0; i < urls.length; i += 2) {
       pages.push(urls.slice(i, i + 2));
     }
 
+    console.log("Páginas geradas:", pages.length);
+    console.log("Agrupamento:", pages);
+
     let html = "";
     pages.forEach(page => {
-      html += `<div class="page">`;
+      html += `<div class="print-page">`;
       page.forEach(url => {
-        html += `<iframe src="${url}" class="declaracao"></iframe>`;
+        html += `
+          <div class="declaracao">
+            <iframe src="${url}"></iframe>
+          </div>
+        `;
       });
       html += `</div>`;
     });
 
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
-      toast.error("Não foi possível abrir a janela de impressão.");
+      toast.error("Não foi possível abrir a janela de impressão. Verifique os bloqueadores de popup.");
       return;
     }
 
     printWindow.document.write(`
       <html>
         <head>
+          <title>Imprimir Declarações</title>
           <style>
-            @page {
-              size: A4;
-              margin: 5mm;
+            @media print {
+              @page {
+                size: A4;
+                margin: 0;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+              }
+              .print-page {
+                width: 210mm;
+                height: 297mm;
+                display: flex;
+                flex-direction: column;
+                page-break-after: always;
+                overflow: hidden;
+              }
+              .declaracao {
+                width: 100%;
+                height: 148.5mm;
+                overflow: hidden;
+              }
+              .declaracao iframe {
+                width: 100%;
+                height: 100%;
+                border: none;
+              }
             }
-            .page {
-              width: 100%;
-              height: 100vh;
+            /* Estilos para visualização antes da impressão */
+            body { margin: 0; background: #f0f0f0; }
+            .print-page { 
+              background: white; 
+              margin: 10mm auto; 
+              box-shadow: 0 0 10px rgba(0,0,0,0.1);
+              width: 210mm;
+              height: 297mm;
               display: flex;
               flex-direction: column;
-              page-break-after: always;
             }
-            .declaracao {
-              width: 100%;
-              height: 50%;
-              border: none;
-            }
+            .declaracao { width: 100%; height: 148.5mm; }
+            .declaracao iframe { width: 100%; height: 100%; border: none; }
           </style>
         </head>
         <body>
           ${html}
+          <script>
+            // Aguarda o carregamento de todos os iframes antes de imprimir
+            window.onload = () => {
+              const iframes = document.querySelectorAll('iframe');
+              let loadedCount = 0;
+              if (iframes.length === 0) {
+                window.print();
+                return;
+              }
+              iframes.forEach(iframe => {
+                iframe.onload = () => {
+                  loadedCount++;
+                  if (loadedCount === iframes.length) {
+                    setTimeout(() => {
+                      window.print();
+                      // window.close(); // Opcional: fechar após imprimir
+                    }, 1000);
+                  }
+                };
+                // Fallback para iframes que já podem ter carregado
+                if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
+                  iframe.onload(new Event('load'));
+                }
+              });
+              
+              // Timeout de segurança
+              setTimeout(() => {
+                if (loadedCount < iframes.length) {
+                  window.print();
+                }
+              }, 5000);
+            };
+          </script>
         </body>
       </html>
     `);
 
     printWindow.document.close();
-    printWindow.onload = () => {
-      printWindow.print();
-    };
   };
 
   const handlePrintDeclaracao = (order: Order) => {
@@ -1332,7 +1397,7 @@ export default function Orders() {
     }
   };
   const generateBatchPickingList = async (ids?: string[]) => {
-    const targetIds = ids || selectedOrderIds;
+    const targetIds = ids || selectedOrders.map(o => o.id);
     
     if (!targetIds || targetIds.length === 0) {
       toast.error('Nenhum pedido selecionado para separação.');
