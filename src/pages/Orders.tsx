@@ -1765,7 +1765,6 @@ export default function Orders() {
                       <button 
                         onClick={() => {
                           if (order.shipping_label_url) {
-                            console.log("Imprimir etiqueta", order.shipping_label_url);
                             window.open(order.shipping_label_url, '_blank');
                           } else {
                             toast.error('Etiqueta não disponível');
@@ -1779,7 +1778,6 @@ export default function Orders() {
                       <button 
                         onClick={() => {
                           if (order.shipping_declaration_url) {
-                            console.log("Imprimir declaração", order.shipping_declaration_url);
                             window.open(order.shipping_declaration_url, '_blank');
                           } else {
                             toast.error('Declaração não disponível');
