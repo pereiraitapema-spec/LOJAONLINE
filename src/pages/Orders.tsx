@@ -525,21 +525,37 @@ export default function Orders() {
       return;
     }
 
-    setPrintType(type);
-    setIsPrinting(true);
-    
-    const loadingToast = toast.loading('Preparando documentos para impressão...');
-
-    // Delay para garantir o carregamento dos iframes
-    setTimeout(() => {
-      toast.dismiss(loadingToast);
-      window.print();
+    if (type === 'declaracao') {
+      selectedOrders.forEach(order => {
+        if (!order.shipping_declaration_url) {
+          console.error(`Declaração não encontrada para pedido ${order.id}`);
+          return;
+        }
+        console.log("Imprimindo declaração:", order.shipping_declaration_url);
+        const printWindow = window.open(order.shipping_declaration_url, "_blank");
+        if (printWindow) {
+          printWindow.onload = function() {
+            printWindow.print();
+          };
+        }
+      });
+    } else {
+      // Mantém a lógica de impressão em lote para etiquetas ou ambos
+      setPrintType(type);
+      setIsPrinting(true);
       
+      const loadingToast = toast.loading('Preparando documentos para impressão...');
+
       setTimeout(() => {
-        setIsPrinting(false);
-        setPrintType(null);
-      }, 1000);
-    }, 3500);
+        toast.dismiss(loadingToast);
+        window.print();
+        
+        setTimeout(() => {
+          setIsPrinting(false);
+          setPrintType(null);
+        }, 1000);
+      }, 3500);
+    }
   };
 
   const chunkArray = (arr: any[], size: number) => {
