@@ -744,6 +744,30 @@ async function startServer() {
     }
   });
 
+  // Endpoint para verificar etiqueta existente
+  app.post("/api/admin/verificar-etiqueta", async (req, res) => {
+    const { id_pedido } = req.body;
+    try {
+      const { supabase } = await import("./src/lib/supabase.js");
+      
+      // 1. Verifica se já existe no banco local
+      const { data: existingLabel, error } = await supabase
+        .from('shipping_labels')
+        .select('*')
+        .eq('order_id', id_pedido)
+        .maybeSingle();
+
+      if (existingLabel) {
+        return res.json({ success: true, exists: true, data: existingLabel });
+      }
+
+      return res.json({ success: true, exists: false });
+    } catch (error: any) {
+      console.error("❌ Erro ao verificar etiqueta:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // 5. Proxy para Rastreio Linketrack (CORS Fix)
   app.all("/api/tracking/linketrack", async (req, res) => {
     const { tracking_code } = { ...req.query, ...req.body };

@@ -619,6 +619,27 @@ export default function Orders() {
     } catch (error: any) {
       clearTimeout(timeoutId);
       console.error('❌ Erro em handleGenerateLabel:', error);
+      
+      // Tenta verificar se já existe etiqueta no sistema
+      try {
+        const checkResponse = await fetch('/api/admin/verificar-etiqueta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id_pedido: orderId })
+        });
+        const checkResult = await checkResponse.json();
+        
+        if (checkResult.success && checkResult.exists) {
+          console.log("✅ Etiqueta encontrada no sistema, recuperando...");
+          await updateTrackingCode(orderId, checkResult.data.tracking_code, checkResult.data.label_url, checkResult.data.declaration_url, currentStatus);
+          await fetchData();
+          toast.success('Etiqueta recuperada com sucesso!');
+          return;
+        }
+      } catch (checkError) {
+        console.error("Erro ao verificar etiqueta existente:", checkError);
+      }
+
       toast.error('Erro ao gerar etiqueta: ' + error.message);
     } finally {
       setProcessingShipping(false);
