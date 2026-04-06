@@ -208,11 +208,18 @@ export default function Checkout() {
               <p className="text-indigo-700 text-xs">
                 {trackingCode 
                   ? 'Seu pedido já foi processado e está a caminho da transportadora.' 
-                  : 'Você receberá o código de rastreio por e-mail assim que o produto for postado.'}
+                  : 'Seu pedido está sendo preparado. Em breve você receberá o código de rastreamento.'}
               </p>
             </div>
           </div>
         </div>
+
+        <button 
+          onClick={() => window.location.href = "/"}
+          className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+        >
+          Voltar para loja
+        </button>
 
         <div className="grid grid-cols-1 gap-3">
           <button 
@@ -1261,167 +1268,22 @@ export default function Checkout() {
             const orderId = typeof orderData.id === 'string' ? orderData.id : orderData.id.toString();
             
             // Feedback imediato ao cliente
-            toast.success('Pagamento aprovado com sucesso! Sua encomenda está sendo preparada.');
+            toast.success('Pagamento aprovado com sucesso! Seu pedido está sendo preparado.');
             
-            // Iniciar processo assíncrono em background
-            (async () => {
-              console.log("LOG 1 — Pagamento aprovado:", orderId);
-              console.log("LOG 2 — Iniciando geração etiqueta...");
-              
-              // Função de normalização
-              const normalizeOrderData = (order: any) => {
-                console.log("LOG — Dados originais:", order);
-                const normalized = { ...order };
-                
-                // Normalização de produtos: busca em várias fontes possíveis
-                if (!normalized.products || normalized.products.length === 0) {
-                    if (normalized.order_items && normalized.order_items.length > 0) {
-                        normalized.products = normalized.order_items;
-                        console.log("LOG — Produtos carregados de order_items");
-                    } else if (normalized.items && normalized.items.length > 0) {
-                        normalized.products = normalized.items;
-                        console.log("LOG — Produtos carregados de items");
-                    } else if (normalized.payment_data?.items && normalized.payment_data.items.length > 0) {
-                        normalized.products = normalized.payment_data.items;
-                        console.log("LOG — Produtos carregados do payload de pagamento");
-                    } else if (normalized.shipping_payload?.items && normalized.shipping_payload.items.length > 0) {
-                        normalized.products = normalized.shipping_payload.items;
-                        console.log("LOG — Produtos carregados do payload de frete");
-                    } else {
-                        const cart = localStorage.getItem("cart");
-                        if (cart) {
-                            normalized.products = JSON.parse(cart);
-                            console.log("LOG — Produtos carregados do carrinho local");
-                        }
-                    }
-                }
-                
-                // Normalização de endereço
-                if (!normalized.shipping && normalized.shipping_address) {
-                    const addr = normalized.shipping_address;
-                    normalized.shipping = {
-                        address: addr.street || addr.address || addr.logradouro,
-                        number: addr.number || addr.numero,
-                        neighborhood: addr.neighborhood || addr.bairro,
-                        city: addr.city || addr.cidade,
-                        state: addr.state || addr.estado,
-                        cep: addr.cep,
-                        complement: addr.complement || addr.complemento
-                    };
-                }
-                
-                console.log("LOG — Dados normalizados:", normalized);
-                return normalized;
-              };
-
-              // Função para verificar campos obrigatórios
-              const validateOrderData = (order: any) => {
-                const missingFields = [];
-                if (!order.total) missingFields.push('total');
-                if (!order.products || order.products.length === 0) missingFields.push('products');
-                
-                const shipping = order.shipping || {};
-                if (!order.customer_name) missingFields.push('customer.name');
-                if (!order.customer_phone) missingFields.push('customer.phone');
-                if (!shipping.address) missingFields.push('shipping.address');
-                if (!shipping.cep) missingFields.push('shipping.cep');
-                if (!shipping.city) missingFields.push('shipping.city');
-                if (!shipping.state) missingFields.push('shipping.state');
-                return missingFields;
-              };
-
-              // Retry Inteligente
-              for (let attempt = 1; attempt <= 10; attempt++) {
-                try {
-                  console.log(`Tentativa ${attempt} de geração de etiqueta...`);
-                  
-                  // 1. Buscar pedido
-                  const { data: order, error: orderError } = await supabase
-                    .from('orders')
-                    .select('*')
-                    .eq('id', orderId)
-                    .single();
-                  if (orderError || !order) throw new Error("Pedido não encontrado");
-
-                  // 2. Buscar produtos
-                  console.log("LOG — Buscando produtos do pedido");
-                  const { data: products, error: prodError } = await supabase
-                    .from('order_items')
-                    .select('*')
-                    .eq('order_id', orderId);
-                  
-                  if (prodError || !products || products.length === 0) {
-                      console.warn("LOG — Produtos não encontrados no Supabase, usando fallback do pedido");
-                      order.products_fallback = order.payment_data?.items || [];
-                  } else {
-                      order.order_items = products;
-                      console.log("LOG — Produtos encontrados:", products);
-                  }
-
-                  // 3. Normalizar
-                  const normalizedOrder = normalizeOrderData(order);
-
-                  // Validação
-                  console.log("LOG 4 — Verificando dados obrigatórios");
-                  const missingFields = validateOrderData(normalizedOrder);
-                  if (missingFields.length > 0) {
-                    console.log("LOG 5 — Campos faltando:", missingFields);
-                    throw new Error(`Dados incompletos: ${missingFields.join(', ')}`);
-                  }
-
-                  // Geração da etiqueta
-                  console.log("LOG 6 — Payload enviado CepCerto");
-                  console.log("LOG — Dados completos, gerando etiqueta");
-                  const payload = {
-                    id_pedido: orderId,
-                    tipo_entrega: currentShipping?.id?.toLowerCase().includes('sedex') ? 'sedex' : 'pac'
-                  };
-                  
-                  const labelResponse = await fetch('/api/admin/gerar-etiqueta', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                  });
-                  
-                  const labelData = await labelResponse.json();
-                  console.log("LOG 7 — Resposta CepCerto:", labelData);
-                  
-                  if (labelResponse.ok && labelData.success && labelData.tracking_code) {
-                    console.log("LOG 8 — Rastreamento:", labelData.tracking_code);
-                    console.log("LOG 9 — Salvando rastreador no Supabase");
-                    
-                    await supabase
-                      .from('orders')
-                      .update({ 
-                          tracking_code: labelData.tracking_code,
-                          status: 'paid',
-                          status_envio: 'preparando',
-                          erro_etiqueta: false
-                      })
-                      .eq('id', orderId);
-                    
-                    console.log("LOG 10 — Etiqueta gerada com sucesso");
-                    return; // Sucesso!
-                  } else {
-                    throw new Error(labelData.error || "Falha na API CepCerto");
-                  }
-                } catch (err: any) {
-                  console.error("Erro geração etiqueta (tentativa " + attempt + "):", err);
-                  if (attempt === 10) throw err;
-                  await new Promise(resolve => setTimeout(resolve, 2000));
-                }
-              }
-            })().catch(err => {
-              console.error("Falha crítica na geração automática após 10 tentativas:", err);
-              supabase.from('orders').update({ status_envio: 'preparando', erro_etiqueta: true }).eq('id', orderId);
-            });
+            // Atualizar status do pedido no Supabase
+            console.log("LOG — Pagamento aprovado");
+            console.log("LOG — Pedido marcado como preparando");
+            console.log("LOG — Etiqueta automática desativada");
             
-            // Isolar erro de leadService
-            try {
-                leadService.updateStatus('quente');
-            } catch (e) {
-                console.warn("Erro lead ignorado:", e);
-            }
+            await supabase
+              .from('orders')
+              .update({ 
+                  status: 'preparing',
+                  payment_status: 'paid',
+                  etiqueta_gerada: false,
+                  tracking_code: null
+              })
+              .eq('id', orderId);
             
           } catch (err: any) {
             console.error('Erro ao iniciar processo assíncrono:', err);
