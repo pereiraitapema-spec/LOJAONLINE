@@ -503,7 +503,7 @@ async function startServer() {
 
       console.log(`⏱️ Aguardando confirmação de pagamento para o pedido ${id_pedido}...`);
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 20; i++) {
         const { data: webhooks, error: webhookError } = await supabase
           .from("webhook_logs")
           .select("*")

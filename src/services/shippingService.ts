@@ -838,19 +838,23 @@ const cepcertoProvider: ShippingProvider = {
 
     try {
       console.log('🗑️ Cancelando postagem CepCerto:', trackingCode);
+      console.log('🗑️ Payload cancelamento:', JSON.stringify(payload));
       
       // Tenta via POST conforme nova documentação
-      const response = await fetch('https://cepcerto.com/api-cancela-postagem/', {
+      const response = await fetch('https://cepcerto.com/api-cancela-postagem', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
       });
+      
+      const responseText = await response.text();
+      console.log('📡 Resposta bruta cancelamento CepCerto:', responseText);
 
       let result;
       if (response.ok) {
-        result = await response.json();
+        result = JSON.parse(responseText);
       } else {
         // Fallback via proxy se falhar por CORS
         console.warn('Direct cancel failed, trying via proxy...');
