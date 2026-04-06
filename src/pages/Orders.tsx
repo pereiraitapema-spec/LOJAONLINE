@@ -958,16 +958,16 @@ export default function Orders() {
       return;
     }
 
-    const urls = selectedOrders
+    const urls = Array.from(new Set(selectedOrders
       .map(order => extractDeclaracaoUrl(order))
-      .filter((url): url is string => !!url);
+      .filter((url): url is string => !!url)));
 
     if (urls.length === 0) {
       toast.error("Nenhuma declaração encontrada para os pedidos selecionados");
       return;
     }
 
-    console.log("Declarações encontradas:", urls.length);
+    console.log("Declarações únicas encontradas:", urls.length);
 
     const pages = [];
     for (let i = 0; i < urls.length; i += 2) {
@@ -1009,28 +1009,34 @@ export default function Orders() {
                 size: A4;
                 margin: 0;
               }
-              body {
+              html, body {
+                height: 100%;
                 margin: 0;
                 padding: 0;
+                overflow: hidden;
                 -webkit-print-color-adjust: exact;
               }
               .print-page {
                 width: 210mm;
                 height: 297mm;
-                display: flex;
-                flex-direction: column;
+                display: grid;
+                grid-template-rows: 1fr 1fr;
                 page-break-after: always;
                 overflow: hidden;
                 margin: 0;
                 padding: 0;
                 border: none;
+                background: white;
               }
               .declaracao {
                 width: 100%;
-                height: 148mm; /* Reduzido ligeiramente de 148.5mm para evitar quebras indesejadas */
+                height: 100%;
                 overflow: hidden;
                 position: relative;
-                border-bottom: 1px dashed #eee; /* Linha de corte opcional */
+                border-bottom: 1px dashed #eee;
+                display: flex;
+                align-items: flex-start;
+                justify-content: center;
               }
               .declaracao:last-child {
                 border-bottom: none;
@@ -1040,6 +1046,9 @@ export default function Orders() {
                 height: 100%;
                 border: none;
                 display: block;
+                /* Escala leve para garantir que caiba sem forçar quebra */
+                transform: scale(0.98);
+                transform-origin: top center;
               }
             }
             /* Estilos para visualização antes da impressão */
@@ -1051,10 +1060,10 @@ export default function Orders() {
               box-shadow: 0 0 10px rgba(0,0,0,0.1);
               width: 210mm;
               height: 297mm;
-              display: flex;
-              flex-direction: column;
+              display: grid;
+              grid-template-rows: 1fr 1fr;
             }
-            .declaracao { width: 100%; height: 148mm; border-bottom: 1px dashed #ccc; }
+            .declaracao { width: 100%; height: 100%; border-bottom: 1px dashed #ccc; position: relative; }
             .declaracao:last-child { border-bottom: none; }
             .declaracao iframe { width: 100%; height: 100%; border: none; display: block; }
           </style>
