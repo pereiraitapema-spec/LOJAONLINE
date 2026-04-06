@@ -996,6 +996,10 @@ export default function Orders() {
           </div>
         `;
       });
+      // Se a página tiver apenas uma declaração, adiciona um placeholder vazio para manter o grid
+      if (page.length === 1) {
+        html += `<div class="declaracao empty"></div>`;
+      }
       html += `</div>`;
     });
 
@@ -1010,10 +1014,8 @@ export default function Orders() {
         <head>
           <title>Declarações em Lote</title>
           <style>
+            * { box-sizing: border-box; }
             @media print {
-              * {
-                box-sizing: border-box;
-              }
               @page {
                 size: A4;
                 margin: 0;
@@ -1029,20 +1031,23 @@ export default function Orders() {
                 width: 210mm;
                 height: 297mm;
                 display: grid;
-                grid-template-rows: 1fr 1fr;
+                grid-template-rows: 148mm 148mm;
+                gap: 0;
                 page-break-after: always;
                 overflow: hidden;
                 border: none;
                 margin: 0;
                 padding: 0;
+                background: white;
               }
               .declaracao {
                 width: 100%;
-                height: 100%;
+                height: 148mm;
                 overflow: hidden;
                 border-bottom: 1px dashed #eee;
                 position: relative;
               }
+              .declaracao.empty { border-bottom: none; }
               .declaracao:last-child {
                 border-bottom: none;
               }
@@ -1051,13 +1056,12 @@ export default function Orders() {
                 height: 100%;
                 border: none;
                 display: block;
-                /* Escala leve para garantir que o conteúdo do CepCerto caiba */
-                transform: scale(0.97);
+                /* Escala reduzida para garantir que o conteúdo do CepCerto caiba na metade da folha */
+                transform: scale(0.95);
                 transform-origin: top center;
               }
             }
             /* Estilos para visualização no navegador */
-            * { box-sizing: border-box; }
             body { background: #f0f0f0; margin: 0; padding: 20px; font-family: sans-serif; }
             .print-page { 
               background: white; 
@@ -1065,12 +1069,13 @@ export default function Orders() {
               height: 297mm; 
               margin: 0 auto 20px auto; 
               display: grid;
-              grid-template-rows: 1fr 1fr;
+              grid-template-rows: 148mm 148mm;
               box-shadow: 0 0 10px rgba(0,0,0,0.1);
               overflow: hidden;
             }
-            .declaracao { width: 100%; height: 100%; border-bottom: 1px dashed #ccc; overflow: hidden; }
-            .declaracao iframe { width: 100%; height: 100%; border: none; transform: scale(0.97); transform-origin: top center; }
+            .declaracao { width: 100%; height: 148mm; border-bottom: 1px dashed #ccc; overflow: hidden; }
+            .declaracao.empty { border-bottom: none; }
+            .declaracao iframe { width: 100%; height: 100%; border: none; transform: scale(0.95); transform-origin: top center; }
           </style>
         </head>
         <body>
@@ -1093,17 +1098,17 @@ export default function Orders() {
                   console.log("Todos iframes carregados, disparando impressão...");
                   setTimeout(() => {
                     window.print();
-                  }, 1500);
+                  }, 2000); // Delay para garantir renderização
                 }
               };
 
               iframes.forEach(iframe => {
-                iframe.onload = checkAllLoaded;
-                iframe.onerror = checkAllLoaded;
-                // Forçar recarregamento se necessário
-                const src = iframe.src;
-                iframe.src = '';
-                iframe.src = src;
+                if (iframe.complete) {
+                  checkAllLoaded();
+                } else {
+                  iframe.onload = checkAllLoaded;
+                  iframe.onerror = checkAllLoaded;
+                }
               });
 
               // Timeout de segurança
@@ -1112,7 +1117,7 @@ export default function Orders() {
                   console.warn("Timeout atingido, imprimindo com " + loadedCount + " iframes carregados.");
                   window.print();
                 }
-              }, 7000);
+              }, 10000);
             };
           </script>
         </body>
