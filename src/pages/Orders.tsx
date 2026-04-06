@@ -935,6 +935,9 @@ export default function Orders() {
       order.shipping_declaration_url ||
       (order as any).declaracaoUrl ||
       (order as any).declaracao_url ||
+      (order as any).declaration_url ||
+      (order as any).cepcerto_declaracao ||
+      (order as any).declaracao ||
       (order as any).frete?.declaracaoUrl ||
       (order as any).shipping?.frete?.declaracaoUrl ||
       (order as any).logistica?.declaracaoUrl ||
@@ -953,29 +956,33 @@ export default function Orders() {
   const handlePrintDeclaracoes = () => {
     console.log("🚀 Iniciando impressão declarações");
     console.log("Pedidos selecionados:", selectedOrders);
+    console.log("Total selecionado:", selectedOrders.length);
+
     if (!selectedOrders || selectedOrders.length === 0) {
       toast.error("Selecione pelo menos um pedido");
       return;
     }
 
-    const urls = Array.from(new Set(selectedOrders
+    console.log("Extraindo URLs de declaração...");
+    const urls = selectedOrders
       .map(order => extractDeclaracaoUrl(order))
-      .filter((url): url is string => !!url)));
+      .filter((url): url is string => !!url);
+
+    console.log("URLs encontradas:", urls);
+    console.log("Total declarações:", urls.length);
 
     if (urls.length === 0) {
       toast.error("Nenhuma declaração encontrada para os pedidos selecionados");
       return;
     }
 
-    console.log("Declarações únicas encontradas:", urls.length);
-
+    console.log("Agrupando declarações em pares...");
     const pages = [];
     for (let i = 0; i < urls.length; i += 2) {
       pages.push(urls.slice(i, i + 2));
     }
-
-    console.log("Páginas geradas:", pages.length);
-    console.log("Agrupamento:", pages);
+    console.log("Páginas criadas:", pages.length);
+    console.log("Resultado agrupamento:", pages);
 
     let html = "";
     pages.forEach(page => {
@@ -999,79 +1006,37 @@ export default function Orders() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Imprimir Declarações</title>
+          <title>Declarações</title>
           <style>
-            @media print {
-              * {
-                box-sizing: border-box;
-              }
-              @page {
-                size: A4;
-                margin: 0;
-              }
-              html, body {
-                height: 100%;
-                margin: 0;
-                padding: 0;
-                overflow: hidden;
-                -webkit-print-color-adjust: exact;
-              }
-              .print-page {
-                width: 210mm;
-                height: 297mm;
-                display: grid;
-                grid-template-rows: 1fr 1fr;
-                page-break-after: always;
-                overflow: hidden;
-                margin: 0;
-                padding: 0;
-                border: none;
-                background: white;
-              }
-              .declaracao {
-                width: 100%;
-                height: 100%;
-                overflow: hidden;
-                position: relative;
-                border-bottom: 1px dashed #eee;
-                display: flex;
-                align-items: flex-start;
-                justify-content: center;
-              }
-              .declaracao:last-child {
-                border-bottom: none;
-              }
-              .declaracao iframe {
-                width: 100%;
-                height: 100%;
-                border: none;
-                display: block;
-                /* Escala leve para garantir que caiba sem forçar quebra */
-                transform: scale(0.98);
-                transform-origin: top center;
-              }
+            @page {
+              size: A4;
+              margin: 0;
             }
-            /* Estilos para visualização antes da impressão */
-            * { box-sizing: border-box; }
-            body { margin: 0; background: #f0f0f0; font-family: sans-serif; }
-            .print-page { 
-              background: white; 
-              margin: 10mm auto; 
-              box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            body {
+              margin: 0;
+              padding: 0;
+            }
+            .print-page {
               width: 210mm;
               height: 297mm;
-              display: grid;
-              grid-template-rows: 1fr 1fr;
+              display: flex;
+              flex-direction: column;
+              page-break-after: always;
             }
-            .declaracao { width: 100%; height: 100%; border-bottom: 1px dashed #ccc; position: relative; }
-            .declaracao:last-child { border-bottom: none; }
-            .declaracao iframe { width: 100%; height: 100%; border: none; display: block; }
+            .declaracao {
+              width: 100%;
+              height: 148.5mm;
+            }
+            .declaracao iframe {
+              width: 100%;
+              height: 100%;
+              border: none;
+            }
           </style>
         </head>
         <body>
           ${html}
           <script>
-            // Aguarda o carregamento de todos os iframes antes de imprimir
             window.onload = () => {
               const iframes = document.querySelectorAll('iframe');
               let loadedCount = 0;
@@ -1079,22 +1044,25 @@ export default function Orders() {
                 window.print();
                 return;
               }
+              
+              const checkAllLoaded = () => {
+                loadedCount++;
+                if (loadedCount === iframes.length) {
+                  setTimeout(() => {
+                    window.print();
+                  }, 1000);
+                }
+              };
+
               iframes.forEach(iframe => {
-                iframe.onload = () => {
-                  loadedCount++;
-                  if (loadedCount === iframes.length) {
-                    setTimeout(() => {
-                      window.print();
-                      // window.close(); // Opcional: fechar após imprimir
-                    }, 1000);
-                  }
-                };
+                iframe.onload = checkAllLoaded;
+                iframe.onerror = checkAllLoaded;
                 // Fallback para iframes que já podem ter carregado
                 if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
-                  iframe.onload(new Event('load'));
+                  checkAllLoaded();
                 }
               });
-              
+
               // Timeout de segurança
               setTimeout(() => {
                 if (loadedCount < iframes.length) {
