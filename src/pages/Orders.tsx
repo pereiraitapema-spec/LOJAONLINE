@@ -562,7 +562,11 @@ export default function Orders() {
             ${selectedOrdersToPrint.map(order => {
               const url = type === 'etiqueta' ? order.shipping_label_url : order.shipping_declaration_url;
               console.log(`Debug: URL ${type} para pedido ${order.id}:`, url);
-              if (!url) return '';
+              console.log(`Debug: Objeto pedido completo ${order.id}:`, order);
+              if (!url) {
+                console.error(`URL não encontrada para ${order.id}. Verifique a estrutura do objeto.`);
+                return '';
+              }
               // Forçar o carregamento da URL no iframe
               return `<div class="item"><iframe src="${url}"></iframe></div>`;
             }).join('')}
