@@ -891,9 +891,29 @@ export default function Orders() {
     }
   };
 
+  const extractTrackingCode = (order: Order) => {
+    console.log("🔎 Buscando rastreador no pedido:", order);
+    return (
+      (order as any).codigoObjeto ||
+      (order as any).codigo_rastreamento ||
+      order.tracking_code ||
+      (order as any).rastreamento ||
+      (order as any).frete?.codigoObjeto ||
+      (order as any).shipping?.codigoObjeto ||
+      (order as any).logistica?.codigoObjeto
+    );
+  };
+
+  const buildDeclaracaoUrl = (tracking: string) => {
+    if (!tracking) return null;
+    const url = `https://cepcerto.com/etiquetas/declaracao-conteudo-${tracking}.html`;
+    console.log("📄 URL declaração construída:", url);
+    return url;
+  };
+
   const extractDeclaracaoUrl = (order: Order) => {
     console.log("🔎 Verificando pedido:", order);
-    const url =
+    let url =
       order.shipping_declaration_url ||
       (order as any).declaracaoUrl ||
       (order as any).declaracao_url ||
@@ -901,7 +921,14 @@ export default function Orders() {
       (order as any).shipping?.frete?.declaracaoUrl ||
       (order as any).logistica?.declaracaoUrl ||
       (order as any).cepcerto?.frete?.declaracaoUrl;
-    console.log("📄 URL declaração encontrada:", url);
+    
+    if (!url) {
+      const tracking = extractTrackingCode(order);
+      console.log("Tracking:", tracking);
+      url = buildDeclaracaoUrl(tracking);
+    }
+    
+    console.log("📄 URL declaração final:", url);
     return url;
   };
 
@@ -909,13 +936,12 @@ export default function Orders() {
     console.log("🚀 Iniciando impressão declarações");
     console.log("Pedidos selecionados:", selectedOrders);
     if (!selectedOrders || selectedOrders.length === 0) {
-      console.warn("⚠️ Nenhum pedido selecionado");
       toast.error("Selecione pelo menos um pedido");
       return;
     }
     selectedOrders.forEach(order => {
       const declaracaoUrl = extractDeclaracaoUrl(order);
-      console.log("📄 Declaracao URL:", declaracaoUrl);
+      console.log("📄 Declaracao URL final:", declaracaoUrl);
       if (!declaracaoUrl) {
         console.error("❌ Declaração não encontrada", order);
         return;
@@ -927,6 +953,15 @@ export default function Orders() {
         };
       }
     });
+  };
+
+  const handlePrintDeclaracao = (order: Order) => {
+    const tracking = extractTrackingCode(order);
+    const url = buildDeclaracaoUrl(tracking);
+    console.log("Pedido:", order);
+    console.log("Tracking:", tracking);
+    console.log("Declaração URL:", url);
+    window.open(url || "", "_blank");
   };
 
   const handleSelectAll = () => {
