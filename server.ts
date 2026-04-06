@@ -554,6 +554,9 @@ async function startServer() {
       }
 
       // 8. Chamar API CepCerto
+      console.log("LOG 4 — Iniciando geração etiqueta CepCerto");
+      console.log("LOG 5 — Payload enviado CepCerto:", JSON.stringify(payload, null, 2));
+      
       const response = await fetch('https://cepcerto.com/api-postagem-frete/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -561,7 +564,7 @@ async function startServer() {
       });
       
       const responseText = await response.text();
-      console.log('📡 Resposta da API CepCerto (Admin):', responseText);
+      console.log('LOG 6 — Resposta API CepCerto:', responseText);
 
       let result;
       try {
@@ -573,7 +576,21 @@ async function startServer() {
       console.log("📦 Resposta CEP CERTO:", result);
 
       if (result.status === 'erro' || result.sucesso === false) {
-        throw new Error(result.mensagem || result.error || 'Erro ao gerar etiqueta no CepCerto');
+        const errorMessage = result.mensagem || result.error || 'Erro ao gerar etiqueta no CepCerto';
+        
+        // Salvar erro no banco
+        await supabase.from('shipping_logs').insert({
+          order_id: id_pedido,
+          status: 'error',
+          error: errorMessage,
+          payload: payload,
+          response: result
+        });
+        
+        console.error("LOG ERROR — Erro ao gerar etiqueta:", errorMessage);
+        
+        // Retornar sucesso=false para o checkout saber que falhou, mas não lançar erro 500
+        return res.json({ success: false, error: errorMessage });
       }
 
       // Captura correta conforme estrutura da API
