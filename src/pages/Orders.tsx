@@ -564,7 +564,8 @@ export default function Orders() {
               console.log(`Debug: URL ${type} para pedido ${order.id}:`, url);
               if (!url) return '';
               // Usar onload no iframe para garantir carregamento
-              return `<div class="item"><iframe src="${url}" onload="this.dataset.loaded = 'true'"></iframe></div>`;
+              // Se a URL for um HTML (como declaração), o src direto pode funcionar, mas vamos garantir que o iframe carregue
+              return `<div class="item"><iframe src="${url}" onload="this.dataset.loaded = 'true'" onerror="this.dataset.loaded = 'true'"></iframe></div>`;
             }).join('')}
           </div>
           <script>
