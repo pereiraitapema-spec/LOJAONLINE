@@ -563,23 +563,16 @@ export default function Orders() {
               const url = type === 'etiqueta' ? order.shipping_label_url : order.shipping_declaration_url;
               console.log(`Debug: URL ${type} para pedido ${order.id}:`, url);
               if (!url) return '';
-              // Usar onload no iframe para garantir carregamento
-              // Se a URL for um HTML (como declaração), o src direto pode funcionar, mas vamos garantir que o iframe carregue
-              return `<div class="item"><iframe src="${url}" onload="this.dataset.loaded = 'true'" onerror="this.dataset.loaded = 'true'"></iframe></div>`;
+              // Forçar o carregamento da URL no iframe
+              return `<div class="item"><iframe src="${url}"></iframe></div>`;
             }).join('')}
           </div>
           <script>
-            function checkLoad() {
-              const iframes = document.querySelectorAll('iframe');
-              const allLoaded = Array.from(iframes).every(i => i.dataset.loaded === 'true');
-              if (allLoaded) {
-                window.print();
-                window.close();
-              } else {
-                setTimeout(checkLoad, 500);
-              }
-            }
-            window.onload = checkLoad;
+            // Usar um timeout fixo para garantir que o conteúdo do iframe seja renderizado
+            setTimeout(() => {
+              window.print();
+              window.close();
+            }, 2000);
           </script>
         </body>
       </html>
