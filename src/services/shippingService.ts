@@ -1592,6 +1592,7 @@ export const shippingService = {
     // Para CepCerto, usamos o tracking_code se disponível
     const identifier = (carrier.provider === 'cepcerto' && trackingCode) ? trackingCode : orderId;
 
+    console.log('🔍 Chamando cancelLabel do provider:', carrier.provider, 'com config:', carrier.config);
     return provider.cancelLabel(orderId, identifier, carrier.config);
   },
 
