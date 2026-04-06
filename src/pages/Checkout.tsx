@@ -989,7 +989,7 @@ export default function Checkout() {
       return;
     }
 
-    if (!isBalcao && selectedShipping === null) {
+    if (!isBalcao && selectedShipping === null && !isFreeShipping && shippingMethods.length > 0) {
       alert("Selecione o tipo de entrega antes de finalizar a compra");
       return;
     }
