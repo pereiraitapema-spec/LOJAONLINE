@@ -518,21 +518,48 @@ export default function Orders() {
   };
 
   const handlePrint = (type: 'etiqueta' | 'declaracao' | 'ambos') => {
-    const selectedOrders = filteredOrders.filter(o => selectedOrderIds.includes(o.id));
+    console.log("🚀 Iniciando impressão:", type);
+    console.log("📦 selectedOrderIds:", selectedOrderIds);
+    console.log("📦 filteredOrders:", filteredOrders);
+    
+    // Debug: verificar se IDs selecionados existem em filteredOrders
+    const selectedOrders = filteredOrders.filter(o => {
+      const isSelected = selectedOrderIds.includes(o.id);
+      if (isSelected) console.log("✅ Pedido selecionado encontrado:", o.id);
+      return isSelected;
+    });
+    
+    console.log("📦 selectedOrders:", selectedOrders);
+    console.log("📦 selectedOrders length:", selectedOrders.length);
     
     if (selectedOrders.length === 0) {
+      console.error("❌ Nenhum pedido selecionado para impressão.");
       toast.error('Nenhum pedido selecionado');
       return;
     }
 
     if (type === 'declaracao') {
       selectedOrders.forEach(order => {
-        if (!order.shipping_declaration_url) {
-          console.error(`Declaração não encontrada para pedido ${order.id}`);
+        console.log("🧾 Analisando pedido para declaração:", order.id);
+        console.log("🧾 Keys do pedido:", Object.keys(order));
+        console.log("🧾 Frete:", order.frete);
+        
+        // Tenta encontrar a URL de várias formas possíveis
+        const declaracaoUrl = order.shipping_declaration_url || 
+                              order.declaracao_url || 
+                              order.declaracao || 
+                              order.frete?.declaracaoUrl ||
+                              order.frete?.declaracao_url;
+                              
+        console.log("🧾 URL encontrada:", declaracaoUrl);
+
+        if (!declaracaoUrl) {
+          console.error(`❌ Declaração não encontrada para pedido ${order.id}`, order);
           return;
         }
-        console.log("Imprimindo declaração:", order.shipping_declaration_url);
-        const printWindow = window.open(order.shipping_declaration_url, "_blank");
+        
+        console.log("Imprimindo declaração:", declaracaoUrl);
+        const printWindow = window.open(declaracaoUrl, "_blank");
         if (printWindow) {
           printWindow.onload = function() {
             printWindow.print();
