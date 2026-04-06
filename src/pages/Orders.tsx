@@ -354,8 +354,6 @@ export default function Orders() {
 
   const [processingShipping, setProcessingShipping] = useState(false);
   const [processingLogistics, setProcessingLogistics] = useState(false);
-  const [isPrinting, setIsPrinting] = useState(false);
-  const [printType, setPrintType] = useState<'etiqueta' | 'declaracao' | 'ambos' | null>(null);
 
   const getZip = (addr: any) => addr?.zip_code || addr?.zipCode || addr?.zip || addr?.cep || 'N/A';
 
@@ -517,83 +515,73 @@ export default function Orders() {
     });
   };
 
-  const handlePrint = (type: 'etiqueta' | 'declaracao' | 'ambos') => {
-    console.log("🚀 Iniciando impressão:", type);
-    console.log("📦 selectedOrderIds:", selectedOrderIds);
-    console.log("📦 filteredOrders:", filteredOrders);
-    
-    // Debug: verificar se IDs selecionados existem em filteredOrders
-    const selectedOrders = filteredOrders.filter(o => {
-      const isSelected = selectedOrderIds.includes(o.id);
-      if (isSelected) console.log("✅ Pedido selecionado encontrado:", o.id);
-      return isSelected;
-    });
-    
-    console.log("📦 selectedOrders:", selectedOrders);
-    console.log("📦 selectedOrders length:", selectedOrders.length);
+  const handleBatchPrint = (type: 'etiqueta' | 'declaracao') => {
+    const selectedOrders = filteredOrders.filter(o => selectedOrderIds.includes(o.id));
     
     if (selectedOrders.length === 0) {
-      console.error("❌ Nenhum pedido selecionado para impressão.");
       toast.error('Nenhum pedido selecionado');
       return;
     }
 
-    if (type === 'declaracao') {
-      selectedOrders.forEach(order => {
-        console.log("🧾 Analisando pedido para declaração:", order.id);
-        console.log("🧾 Keys do pedido:", Object.keys(order));
-        console.log("🧾 Frete:", order.frete);
-        
-        // Tenta encontrar a URL de várias formas possíveis
-        const declaracaoUrl = order.shipping_declaration_url || 
-                              order.declaracao_url || 
-                              order.declaracao || 
-                              order.frete?.declaracaoUrl ||
-                              order.frete?.declaracao_url ||
-                              order.shipping?.frete?.declaracaoUrl ||
-                              order.logistica?.declaracaoUrl ||
-                              order.cepcerto?.frete?.declaracaoUrl;
-                              
-        console.log("🧾 URL encontrada:", declaracaoUrl);
-
-        if (!declaracaoUrl) {
-          console.error(`❌ Declaração não encontrada para pedido ${order.id}`, order);
-          return;
-        }
-        
-        console.log("Imprimindo declaração:", declaracaoUrl);
-        const printWindow = window.open(declaracaoUrl, "_blank");
-        if (printWindow) {
-          printWindow.onload = () => {
-            printWindow.print();
-          };
-        }
-      });
-    } else {
-      // Mantém a lógica de impressão em lote para etiquetas ou ambos
-      setPrintType(type);
-      setIsPrinting(true);
-      
-      const loadingToast = toast.loading('Preparando documentos para impressão...');
-
-      setTimeout(() => {
-        toast.dismiss(loadingToast);
-        window.print();
-        
-        setTimeout(() => {
-          setIsPrinting(false);
-          setPrintType(null);
-        }, 1000);
-      }, 3500);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Não foi possível abrir a janela de impressão. Verifique os bloqueadores de popup.');
+      return;
     }
-  };
 
-  const chunkArray = (arr: any[], size: number) => {
-    const chunks = [];
-    for (let i = 0; i < arr.length; i += size) {
-      chunks.push(arr.slice(i, i + size));
-    }
-    return chunks;
+    let htmlContent = `
+      <html>
+        <head>
+          <title>Impressão em Lote</title>
+          <style>
+            @media print {
+              @page { size: A4; margin: 5mm; }
+              body { margin: 0; padding: 0; }
+            }
+            .print-container {
+              display: grid;
+              ${type === 'etiqueta' 
+                ? 'grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;' 
+                : 'grid-template-columns: 1fr;'}
+              width: 100%;
+              gap: 0;
+            }
+            .item {
+              width: 100%;
+              ${type === 'etiqueta' ? 'height: 50vh;' : 'height: 100vh; page-break-after: always;'}
+              border: none;
+              padding: 0;
+              margin: 0;
+              overflow: hidden;
+            }
+            iframe { width: 100%; height: 100%; border: none; }
+          </style>
+        </head>
+        <body>
+          <div class="print-container">
+            ${selectedOrders.map(order => {
+              const url = type === 'etiqueta' ? order.shipping_label_url : order.shipping_declaration_url;
+              console.log(`Debug: URL ${type} para pedido ${order.id}:`, url);
+              if (!url) return '';
+              // Forçar o carregamento da URL no iframe
+              return `<div class="item"><iframe src="${url}"></iframe></div>`;
+            }).join('')}
+          </div>
+          <script>
+            // Usar um timeout fixo para garantir que o conteúdo do iframe seja renderizado
+            setTimeout(() => {
+              window.print();
+              window.close();
+            }, 2000);
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    console.log(`Impressão ${type} lote`, selectedOrders);
   };
 
   const handleGenerateLabel = async (orderId: string, currentStatus?: string, retryCount = 0) => {
@@ -1670,14 +1658,14 @@ export default function Orders() {
                       Gerar Separação ({selectedOrderIds.length})
                     </button>
                     <button 
-                      onClick={() => handlePrint('etiqueta')}
+                      onClick={() => handleBatchPrint('etiqueta')}
                       className="px-4 py-2 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-all flex items-center gap-2"
                     >
                       <Tag size={16} />
                       Imprimir Etiquetas ({selectedOrderIds.length})
                     </button>
                     <button 
-                      onClick={() => handlePrint('declaracao')}
+                      onClick={() => handleBatchPrint('declaracao')}
                       className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all flex items-center gap-2"
                     >
                       <FileText size={16} />
@@ -2865,86 +2853,6 @@ export default function Orders() {
               </button>
             </div>
           </motion.div>
-          {/* Seção de Impressão (Oculta na tela, visível apenas na impressão) */}
-          {isPrinting && (
-            <div id="print-section" className="bg-white z-[9999] absolute top-0 left-0 w-full min-h-screen">
-              <style>{`
-                @media print {
-                  body > *:not(#print-section) {
-                    display: none !important;
-                  }
-                  #print-section {
-                    display: block !important;
-                    position: absolute;
-                    left: 0;
-                    top: 0;
-                    width: 100%;
-                    background: white;
-                  }
-                  @page {
-                    size: A4;
-                    margin: 0;
-                  }
-                }
-              `}</style>
-              
-              {printType === 'etiqueta' && (
-                <div className="w-[210mm] h-[297mm] mx-auto p-[2mm] box-border bg-white">
-                  <div className="w-full h-full grid gap-0 grid-cols-2 grid-rows-2">
-                    {chunkArray(filteredOrders.filter(o => selectedOrderIds.includes(o.id)), 4).map((pageOrders, pageIndex) => (
-                      <React.Fragment key={`page-${pageIndex}`}>
-                        {Array.from({ length: 4 }).map((_, cellIndex) => {
-                          const order = pageOrders[cellIndex];
-                          const url = order?.shipping_label_url;
-                          return (
-                            <div key={cellIndex} className="border border-dashed border-slate-200 p-0 flex flex-col items-center justify-center relative overflow-hidden bg-white">
-                              {url ? (
-                                <div className="w-full h-full relative overflow-hidden">
-                                  <iframe 
-                                    src={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
-                                    className="border-0 absolute top-0 left-0"
-                                    style={{ 
-                                      width: '190%', 
-                                      height: '210%',
-                                      transform: 'scale(1.0)',
-                                      transformOrigin: '0% 0%',
-                                      border: 'none'
-                                    }}
-                                    title={`Print ${order.id}`} 
-                                  />
-                                </div>
-                              ) : (
-                                <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
-                                  <Printer size={32} className="opacity-20" />
-                                  <span>Espaço Vazio</span>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </React.Fragment>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {printType === 'declaracao' && (
-                chunkArray(filteredOrders.filter(o => selectedOrderIds.includes(o.id)), 1).map((pageOrders, pageIndex) => (
-                  <div key={`decls-${pageIndex}`} className="w-[210mm] h-[297mm] mx-auto p-[2mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
-                    {pageOrders.map((order, idx) => (
-                      <div key={idx} className="w-full h-full relative overflow-hidden">
-                        <iframe 
-                          src={order.shipping_declaration_url}
-                          className="w-full h-full border-0"
-                          title={`Print Decl ${order.id}`} 
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ))
-              )}
-            </div>
-          )}
         </div>
       )}
     </div>
