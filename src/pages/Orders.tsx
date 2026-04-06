@@ -548,7 +548,7 @@ export default function Orders() {
             }
             .item {
               width: 100%;
-              ${type === 'etiqueta' ? 'height: 50vh;' : 'height: 50vh; page-break-inside: avoid;'}
+              ${type === 'etiqueta' ? 'height: 50vh;' : 'height: 100vh; page-break-after: always;'}
               border: none;
               padding: 0;
               margin: 0;
