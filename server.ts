@@ -496,22 +496,27 @@ async function startServer() {
         return res.json({ success: true, message: "Etiqueta já gerada" });
       }
 
-      const { data: webhook } = await supabase
+      // 1. Buscar status do pagamento no Supabase (webhook_logs)
+      const { data: webhook, error: webhookError } = await supabase
         .from("webhook_logs")
         .select("*")
-        .eq("status", "processed")
+        .eq("order_id", id_pedido) // Busca pelo ID do pedido
         .order("created_at", { ascending: false })
         .limit(1);
 
       const paymentStatus = webhook && webhook.length > 0 ? webhook[0].payload?.status : 'pending';
+      const eventType = webhook && webhook.length > 0 ? webhook[0].event_type : 'unknown';
       const approvedStatuses = ['approved', 'paid', 'confirmed', 'success'];
       const paymentApproved = approvedStatuses.includes(paymentStatus);
 
       console.log("💰 Webhook encontrado:", webhook && webhook.length > 0 ? webhook[0] : 'Nenhum');
       console.log("💰 Status pagamento:", paymentStatus);
+      console.log("💰 Event:", eventType);
       console.log("📦 Gerar etiqueta:", paymentApproved);
 
-      if (paymentStatus === "failed" || paymentStatus === "error" || paymentStatus === "cancelled" || paymentStatus === "refused") {
+      // Regra obrigatória: Se falhou, parar fluxo
+      if (paymentStatus === "failed" || paymentStatus === "error" || paymentStatus === "cancelled" || paymentStatus === "refused" || eventType === "charge.payment_failed") {
+        console.error("❌ Pagamento falhou, cancelando fluxo");
         return res.status(400).json({ success: false, message: webhook && webhook[0]?.error_message || "Pagamento não aprovado" });
       }
 
