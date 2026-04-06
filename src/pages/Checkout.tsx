@@ -223,8 +223,11 @@ export default function Checkout() {
             <LayoutDashboard size={20} />
           </button>
           <button 
-            onClick={() => navigate('/')}
-            className="w-full py-4 bg-white text-slate-600 border border-slate-200 rounded-2xl font-bold hover:bg-slate-50 transition-all"
+            onClick={() => {
+              setShowSuccessModal(false);
+              navigate('/');
+            }}
+            className="w-full py-4 bg-slate-100 text-slate-700 rounded-2xl font-bold hover:bg-slate-200 transition-all border border-slate-200"
           >
             Voltar para a Loja
           </button>
