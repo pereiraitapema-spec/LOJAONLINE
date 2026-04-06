@@ -562,21 +562,39 @@ export default function Orders() {
             ${selectedOrdersToPrint.map(order => {
               const url = type === 'etiqueta' ? order.shipping_label_url : order.shipping_declaration_url;
               console.log(`Debug: URL ${type} para pedido ${order.id}:`, url);
-              console.log(`Debug: Objeto pedido completo ${order.id}:`, order);
-              if (!url) {
-                console.error(`URL não encontrada para ${order.id}. Verifique a estrutura do objeto.`);
+              
+              // Se não tiver URL direta, tenta construir via rastreador (CepCerto)
+              let finalUrl = url;
+              if (!finalUrl) {
+                const tracking = extractTrackingCode(order);
+                finalUrl = buildDeclaracaoUrl(tracking || '');
+                console.log(`Debug: URL construída via rastreador para pedido ${order.id}:`, finalUrl);
+              }
+
+              if (!finalUrl) {
+                console.error(`URL não encontrada para ${order.id}.`);
                 return '';
               }
+              
               // Forçar o carregamento da URL no iframe
-              return `<div class="item"><iframe src="${url}"></iframe></div>`;
+              return `<div class="item"><iframe src="${finalUrl}" onload="this.dataset.loaded = 'true'"></iframe></div>`;
             }).join('')}
           </div>
           <script>
-            // Usar um timeout fixo para garantir que o conteúdo do iframe seja renderizado
-            setTimeout(() => {
-              window.print();
-              window.close();
-            }, 2000);
+            // Aguarda até que todos os iframes tenham carregado ou um timeout de segurança
+            function checkLoad() {
+              const iframes = document.querySelectorAll('iframe');
+              const allLoaded = Array.from(iframes).every(i => i.dataset.loaded === 'true');
+              if (allLoaded) {
+                window.print();
+                window.close();
+              } else {
+                setTimeout(checkLoad, 500);
+              }
+            }
+            // Timeout de segurança de 5 segundos caso algum iframe falhe ao carregar
+            setTimeout(checkLoad, 5000);
+            checkLoad();
           </script>
         </body>
       </html>
@@ -799,7 +817,7 @@ export default function Orders() {
   const [loadingTracking, setLoadingTracking] = useState(false);
 
   useEffect(() => {
-    setSelectedOrderIds([]);
+    setSelectedOrders([]);
   }, [searchTerm, statusFilter, startDate, endDate]);
 
   const fetchData = async () => {
