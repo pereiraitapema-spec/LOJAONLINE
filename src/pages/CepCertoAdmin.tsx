@@ -3339,6 +3339,14 @@ export default function CepCertoAdmin() {
                       <RefreshCw size={20} className={syncingLabels ? 'animate-spin' : ''} />
                       Sincronizar com CepCerto
                     </button>
+                    <button 
+                      onClick={handleGetFinancialStatement}
+                      disabled={loadingFinancial}
+                      className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <FileText size={20} />
+                      Ver Extrato Financeiro
+                    </button>
                   </div>
                 </div>
               )}
@@ -4334,6 +4342,49 @@ export default function CepCertoAdmin() {
                 >
                   Entendido
                 </button>
+              </motion.div>
+            </div>
+          )}
+
+          {/* Modal Extrato Financeiro */}
+          {showFinancialModal && financialData && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto"
+              >
+                <div className="flex justify-between items-center mb-8">
+                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Extrato Financeiro</h2>
+                  <button onClick={() => setShowFinancialModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                    <X size={24} className="text-slate-400" />
+                  </button>
+                </div>
+                
+                <div className="bg-slate-50 p-6 rounded-3xl mb-8 flex justify-between items-center">
+                  <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Saldo Atual</p>
+                    <p className="text-3xl font-black text-slate-900">{financialData.saldo.br}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total de Transações</p>
+                    <p className="text-xl font-black text-slate-900">{financialData.total}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {financialData.extrato.map((item: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl">
+                      <div>
+                        <p className="font-bold text-slate-900">{item.descricao}</p>
+                        <p className="text-xs text-slate-500">{item.data}</p>
+                      </div>
+                      <p className={`font-black ${item.classe === 'positivo' ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {item.valor_br}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             </div>
           )}
