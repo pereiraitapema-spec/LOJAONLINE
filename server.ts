@@ -178,7 +178,7 @@ async function startServer() {
     }
 
     try {
-      const { supabase } = await import("./src/lib/supabase");
+      const { supabase } = await import("./src/lib/supabase.js");
 
       // 1. Buscar produtos no banco
       const productIds = produtos.map((p: any) => p.id);
@@ -312,7 +312,7 @@ async function startServer() {
     }
 
     try {
-      const { supabase } = await import("./src/lib/supabase");
+      const { supabase } = await import("./src/lib/supabase.js");
 
       // 1. Buscar dados completos do pedido e itens
       const { data: order, error: orderError } = await supabase
@@ -673,7 +673,7 @@ async function startServer() {
       
       // Fallback: Salvar status_envio = 'preparando' e erro_etiqueta = true
       try {
-        const { supabase } = await import("./src/lib/supabase");
+        const { supabase } = await import("./src/lib/supabase.js");
         await supabase
           .from('orders')
           .update({ 
@@ -699,7 +699,7 @@ async function startServer() {
     }
 
     try {
-      const { supabase } = await import("./src/lib/supabase");
+      const { supabase } = await import("./src/lib/supabase.js");
 
       // 1. Buscar configurações do sistema para obter a API Key
       const { data: carrier, error: carrierError } = await supabase
