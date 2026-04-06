@@ -509,7 +509,18 @@ export default function Orders() {
   };
 
   const handleGenerateLabel = async (orderId: string, currentStatus?: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) {
+      console.log("Pedido não carregado ainda");
+      return;
+    }
+    if (!order.customer_name || !order.shipping_address) {
+      console.log("Dados incompletos para gerar etiqueta");
+      toast.error("Dados incompletos para gerar etiqueta");
+      return;
+    }
     setProcessingShipping(true);
+    console.log("Gerando etiqueta...");
     try {
       const response = await fetch('/api/admin/gerar-etiqueta', {
         method: 'POST',
@@ -525,7 +536,7 @@ export default function Orders() {
         const labelUrl = result.result?.pdf_url_etiqueta || result.result?.shipping_label_url || '';
         
         await updateTrackingCode(orderId, trackingCode, labelUrl, currentStatus);
-        await fetchTrackingStatus(orderId);
+        await fetchData(); // Recarregar pedidos para atualizar o estado
         toast.success('Etiqueta gerada com sucesso!');
       } else {
         toast.error('Falha ao gerar etiqueta: ' + (result.error || 'Erro desconhecido'));

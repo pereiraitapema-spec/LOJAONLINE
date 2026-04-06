@@ -38,7 +38,17 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
   }, [isOpen, trackingCode, orderId]);
 
   const fetchUserOrders = async () => {
+    console.time("Buscar pedidos");
     setLoading(true);
+    
+    // Tentar carregar do cache primeiro
+    const cached = localStorage.getItem("orders");
+    if (cached) {
+      console.log("Cache encontrado, mostrando imediatamente");
+      setUserOrders(JSON.parse(cached));
+      setLoading(false);
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -50,26 +60,20 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
         .from('orders')
         .select('id, status, tracking_code, shipping_method, created_at, total')
         .eq('customer_email', user.email)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10); // Adicionar limite
 
       if (error) throw error;
 
-      // Filtrar pedidos entregues há mais de 7 dias
-      const filteredOrders = (orders || []).filter(order => {
-        if (order.status !== 'delivered') return true;
-        
-        const createdAt = new Date(order.created_at);
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        
-        return createdAt > sevenDaysAgo;
-      });
-
-      setUserOrders(filteredOrders);
+      console.log("Pedidos carregados:", orders);
+      setUserOrders(orders || []);
+      localStorage.setItem("orders", JSON.stringify(orders || []));
     } catch (error: any) {
       console.error('Erro ao buscar pedidos do usuário:', error);
+      if (!cached) toast.error('Erro ao buscar pedidos');
     } finally {
       setLoading(false);
+      console.timeEnd("Buscar pedidos");
     }
   };
 
@@ -355,8 +359,6 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                         
                         {realTimeHistory.length > 0 ? (
                           <div className="relative pl-8 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                            {console.log("Renderizando modal com dados:", trackingData)}
-                            {console.log("Tracking code no modal:", trackingData.tracking_code)}
                             {realTimeHistory.map((h: any, idx: number) => (
                               <div key={idx} className="relative">
                                 <div className={`absolute -left-8 w-6 h-6 rounded-full border-4 border-white flex items-center justify-center ${idx === 0 ? 'bg-indigo-600' : 'bg-slate-300'}`}>

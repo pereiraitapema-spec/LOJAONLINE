@@ -95,7 +95,7 @@ const melhorenvioProvider: ShippingProvider = {
             history: (tracking.events || []).map((e: any) => ({
               date: e.created_at,
               location: e.location || 'Não informado',
-              description: e.description
+              descricao: e.description
             }))
           };
         }
@@ -1588,7 +1588,7 @@ export const shippingService = {
     // Para CepCerto, usamos o tracking_code se disponível
     const identifier = (carrier.provider === 'cepcerto' && trackingCode) ? trackingCode : orderId;
 
-    return provider.cancelLabel(identifier, carrier.config);
+    return provider.cancelLabel(orderId, identifier, carrier.config);
   },
 
   async getBalance(carrierId?: string) {
