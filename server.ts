@@ -690,6 +690,55 @@ async function startServer() {
     }
   });
 
+  // 8. Endpoint para Rastreio CepCerto via Admin (Seguro)
+  app.post("/api/admin/rastreio", async (req, res) => {
+    const { tracking_code } = req.body;
+
+    if (!tracking_code) {
+      return res.status(400).json({ success: false, error: "Código de rastreio é obrigatório" });
+    }
+
+    try {
+      const { supabase } = await import("./src/lib/supabase");
+
+      // 1. Buscar configurações do sistema para obter a API Key
+      const { data: carrier, error: carrierError } = await supabase
+        .from('shipping_carriers')
+        .select('config')
+        .eq('provider', 'cepcerto')
+        .eq('active', true)
+        .maybeSingle();
+
+      if (carrierError || !carrier || !carrier.config?.api_key) {
+        throw new Error("Configuração ou API Key do CepCerto não encontrada");
+      }
+
+      const apiKey = carrier.config.api_key;
+
+      // 2. Chamar API CepCerto
+      const payload = {
+        token_cliente_postagem: apiKey,
+        codigo_objeto: tracking_code
+      };
+
+      console.log("LOG — Buscando rastreamento:", tracking_code);
+
+      const response = await fetch('https://cepcerto.com/api-rastreio/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      console.log("LOG — Resposta rastreamento:", data);
+
+      res.json(data);
+    } catch (error: any) {
+      console.error("❌ Erro ao buscar rastreio via Admin:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // 5. Proxy para Rastreio Linketrack (CORS Fix)
   app.all("/api/tracking/linketrack", async (req, res) => {
     const { tracking_code } = { ...req.query, ...req.body };

@@ -18,7 +18,8 @@ import {
   LayoutDashboard,
   Copy,
   X,
-  Store
+  Store,
+  ExternalLink
 } from 'lucide-react';
 import { isValidDocument } from '../lib/validation';
 import { toast } from 'react-hot-toast';
@@ -162,8 +163,34 @@ export default function Checkout() {
   const [createAccount, setCreateAccount] = useState(false);
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
   const [trackingCode, setTrackingCode] = useState<string | null>(null);
+  const [trackingInfo, setTrackingInfo] = useState<any>(null);
 
-  const SuccessModal = () => (
+  const SuccessModal = () => {
+    const [loading, setLoading] = useState(false);
+
+    React.useEffect(() => {
+      if (trackingCode) {
+        setLoading(true);
+        console.log("LOG — Buscando rastreamento:", trackingCode);
+        fetch("/api/admin/rastreio", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tracking_code: trackingCode })
+        })
+        .then(res => res.json())
+        .then(data => {
+          console.log("LOG — Resposta rastreamento:", data);
+          setTrackingInfo(data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error("Erro ao buscar rastreamento:", err);
+          setLoading(false);
+        });
+      }
+    }, [trackingCode]);
+
+    return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
@@ -184,8 +211,8 @@ export default function Checkout() {
         <p className="text-slate-600 text-lg leading-relaxed mb-8">
           Parabéns! Seu pagamento foi confirmado com sucesso. <br/>
           <span className="font-bold text-indigo-600">
-            {trackingCode ? 'Seu pedido está sendo levado para a transportadora' : 'Seu pedido está sendo preparado'}
-          </span> e em breve será enviado para você.
+            {trackingCode ? 'Seu pedido foi enviado' : 'Seu pedido está sendo preparado'}
+          </span>.
         </p>
 
         <div className="space-y-4 mb-8">
@@ -194,54 +221,60 @@ export default function Checkout() {
             <span className="text-slate-900 font-bold font-mono">#{currentOrderId?.split('-')[0].toUpperCase()}</span>
           </div>
           
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
-            <span className="text-slate-500 font-medium">Código de Rastreio:</span>
-            <span className="text-indigo-600 font-bold font-mono">
-              {trackingCode || 'Aguardando Postagem'}
-            </span>
-          </div>
-
-          <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex items-center gap-3 text-left">
-            <Truck className="text-indigo-600 shrink-0" size={24} />
-            <div>
-              <p className="text-indigo-900 font-bold text-sm">Próximo Passo:</p>
-              <p className="text-indigo-700 text-xs">
-                {trackingCode 
-                  ? 'Seu pedido já foi processado e está a caminho da transportadora.' 
-                  : 'Seu pedido está sendo preparado. Em breve você receberá o código de rastreamento.'}
-              </p>
+          {trackingCode && (
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
+              <span className="text-slate-500 font-medium">Código de Rastreio:</span>
+              <span className="text-indigo-600 font-bold font-mono">
+                {trackingCode}
+              </span>
             </div>
-          </div>
+          )}
+
+          {trackingCode && trackingInfo && (
+            <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 text-left">
+              <p className="text-indigo-900 font-bold text-sm mb-2">Status do Rastreamento:</p>
+              {loading ? (
+                <p className="text-indigo-700 text-xs">Carregando...</p>
+              ) : (
+                <>
+                  <p className="text-indigo-700 text-xs font-bold">{trackingInfo.status || 'Status não disponível'}</p>
+                  {trackingInfo.eventos && trackingInfo.eventos.length > 0 && (
+                    <div className="mt-2 text-xs text-indigo-800">
+                      <p className="font-bold">{trackingInfo.eventos[0].data} - {trackingInfo.eventos[0].descricao}</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
-        <button 
-          onClick={() => window.location.href = "/"}
-          className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
-        >
-          Voltar para loja
-        </button>
-
         <div className="grid grid-cols-1 gap-3">
-          <button 
-            onClick={() => setIsTrackingModalOpen(true)}
-            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
-          >
-            Acompanhar Pedido
-            <LayoutDashboard size={20} />
-          </button>
+          {trackingCode && trackingInfo && trackingInfo.link_cepcerto && (
+            <a 
+              href={trackingInfo.link_cepcerto}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+            >
+              Ver rastreamento completo
+              <ExternalLink size={20} />
+            </a>
+          )}
           <button 
             onClick={() => {
               setShowSuccessModal(false);
-              navigate('/');
+              window.location.href = "/";
             }}
-            className="w-full py-4 bg-slate-100 text-slate-700 rounded-2xl font-bold hover:bg-slate-200 transition-all border border-slate-200"
+            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
           >
-            Voltar para a Loja
+            Voltar para loja
           </button>
         </div>
       </motion.div>
     </div>
   );
+};
 
   useEffect(() => {
     const loadData = async () => {
