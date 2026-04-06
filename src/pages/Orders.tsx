@@ -562,16 +562,22 @@ export default function Orders() {
             ${selectedOrders.map(order => {
               const url = type === 'etiqueta' ? order.shipping_label_url : order.shipping_declaration_url;
               if (!url) return '';
-              return `<div class="item"><iframe src="${url}"></iframe></div>`;
+              // Usar onload no iframe para garantir carregamento
+              return `<div class="item"><iframe src="${url}" onload="this.dataset.loaded = 'true'"></iframe></div>`;
             }).join('')}
           </div>
           <script>
-            window.onload = () => {
-              setTimeout(() => {
+            function checkLoad() {
+              const iframes = document.querySelectorAll('iframe');
+              const allLoaded = Array.from(iframes).every(i => i.dataset.loaded === 'true');
+              if (allLoaded) {
                 window.print();
                 window.close();
-              }, 1000);
-            };
+              } else {
+                setTimeout(checkLoad, 500);
+              }
+            }
+            window.onload = checkLoad;
           </script>
         </body>
       </html>
