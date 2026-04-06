@@ -1202,8 +1202,20 @@ export default function Checkout() {
 
       if (activeGateway) {
         console.log('✅ [DEBUG CHECKOUT] Gateway encontrado, processando...');
+        
+        // Validação de CPF/CNPJ
+        const document = customer.document.replace(/\D/g, '');
+        if (!document) {
+          console.error('❌ [DEBUG CHECKOUT] CPF/CNPJ obrigatório.');
+          toast.error('CPF ou CNPJ é obrigatório para finalizar o pagamento.');
+          setProcessing(false);
+          return;
+        }
+
         try {
           console.log('💳 Iniciando processamento de pagamento real...');
+          console.log('DEBUG pagamento enviado:', { customer_name: customer.name, customer_document: document });
+          
           paymentResponse = await paymentService.processPayment(activeGateway.provider, {
             items: cart.map(item => ({
               price: item.product.discount_price || item.product.price,
@@ -1214,7 +1226,7 @@ export default function Checkout() {
             customer_name: customer.name,
             customer_email: customer.email,
             customer_phone: customer.phone.replace(/\D/g, ''),
-            customer_document: customer.document.replace(/\D/g, ''),
+            customer_document: document,
             shipping_address: shipping,
             shipping_cost: shippingCost,
             shipping_method: currentShipping?.name,
