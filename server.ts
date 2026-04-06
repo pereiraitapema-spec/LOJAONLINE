@@ -600,12 +600,13 @@ async function startServer() {
       // Captura correta conforme estrutura da API
       const frete = result.frete || {};
       const rastreador = frete.codigoObjeto || result.codigoObjeto || result.codigo_objeto || result.tracking_code || result.codigo;
-      const etiquetaPdf = frete.pdfUrlEtiqueta || result.pdfUrlEtiqueta || result.shipping_label_url || '';
-      const declaracaoUrl = frete.declaracaoUrl || result.declaracaoUrl || '';
+      const etiquetaPdf = frete.pdfUrlEtiqueta || result.pdfUrlEtiqueta || result.etiquetaUrl || result.url_etiqueta || result.shipping_label_url || '';
+      const declaracaoUrl = frete.declaracaoUrl || result.declaracaoUrl || frete.pdfUrlDeclaracao || result.pdfUrlDeclaracao || result.url_declaracao || '';
       const recibo = frete.idRecibo || result.idRecibo || '';
 
       console.log("📦 Código rastreador:", rastreador);
       console.log("📦 URL etiqueta:", etiquetaPdf);
+      console.log("📦 URL declaração:", declaracaoUrl);
 
       if (!rastreador) {
         console.error('DEBUG: Resposta completa para debug:', JSON.stringify(result, null, 2));
