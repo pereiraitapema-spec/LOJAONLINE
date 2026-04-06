@@ -1265,23 +1265,54 @@ export default function Checkout() {
               finalTrackingCode = 'CLIENTE BUSCA NA EMPRESA';
               await supabase
                 .from('orders')
-                .update({ tracking_code: finalTrackingCode })
+                .update({ tracking_code: finalTrackingCode, status: 'paid', status_envio: 'preparando' })
                 .eq('id', orderId);
               setTrackingCode(finalTrackingCode);
               toast.success('Pagamento aprovado! Seu pedido está sendo preparado para retirada.');
             } else {
-              console.log('📦 Solicitando geração de etiqueta via Admin...');
-              console.log("LOG 2 — Buscando pedido", orderId);
+              console.log("LOG 1 — Pagamento aprovado detectado");
+              console.log("LOG 2 — Aguardando webhook ou Supabase");
               
-              // Aguardar um pouco para garantir consistência no banco
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              // Função para verificar status no Supabase
+              const checkSupabase = async () => {
+                for (let i = 0; i < 10; i++) {
+                  const { data: order } = await supabase.from('orders').select('status').eq('id', orderId).single();
+                  if (order?.status === 'paid') return true;
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+                return false;
+              };
+
+              // Função para verificar webhook (simplificada para este contexto)
+              const checkWebhook = async () => {
+                for (let i = 0; i < 10; i++) {
+                  const { data: webhooks } = await supabase
+                    .from('webhook_logs')
+                    .select('id')
+                    .eq('payload->data->metadata->>order_id', orderId)
+                    .eq('event_type', 'order.paid'); // Exemplo de evento
+                  if (webhooks && webhooks.length > 0) return true;
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+                return false;
+              };
+
+              // Promise.race para o que acontecer primeiro
+              const confirmed = await Promise.race([checkSupabase(), checkWebhook()]);
+              
+              if (confirmed) {
+                console.log("LOG 4 — Supabase ou Webhook confirmou pagamento");
+              } else {
+                console.warn("⚠️ Pagamento não confirmado via Webhook/Supabase em 20s, tentando prosseguir...");
+              }
+
+              console.log('LOG 5 — Iniciando geração etiqueta via Admin...');
               
               try {
                 const payload = {
                     id_pedido: orderId,
                     tipo_entrega: currentShipping?.id?.toLowerCase().includes('sedex') ? 'sedex' : 'pac'
                 };
-                console.log("LOG 3 — Dados do pedido carregados:", orderData);
                 
                 const labelResponse = await fetch('/api/admin/gerar-etiqueta', {
                   method: 'POST',
@@ -1290,17 +1321,16 @@ export default function Checkout() {
                 });
                 
                 const labelData = await labelResponse.json();
-                console.log("LOG 6 — Resposta API CepCerto:", labelData);
+                console.log("LOG 7 — Resposta API CepCerto:", labelData);
                 
                 if (labelResponse.ok && labelData.success && labelData.tracking_code) {
-                  console.log('✅ Etiqueta gerada com sucesso via Admin.');
-                  console.log("LOG 7 — Rastreador recebido:", labelData.tracking_code);
+                  console.log('LOG 8 — Rastreamento recebido:', labelData.tracking_code);
+                  console.log("LOG 9 — Salvando rastreador no Supabase");
                   
                   finalTrackingCode = labelData.tracking_code;
                   setTrackingCode(labelData.tracking_code);
                   
-                  console.log("LOG 8 — Salvando rastreador no Supabase");
-                  const { error: updateError } = await supabase
+                  await supabase
                     .from('orders')
                     .update({ 
                         tracking_code: finalTrackingCode,
@@ -1310,17 +1340,10 @@ export default function Checkout() {
                     })
                     .eq('id', orderId);
                   
-                  if (updateError) {
-                      console.error("LOG ERROR — Erro Supabase:", updateError);
-                      throw updateError;
-                  }
-                  
-                  console.log("LOG 9 — Finalização: Etiqueta gerada com sucesso");
+                  console.log("LOG 10 — Etiqueta gerada com sucesso");
                   toast.success('Pagamento aprovado e etiqueta gerada!');
                 } else {
-                  console.warn('⚠️ Falha na geração automática da etiqueta via Admin:', labelData.error);
-                  console.log("LOG 8 — Salvando erro no Supabase");
-                  
+                  console.warn('⚠️ Falha na geração automática da etiqueta:', labelData.error);
                   await supabase.from('orders').update({ 
                       status: 'paid',
                       status_envio: 'preparando', 
@@ -1331,8 +1354,6 @@ export default function Checkout() {
                 }
               } catch (labelErr: any) {
                 console.error("LOG ERROR — Erro ao gerar etiqueta:", labelErr);
-                console.error("Stack:", labelErr.stack);
-                
                 await supabase.from('orders').update({ 
                     status: 'paid',
                     status_envio: 'preparando', 
@@ -1344,7 +1365,7 @@ export default function Checkout() {
             }
           } catch (labelErr: any) {
             console.error('⚠️ Erro não crítico na geração de etiqueta:', labelErr);
-            toast.success('Pagamento aprovado! A etiqueta será gerada manualmente por nossa equipe.');
+            toast.success('Pagamento aprovado! A etiqueta será gerada manualmente.');
           }
           // O fluxo continua normalmente aqui, independentemente do sucesso da etiqueta
 
