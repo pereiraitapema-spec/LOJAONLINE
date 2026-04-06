@@ -561,6 +561,7 @@ export default function Orders() {
           <div class="print-container">
             ${selectedOrders.map(order => {
               const url = type === 'etiqueta' ? order.shipping_label_url : order.shipping_declaration_url;
+              console.log(`Debug: URL ${type} para pedido ${order.id}:`, url);
               if (!url) return '';
               // Usar onload no iframe para garantir carregamento
               return `<div class="item"><iframe src="${url}" onload="this.dataset.loaded = 'true'"></iframe></div>`;
