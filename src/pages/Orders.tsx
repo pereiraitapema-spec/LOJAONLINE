@@ -92,14 +92,14 @@ export default function Orders() {
   const [loadingRealTime, setLoadingRealTime] = useState(false);
   const [showManualAssistant, setShowManualAssistant] = useState(false);
   const [carrierConfig, setCarrierConfig] = useState<any>(null);
-  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>(() => {
-    const saved = sessionStorage.getItem('selectedOrderIds');
+  const [selectedOrders, setSelectedOrders] = useState<Order[]>(() => {
+    const saved = sessionStorage.getItem('selectedOrders');
     return saved ? JSON.parse(saved) : [];
   });
 
   useEffect(() => {
-    sessionStorage.setItem('selectedOrderIds', JSON.stringify(selectedOrderIds));
-  }, [selectedOrderIds]);
+    sessionStorage.setItem('selectedOrders', JSON.stringify(selectedOrders));
+  }, [selectedOrders]);
 
   // Manual Order State
   const [showManualOrderModal, setShowManualOrderModal] = useState(false);
@@ -516,9 +516,9 @@ export default function Orders() {
   };
 
   const handleBatchPrint = (type: 'etiqueta' | 'declaracao') => {
-    const selectedOrders = filteredOrders.filter(o => selectedOrderIds.includes(o.id));
+    const selectedOrdersToPrint = selectedOrders;
     
-    if (selectedOrders.length === 0) {
+    if (selectedOrdersToPrint.length === 0) {
       toast.error('Nenhum pedido selecionado');
       return;
     }
@@ -559,7 +559,7 @@ export default function Orders() {
         </head>
         <body>
           <div class="print-container">
-            ${selectedOrders.map(order => {
+            ${selectedOrdersToPrint.map(order => {
               const url = type === 'etiqueta' ? order.shipping_label_url : order.shipping_declaration_url;
               console.log(`Debug: URL ${type} para pedido ${order.id}:`, url);
               if (!url) return '';
@@ -703,7 +703,7 @@ export default function Orders() {
   };
 
   const handleBatchGenerateLabels = async (ids?: string[]) => {
-    const targetIds = ids || selectedOrderIds;
+    const targetIds = ids || selectedOrders.map(o => o.id);
     
     if (!targetIds || targetIds.length === 0) {
       toast.error('Nenhum pedido selecionado');
@@ -887,11 +887,62 @@ export default function Orders() {
     }
   };
 
-  const toggleOrderSelection = (orderId: string) => {
-    setSelectedOrderIds(prev => {
-      const next = prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId];
-      console.log('Selected order IDs:', next);
-      return next;
+  const extractDeclaracaoUrl = (order: Order) => {
+    console.log("🔎 Verificando pedido:", order);
+    const url =
+      order.shipping_declaration_url ||
+      (order as any).declaracaoUrl ||
+      (order as any).declaracao_url ||
+      (order as any).frete?.declaracaoUrl ||
+      (order as any).shipping?.frete?.declaracaoUrl ||
+      (order as any).logistica?.declaracaoUrl ||
+      (order as any).cepcerto?.frete?.declaracaoUrl;
+    console.log("📄 URL declaração encontrada:", url);
+    return url;
+  };
+
+  const handlePrintDeclaracoes = () => {
+    console.log("🚀 Iniciando impressão declarações");
+    console.log("Pedidos selecionados:", selectedOrders);
+    if (!selectedOrders || selectedOrders.length === 0) {
+      console.warn("⚠️ Nenhum pedido selecionado");
+      toast.error("Selecione pelo menos um pedido");
+      return;
+    }
+    selectedOrders.forEach(order => {
+      const declaracaoUrl = extractDeclaracaoUrl(order);
+      console.log("📄 Declaracao URL:", declaracaoUrl);
+      if (!declaracaoUrl) {
+        console.error("❌ Declaração não encontrada", order);
+        return;
+      }
+      const printWindow = window.open(declaracaoUrl, "_blank");
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      }
+    });
+  };
+
+  const handleSelectAll = () => {
+    console.log("Selecionando todos pedidos");
+    console.log("Filtered orders:", filteredOrders);
+    setSelectedOrders(filteredOrders);
+  };
+
+  const handleSelectOrder = (order: Order) => {
+    console.log("Selecionando pedido:", order);
+    setSelectedOrders(prev => {
+      const exists = prev.find(o => o.id === order.id);
+      if (exists) {
+        const filtered = prev.filter(o => o.id !== order.id);
+        console.log("Removendo pedido", filtered);
+        return filtered;
+      }
+      const updated = [...prev, order];
+      console.log("Adicionando pedido", updated);
+      return updated;
     });
   };
 
@@ -1167,12 +1218,12 @@ export default function Orders() {
   };
 
   const toggleSelectAll = () => {
-    console.log('Toggle select all. Current selection:', selectedOrderIds);
+    console.log('Toggle select all. Current selection:', selectedOrders);
     console.log('Filtered orders count:', filteredOrders.length);
-    if (selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0) {
-      setSelectedOrderIds([]);
+    if (selectedOrders.length === filteredOrders.length && filteredOrders.length > 0) {
+      setSelectedOrders([]);
     } else {
-      setSelectedOrderIds(filteredOrders.map(o => o.id));
+      setSelectedOrders(filteredOrders);
     }
   };
   const generateBatchPickingList = async (ids?: string[]) => {
@@ -1648,28 +1699,28 @@ export default function Orders() {
             <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 mb-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-black text-slate-900">Gestão de Pedidos</h2>
-                {selectedOrderIds.length > 0 && (
+                {selectedOrders.length > 0 && (
                   <div className="flex items-center gap-2">
                     <button 
                       onClick={() => generateBatchPickingList()}
                       className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2"
                     >
                       <Package size={16} />
-                      Gerar Separação ({selectedOrderIds.length})
+                      Gerar Separação ({selectedOrders.length})
                     </button>
                     <button 
                       onClick={() => handleBatchPrint('etiqueta')}
                       className="px-4 py-2 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-all flex items-center gap-2"
                     >
                       <Tag size={16} />
-                      Imprimir Etiquetas ({selectedOrderIds.length})
+                      Imprimir Etiquetas ({selectedOrders.length})
                     </button>
                     <button 
                       onClick={() => handleBatchPrint('declaracao')}
                       className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all flex items-center gap-2"
                     >
                       <FileText size={16} />
-                      Imprimir Declarações ({selectedOrderIds.length})
+                      Imprimir Declarações ({selectedOrders.length})
                     </button>
                     <button
                       onClick={() => navigate('/tracking')}
@@ -1756,7 +1807,7 @@ export default function Orders() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    <input type="checkbox" checked={selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0} onChange={toggleSelectAll} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    <input type="checkbox" checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0} onChange={handleSelectAll} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                   </th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">ID do Pedido</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</th>
@@ -1770,7 +1821,7 @@ export default function Orders() {
                 {filteredOrders.map((order) => (
                   <tr key={order.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4">
-                      <input type="checkbox" checked={selectedOrderIds.includes(order.id)} onChange={() => toggleOrderSelection(order.id)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                      <input type="checkbox" checked={selectedOrders.some(o => o.id === order.id)} onChange={() => handleSelectOrder(order)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-mono text-xs font-bold text-slate-600">
