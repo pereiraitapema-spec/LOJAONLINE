@@ -510,35 +510,64 @@ export default function Orders() {
 
   const handleGenerateLabel = async (orderId: string, currentStatus?: string) => {
     const order = orders.find(o => o.id === orderId);
-    if (!order) {
-      console.log("Pedido não carregado ainda");
+    
+    console.log("Iniciando geração de etiqueta");
+    if (!order || !order.id) {
+      console.error("Pedido não carregado ainda");
+      toast.error("Pedido não carregado ainda");
       return;
     }
-    if (!order.customer_name || !order.shipping_address) {
-      console.log("Dados incompletos para gerar etiqueta");
-      toast.error("Dados incompletos para gerar etiqueta");
-      return;
-    }
+
+    console.log("Dados do pedido:", order);
+    console.log("Cliente:", order.customer_name);
+    console.log("CEP:", order.shipping_address?.cep);
+    console.log("Endereço:", order.shipping_address?.logradouro);
+    console.log("Cidade:", order.shipping_address?.city);
+    console.log("Estado:", order.shipping_address?.state);
+    console.log("Telefone:", order.customer_phone);
+    console.log("Email:", order.customer_email);
+    console.log("Serviço:", order.shipping_method);
+
+    // Validações
+    if (!order.customer_name) { console.error("Falta nome cliente"); toast.error("Falta nome cliente"); return; }
+    if (!order.shipping_address?.cep) { console.error("Falta CEP"); toast.error("Falta CEP"); return; }
+    if (!order.shipping_address?.logradouro) { console.error("Falta endereço"); toast.error("Falta endereço"); return; }
+    if (!order.shipping_address?.city) { console.error("Falta cidade"); toast.error("Falta cidade"); return; }
+    if (!order.shipping_address?.state) { console.error("Falta estado"); toast.error("Falta estado"); return; }
+
+    const cep = order.shipping_address.cep.replace(/\D/g, "");
+    console.log("CEP normalizado:", cep);
+    const phone = (order.customer_phone || "").replace(/\D/g, "");
+    console.log("Telefone normalizado:", phone);
+
     setProcessingShipping(true);
-    console.log("Gerando etiqueta...");
+    console.log("Chamando endpoint geração etiqueta");
     try {
       const response = await fetch('/api/admin/gerar-etiqueta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_pedido: orderId })
+        body: JSON.stringify({ 
+          id_pedido: orderId,
+          weight: 0.300 // Peso padrão
+        })
       });
       const result = await response.json();
       
-      console.log('🔍 Resultado da geração de etiqueta:', result);
+      console.log('Resposta completa:', result);
+      console.log('Success:', result.success);
+      console.log('Erro:', result.error);
+
       if (response.ok && result.success) {
-        // Garantir que tracking_code e shipping_label_url não sejam nulos ou indefinidos
-        const trackingCode = result.tracking_code || '';
+        const trackingCode = result.tracking_code || result.codigo_objeto || '';
         const labelUrl = result.result?.pdf_url_etiqueta || result.result?.shipping_label_url || '';
         
+        console.log("Etiqueta gerada. Tracking:", trackingCode);
+        
         await updateTrackingCode(orderId, trackingCode, labelUrl, currentStatus);
-        await fetchData(); // Recarregar pedidos para atualizar o estado
+        await fetchData();
         toast.success('Etiqueta gerada com sucesso!');
       } else {
+        console.error("Erro geração etiqueta:", result);
         toast.error('Falha ao gerar etiqueta: ' + (result.error || 'Erro desconhecido'));
       }
     } catch (error: any) {
