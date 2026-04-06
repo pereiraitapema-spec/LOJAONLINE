@@ -1268,20 +1268,45 @@ export default function Checkout() {
               console.log("LOG 1 — Pagamento aprovado:", orderId);
               console.log("LOG 2 — Iniciando geração etiqueta...");
               
+              // Função de normalização
+              const normalizeOrderData = (order: any) => {
+                console.log("LOG — Dados originais:", order);
+                const normalized = { ...order };
+                
+                if (!normalized.products && normalized.order_items) {
+                    normalized.products = normalized.order_items;
+                }
+                
+                if (!normalized.shipping && normalized.shipping_address) {
+                    const addr = normalized.shipping_address;
+                    normalized.shipping = {
+                        address: addr.street || addr.address || addr.logradouro,
+                        number: addr.number || addr.numero,
+                        neighborhood: addr.neighborhood || addr.bairro,
+                        city: addr.city || addr.cidade,
+                        state: addr.state || addr.estado,
+                        cep: addr.cep,
+                        complement: addr.complement || addr.complemento
+                    };
+                }
+                
+                console.log("LOG — Dados normalizados:", normalized);
+                return normalized;
+              };
+
               // Função para verificar campos obrigatórios
               const validateOrderData = (order: any) => {
                 const missingFields = [];
                 if (!order.total) missingFields.push('total');
-                if (!order.order_items || order.order_items.length === 0) missingFields.push('products');
+                if (!order.products || order.products.length === 0) missingFields.push('products');
                 
-                // Endereço pode estar em shipping_address ou order.shipping_address
-                const address = order.shipping_address || {};
+                const shipping = order.shipping || {};
                 if (!order.customer_name) missingFields.push('customer.name');
                 if (!order.customer_phone) missingFields.push('customer.phone');
-                if (!address.address && !address.logradouro) missingFields.push('shipping.address');
-                if (!address.cep) missingFields.push('shipping.cep');
-                if (!address.city && !address.cidade) missingFields.push('shipping.city');
-                if (!address.state && !address.estado) missingFields.push('shipping.state');
+                if (!shipping.address) missingFields.push('shipping.address');
+                if (!shipping.cep) missingFields.push('shipping.cep');
+                if (!shipping.city) missingFields.push('shipping.city');
+                if (!shipping.state) missingFields.push('shipping.state');
                 return missingFields;
               };
 
@@ -1308,15 +1333,12 @@ export default function Checkout() {
                   order.order_items = products;
                   console.log("LOG — Produtos encontrados:", products);
 
-                  // 3. Buscar endereço
-                  console.log("LOG — Buscando endereço");
-                  // O endereço já está no objeto order (shipping_address)
-                  const address = order.shipping_address;
-                  console.log("LOG — Endereço:", address);
+                  // 3. Normalizar
+                  const normalizedOrder = normalizeOrderData(order);
 
                   // Validação
                   console.log("LOG 4 — Verificando dados obrigatórios");
-                  const missingFields = validateOrderData(order);
+                  const missingFields = validateOrderData(normalizedOrder);
                   if (missingFields.length > 0) {
                     console.log("LOG 5 — Campos faltando:", missingFields);
                     throw new Error(`Dados incompletos: ${missingFields.join(', ')}`);
@@ -1324,6 +1346,7 @@ export default function Checkout() {
 
                   // Geração da etiqueta
                   console.log("LOG 6 — Payload enviado CepCerto");
+                  console.log("LOG — Dados completos, gerando etiqueta");
                   const payload = {
                     id_pedido: orderId,
                     tipo_entrega: currentShipping?.id?.toLowerCase().includes('sedex') ? 'sedex' : 'pac'
