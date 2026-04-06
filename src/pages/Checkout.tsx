@@ -1268,49 +1268,74 @@ export default function Checkout() {
               toast.success('Pagamento aprovado! Seu pedido está sendo preparado para retirada.');
             } else {
               console.log('📦 Solicitando geração de etiqueta via Admin...');
+              console.log("LOG 2 — Buscando pedido", orderId);
               
               // Aguardar um pouco para garantir consistência no banco
               await new Promise(resolve => setTimeout(resolve, 2000));
               
               try {
+                const payload = {
+                    id_pedido: orderId,
+                    tipo_entrega: currentShipping?.id?.toLowerCase().includes('sedex') ? 'sedex' : 'pac'
+                };
+                console.log("LOG 3 — Dados do pedido carregados:", orderData);
+                
                 const labelResponse = await fetch('/api/admin/gerar-etiqueta', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    id_pedido: orderId,
-                    tipo_entrega: currentShipping?.id?.toLowerCase().includes('sedex') ? 'sedex' : 'pac'
-                  })
+                  body: JSON.stringify(payload)
                 });
                 
                 const labelData = await labelResponse.json();
+                console.log("LOG 6 — Resposta API CepCerto:", labelData);
                 
                 if (labelResponse.ok && labelData.success && labelData.tracking_code) {
                   console.log('✅ Etiqueta gerada com sucesso via Admin.');
+                  console.log("LOG 7 — Rastreador recebido:", labelData.tracking_code);
                   
-                  // Buscar do Supabase para confirmar
-                  const { data: orderData } = await supabase
+                  finalTrackingCode = labelData.tracking_code;
+                  setTrackingCode(labelData.tracking_code);
+                  
+                  console.log("LOG 8 — Salvando rastreador no Supabase");
+                  const { error: updateError } = await supabase
                     .from('orders')
-                    .select('tracking_code, status_envio')
-                    .eq('id', orderId)
-                    .maybeSingle();
-                    
-                  if (orderData?.tracking_code) {
-                    finalTrackingCode = orderData.tracking_code;
-                    setTrackingCode(orderData.tracking_code);
-                  } else {
-                    finalTrackingCode = labelData.tracking_code;
-                    setTrackingCode(labelData.tracking_code);
+                    .update({ 
+                        tracking_code: finalTrackingCode,
+                        status: 'paid',
+                        status_envio: 'preparando',
+                        erro_etiqueta: false
+                    })
+                    .eq('id', orderId);
+                  
+                  if (updateError) {
+                      console.error("LOG ERROR — Erro Supabase:", updateError);
+                      throw updateError;
                   }
                   
+                  console.log("LOG 9 — Finalização: Etiqueta gerada com sucesso");
                   toast.success('Pagamento aprovado e etiqueta gerada!');
                 } else {
                   console.warn('⚠️ Falha na geração automática da etiqueta via Admin:', labelData.error);
-                  await supabase.from('orders').update({ status_envio: 'preparando', erro_etiqueta: true }).eq('id', orderId);
+                  console.log("LOG 8 — Salvando erro no Supabase");
+                  
+                  await supabase.from('orders').update({ 
+                      status: 'paid',
+                      status_envio: 'preparando', 
+                      erro_etiqueta: true 
+                  }).eq('id', orderId);
+                  
                   toast.success('Pagamento aprovado! Seu pedido está sendo preparado.');
                 }
               } catch (labelErr: any) {
-                console.error('⚠️ Erro na comunicação com Admin para gerar etiqueta:', labelErr);
-                await supabase.from('orders').update({ status_envio: 'preparando', erro_etiqueta: true }).eq('id', orderId);
+                console.error("LOG ERROR — Erro ao gerar etiqueta:", labelErr);
+                console.error("Stack:", labelErr.stack);
+                
+                await supabase.from('orders').update({ 
+                    status: 'paid',
+                    status_envio: 'preparando', 
+                    erro_etiqueta: true 
+                }).eq('id', orderId);
+                
                 toast.success('Pagamento aprovado! Seu pedido está sendo preparado.');
               }
             }
