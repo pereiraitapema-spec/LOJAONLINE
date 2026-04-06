@@ -1256,116 +1256,103 @@ export default function Checkout() {
           // Se o pagamento ainda não foi confirmado pelo webhook, a geração da etiqueta falhará
           // e o cliente será informado.
 
-          // 4. Comunicar com CepCerto para gerar etiqueta (Resiliente)
+          // 4. Comunicar com CepCerto para gerar etiqueta (Assíncrono e Resiliente)
           try {
             const orderId = typeof orderData.id === 'string' ? orderData.id : orderData.id.toString();
             
-            if (currentShipping?.name === 'CLIENTE BUSCA NA EMPRESA') {
-              console.log('📦 Pedido com retirada na empresa. Pulando geração de etiqueta.');
-              finalTrackingCode = 'CLIENTE BUSCA NA EMPRESA';
-              await supabase
-                .from('orders')
-                .update({ tracking_code: finalTrackingCode, status: 'paid', status_envio: 'preparando' })
-                .eq('id', orderId);
-              setTrackingCode(finalTrackingCode);
-              toast.success('Pagamento aprovado! Seu pedido está sendo preparado para retirada.');
-            } else {
-              console.log("LOG 1 — Pagamento aprovado detectado");
-              console.log("LOG 2 — Aguardando webhook ou Supabase");
+            // Feedback imediato ao cliente
+            toast.success('Pagamento aprovado com sucesso! Sua encomenda está sendo preparada.');
+            
+            // Iniciar processo assíncrono em background
+            (async () => {
+              console.log("LOG 1 — Pagamento aprovado:", orderId);
+              console.log("LOG 2 — Iniciando geração etiqueta...");
               
-              // Função para verificar status no Supabase
-              const checkSupabase = async () => {
-                for (let i = 0; i < 10; i++) {
-                  const { data: order } = await supabase.from('orders').select('status').eq('id', orderId).single();
-                  if (order?.status === 'paid') return true;
-                  await new Promise(resolve => setTimeout(resolve, 2000));
-                }
-                return false;
+              // Função para verificar campos obrigatórios
+              const validateOrderData = (order: any) => {
+                const missingFields = [];
+                if (!order.total) missingFields.push('total');
+                if (!order.order_items || order.order_items.length === 0) missingFields.push('products');
+                if (!order.customer_name) missingFields.push('customer.name');
+                if (!order.customer_phone) missingFields.push('customer.phone');
+                if (!order.shipping_address?.address) missingFields.push('shipping.address');
+                if (!order.shipping_address?.cep) missingFields.push('shipping.cep');
+                if (!order.shipping_address?.city) missingFields.push('shipping.city');
+                if (!order.shipping_address?.state) missingFields.push('shipping.state');
+                return missingFields;
               };
 
-              // Função para verificar webhook (simplificada para este contexto)
-              const checkWebhook = async () => {
-                for (let i = 0; i < 10; i++) {
-                  const { data: webhooks } = await supabase
-                    .from('webhook_logs')
-                    .select('id')
-                    .eq('payload->data->metadata->>order_id', orderId)
-                    .eq('event_type', 'order.paid'); // Exemplo de evento
-                  if (webhooks && webhooks.length > 0) return true;
-                  await new Promise(resolve => setTimeout(resolve, 2000));
-                }
-                return false;
-              };
+              // Retry Inteligente
+              for (let attempt = 1; attempt <= 10; attempt++) {
+                try {
+                  console.log(`Tentativa ${attempt} de geração de etiqueta...`);
+                  
+                  // Buscar dados atualizados
+                  const { data: order, error: orderError } = await supabase
+                    .from('orders')
+                    .select('*, order_items(*)')
+                    .eq('id', orderId)
+                    .single();
 
-              // Promise.race para o que acontecer primeiro
-              const confirmed = await Promise.race([checkSupabase(), checkWebhook()]);
-              
-              if (confirmed) {
-                console.log("LOG 4 — Supabase ou Webhook confirmou pagamento");
-              } else {
-                console.warn("⚠️ Pagamento não confirmado via Webhook/Supabase em 20s, tentando prosseguir...");
-              }
+                  if (orderError || !order) throw new Error("Pedido não encontrado");
+                  console.log("LOG 3 — Dados pedido:", order);
 
-              console.log('LOG 5 — Iniciando geração etiqueta via Admin...');
-              
-              try {
-                const payload = {
+                  // Validação
+                  console.log("LOG 4 — Verificando dados obrigatórios");
+                  const missingFields = validateOrderData(order);
+                  if (missingFields.length > 0) {
+                    console.log("LOG 5 — Campos faltando:", missingFields);
+                    throw new Error(`Dados incompletos: ${missingFields.join(', ')}`);
+                  }
+
+                  // Geração da etiqueta
+                  console.log("LOG 6 — Payload enviado CepCerto");
+                  const payload = {
                     id_pedido: orderId,
                     tipo_entrega: currentShipping?.id?.toLowerCase().includes('sedex') ? 'sedex' : 'pac'
-                };
-                
-                const labelResponse = await fetch('/api/admin/gerar-etiqueta', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(payload)
-                });
-                
-                const labelData = await labelResponse.json();
-                console.log("LOG 7 — Resposta API CepCerto:", labelData);
-                
-                if (labelResponse.ok && labelData.success && labelData.tracking_code) {
-                  console.log('LOG 8 — Rastreamento recebido:', labelData.tracking_code);
-                  console.log("LOG 9 — Salvando rastreador no Supabase");
+                  };
                   
-                  finalTrackingCode = labelData.tracking_code;
-                  setTrackingCode(labelData.tracking_code);
+                  const labelResponse = await fetch('/api/admin/gerar-etiqueta', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                  });
                   
-                  await supabase
-                    .from('orders')
-                    .update({ 
-                        tracking_code: finalTrackingCode,
-                        status: 'paid',
-                        status_envio: 'preparando',
-                        erro_etiqueta: false
-                    })
-                    .eq('id', orderId);
+                  const labelData = await labelResponse.json();
+                  console.log("LOG 7 — Resposta CepCerto:", labelData);
                   
-                  console.log("LOG 10 — Etiqueta gerada com sucesso");
-                  toast.success('Pagamento aprovado e etiqueta gerada!');
-                } else {
-                  console.warn('⚠️ Falha na geração automática da etiqueta:', labelData.error);
-                  await supabase.from('orders').update({ 
-                      status: 'paid',
-                      status_envio: 'preparando', 
-                      erro_etiqueta: true 
-                  }).eq('id', orderId);
-                  
-                  toast.success('Pagamento aprovado! Seu pedido está sendo preparado.');
+                  if (labelResponse.ok && labelData.success && labelData.tracking_code) {
+                    console.log("LOG 8 — Rastreamento:", labelData.tracking_code);
+                    console.log("LOG 9 — Salvando rastreador no Supabase");
+                    
+                    await supabase
+                      .from('orders')
+                      .update({ 
+                          tracking_code: labelData.tracking_code,
+                          status: 'paid',
+                          status_envio: 'preparando',
+                          erro_etiqueta: false
+                      })
+                      .eq('id', orderId);
+                    
+                    console.log("LOG 10 — Etiqueta gerada com sucesso");
+                    return; // Sucesso!
+                  } else {
+                    throw new Error(labelData.error || "Falha na API CepCerto");
+                  }
+                } catch (err: any) {
+                  console.error("Erro geração etiqueta (tentativa " + attempt + "):", err);
+                  console.error("Stack:", err.stack);
+                  if (attempt === 10) throw err;
+                  await new Promise(resolve => setTimeout(resolve, 2000));
                 }
-              } catch (labelErr: any) {
-                console.error("LOG ERROR — Erro ao gerar etiqueta:", labelErr);
-                await supabase.from('orders').update({ 
-                    status: 'paid',
-                    status_envio: 'preparando', 
-                    erro_etiqueta: true 
-                }).eq('id', orderId);
-                
-                toast.success('Pagamento aprovado! Seu pedido está sendo preparado.');
               }
-            }
-          } catch (labelErr: any) {
-            console.error('⚠️ Erro não crítico na geração de etiqueta:', labelErr);
-            toast.success('Pagamento aprovado! A etiqueta será gerada manualmente.');
+            })().catch(err => {
+              console.error("Falha crítica na geração automática após 10 tentativas:", err);
+              supabase.from('orders').update({ status_envio: 'preparando', erro_etiqueta: true }).eq('id', orderId);
+            });
+          } catch (err: any) {
+            console.error('Erro ao iniciar processo assíncrono:', err);
           }
           // O fluxo continua normalmente aqui, independentemente do sucesso da etiqueta
 
