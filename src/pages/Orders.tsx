@@ -579,8 +579,6 @@ export default function Orders() {
         await updateTrackingCode(orderId, trackingCode, labelUrl, currentStatus);
         await fetchData();
         toast.success('Etiqueta gerada com sucesso!');
-        setSelectedTrackingOrder({ id: orderId, tracking_code: trackingCode });
-        setShowTrackingModal(true);
       } else {
         console.error("Erro geração etiqueta:", result);
         toast.error('Falha ao gerar etiqueta: ' + (result.error || 'Erro desconhecido'));
