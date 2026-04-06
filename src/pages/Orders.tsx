@@ -538,7 +538,7 @@ export default function Orders() {
     
     // 1. Bloquear se já tiver código de rastreio (evitar duplicidade)
     if (order.tracking_code && order.tracking_code !== 'CLIENTE RETIRA NO BALCAO') {
-      toast.info("Este pedido já possui uma etiqueta gerada no sistema.");
+      toast("Este pedido já possui uma etiqueta gerada no sistema.");
       // Tenta garantir que o rastreador esteja salvo no estado local
       if (selectedOrder?.id === orderId) {
         setSelectedOrder({ ...selectedOrder, tracking_code: order.tracking_code });
@@ -560,10 +560,10 @@ export default function Orders() {
     setProcessingShipping(true);
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // Aumentado para 60s
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // Aumentado para 3 minutos (180s)
 
     try {
-      console.log("Chamando endpoint: /api/admin/gerar-etiqueta");
+      console.log("Chamando endpoint: /api/admin/gerar-etiqueta com timeout de 3 minutos");
       const response = await fetch('/api/admin/gerar-etiqueta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1730,11 +1730,11 @@ export default function Orders() {
                         <MessageCircle size={16} />
                       </button>
                       <button 
-                        onClick={() => {
+                        onClick={async () => {
                           if (order.shipping_label_url) {
                             window.open(order.shipping_label_url, '_blank');
                           } else {
-                            toast.error('Etiqueta não gerada');
+                            await handleGenerateLabel(order.id);
                           }
                         }}
                         className="p-1.5 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 transition-colors"
@@ -1743,11 +1743,11 @@ export default function Orders() {
                         <Tag size={16} />
                       </button>
                       <button 
-                        onClick={() => {
+                        onClick={async () => {
                           if (order.shipping_declaration_url) {
                             window.open(order.shipping_declaration_url, '_blank');
                           } else {
-                            toast.error('Declaração não gerada');
+                            await handleGenerateLabel(order.id);
                           }
                         }}
                         className="p-1.5 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
