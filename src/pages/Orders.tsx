@@ -517,15 +517,70 @@ export default function Orders() {
 
   const handleBatchPrint = (type: 'etiqueta' | 'declaracao') => {
     const selectedOrders = filteredOrders.filter(o => selectedOrderIds.includes(o.id));
-    selectedOrders.forEach(order => {
-      if (type === 'etiqueta' && order.shipping_label_url) {
-        console.log("Imprimir etiqueta", order.shipping_label_url);
-        window.open(order.shipping_label_url, '_blank');
-      } else if (type === 'declaracao' && order.shipping_declaration_url) {
-        console.log("Imprimir declaração", order.shipping_declaration_url);
-        window.open(order.shipping_declaration_url, '_blank');
-      }
-    });
+    
+    if (selectedOrders.length === 0) {
+      toast.error('Nenhum pedido selecionado');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Não foi possível abrir a janela de impressão. Verifique os bloqueadores de popup.');
+      return;
+    }
+
+    let htmlContent = `
+      <html>
+        <head>
+          <title>Impressão em Lote</title>
+          <style>
+            @media print {
+              @page { size: A4; margin: 5mm; }
+              body { margin: 0; padding: 0; }
+            }
+            .print-container {
+              display: grid;
+              ${type === 'etiqueta' 
+                ? 'grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;' 
+                : 'grid-template-columns: 1fr;'}
+              width: 100%;
+              gap: 0;
+            }
+            .item {
+              width: 100%;
+              ${type === 'etiqueta' ? 'height: 50vh;' : 'height: 50vh; page-break-inside: avoid;'}
+              border: none;
+              padding: 0;
+              margin: 0;
+              overflow: hidden;
+            }
+            iframe { width: 100%; height: 100%; border: none; }
+          </style>
+        </head>
+        <body>
+          <div class="print-container">
+            ${selectedOrders.map(order => {
+              const url = type === 'etiqueta' ? order.shipping_label_url : order.shipping_declaration_url;
+              if (!url) return '';
+              return `<div class="item"><iframe src="${url}"></iframe></div>`;
+            }).join('')}
+          </div>
+          <script>
+            window.onload = () => {
+              setTimeout(() => {
+                window.print();
+                window.close();
+              }, 1000);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    console.log(`Impressão ${type} lote`, selectedOrders);
   };
 
   const handleGenerateLabel = async (orderId: string, currentStatus?: string, retryCount = 0) => {
