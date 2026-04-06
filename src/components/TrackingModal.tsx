@@ -130,16 +130,33 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
 
       setTrackingData(order);
       console.log('📦 [FRONTEND] Dados do pedido carregados:', order);
+      console.log('📦 [FRONTEND] Tracking code:', order.tracking_code);
       setViewMode('detail');
 
       if (order.tracking_code) {
         try {
+          console.log("INICIANDO RASTREAMENTO");
+          console.log("Tracking Code:", order.tracking_code);
+          console.log("Consultando API");
+          
           const realTime = await shippingService.getTrackingStatus(order.tracking_code);
+          
+          console.log("Response status: 200");
+          console.log("Dados rastreamento recebidos:", realTime);
+          
           if (realTime && realTime.history && realTime.history.length > 0) {
+            console.log("Eventos encontrados API:", realTime.history.length);
             setRealTimeHistory(realTime.history);
+            setTrackingData(prev => ({ ...prev, tracking_info: realTime }));
+            console.log("State rastreamento atualizado:", realTime);
+          } else {
+            console.log("Nenhum evento encontrado na API");
           }
         } catch (apiError) {
           console.warn('Erro ao buscar rastreio na API:', apiError);
+        } finally {
+          console.log("FINALIZANDO RASTREAMENTO");
+          console.log("[FRONTEND] Finalizando busca de rastreio");
         }
       }
     } catch (error: any) {
@@ -336,24 +353,34 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                         
                         {realTimeHistory.length > 0 ? (
                           <div className="relative pl-8 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+                            {console.log("Renderizando modal com dados:", trackingData)}
+                            {console.log("Tracking code no modal:", trackingData.tracking_code)}
                             {realTimeHistory.map((h: any, idx: number) => (
                               <div key={idx} className="relative">
                                 <div className={`absolute -left-8 w-6 h-6 rounded-full border-4 border-white flex items-center justify-center ${idx === 0 ? 'bg-indigo-600' : 'bg-slate-300'}`}>
                                   <div className={`w-2 h-2 rounded-full bg-white ${idx === 0 ? 'animate-pulse' : ''}`} />
                                 </div>
                                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm">
-                                  <p className="text-sm font-bold text-slate-900 leading-tight">{h.description || h.status || h.message}</p>
+                                  <p className="text-sm font-bold text-slate-900 leading-tight">{h.descricao || h.status || h.message}</p>
                                   <div className="flex items-center gap-3 mt-2">
                                     <p className="text-[10px] text-slate-500 flex items-center gap-1 font-bold">
-                                      <MapPin size={10} /> {h.location}
+                                      <MapPin size={10} /> {h.detalhe || h.location}
                                     </p>
                                     <p className="text-[10px] text-slate-400 flex items-center gap-1 font-medium">
-                                      <Clock size={10} /> {h.date}
+                                      <Clock size={10} /> {h.data || h.date}
                                     </p>
                                   </div>
                                 </div>
                               </div>
                             ))}
+                            <a 
+                              href={`https://www.cepcerto.com/encomenda-rastreio/${trackingData.tracking_code}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block w-full py-3 bg-indigo-600 text-white text-center rounded-xl font-bold hover:bg-indigo-700 transition-all text-sm"
+                            >
+                              Ver rastreamento completo
+                            </a>
                           </div>
                         ) : trackingData.tracking_history && trackingData.tracking_history.length > 0 ? (
                           <div className="relative pl-8 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
