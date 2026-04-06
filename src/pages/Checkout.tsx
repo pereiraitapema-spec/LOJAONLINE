@@ -1275,6 +1275,8 @@ export default function Checkout() {
                 
                 if (!normalized.products && normalized.order_items) {
                     normalized.products = normalized.order_items;
+                } else if (!normalized.products && normalized.products_fallback) {
+                    normalized.products = normalized.products_fallback;
                 }
                 
                 if (!normalized.shipping && normalized.shipping_address) {
@@ -1329,9 +1331,14 @@ export default function Checkout() {
                     .from('order_items')
                     .select('*')
                     .eq('order_id', orderId);
-                  if (prodError) throw new Error("Erro ao buscar produtos");
-                  order.order_items = products;
-                  console.log("LOG — Produtos encontrados:", products);
+                  
+                  if (prodError || !products || products.length === 0) {
+                      console.warn("LOG — Produtos não encontrados no Supabase, usando fallback do pedido");
+                      order.products_fallback = order.payment_data?.items || [];
+                  } else {
+                      order.order_items = products;
+                      console.log("LOG — Produtos encontrados:", products);
+                  }
 
                   // 3. Normalizar
                   const normalizedOrder = normalizeOrderData(order);
