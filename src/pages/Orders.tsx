@@ -979,18 +979,20 @@ export default function Orders() {
     console.log("Agrupando declarações em pares...");
     const pages = [];
     for (let i = 0; i < urls.length; i += 2) {
-      pages.push(urls.slice(i, i + 2));
+      const pageGroup = urls.slice(i, i + 2);
+      console.log(`Agrupando página ${pages.length + 1}:`, pageGroup);
+      pages.push(pageGroup);
     }
     console.log("Páginas criadas:", pages.length);
-    console.log("Resultado agrupamento:", pages);
 
     let html = "";
-    pages.forEach(page => {
+    pages.forEach((page, index) => {
+      console.log(`Renderizando HTML para página ${index + 1} com ${page.length} declarações`);
       html += `<div class="print-page">`;
-      page.forEach(url => {
+      page.forEach((url, urlIndex) => {
         html += `
           <div class="declaracao">
-            <iframe src="${url}"></iframe>
+            <iframe src="${url}" title="Declaração ${index + 1}-${urlIndex + 1}"></iframe>
           </div>
         `;
       });
@@ -1006,40 +1008,79 @@ export default function Orders() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Declarações</title>
+          <title>Declarações em Lote</title>
           <style>
-            @page {
-              size: A4;
-              margin: 0;
+            @media print {
+              * {
+                box-sizing: border-box;
+              }
+              @page {
+                size: A4;
+                margin: 0;
+              }
+              html, body {
+                margin: 0;
+                padding: 0;
+                width: 210mm;
+                height: 297mm;
+                overflow: hidden;
+              }
+              .print-page {
+                width: 210mm;
+                height: 297mm;
+                display: grid;
+                grid-template-rows: 1fr 1fr;
+                page-break-after: always;
+                overflow: hidden;
+                border: none;
+                margin: 0;
+                padding: 0;
+              }
+              .declaracao {
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                border-bottom: 1px dashed #eee;
+                position: relative;
+              }
+              .declaracao:last-child {
+                border-bottom: none;
+              }
+              .declaracao iframe {
+                width: 100%;
+                height: 100%;
+                border: none;
+                display: block;
+                /* Escala leve para garantir que o conteúdo do CepCerto caiba */
+                transform: scale(0.97);
+                transform-origin: top center;
+              }
             }
-            body {
-              margin: 0;
-              padding: 0;
+            /* Estilos para visualização no navegador */
+            * { box-sizing: border-box; }
+            body { background: #f0f0f0; margin: 0; padding: 20px; font-family: sans-serif; }
+            .print-page { 
+              background: white; 
+              width: 210mm; 
+              height: 297mm; 
+              margin: 0 auto 20px auto; 
+              display: grid;
+              grid-template-rows: 1fr 1fr;
+              box-shadow: 0 0 10px rgba(0,0,0,0.1);
+              overflow: hidden;
             }
-            .print-page {
-              width: 210mm;
-              height: 297mm;
-              display: flex;
-              flex-direction: column;
-              page-break-after: always;
-            }
-            .declaracao {
-              width: 100%;
-              height: 148.5mm;
-            }
-            .declaracao iframe {
-              width: 100%;
-              height: 100%;
-              border: none;
-            }
+            .declaracao { width: 100%; height: 100%; border-bottom: 1px dashed #ccc; overflow: hidden; }
+            .declaracao iframe { width: 100%; height: 100%; border: none; transform: scale(0.97); transform-origin: top center; }
           </style>
         </head>
         <body>
           ${html}
           <script>
             window.onload = () => {
+              console.log("Janela carregada, verificando iframes...");
               const iframes = document.querySelectorAll('iframe');
               let loadedCount = 0;
+              
               if (iframes.length === 0) {
                 window.print();
                 return;
@@ -1047,28 +1088,31 @@ export default function Orders() {
               
               const checkAllLoaded = () => {
                 loadedCount++;
+                console.log("Iframe carregado (" + loadedCount + "/" + iframes.length + ")");
                 if (loadedCount === iframes.length) {
+                  console.log("Todos iframes carregados, disparando impressão...");
                   setTimeout(() => {
                     window.print();
-                  }, 1000);
+                  }, 1500);
                 }
               };
 
               iframes.forEach(iframe => {
                 iframe.onload = checkAllLoaded;
                 iframe.onerror = checkAllLoaded;
-                // Fallback para iframes que já podem ter carregado
-                if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
-                  checkAllLoaded();
-                }
+                // Forçar recarregamento se necessário
+                const src = iframe.src;
+                iframe.src = '';
+                iframe.src = src;
               });
 
               // Timeout de segurança
               setTimeout(() => {
                 if (loadedCount < iframes.length) {
+                  console.warn("Timeout atingido, imprimindo com " + loadedCount + " iframes carregados.");
                   window.print();
                 }
-              }, 5000);
+              }, 7000);
             };
           </script>
         </body>
