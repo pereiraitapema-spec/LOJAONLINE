@@ -538,7 +538,11 @@ export default function Orders() {
     
     // 1. Bloquear se já tiver código de rastreio (evitar duplicidade)
     if (order.tracking_code && order.tracking_code !== 'CLIENTE RETIRA NO BALCAO') {
-      toast.error("Este pedido já possui uma etiqueta gerada.");
+      toast.info("Este pedido já possui uma etiqueta gerada no sistema.");
+      // Tenta garantir que o rastreador esteja salvo no estado local
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, tracking_code: order.tracking_code });
+      }
       return;
     }
 
