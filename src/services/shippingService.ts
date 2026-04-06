@@ -1817,8 +1817,8 @@ export const shippingService = {
       .from('tracking_history')
       .insert({
         order_id: orderId,
-        description,
-        location,
+        description: description,
+        location: location,
         date: new Date().toISOString()
       });
 

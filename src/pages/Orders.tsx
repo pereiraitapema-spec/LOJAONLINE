@@ -559,12 +559,16 @@ export default function Orders() {
       });
       clearTimeout(timeoutId);
 
-      if (response.status === 502 && retryCount < 1) {
-        console.log("Erro 502 detectado. Retry automático...");
+      if (response.status === 502 && retryCount < 2) {
+        console.log(`Erro 502 detectado. Retry automático (tentativa ${retryCount + 1})...`);
         return handleGenerateLabel(orderId, currentStatus, retryCount + 1);
       }
 
       if (!response.ok) {
+        if (retryCount < 2) {
+          console.log(`Erro ${response.status} detectado. Retry automático (tentativa ${retryCount + 1})...`);
+          return handleGenerateLabel(orderId, currentStatus, retryCount + 1);
+        }
         throw new Error(`Erro na API: ${response.status}`);
       }
 
