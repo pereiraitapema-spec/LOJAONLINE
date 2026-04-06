@@ -529,17 +529,18 @@ export default function Orders() {
     if (!order.customer_name) { console.error("Nome vazio"); toast.error("Falta nome cliente"); return; }
     if (!order.shipping_address?.cep) { console.error("CEP vazio"); toast.error("Falta CEP"); return; }
     
-    // Bloquear se já tiver código de rastreio (evitar duplicidade)
-    if (order.tracking_code && order.tracking_code !== 'CLIENTE BUSCA NA EMPRESA') {
+    // 1. Bloquear se já tiver código de rastreio (evitar duplicidade)
+    if (order.tracking_code && order.tracking_code !== 'CLIENTE RETIRA NO BALCAO') {
       toast.error("Este pedido já possui uma etiqueta gerada.");
       return;
     }
 
-    // Bloquear se for retirada no balcão
-    if (order.shipping_method === 'CLIENTE BUSCA NA EMPRESA' || order.shipping_address?.tipo_frete === 'CLIENTE BUSCA NA EMPRESA') {
+    // 2. Bloquear se for retirada no balcão e salvar online
+    const isBalcao = order.shipping_method === 'CLIENTE BUSCA NA EMPRESA' || order.shipping_address?.tipo_frete === 'CLIENTE BUSCA NA EMPRESA';
+    if (isBalcao) {
       await updateTrackingCode(orderId, 'CLIENTE RETIRA NO BALCAO', '', currentStatus);
       await fetchData();
-      toast.success('Status atualizado para Cliente Retira no Balcão!');
+      toast.success('Pedido marcado para retirada no balcão!');
       return;
     }
 
