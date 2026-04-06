@@ -532,7 +532,7 @@ export default function Orders() {
     setProcessingShipping(true);
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased to 30s
 
     try {
       console.log("Chamando endpoint: /api/admin/gerar-etiqueta");
@@ -565,6 +565,8 @@ export default function Orders() {
         await updateTrackingCode(orderId, trackingCode, labelUrl, currentStatus);
         await fetchData();
         toast.success('Etiqueta gerada com sucesso!');
+        setSelectedTrackingOrder({ id: orderId, tracking_code: trackingCode });
+        setShowTrackingModal(true);
       } else {
         console.error("Erro geração etiqueta:", result);
         toast.error('Falha ao gerar etiqueta: ' + (result.error || 'Erro desconhecido'));

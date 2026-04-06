@@ -394,7 +394,7 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                                   <Truck size={12} className="text-white" />
                                 </div>
                                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm">
-                                  <p className="text-sm font-bold text-slate-900 leading-tight">{h.status}</p>
+                                  <p className="text-sm font-bold text-slate-900 leading-tight">{h.description}</p>
                                   <p className="text-[10px] text-slate-500 mt-1 font-bold">{h.location} | {new Date(h.date).toLocaleString('pt-BR')}</p>
                                 </div>
                               </div>

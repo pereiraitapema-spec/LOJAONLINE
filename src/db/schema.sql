@@ -458,6 +458,9 @@ create policy "Public read tracking history" on public.tracking_history for sele
 drop policy if exists "Admin manage tracking history" on public.tracking_history;
 create policy "Admin manage tracking history" on public.tracking_history for all using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
 
+drop policy if exists "Authenticated insert tracking history" on public.tracking_history;
+create policy "Authenticated insert tracking history" on public.tracking_history for insert with check (auth.role() = 'authenticated');
+
 -- Tabela de Etiquetas de Envio
 create table if not exists public.shipping_labels (
   id uuid default gen_random_uuid() primary key,
