@@ -496,32 +496,60 @@ async function startServer() {
         return res.json({ success: true, message: "Etiqueta já gerada" });
       }
 
-      // 1. Buscar status do pagamento no Supabase (webhook_logs)
-      const { data: webhook, error: webhookError } = await supabase
-        .from("webhook_logs")
-        .select("*")
-        .eq("order_id", id_pedido) // Busca pelo ID do pedido
-        .order("created_at", { ascending: false })
-        .limit(1);
+      // 1. Loop de verificação para aguardar confirmação de pagamento
+      let paymentApproved = false;
+      let paymentStatus = 'pending';
+      let lastWebhook = null;
 
-      const paymentStatus = webhook && webhook.length > 0 ? webhook[0].payload?.status : 'pending';
-      const eventType = webhook && webhook.length > 0 ? webhook[0].event_type : 'unknown';
-      const approvedStatuses = ['approved', 'paid', 'confirmed', 'success'];
-      const paymentApproved = approvedStatuses.includes(paymentStatus);
+      console.log(`⏱️ Aguardando confirmação de pagamento para o pedido ${id_pedido}...`);
 
-      console.log("💰 Webhook encontrado:", webhook && webhook.length > 0 ? webhook[0] : 'Nenhum');
-      console.log("💰 Status pagamento:", paymentStatus);
-      console.log("💰 Event:", eventType);
-      console.log("📦 Gerar etiqueta:", paymentApproved);
+      for (let i = 0; i < 10; i++) {
+        const { data: webhooks, error: webhookError } = await supabase
+          .from("webhook_logs")
+          .select("*")
+          .eq("payload->data->metadata->>order_id", id_pedido)
+          .order("created_at", { ascending: false })
+          .limit(1);
 
-      // Regra obrigatória: Se falhou, parar fluxo
-      if (paymentStatus === "failed" || paymentStatus === "error" || paymentStatus === "cancelled" || paymentStatus === "refused" || eventType === "charge.payment_failed") {
-        console.error("❌ Pagamento falhou, cancelando fluxo");
-        return res.status(400).json({ success: false, message: webhook && webhook[0]?.error_message || "Pagamento não aprovado" });
+        if (webhooks && webhooks.length > 0) {
+          lastWebhook = webhooks[0];
+          const payload = lastWebhook.payload;
+          const eventType = lastWebhook.event_type;
+          
+          // Extrair status corretamente
+          paymentStatus = payload?.data?.status || payload?.status || 'pending';
+          const success = payload?.data?.charges?.[0]?.last_transaction?.success ?? payload?.success ?? true;
+
+          console.log("💰 Webhook encontrado:", eventType);
+          console.log("💰 Status pagamento:", paymentStatus);
+          console.log("💰 Success:", success);
+
+          // Regra de falha (Parar fluxo)
+          if (
+            eventType === "order.payment_failed" || 
+            eventType === "charge.payment_failed" || 
+            paymentStatus === "failed" || 
+            success === false
+          ) {
+            console.error("❌ Pagamento falhou, cancelando fluxo");
+            return res.status(400).json({ 
+              success: false, 
+              message: payload?.gateway_response?.errors?.[0]?.message || "Pagamento não aprovado" 
+            });
+          }
+
+          // Regra de sucesso
+          if (['charge.paid', 'order.paid', 'charge.payment_succeeded', 'approved', 'paid', 'confirmed', 'success'].includes(paymentStatus) || paymentStatus === 'paid') {
+            paymentApproved = true;
+            break;
+          }
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
       if (!paymentApproved) {
-        console.log("❌ Pagamento não aprovado, não gerar etiqueta");
+        console.log("❌ Pagamento não aprovado ou não confirmado, não gerar etiqueta");
         return res.status(400).json({ success: false, message: "Pagamento pendente ou não aprovado" });
       }
 
