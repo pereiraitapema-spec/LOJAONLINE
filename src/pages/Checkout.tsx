@@ -1273,12 +1273,15 @@ export default function Checkout() {
                 const missingFields = [];
                 if (!order.total) missingFields.push('total');
                 if (!order.order_items || order.order_items.length === 0) missingFields.push('products');
+                
+                // Endereço pode estar em shipping_address ou order.shipping_address
+                const address = order.shipping_address || {};
                 if (!order.customer_name) missingFields.push('customer.name');
                 if (!order.customer_phone) missingFields.push('customer.phone');
-                if (!order.shipping_address?.address) missingFields.push('shipping.address');
-                if (!order.shipping_address?.cep) missingFields.push('shipping.cep');
-                if (!order.shipping_address?.city) missingFields.push('shipping.city');
-                if (!order.shipping_address?.state) missingFields.push('shipping.state');
+                if (!address.address && !address.logradouro) missingFields.push('shipping.address');
+                if (!address.cep) missingFields.push('shipping.cep');
+                if (!address.city && !address.cidade) missingFields.push('shipping.city');
+                if (!address.state && !address.estado) missingFields.push('shipping.state');
                 return missingFields;
               };
 
@@ -1287,15 +1290,29 @@ export default function Checkout() {
                 try {
                   console.log(`Tentativa ${attempt} de geração de etiqueta...`);
                   
-                  // Buscar dados atualizados
+                  // 1. Buscar pedido
                   const { data: order, error: orderError } = await supabase
                     .from('orders')
-                    .select('*, order_items(*)')
+                    .select('*')
                     .eq('id', orderId)
                     .single();
-
                   if (orderError || !order) throw new Error("Pedido não encontrado");
-                  console.log("LOG 3 — Dados pedido:", order);
+
+                  // 2. Buscar produtos
+                  console.log("LOG — Buscando produtos do pedido");
+                  const { data: products, error: prodError } = await supabase
+                    .from('order_items')
+                    .select('*')
+                    .eq('order_id', orderId);
+                  if (prodError) throw new Error("Erro ao buscar produtos");
+                  order.order_items = products;
+                  console.log("LOG — Produtos encontrados:", products);
+
+                  // 3. Buscar endereço
+                  console.log("LOG — Buscando endereço");
+                  // O endereço já está no objeto order (shipping_address)
+                  const address = order.shipping_address;
+                  console.log("LOG — Endereço:", address);
 
                   // Validação
                   console.log("LOG 4 — Verificando dados obrigatórios");
@@ -1342,7 +1359,6 @@ export default function Checkout() {
                   }
                 } catch (err: any) {
                   console.error("Erro geração etiqueta (tentativa " + attempt + "):", err);
-                  console.error("Stack:", err.stack);
                   if (attempt === 10) throw err;
                   await new Promise(resolve => setTimeout(resolve, 2000));
                 }
@@ -1351,6 +1367,14 @@ export default function Checkout() {
               console.error("Falha crítica na geração automática após 10 tentativas:", err);
               supabase.from('orders').update({ status_envio: 'preparando', erro_etiqueta: true }).eq('id', orderId);
             });
+            
+            // Isolar erro de leadService
+            try {
+                leadService.updateStatus('quente');
+            } catch (e) {
+                console.warn("Erro lead ignorado:", e);
+            }
+            
           } catch (err: any) {
             console.error('Erro ao iniciar processo assíncrono:', err);
           }
