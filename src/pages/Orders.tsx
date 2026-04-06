@@ -1002,6 +1002,9 @@ export default function Orders() {
           <title>Imprimir Declarações</title>
           <style>
             @media print {
+              * {
+                box-sizing: border-box;
+              }
               @page {
                 size: A4;
                 margin: 0;
@@ -1009,6 +1012,7 @@ export default function Orders() {
               body {
                 margin: 0;
                 padding: 0;
+                -webkit-print-color-adjust: exact;
               }
               .print-page {
                 width: 210mm;
@@ -1017,20 +1021,30 @@ export default function Orders() {
                 flex-direction: column;
                 page-break-after: always;
                 overflow: hidden;
+                margin: 0;
+                padding: 0;
+                border: none;
               }
               .declaracao {
                 width: 100%;
-                height: 148.5mm;
+                height: 148mm; /* Reduzido ligeiramente de 148.5mm para evitar quebras indesejadas */
                 overflow: hidden;
+                position: relative;
+                border-bottom: 1px dashed #eee; /* Linha de corte opcional */
+              }
+              .declaracao:last-child {
+                border-bottom: none;
               }
               .declaracao iframe {
                 width: 100%;
                 height: 100%;
                 border: none;
+                display: block;
               }
             }
             /* Estilos para visualização antes da impressão */
-            body { margin: 0; background: #f0f0f0; }
+            * { box-sizing: border-box; }
+            body { margin: 0; background: #f0f0f0; font-family: sans-serif; }
             .print-page { 
               background: white; 
               margin: 10mm auto; 
@@ -1040,8 +1054,9 @@ export default function Orders() {
               display: flex;
               flex-direction: column;
             }
-            .declaracao { width: 100%; height: 148.5mm; }
-            .declaracao iframe { width: 100%; height: 100%; border: none; }
+            .declaracao { width: 100%; height: 148mm; border-bottom: 1px dashed #ccc; }
+            .declaracao:last-child { border-bottom: none; }
+            .declaracao iframe { width: 100%; height: 100%; border: none; display: block; }
           </style>
         </head>
         <body>
