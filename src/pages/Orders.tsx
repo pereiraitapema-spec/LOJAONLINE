@@ -556,7 +556,7 @@ export default function Orders() {
     setProcessingShipping(true);
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased to 30s
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // Aumentado para 60s
 
     try {
       console.log("Chamando endpoint: /api/admin/gerar-etiqueta");
