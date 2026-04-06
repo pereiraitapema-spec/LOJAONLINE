@@ -1566,19 +1566,11 @@ export const shippingService = {
       trackingCode = order.tracking_code || orderId;
     }
     
-    // Busca diretamente pelo nome, pois shipping_method contém o nome (ex: "SEDEX")
-    const shippingMethod = order.shipping_method.toUpperCase();
-    let carrierName = shippingMethod;
-    
-    // Mapeamento de serviços para a transportadora CEPCERTO
-    if (['SEDEX', 'PAC', 'JADLOG'].includes(shippingMethod)) {
-        carrierName = 'CEPCERTO';
-    }
-
+    // Busca diretamente pelo provider para garantir que a transportadora seja encontrada
     const { data: carrier, error: carrierError } = await supabase
       .from('shipping_carriers')
       .select('*')
-      .ilike('name', carrierName)
+      .eq('provider', 'cepcerto')
       .maybeSingle();
 
     if (carrierError) {

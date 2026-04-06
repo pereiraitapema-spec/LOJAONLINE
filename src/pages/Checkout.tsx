@@ -587,6 +587,9 @@ export default function Checkout() {
     return acc + total;
   }, 0);
 
+  const threshold = Number(settings?.free_shipping_threshold) || 0;
+  const isFreeShipping = threshold > 0 && cartTotal >= threshold;
+
   // Calculate Discounts
   useEffect(() => {
     const calculateDiscounts = async () => {
@@ -668,8 +671,6 @@ export default function Checkout() {
 
   const currentShipping = isBalcao ? displayShippingMethods[0] : (selectedShipping !== null ? displayShippingMethods[selectedShipping] : null);
   console.log('DEBUG: cartTotal=', cartTotal, 'threshold=', settings?.free_shipping_threshold || 0, 'selectedShipping=', selectedShipping, 'currentShipping=', currentShipping);
-  
-  const threshold = Number(settings?.free_shipping_threshold) || 0;
   
   // Se ainda não temos métodos de envio, o frete não é 0, é "não calculado" (null)
   const shippingCost = displayShippingMethods.length === 0 
@@ -1754,10 +1755,10 @@ export default function Checkout() {
                   <button
                     type="button"
                     onClick={handleGerarCotacao}
-                    disabled={calculatingShipping || shipping.cep.replace(/\D/g, '').length !== 8}
+                    disabled={calculatingShipping || shipping.cep.replace(/\D/g, '').length !== 8 || isFreeShipping}
                     className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                   >
-                    {calculatingShipping ? 'Calculando...' : 'Calcular Frete'}
+                    {calculatingShipping ? 'Calculando...' : isFreeShipping ? 'Frete Grátis' : 'Calcular Frete'}
                   </button>
                 )}
               </div>

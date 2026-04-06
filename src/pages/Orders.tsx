@@ -1266,18 +1266,25 @@ export default function Orders() {
       // 1. Tentar cancelar a etiqueta primeiro (se houver)
       try {
         const order = orders.find(o => o.id === orderId);
-        console.log('🗑️ Tentando cancelar etiqueta para o pedido:', orderId, 'Tracking:', order?.tracking_code);
+        console.log('🗑️ Iniciando exclusão do pedido:', orderId, 'Tracking:', order?.tracking_code);
+        
         if (order?.tracking_code) {
+          console.log('📡 Chamando cancelLabel para:', order.tracking_code);
           const result = await shippingService.cancelLabel(orderId, order.tracking_code);
           console.log('📡 Resultado do cancelamento:', result);
+          
           if (!result.success) {
-            console.warn('⚠️ Cancelamento falhou:', result.error);
+            console.warn('⚠️ Cancelamento falhou, mas prosseguindo com exclusão:', result.error);
+            toast.warn('Etiqueta não pôde ser cancelada, mas o pedido será excluído.');
+          } else {
+            toast.success('Etiqueta cancelada com sucesso!');
           }
         } else {
-          console.log('ℹ️ Pedido não possui tracking_code, pulando cancelamento.');
+          console.log('ℹ️ Pedido sem tracking_code, pulando cancelamento.');
         }
       } catch (e) {
-        console.error('❌ Erro ao cancelar etiqueta:', e);
+        console.error('❌ Erro crítico ao tentar cancelar etiqueta:', e);
+        // Prossegue com a exclusão mesmo se o cancelamento falhar
       }
 
       // 2. Excluir o pedido
