@@ -508,60 +508,59 @@ export default function Orders() {
     });
   };
 
-  const handleGenerateLabel = async (orderId: string, currentStatus?: string) => {
+  const handleGenerateLabel = async (orderId: string, currentStatus?: string, retryCount = 0) => {
     const order = orders.find(o => o.id === orderId);
     
-    console.log("Iniciando geração de etiqueta");
+    console.log("Iniciando geração de etiqueta", { orderId, retryCount });
     if (!order || !order.id) {
       console.error("Pedido não carregado ainda");
       toast.error("Pedido não carregado ainda");
       return;
     }
 
-    console.log("Dados do pedido:", order);
-    console.log("Cliente:", order.customer_name);
-    console.log("CEP:", order.shipping_address?.cep);
-    console.log("Endereço:", order.shipping_address?.logradouro);
-    console.log("Cidade:", order.shipping_address?.city);
-    console.log("Estado:", order.shipping_address?.state);
-    console.log("Telefone:", order.customer_phone);
-    console.log("Email:", order.customer_email);
-    console.log("Serviço:", order.shipping_method);
+    const payload = { 
+      id_pedido: orderId,
+      weight: 0.300
+    };
+    console.log("Payload enviado:", payload);
+    console.log("Endpoint: /api/admin/gerar-etiqueta");
 
     // Validações
-    if (!order.customer_name) { console.error("Falta nome cliente"); toast.error("Falta nome cliente"); return; }
-    if (!order.shipping_address?.cep) { console.error("Falta CEP"); toast.error("Falta CEP"); return; }
-    if (!order.shipping_address?.logradouro) { console.error("Falta endereço"); toast.error("Falta endereço"); return; }
-    if (!order.shipping_address?.city) { console.error("Falta cidade"); toast.error("Falta cidade"); return; }
-    if (!order.shipping_address?.state) { console.error("Falta estado"); toast.error("Falta estado"); return; }
-
-    const cep = order.shipping_address.cep.replace(/\D/g, "");
-    console.log("CEP normalizado:", cep);
-    const phone = (order.customer_phone || "").replace(/\D/g, "");
-    console.log("Telefone normalizado:", phone);
+    if (!order.customer_name) { console.error("Nome vazio"); toast.error("Falta nome cliente"); return; }
+    if (!order.shipping_address?.cep) { console.error("CEP vazio"); toast.error("Falta CEP"); return; }
 
     setProcessingShipping(true);
-    console.log("Chamando endpoint geração etiqueta");
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     try {
+      console.log("Chamando endpoint: /api/admin/gerar-etiqueta");
       const response = await fetch('/api/admin/gerar-etiqueta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          id_pedido: orderId,
-          weight: 0.300 // Peso padrão
-        })
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
-      const result = await response.json();
-      
-      console.log('Resposta completa:', result);
-      console.log('Success:', result.success);
-      console.log('Erro:', result.error);
+      clearTimeout(timeoutId);
 
-      if (response.ok && result.success) {
+      if (response.status === 502 && retryCount < 1) {
+        console.log("Erro 502 detectado. Retry automático...");
+        return handleGenerateLabel(orderId, currentStatus, retryCount + 1);
+      }
+
+      if (!response.ok) {
+        throw new Error(`Erro na API: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Resposta recebida:', result);
+
+      if (result && result.success) {
         const trackingCode = result.tracking_code || result.codigo_objeto || '';
         const labelUrl = result.result?.pdf_url_etiqueta || result.result?.shipping_label_url || '';
         
-        console.log("Etiqueta gerada. Tracking:", trackingCode);
+        console.log("Etiqueta gerada:", result);
         
         await updateTrackingCode(orderId, trackingCode, labelUrl, currentStatus);
         await fetchData();
@@ -571,6 +570,7 @@ export default function Orders() {
         toast.error('Falha ao gerar etiqueta: ' + (result.error || 'Erro desconhecido'));
       }
     } catch (error: any) {
+      clearTimeout(timeoutId);
       console.error('❌ Erro em handleGenerateLabel:', error);
       toast.error('Erro ao gerar etiqueta: ' + error.message);
     } finally {
