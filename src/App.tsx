@@ -375,6 +375,11 @@ function AppContent() {
         <Route path="/auth/callback" element={<Callback />} />
         <Route path="/callback.html" element={<Callback />} />
         
+        <Route 
+          path="/checkout" 
+          element={<Checkout />} 
+        />
+        
         {/* Perfil do Usuário */}
         <Route 
           path="/profile" 
@@ -445,6 +450,10 @@ function AppContent() {
         <Route 
           path="/inventory" 
           element={<AdminRoute><Inventory /></AdminRoute>} 
+        />
+        <Route 
+          path="/reports" 
+          element={<AdminRoute><AdminReports /></AdminRoute>} 
         />
         <Route 
           path="/automations" 
