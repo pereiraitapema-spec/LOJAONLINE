@@ -964,9 +964,15 @@ export default function Orders() {
     }
 
     console.log("Extraindo URLs de declaração...");
-    const urls = selectedOrders
-      .map(order => extractDeclaracaoUrl(order))
-      .filter((url): url is string => !!url);
+    const urls = selectedOrders.map((order: any) => {
+      const url = order.declaracao_url 
+        || order.declaration_url 
+        || order.cepcerto_declaracao
+        || order.shipping_declaration_url;
+      
+      console.log(`Pedido ${order.id || order.display_id}: ${url ? 'URL encontrada' : 'URL não encontrada'}`);
+      return url;
+    }).filter((url): url is string => !!url);
 
     console.log("URLs encontradas:", urls);
     console.log("Total declarações:", urls.length);
@@ -987,20 +993,33 @@ export default function Orders() {
 
     let html = "";
     pages.forEach((page, index) => {
-      console.log(`Renderizando HTML para página ${index + 1} com ${page.length} declarações`);
-      html += `<div class="print-page">`;
-      page.forEach((url, urlIndex) => {
-        html += `
-          <div class="declaracao">
-            <iframe src="${url}" title="Declaração ${index + 1}-${urlIndex + 1}"></iframe>
+      console.log(`Renderizando HTML para página ${index + 1} com ${page.length} declarações (Usando layout da logística)`);
+      html += `
+        <div class="print-page">
+          <div class="grid-container">
+            ${[0, 1].map(cellIndex => {
+              const url = page[cellIndex];
+              return `
+                <div class="cell">
+                  ${url ? `
+                    <div class="iframe-container">
+                      <iframe 
+                        src="${url}${url.includes('#') ? '' : '#toolbar=0&navpanes=0&scrollbar=0&view=FitH'}" 
+                        title="Declaração ${index + 1}-${cellIndex + 1}"
+                      ></iframe>
+                    </div>
+                  ` : `
+                    <div class="empty-cell">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="opacity-20"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v5"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
+                      <span>Espaço Vazio</span>
+                    </div>
+                  `}
+                </div>
+              `;
+            }).join('')}
           </div>
-        `;
-      });
-      // Se a página tiver apenas uma declaração, adiciona um placeholder vazio para manter o grid
-      if (page.length === 1) {
-        html += `<div class="declaracao empty"></div>`;
-      }
-      html += `</div>`;
+        </div>
+      `;
     });
 
     const printWindow = window.open("", "_blank");
@@ -1012,77 +1031,114 @@ export default function Orders() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Declarações em Lote</title>
+          <title>Declarações em Lote - Layout Logística</title>
           <style>
             * { box-sizing: border-box; }
+            body { margin: 0; padding: 0; background: #f8fafc; font-family: sans-serif; }
+            
             @media print {
+              body { background: white; }
               @page {
                 size: A4;
                 margin: 0;
               }
-              html, body {
-                margin: 0;
-                padding: 0;
-                width: 210mm;
-                height: 297mm;
-                overflow: hidden;
-              }
               .print-page {
                 width: 210mm;
                 height: 297mm;
-                display: grid;
-                grid-template-rows: 148mm 148mm;
-                gap: 0;
+                margin: 0 auto;
+                padding: 2mm;
+                box-sizing: border-box;
                 page-break-after: always;
-                overflow: hidden;
-                border: none;
-                margin: 0;
-                padding: 0;
                 background: white;
+                display: block !important;
               }
-              .declaracao {
-                width: 100%;
-                height: 148mm;
-                overflow: hidden;
-                border-bottom: 1px dashed #eee;
-                position: relative;
-              }
-              .declaracao.empty { border-bottom: none; }
-              .declaracao:last-child {
-                border-bottom: none;
-              }
-              .declaracao iframe {
+              .grid-container {
                 width: 100%;
                 height: 100%;
-                border: none;
-                display: block;
-                /* Escala reduzida para garantir que o conteúdo do CepCerto caiba na metade da folha */
-                transform: scale(0.95);
-                transform-origin: top center;
+                display: grid !important;
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+                gap: 0;
               }
+              .cell {
+                border: 2px dashed #cbd5e1;
+                padding: 0;
+                display: flex !important;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+                overflow: hidden;
+                background: white;
+                border-radius: 0.75rem;
+              }
+              .iframe-container {
+                width: 100%;
+                height: 100%;
+                position: relative;
+                overflow: hidden;
+              }
+              iframe {
+                border: 0;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+              }
+              .empty-cell {
+                color: #cbd5e1;
+                text-transform: uppercase;
+                font-weight: bold;
+                font-size: 12px;
+                letter-spacing: 0.1em;
+                display: flex !important;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+              }
+              .opacity-20 { opacity: 0.2; }
             }
-            /* Estilos para visualização no navegador */
-            body { background: #f0f0f0; margin: 0; padding: 20px; font-family: sans-serif; }
+
+            /* Visualização no navegador */
             .print-page { 
               background: white; 
               width: 210mm; 
               height: 297mm; 
-              margin: 0 auto 20px auto; 
-              display: grid;
-              grid-template-rows: 148mm 148mm;
-              box-shadow: 0 0 10px rgba(0,0,0,0.1);
-              overflow: hidden;
+              margin: 20px auto; 
+              padding: 2mm;
+              box-shadow: 0 0 20px rgba(0,0,0,0.1);
+              display: block;
             }
-            .declaracao { width: 100%; height: 148mm; border-bottom: 1px dashed #ccc; overflow: hidden; }
-            .declaracao.empty { border-bottom: none; }
-            .declaracao iframe { width: 100%; height: 100%; border: none; transform: scale(0.95); transform-origin: top center; }
+            .grid-container {
+              width: 100%;
+              height: 100%;
+              display: grid;
+              grid-template-columns: 1fr;
+              grid-template-rows: 1fr 1fr;
+              gap: 0;
+            }
+            .cell {
+              border: 2px dashed #cbd5e1;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              position: relative;
+              overflow: hidden;
+              border-radius: 0.75rem;
+            }
+            .iframe-container { width: 100%; height: 100%; position: relative; overflow: hidden; }
+            iframe { border: 0; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+            .empty-cell { color: #cbd5e1; text-transform: uppercase; font-weight: bold; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+            .opacity-20 { opacity: 0.2; }
           </style>
         </head>
         <body>
           ${html}
           <script>
             window.onload = () => {
-              console.log("Janela carregada, verificando iframes...");
+              console.log("Janela carregada (Layout Logística), verificando iframes...");
               const iframes = document.querySelectorAll('iframe');
               let loadedCount = 0;
               
@@ -1098,7 +1154,7 @@ export default function Orders() {
                   console.log("Todos iframes carregados, disparando impressão...");
                   setTimeout(() => {
                     window.print();
-                  }, 2000); // Delay para garantir renderização
+                  }, 2500);
                 }
               };
 
@@ -1117,7 +1173,7 @@ export default function Orders() {
                   console.warn("Timeout atingido, imprimindo com " + loadedCount + " iframes carregados.");
                   window.print();
                 }
-              }, 10000);
+              }, 12000);
             };
           </script>
         </body>
