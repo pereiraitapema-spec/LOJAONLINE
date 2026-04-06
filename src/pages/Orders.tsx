@@ -551,7 +551,7 @@ export default function Orders() {
                      order.shipping_address?.tipo_frete === 'CLIENTE BUSCA NA EMPRESA' ||
                      order.coupon_code === 'BALCAO';
     if (isBalcao) {
-      await updateTrackingCode(orderId, 'CLIENTE RETIRA NO BALCAO', '', currentStatus);
+      await updateTrackingCode(orderId, 'CLIENTE RETIRA NO BALCAO', undefined, undefined, currentStatus);
       await fetchData();
       toast.success('Pedido marcado para retirada no balcão!');
       return;
@@ -591,10 +591,12 @@ export default function Orders() {
       if (result && result.success) {
         const trackingCode = result.tracking_code || result.codigo_objeto || '';
         const labelUrl = result.result?.pdf_url_etiqueta || result.result?.shipping_label_url || '';
+        const declarationUrl = result.result?.pdf_url_declaracao || result.result?.shipping_declaration_url || '';
         
         console.log("Etiqueta gerada:", result);
+        console.log("URLs:", { labelUrl, declarationUrl });
         
-        await updateTrackingCode(orderId, trackingCode, labelUrl, currentStatus);
+        await updateTrackingCode(orderId, trackingCode, labelUrl, declarationUrl, currentStatus);
         await fetchData();
         toast.success('Etiqueta gerada com sucesso!');
       } else {
@@ -639,7 +641,8 @@ export default function Orders() {
           // updateTrackingCode handles status update and state refresh
           const trackingCode = result.tracking_code || '';
           const labelUrl = result.result?.pdf_url_etiqueta || result.result?.shipping_label_url || '';
-          await updateTrackingCode(id, trackingCode, labelUrl);
+          const declarationUrl = result.result?.pdf_url_declaracao || result.result?.shipping_declaration_url || '';
+          await updateTrackingCode(id, trackingCode, labelUrl, declarationUrl);
           successCount++;
         } else {
           console.error(`Falha no pedido ${id}:`, result.error);
@@ -1253,11 +1256,14 @@ export default function Orders() {
     }
   };
 
-  const updateTrackingCode = async (orderId: string, trackingCode: string, shippingLabelUrl?: string, currentStatus?: string) => {
+  const updateTrackingCode = async (orderId: string, trackingCode: string, shippingLabelUrl?: string, shippingDeclarationUrl?: string, currentStatus?: string) => {
     try {
       const updateData: any = { tracking_code: trackingCode };
       if (shippingLabelUrl !== undefined) {
         updateData.shipping_label_url = shippingLabelUrl;
+      }
+      if (shippingDeclarationUrl !== undefined) {
+        updateData.shipping_declaration_url = shippingDeclarationUrl;
       }
 
       // Se o status atual for 'paid' ou 'processing', muda para 'shipped' ao adicionar rastreio
@@ -2444,7 +2450,7 @@ export default function Orders() {
                           />
                           <button 
                             onClick={() => {
-                              updateTrackingCode(selectedOrder.id, tempTrackingCode);
+                              updateTrackingCode(selectedOrder.id, tempTrackingCode, undefined, undefined);
                               fetchRealTimeTracking(tempTrackingCode);
                             }}
                             className="px-4 py-2 bg-indigo-100 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-200 transition-all"
@@ -2635,7 +2641,7 @@ export default function Orders() {
                           type="text"
                           placeholder="Ex: BR123456789"
                           defaultValue={selectedOrder.tracking_code || ''}
-                          onBlur={(e) => updateTrackingCode(selectedOrder.id, e.target.value)}
+                          onBlur={(e) => updateTrackingCode(selectedOrder.id, e.target.value, undefined, undefined)}
                           className="flex-1 px-4 py-2 bg-white border border-indigo-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                       </div>
