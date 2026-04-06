@@ -1233,20 +1233,13 @@ export default function Checkout() {
             throw new Error(paymentResponse.error || 'Erro ao processar pagamento com Pagar.me');
           }
 
-          // ATUALIZAÇÃO IMEDIATA: Forçar status 'paid' no Supabase
-          console.log('🔄 [DEBUG CHECKOUT] Tentando atualizar status para "paid". ID do pedido:', orderData.id);
+          // ATUALIZAÇÃO REMOVIDA: Não forçar status 'paid' no Supabase. 
+          // O status será atualizado via Webhook.
+          console.log('🔄 [DEBUG CHECKOUT] Aguardando confirmação via Webhook para atualizar status.');
           
-          const { data: updateData, error: updateError } = await supabase
-            .from('orders')
-            .update({ status: 'paid' })
-            .eq('id', orderData.id)
-            .select();
-          
-          if (updateError) {
-            console.error('❌ [DEBUG CHECKOUT] Erro crítico ao atualizar status para "paid":', updateError);
-          } else {
-            console.log('✅ [DEBUG CHECKOUT] Status atualizado com sucesso no banco. Retorno:', updateData);
-          }
+          // O fluxo continua para geração de etiqueta (que agora tem verificação de pagamento)
+          // Se o pagamento ainda não foi confirmado pelo webhook, a geração da etiqueta falhará
+          // e o cliente será informado.
 
           // 4. Comunicar com CepCerto para gerar etiqueta (Resiliente)
           try {

@@ -25,21 +25,32 @@ Deno.serve(async (req) => {
                     payload.data?.id || 
                     payload.data?.metadata?.id;
 
-    if (eventType === 'order.paid' || eventType === 'charge.paid') {
+    console.log(`💰 Webhook recebido: ${eventType} para pedido ${orderId}`);
+
+    // Eventos de sucesso
+    if (['order.paid', 'charge.paid', 'payment.succeeded'].includes(eventType)) {
         if (orderId) {
-            // Atualiza status do pedido
             await supabase.from('orders').update({ status: 'paid' }).eq('id', orderId);
-            
-            // Registra em payment_logs para backup e histórico
             await supabase.from('payment_logs').insert({
                 order_id: orderId,
                 event_type: eventType,
                 created_at: new Date().toISOString()
             });
-            
-            console.log(`✅ Pedido ${orderId} atualizado para paid e logado em payment_logs`);
-        } else {
-            console.error('❌ Não foi possível extrair order_id do payload:', payload);
+            console.log(`✅ Pedido ${orderId} atualizado para paid`);
+        }
+    } 
+    // Eventos de falha
+    else if (['order.payment_failed', 'charge.failed', 'charge.payment_failed'].includes(eventType)) {
+        if (orderId) {
+            const errorMessage = payload.data?.gateway_response?.errors?.[0]?.message || "Pagamento não aprovado";
+            await supabase.from('orders').update({ status: 'failed', erro_etiqueta: true }).eq('id', orderId);
+            await supabase.from('payment_logs').insert({
+                order_id: orderId,
+                event_type: eventType,
+                error_message: errorMessage,
+                created_at: new Date().toISOString()
+            });
+            console.log(`❌ Pedido ${orderId} atualizado para failed: ${errorMessage}`);
         }
     }
 
