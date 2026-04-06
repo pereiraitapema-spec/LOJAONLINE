@@ -549,7 +549,10 @@ export default function Orders() {
                               order.declaracao_url || 
                               order.declaracao || 
                               order.frete?.declaracaoUrl ||
-                              order.frete?.declaracao_url;
+                              order.frete?.declaracao_url ||
+                              order.shipping?.frete?.declaracaoUrl ||
+                              order.logistica?.declaracaoUrl ||
+                              order.cepcerto?.frete?.declaracaoUrl;
                               
         console.log("🧾 URL encontrada:", declaracaoUrl);
 
@@ -561,7 +564,7 @@ export default function Orders() {
         console.log("Imprimindo declaração:", declaracaoUrl);
         const printWindow = window.open(declaracaoUrl, "_blank");
         if (printWindow) {
-          printWindow.onload = function() {
+          printWindow.onload = () => {
             printWindow.print();
           };
         }
