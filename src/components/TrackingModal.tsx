@@ -104,33 +104,31 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
       }
 
       const { data: orders, error } = await query;
+      console.log("Pedidos carregados:", orders);
 
       if (error) throw error;
-      const order = orders && orders.length > 0 ? orders[0] : null;
+      let order = orders && orders.length > 0 ? orders[0] : null;
 
-      if (!order) {
-        if (codeToUse) {
-           const realTime = await shippingService.getTrackingStatus(codeToUse);
-           if (realTime && realTime.history && realTime.history.length > 0) {
-              setTrackingData({ 
-                id: codeToUse, 
-                tracking_code: codeToUse, 
-                status: realTime.status, 
-                created_at: new Date().toISOString(),
-                shipping_method: 'Rastreio Externo'
-              });
-              setRealTimeHistory(realTime.history);
-              setViewMode('detail');
-              return;
-           }
+      if (order) {
+        console.log("Pedido selecionado:", order);
+        console.log("Tracking code:", order.tracking_code);
+
+        if (!order.tracking_code) {
+          console.log("Tracking code null, buscando novamente no Supabase...");
+          const { data: freshOrder } = await supabase
+            .from('orders')
+            .select('tracking_code')
+            .eq('id', order.id)
+            .single();
+          
+          if (freshOrder) {
+            order.tracking_code = freshOrder.tracking_code;
+            console.log("Tracking atualizado:", order.tracking_code);
+          }
         }
-        toast.error('Pedido ou código de rastreio não encontrado.');
-        return;
       }
 
       setTrackingData(order);
-      console.log('📦 [FRONTEND] Dados do pedido carregados:', order);
-      console.log('📦 [FRONTEND] Tracking code:', order.tracking_code);
       setViewMode('detail');
 
       if (order.tracking_code) {
@@ -318,10 +316,19 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                             <p className="font-mono font-bold text-slate-900">#{trackingData.id.substring(0, 8).toUpperCase()}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</p>
-                            <p className="font-bold text-slate-900">{new Date(trackingData.created_at).toLocaleDateString('pt-BR')}</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</p>
+                            <p className="font-bold text-indigo-600 uppercase tracking-tighter">
+                              {trackingData.tracking_code ? 'Pedido enviado' : 'Pedido sendo preparado'}
+                            </p>
                           </div>
                         </div>
+                        
+                        {trackingData.tracking_code && (
+                          <div className="border-t border-slate-200 pt-4">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Código de Rastreamento</p>
+                            <p className="font-bold text-slate-900 text-sm">{trackingData.tracking_code}</p>
+                          </div>
+                        )}
                         
                         {trackingData.order_items && trackingData.order_items.length > 0 && (
                           <div className="border-t border-slate-200 pt-4 space-y-2">
@@ -338,11 +345,6 @@ export function TrackingModal({ isOpen, onClose, trackingCode, orderId }: Tracki
                             </div>
                           </div>
                         )}
-                        
-                        <div className="flex justify-between items-center border-t border-slate-200 pt-4">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</p>
-                          <p className="font-bold text-indigo-600 uppercase tracking-tighter">{getStatusText(trackingData.status)}</p>
-                        </div>
                       </div>
 
                       <div className="space-y-6">
