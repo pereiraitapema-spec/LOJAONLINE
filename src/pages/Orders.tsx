@@ -528,6 +528,20 @@ export default function Orders() {
     // Validações
     if (!order.customer_name) { console.error("Nome vazio"); toast.error("Falta nome cliente"); return; }
     if (!order.shipping_address?.cep) { console.error("CEP vazio"); toast.error("Falta CEP"); return; }
+    
+    // Bloquear se já tiver código de rastreio (evitar duplicidade)
+    if (order.tracking_code && order.tracking_code !== 'CLIENTE BUSCA NA EMPRESA') {
+      toast.error("Este pedido já possui uma etiqueta gerada.");
+      return;
+    }
+
+    // Bloquear se for retirada no balcão
+    if (order.shipping_method === 'CLIENTE BUSCA NA EMPRESA' || order.shipping_address?.tipo_frete === 'CLIENTE BUSCA NA EMPRESA') {
+      await updateTrackingCode(orderId, 'CLIENTE RETIRA NO BALCAO', '', currentStatus);
+      await fetchData();
+      toast.success('Status atualizado para Cliente Retira no Balcão!');
+      return;
+    }
 
     setProcessingShipping(true);
     
@@ -1233,7 +1247,9 @@ export default function Orders() {
       // Se o status atual for 'paid' ou 'processing', muda para 'shipped' ao adicionar rastreio
       const currentOrder = currentStatus ? { status: currentStatus } : orders.find(o => o.id === orderId);
       if (currentOrder && (currentOrder.status === 'paid' || currentOrder.status === 'processing')) {
-        updateData.status = 'shipped';
+        if (trackingCode !== 'CLIENTE RETIRA NO BALCAO') {
+          updateData.status = 'shipped';
+        }
       }
 
       const { error } = await supabase
@@ -1277,7 +1293,7 @@ export default function Orders() {
           
           if (!result.success) {
             console.warn('⚠️ Cancelamento falhou, mas prosseguindo com exclusão:', result.error);
-            toast.warn('Etiqueta não pôde ser cancelada, mas o pedido será excluído.');
+            toast.error('Etiqueta não pôde ser cancelada, mas o pedido será excluído.');
           } else {
             toast.success('Etiqueta cancelada com sucesso!');
           }
