@@ -208,8 +208,6 @@ export default function Dashboard() {
       title: "Faturamento",
       permission: permissions.faturamento,
       items: [
-        { name: "Checkout", path: "/checkout", icon: ShoppingCart },
-        { name: "Relatórios", path: "/reports", icon: FileText },
         { name: "Gateways", path: "/gateways", icon: CreditCard }
       ]
     },
