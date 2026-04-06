@@ -957,20 +957,68 @@ export default function Orders() {
       toast.error("Selecione pelo menos um pedido");
       return;
     }
-    selectedOrders.forEach(order => {
-      const declaracaoUrl = extractDeclaracaoUrl(order);
-      console.log("📄 Declaracao URL final:", declaracaoUrl);
-      if (!declaracaoUrl) {
-        console.error("❌ Declaração não encontrada", order);
-        return;
-      }
-      const printWindow = window.open(declaracaoUrl, "_blank");
-      if (printWindow) {
-        printWindow.onload = () => {
-          printWindow.print();
-        };
-      }
+
+    const urls = selectedOrders
+      .map(order => extractDeclaracaoUrl(order))
+      .filter((url): url is string => !!url);
+
+    if (urls.length === 0) {
+      toast.error("Nenhuma declaração encontrada para os pedidos selecionados");
+      return;
+    }
+
+    const pages = [];
+    for (let i = 0; i < urls.length; i += 2) {
+      pages.push(urls.slice(i, i + 2));
+    }
+
+    let html = "";
+    pages.forEach(page => {
+      html += `<div class="page">`;
+      page.forEach(url => {
+        html += `<iframe src="${url}" class="declaracao"></iframe>`;
+      });
+      html += `</div>`;
     });
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Não foi possível abrir a janela de impressão.");
+      return;
+    }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <style>
+            @page {
+              size: A4;
+              margin: 5mm;
+            }
+            .page {
+              width: 100%;
+              height: 100vh;
+              display: flex;
+              flex-direction: column;
+              page-break-after: always;
+            }
+            .declaracao {
+              width: 100%;
+              height: 50%;
+              border: none;
+            }
+          </style>
+        </head>
+        <body>
+          ${html}
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
   };
 
   const handlePrintDeclaracao = (order: Order) => {
