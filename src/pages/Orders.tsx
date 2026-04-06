@@ -2824,13 +2824,11 @@ export default function Orders() {
             <div id="print-section" className="bg-white z-[9999] absolute top-0 left-0 w-full min-h-screen">
               <style>{`
                 @media print {
-                  body * {
-                    visibility: hidden;
-                  }
-                  #print-section, #print-section * {
-                    visibility: visible;
+                  body > *:not(#print-section) {
+                    display: none !important;
                   }
                   #print-section {
+                    display: block !important;
                     position: absolute;
                     left: 0;
                     top: 0;
