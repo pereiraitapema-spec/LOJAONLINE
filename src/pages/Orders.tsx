@@ -27,7 +27,11 @@ import {
   ExternalLink,
   FileText,
   Copy,
-  AlertCircle
+  AlertCircle,
+  Info,
+  Send,
+  MessageCircle,
+  Tag
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'react-hot-toast';
@@ -50,8 +54,11 @@ interface Order {
   customer_document?: string;
   tracking_code?: string;
   shipping_label_url?: string;
+  shipping_declaration_url?: string;
   shipping_method?: string;
   erro_etiqueta?: boolean;
+  order_items?: any[];
+  coupon_code?: string;
 }
 
 interface AbandonedCart {
@@ -536,7 +543,9 @@ export default function Orders() {
     }
 
     // 2. Bloquear se for retirada no balcão e salvar online
-    const isBalcao = order.shipping_method === 'CLIENTE BUSCA NA EMPRESA' || order.shipping_address?.tipo_frete === 'CLIENTE BUSCA NA EMPRESA';
+    const isBalcao = order.shipping_method === 'CLIENTE BUSCA NA EMPRESA' || 
+                     order.shipping_address?.tipo_frete === 'CLIENTE BUSCA NA EMPRESA' ||
+                     order.coupon_code === 'BALCAO';
     if (isBalcao) {
       await updateTrackingCode(orderId, 'CLIENTE RETIRA NO BALCAO', '', currentStatus);
       await fetchData();
@@ -1680,7 +1689,7 @@ export default function Orders() {
                         {getStatusText(order.status)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
+                    <td className="px-6 py-4 text-right flex items-center justify-end gap-1">
                       <button 
                         onClick={() => {
                           setSelectedOrder(order);
@@ -1688,18 +1697,67 @@ export default function Orders() {
                           fetchOrderItems(order.id);
                           fetchTrackingStatus(order.id);
                         }}
-                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-flex"
-                        title="Ver Detalhes"
+                        className="p-1.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                        title="Informações do Pedido"
                       >
-                        <Eye size={18} />
+                        <Info size={16} />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setSelectedTrackingOrder(order);
+                          setShowTrackingModal(true);
+                        }}
+                        className="p-1.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                        title="Rastreio"
+                      >
+                        <Send size={16} className="rotate-45" />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          const message = `Olá ${order.customer_name.split(' ')[0]}, somos da G-FitLife! Como está sendo a experiência com ${order.order_items?.[0]?.product_name || 'seu produto'}?`;
+                          const url = `https://wa.me/55${order.customer_phone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+                          if (confirm(`Abrir WhatsApp para ${order.customer_name}?`)) {
+                            window.open(url, '_blank');
+                          }
+                        }}
+                        className="p-1.5 bg-emerald-100 text-emerald-600 rounded-lg hover:bg-emerald-200 transition-colors"
+                        title="WhatsApp"
+                      >
+                        <MessageCircle size={16} />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (order.shipping_label_url) {
+                            window.open(order.shipping_label_url, '_blank');
+                          } else {
+                            toast.error('Etiqueta não gerada');
+                          }
+                        }}
+                        className="p-1.5 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 transition-colors"
+                        title="Imprimir Etiqueta"
+                      >
+                        <Tag size={16} />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (order.shipping_declaration_url) {
+                            window.open(order.shipping_declaration_url, '_blank');
+                          } else {
+                            toast.error('Declaração não gerada');
+                          }
+                        }}
+                        className="p-1.5 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                        title="Imprimir Declaração"
+                      >
+                        <FileText size={16} />
                       </button>
                       {isAdmin && (
                         <button 
                           onClick={() => deleteOrder(order.id)}
-                          className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex"
-                          title="Excluir Pedido"
+                          className="p-1.5 bg-rose-100 text-rose-600 rounded-lg hover:bg-rose-200 transition-colors"
+                          title="Excluir"
                         >
-                          <Trash2 size={18} />
+                          <Trash2 size={16} />
                         </button>
                       )}
                     </td>
