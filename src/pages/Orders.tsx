@@ -1784,11 +1784,11 @@ export default function Orders() {
                         <MessageCircle size={16} />
                       </button>
                       <button 
-                        onClick={() => {
+                        onClick={async () => {
                           if (order.shipping_label_url) {
                             window.open(order.shipping_label_url, '_blank');
                           } else {
-                            toast.error('Etiqueta não disponível');
+                            await handleGenerateLabel(order.id);
                           }
                         }}
                         className="p-1.5 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 transition-colors"
@@ -1797,11 +1797,11 @@ export default function Orders() {
                         <Tag size={16} />
                       </button>
                       <button 
-                        onClick={() => {
+                        onClick={async () => {
                           if (order.shipping_declaration_url) {
                             window.open(order.shipping_declaration_url, '_blank');
                           } else {
-                            toast.error('Declaração não disponível');
+                            await handleGenerateLabel(order.id);
                           }
                         }}
                         className="p-1.5 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
