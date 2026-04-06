@@ -718,6 +718,7 @@ const cepcertoProvider: ShippingProvider = {
       }
 
       console.log('🚀 Enviando payload para CepCerto:', JSON.stringify(payload, null, 2));
+      const startTime = Date.now();
 
       // Tentar via proxy para evitar CORS
       const response = await fetch('https://cepcerto.com/api-postagem/', {
@@ -727,6 +728,8 @@ const cepcertoProvider: ShippingProvider = {
         },
         body: JSON.stringify(payload)
       });
+      
+      console.log(`📡 Resposta da API CepCerto recebida em ${Date.now() - startTime}ms`);
       
       const responseText = await response.text();
       console.log('📡 Resposta da API CepCerto:', responseText);
