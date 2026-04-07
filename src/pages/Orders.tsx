@@ -982,23 +982,26 @@ export default function Orders() {
       return;
     }
 
-    console.log("Agrupando declarações em pares (1x2)...");
+    console.log("Iniciando agrupamento de declarações...");
+    console.log("URLs encontradas:", urls);
+    
     const pages = [];
     for (let i = 0; i < urls.length; i += 2) {
       const pageGroup = urls.slice(i, i + 2);
-      console.log(`Agrupando página ${pages.length + 1}:`, pageGroup);
+      console.log(`Página ${pages.length + 1}: Agrupando ${pageGroup.length} URLs`, pageGroup);
       pages.push(pageGroup);
     }
-    console.log("Páginas criadas:", pages.length);
+    console.log("Total de páginas A4 a serem geradas:", pages.length);
 
     let html = "";
     pages.forEach((page, index) => {
-      console.log(`Renderizando HTML para página ${index + 1} com ${page.length} declarações (Layout 1x2)`);
+      console.log(`Gerando HTML para página ${index + 1}...`);
       html += `
         <div class="print-page">
           <div class="grid-container">
             ${[0, 1].map(cellIndex => {
               const url = page[cellIndex];
+              console.log(`  - Célula ${cellIndex + 1}: ${url ? 'URL presente' : 'Vazia'}`);
               return `
                 <div class="cell">
                   ${url ? `
@@ -1006,6 +1009,7 @@ export default function Orders() {
                       <iframe 
                         src="${url}${url.includes('#') ? '' : '#toolbar=0&navpanes=0&scrollbar=0&view=FitH'}" 
                         title="Declaração ${index + 1}-${cellIndex + 1}"
+                        onload="console.log('Iframe carregado: P${index + 1}-C${cellIndex + 1}')"
                       ></iframe>
                     </div>
                   ` : `
@@ -1082,9 +1086,9 @@ export default function Orders() {
                 position: absolute;
                 top: 0;
                 left: 0;
-                width: 200%;
+                width: 100%;
                 height: 200%;
-                transform: scale(0.5);
+                transform: scale(1.0);
                 transform-origin: top left;
               }
               .empty-cell {
@@ -1129,7 +1133,7 @@ export default function Orders() {
               overflow: hidden;
             }
             .iframe-container { width: 100%; height: 100%; position: relative; overflow: hidden; }
-            iframe { border: 0; position: absolute; top: 0; left: 0; width: 200%; height: 200%; transform: scale(0.5); transform-origin: top left; }
+            iframe { border: 0; position: absolute; top: 0; left: 0; width: 100%; height: 200%; transform: scale(1.0); transform-origin: top left; }
             .empty-cell { color: #cbd5e1; text-transform: uppercase; font-weight: bold; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
             .opacity-20 { opacity: 0.2; }
           </style>
@@ -1138,11 +1142,13 @@ export default function Orders() {
           ${html}
           <script>
             window.onload = () => {
-              console.log("Janela carregada (Layout Logística), verificando iframes...");
+              console.log("Janela de impressão aberta (Layout Logística). Verificando iframes...");
               const iframes = document.querySelectorAll('iframe');
+              console.log("Total de iframes encontrados:", iframes.length);
               let loadedCount = 0;
               
               if (iframes.length === 0) {
+                console.log("Nenhum iframe encontrado, disparando impressão imediata.");
                 window.print();
                 return;
               }
@@ -1151,7 +1157,7 @@ export default function Orders() {
                 loadedCount++;
                 console.log("Iframe carregado (" + loadedCount + "/" + iframes.length + ")");
                 if (loadedCount === iframes.length) {
-                  console.log("Todos iframes carregados, disparando impressão...");
+                  console.log("Todos os iframes carregados. Iniciando impressão em 2.5s...");
                   setTimeout(() => {
                     window.print();
                   }, 2500);

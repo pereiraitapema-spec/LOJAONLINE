@@ -4246,79 +4246,97 @@ export default function CepCertoAdmin() {
                     </div>
                   ))}
                   {/* Declarações */}
-                  {chunkArray(etiquetasGeradas.filter(e => selectedLabels.includes(e.id)), 2).map((pageLabels, pageIndex) => (
-                    <div key={`decls-${pageIndex}`} className="w-[210mm] h-[297mm] mx-auto p-[2mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
-                      <div className="w-full h-full grid gap-0 grid-cols-1 grid-rows-2">
-                        {Array.from({ length: 2 }).map((_, cellIndex) => {
-                          const label = pageLabels[cellIndex];
-                          const url = label?.pdfUrlDeclaracao || label?.declaracaoUrl;
-                          return (
-                            <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-0 flex flex-col items-center justify-center relative overflow-hidden rounded-xl bg-white">
-                              {url ? (
-                                <div className="w-full h-full relative overflow-hidden">
-                                  <iframe 
-                                    src={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
-                                    className="border-0 absolute top-0 left-0"
-                                    style={{ 
-                                      width: '200%', 
-                                      height: '200%',
-                                      transform: 'scale(0.5)',
-                                      transformOrigin: '0% 0%',
-                                      border: 'none'
-                                    }}
-                                    title={`Print ${label.codigoObjeto}`} 
-                                  />
+                  {(() => {
+                    const filtered = etiquetasGeradas.filter(e => selectedLabels.includes(e.id));
+                    console.log(`[Logística] Gerando ${filtered.length} declarações...`);
+                    return chunkArray(filtered, 2).map((pageLabels, pageIndex) => {
+                      console.log(`[Logística] Página Declaração ${pageIndex + 1}:`, pageLabels);
+                      return (
+                        <div key={`decls-${pageIndex}`} className="w-[210mm] h-[297mm] mx-auto p-[2mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
+                          <div className="w-full h-full grid gap-0 grid-cols-1 grid-rows-2">
+                            {Array.from({ length: 2 }).map((_, cellIndex) => {
+                              const label = pageLabels[cellIndex];
+                              const url = label?.pdfUrlDeclaracao || label?.declaracaoUrl;
+                              console.log(`  - P${pageIndex+1} C${cellIndex+1}: ${url ? 'URL OK' : 'Vazio'}`);
+                              return (
+                                <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-0 flex flex-col items-center justify-center relative overflow-hidden rounded-xl bg-white">
+                                  {url ? (
+                                    <div className="w-full h-full relative overflow-hidden">
+                                      <iframe 
+                                        src={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
+                                        className="border-0 absolute top-0 left-0"
+                                        style={{ 
+                                          width: '100%', 
+                                          height: '200%',
+                                          transform: 'scale(1.0)',
+                                          transformOrigin: '0% 0%',
+                                          border: 'none'
+                                        }}
+                                        title={`Print ${label.codigoObjeto}`} 
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
+                                      <Printer size={32} className="opacity-20" />
+                                      <span>Espaço Vazio</span>
+                                    </div>
+                                  )}
                                 </div>
-                              ) : (
-                                <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
-                                  <Printer size={32} className="opacity-20" />
-                                  <span>Espaço Vazio</span>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </>
               ) : (
-                chunkArray(etiquetasGeradas.filter(e => selectedLabels.includes(e.id)), printType === 'etiqueta' ? 4 : 2).map((pageLabels, pageIndex) => (
-                  <div key={pageIndex} className="w-[210mm] h-[297mm] mx-auto p-[2mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
-                    <div className={`w-full h-full grid gap-0 ${printType === 'etiqueta' ? 'grid-cols-2 grid-rows-2' : 'grid-cols-1 grid-rows-2'}`}>
-                      {Array.from({ length: printType === 'etiqueta' ? 4 : 2 }).map((_, cellIndex) => {
-                        const label = pageLabels[cellIndex];
-                        const url = label ? (printType === 'etiqueta' ? label.pdfUrlEtiqueta : (label.pdfUrlDeclaracao || label.declaracaoUrl)) : null;
-                        
-                        return (
-                          <div key={cellIndex} className="border border-dashed border-slate-200 p-0 flex flex-col items-center justify-center relative overflow-hidden bg-white">
-                            {url ? (
-                              <div className="w-full h-full relative overflow-hidden">
-                                <iframe 
-                                  src={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
-                                  className="border-0 absolute top-0 left-0"
-                                  style={{ 
-                                    width: printType === 'etiqueta' ? '190%' : '200%', 
-                                    height: printType === 'etiqueta' ? '210%' : '200%',
-                                    transform: printType === 'etiqueta' ? 'scale(1.0)' : 'scale(0.5)',
-                                    transformOrigin: '0% 0%',
-                                    border: 'none'
-                                  }}
-                                  title={`Print ${label.codigoObjeto}`} 
-                                />
+                (() => {
+                  const filtered = etiquetasGeradas.filter(e => selectedLabels.includes(e.id));
+                  const itemsPerPage = printType === 'etiqueta' ? 4 : 2;
+                  console.log(`[Logística Single] Gerando ${filtered.length} itens (${printType})...`);
+                  
+                  return chunkArray(filtered, itemsPerPage).map((pageLabels, pageIndex) => {
+                    console.log(`[Logística Single] Página ${pageIndex + 1}:`, pageLabels);
+                    return (
+                      <div key={pageIndex} className="w-[210mm] h-[297mm] mx-auto p-[2mm] box-border bg-white" style={{ pageBreakAfter: 'always' }}>
+                        <div className={`w-full h-full grid gap-0 ${printType === 'etiqueta' ? 'grid-cols-2 grid-rows-2' : 'grid-cols-1 grid-rows-2'}`}>
+                          {Array.from({ length: itemsPerPage }).map((_, cellIndex) => {
+                            const label = pageLabels[cellIndex];
+                            const url = label ? (printType === 'etiqueta' ? label.pdfUrlEtiqueta : (label.pdfUrlDeclaracao || label.declaracaoUrl)) : null;
+                            console.log(`  - P${pageIndex+1} C${cellIndex+1}: ${url ? 'URL OK' : 'Vazio'}`);
+                            
+                            return (
+                              <div key={cellIndex} className="border border-dashed border-slate-200 p-0 flex flex-col items-center justify-center relative overflow-hidden bg-white">
+                                {url ? (
+                                  <div className="w-full h-full relative overflow-hidden">
+                                    <iframe 
+                                      src={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
+                                      className="border-0 absolute top-0 left-0"
+                                      style={{ 
+                                        width: printType === 'etiqueta' ? '190%' : '100%', 
+                                        height: printType === 'etiqueta' ? '210%' : '200%',
+                                        transform: 'scale(1.0)',
+                                        transformOrigin: '0% 0%',
+                                        border: 'none'
+                                      }}
+                                      title={`Print ${label.codigoObjeto}`} 
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
+                                    <Printer size={32} className="opacity-20" />
+                                    <span>Espaço Vazio</span>
+                                  </div>
+                                )}
                               </div>
-                            ) : (
-                              <div className="text-slate-300 text-sm font-bold uppercase tracking-widest flex flex-col items-center gap-2">
-                                <Printer size={32} className="opacity-20" />
-                                <span>Espaço Vazio</span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()
               )}
             </div>
           )}
