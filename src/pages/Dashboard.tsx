@@ -26,6 +26,7 @@ export default function Dashboard() {
     profit: 0,
     totalCommissions: 0,
     totalTaxes: 0,
+    totalGatewayFees: 0,
     totalMarketing: 0,
     totalOperational: 0,
     totalShipping: 0,
@@ -109,7 +110,7 @@ export default function Dashboard() {
         const [ordersRes, productsRes, affiliatesRes, abandonedRes, leadsRes, allOrdersRes] = await Promise.all([
           fetchWithTimeout(Promise.resolve(supabase.from('orders')
             .select('*')
-            .eq('status', 'paid')
+            .in('status', ['paid', 'processing', 'shipped', 'delivered'])
             .gte('created_at', `${dateRange.start}T00:00:00Z`)
             .lte('created_at', `${dateRange.end}T23:59:59Z`))),
           fetchWithTimeout(Promise.resolve(supabase.from('products').select('*'))),
@@ -140,17 +141,26 @@ export default function Dashboard() {
         if (orders.length > 0) {
           const { data: items } = await supabase
             .from('order_items')
-            .select('quantity, price')
+            .select('quantity, price, product_id')
             .in('order_id', orders.map(o => o.id));
           
-          // Fallback to a percentage of price if cost_price is not available on order_items
-          calculatedCOGS = (items || []).reduce((acc, item: any) => acc + (item.quantity * (item.price * 0.4 || 0)), 0);
+          if (items && items.length > 0) {
+            calculatedCOGS = items.reduce((acc, item: any) => {
+              const product = products.find(p => p.id === item.product_id);
+              // Use actual cost_price if available, otherwise fallback to 40% of selling price
+              const unitCost = product?.cost_price || (item.price * 0.4);
+              return acc + (item.quantity * unitCost);
+            }, 0);
+          }
         }
 
         // Simulating taxes (Nota Fiscal) for now, e.g., 6% of revenue
         const totalTaxes = revenue * 0.06;
+        
+        // Simulating Gateway Fees (e.g., 4% average)
+        const totalGatewayFees = revenue * 0.04;
 
-        const totalExpenses = calculatedCOGS + totalCommissions + totalOperational + totalMarketing + totalShipping + totalTaxes;
+        const totalExpenses = calculatedCOGS + totalCommissions + totalOperational + totalMarketing + totalShipping + totalTaxes + totalGatewayFees;
         const profit = revenue - totalExpenses;
         
         // Stock Metrics
@@ -186,7 +196,7 @@ export default function Dashboard() {
 
         // Top Products
         const productSales: Record<string, { name: string, quantity: number, revenue: number }> = {};
-        allOrders.filter(o => o.status === 'paid' || o.status === 'shipped' || o.status === 'delivered').forEach(order => {
+        allOrders.filter(o => o.status === 'paid' || o.status === 'processing' || o.status === 'shipped' || o.status === 'delivered').forEach(order => {
           (order.order_items || []).forEach((item: any) => {
             const productId = item.product_id;
             const product = products.find(p => p.id === productId);
@@ -213,6 +223,7 @@ export default function Dashboard() {
           profit,
           totalCommissions,
           totalTaxes,
+          totalGatewayFees,
           totalMarketing,
           totalOperational,
           totalShipping,
@@ -436,7 +447,7 @@ export default function Dashboard() {
               </div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Lucro Líquido</span>
             </div>
-            <p className="text-2xl font-black text-indigo-600">{formatCurrency(stats.profit)}</p>
+            <p className={`text-2xl font-black ${stats.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatCurrency(stats.profit)}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">RECEITA - TODOS OS CUSTOS</p>
           </motion.div>
           
@@ -472,17 +483,17 @@ export default function Dashboard() {
 
           <motion.div 
             whileHover={{ y: -5 }}
-            onClick={() => navigate('/settings')}
+            onClick={() => navigate('/gateways')}
             className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-rose-200 transition-all"
           >
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
                 <FileText size={20} />
               </div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Impostos (NF)</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Taxas e Impostos</span>
             </div>
-            <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.totalTaxes)}</p>
-            <p className="text-[10px] text-slate-400 mt-1 font-bold">ESTIMATIVA DE IMPOSTOS</p>
+            <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.totalTaxes + stats.totalGatewayFees)}</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-bold uppercase">NF (6%) + GATEWAY (4%)</p>
           </motion.div>
 
           <motion.div 
