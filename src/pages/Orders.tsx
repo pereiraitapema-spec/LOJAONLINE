@@ -963,8 +963,9 @@ export default function Orders() {
   };
 
   const buildDeclaracaoUrl = (tracking: string) => {
-    if (!tracking) return null;
-    const url = `https://cepcerto.com/etiquetas/declaracao-conteudo-${tracking}.html`;
+    if (!tracking || tracking === 'CLIENTE RETIRA NO BALCAO') return null;
+    // Alterado de .html para .pdf pois a maioria dos serviços CepCerto usa PDF para documentos oficiais
+    const url = `https://cepcerto.com/etiquetas/declaracao-conteudo-${tracking}.pdf`;
     console.log("📄 URL declaração construída:", url);
     return url;
   };
@@ -1045,6 +1046,7 @@ export default function Orders() {
                       <iframe 
                         src="${url}${url.includes('#') ? '' : '#toolbar=0&navpanes=0&scrollbar=0&view=FitH'}" 
                         title="Declaração ${index + 1}-${cellIndex + 1}"
+                        style="width: 100%; height: 200%; border: 0; position: absolute; top: 0; left: 0; transform: scale(1.0); transform-origin: top left;"
                         onload="console.log('Iframe carregado: P${index + 1}-C${cellIndex + 1}')"
                       ></iframe>
                     </div>
@@ -1178,56 +1180,11 @@ export default function Orders() {
           ${html}
           <script>
             window.onload = () => {
-              console.log("%c==========================================", "color: #2563eb; font-weight: bold;");
-              console.log("%cLOG DE FORMATAÇÃO DE IMPRESSÃO (DECLARAÇÃO)", "color: #2563eb; font-weight: bold;");
-              console.log("%c==========================================", "color: #2563eb; font-weight: bold;");
-              console.log("Layout: A4 Vertical (210mm x 297mm)");
-              console.log("Distribuição: 1 Coluna x 2 Linhas");
-              console.log("Itens por Página: 2");
-              console.log("Configuração do Iframe:");
-              console.log("- Largura: 100% (Preenche a largura da célula)");
-              console.log("- Altura: 200% (O dobro da altura da célula)");
-              console.log("- Escala: 1.0 (Tamanho original)");
-              console.log("- Resultado: Exibe a metade superior do PDF em 50% da folha.");
-              console.log("------------------------------------------");
-
-              const iframes = document.querySelectorAll('iframe');
-              console.log("Total de iframes encontrados:", iframes.length);
-              let loadedCount = 0;
-              
-              if (iframes.length === 0) {
-                console.log("Nenhum iframe encontrado, disparando impressão imediata.");
-                window.print();
-                return;
-              }
-              
-              const checkAllLoaded = () => {
-                loadedCount++;
-                console.log("%cIframe carregado (" + loadedCount + "/" + iframes.length + ")", "color: #059669;");
-                if (loadedCount === iframes.length) {
-                  console.log("%cTodos os iframes carregados. Iniciando impressão em 2.5s...", "color: #059669; font-weight: bold;");
-                  setTimeout(() => {
-                    window.print();
-                  }, 2500);
-                }
-              };
-
-              iframes.forEach(iframe => {
-                if (iframe.complete) {
-                  checkAllLoaded();
-                } else {
-                  iframe.onload = checkAllLoaded;
-                  iframe.onerror = checkAllLoaded;
-                }
-              });
-
-              // Timeout de segurança
+              console.log("LOG DE FORMATAÇÃO DE IMPRESSÃO (DECLARAÇÃO)");
+              // Aguarda um tempo para garantir renderização dos PDFs
               setTimeout(() => {
-                if (loadedCount < iframes.length) {
-                  console.warn("Timeout atingido, imprimindo com " + loadedCount + " iframes carregados.");
-                  window.print();
-                }
-              }, 12000);
+                window.print();
+              }, 2500);
             };
           </script>
         </body>
