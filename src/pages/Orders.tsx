@@ -986,34 +986,49 @@ export default function Orders() {
 
   const buildDeclaracaoUrl = (tracking: string) => {
     if (!tracking || tracking === 'CLIENTE RETIRA NO BALCAO') return null;
-    // Alterado de .html para .pdf pois a maioria dos serviços CepCerto usa PDF para documentos oficiais
-    const url = `https://cepcerto.com/etiquetas/declaracao-conteudo-${tracking}.pdf`;
+    // Alterado para .html conforme solicitado pelo usuário para declaração de conteúdo
+    const url = `https://cepcerto.com/etiquetas/declaracao-conteudo-${tracking}.html`;
     console.log("📄 URL declaração construída:", url);
     return url;
   };
 
   const extractDeclaracaoUrl = (order: Order) => {
-    console.log("🔎 Verificando pedido:", order);
-    let url =
-      order.shipping_declaration_url ||
-      (order as any).declaracaoUrl ||
-      (order as any).declaracao_url ||
-      (order as any).declaration_url ||
-      (order as any).cepcerto_declaracao ||
-      (order as any).declaracao ||
-      (order as any).frete?.declaracaoUrl ||
-      (order as any).shipping?.frete?.declaracaoUrl ||
-      (order as any).logistica?.declaracaoUrl ||
-      (order as any).cepcerto?.frete?.declaracaoUrl;
+    console.log("🔎 Verificando declaração pedido:", order);
     
-    if (!url) {
-      const tracking = extractTrackingCode(order);
-      console.log("Tracking:", tracking);
+    // Tenta construir pelo código de rastreio primeiro, conforme solicitado pelo usuário
+    const tracking = extractTrackingCode(order);
+    let url = null;
+    
+    if (tracking && tracking !== 'CLIENTE RETIRA NO BALCAO') {
       url = buildDeclaracaoUrl(tracking);
+    }
+    
+    // Se não conseguiu pelo rastreio, tenta os campos do pedido
+    if (!url) {
+      url =
+        order.shipping_declaration_url ||
+        (order as any).declaracaoUrl ||
+        (order as any).declaracao_url ||
+        (order as any).declaration_url ||
+        (order as any).cepcerto_declaracao ||
+        (order as any).declaracao ||
+        (order as any).frete?.declaracaoUrl ||
+        (order as any).shipping?.frete?.declaracaoUrl ||
+        (order as any).logistica?.declaracaoUrl ||
+        (order as any).cepcerto?.frete?.declaracaoUrl;
     }
     
     console.log("📄 URL declaração final:", url);
     return url;
+  };
+
+  const handlePrintDeclaracao = (order: Order) => {
+    const url = extractDeclaracaoUrl(order);
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      handleGenerateLabel(order.id);
+    }
   };
 
   const handlePrintDeclaracoes = () => {
@@ -1214,15 +1229,6 @@ export default function Orders() {
     `);
 
     printWindow.document.close();
-  };
-
-  const handlePrintDeclaracao = (order: Order) => {
-    const tracking = extractTrackingCode(order);
-    const url = buildDeclaracaoUrl(tracking);
-    console.log("Pedido:", order);
-    console.log("Tracking:", tracking);
-    console.log("Declaração URL:", url);
-    window.open(url || "", "_blank");
   };
 
   const handleSelectAll = () => {
@@ -2198,13 +2204,7 @@ export default function Orders() {
                         <Tag size={16} />
                       </button>
                       <button 
-                        onClick={async () => {
-                          if (order.shipping_declaration_url) {
-                            window.open(order.shipping_declaration_url, '_blank');
-                          } else {
-                            await handleGenerateLabel(order.id);
-                          }
-                        }}
+                        onClick={() => handlePrintDeclaracao(order)}
                         className="p-1.5 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
                         title="Imprimir Declaração"
                       >
@@ -3074,6 +3074,15 @@ export default function Orders() {
                           >
                             <Printer size={14} />
                             Imprimir Etiqueta
+                          </button>
+                        )}
+                        {extractDeclaracaoUrl(selectedOrder) && (
+                          <button 
+                            onClick={() => handlePrintDeclaracao(selectedOrder)}
+                            className="text-xs font-bold text-green-600 hover:underline block flex items-center gap-1"
+                          >
+                            <FileText size={14} />
+                            Imprimir Declaração
                           </button>
                         )}
                       </div>
