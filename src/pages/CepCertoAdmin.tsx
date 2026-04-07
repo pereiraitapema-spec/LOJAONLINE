@@ -4215,7 +4215,7 @@ export default function CepCertoAdmin() {
                       <div className="w-full h-full grid gap-0 grid-cols-2 grid-rows-2">
                         {Array.from({ length: 4 }).map((_, cellIndex) => {
                           const label = pageLabels[cellIndex];
-                          const url = label?.pdfUrlEtiqueta;
+                          const url = label?.pdfUrlEtiqueta || (label?.codigoObjeto ? `https://cepcerto.com/etiquetas/codigo-rastreamento-${label.codigoObjeto}.pdf` : null);
                           return (
                             <div key={cellIndex} className="border border-dashed border-slate-200 p-0 flex flex-col items-center justify-center relative overflow-hidden bg-white">
                               {url ? (
@@ -4259,7 +4259,7 @@ export default function CepCertoAdmin() {
                           <div className="w-full h-full grid gap-0 grid-cols-1 grid-rows-2">
                             {Array.from({ length: 2 }).map((_, cellIndex) => {
                               const label = pageLabels[cellIndex];
-                              const url = label?.pdfUrlDeclaracao || label?.declaracaoUrl;
+                              const url = label?.pdfUrlDeclaracao || label?.declaracaoUrl || (label?.codigoObjeto ? `https://cepcerto.com/etiquetas/declaracao-conteudo-${label.codigoObjeto}.pdf` : null);
                               console.log(`  - P${pageIndex+1} C${cellIndex+1}: ${url ? 'URL OK' : 'Vazio'}`);
                               return (
                                 <div key={cellIndex} className="border-2 border-dashed border-slate-300 p-0 flex flex-col items-center justify-center relative overflow-hidden rounded-xl bg-white">
@@ -4313,7 +4313,10 @@ export default function CepCertoAdmin() {
                         <div className={`w-full h-full grid gap-0 ${printType === 'etiqueta' ? 'grid-cols-2 grid-rows-2' : 'grid-cols-1 grid-rows-2'}`}>
                           {Array.from({ length: itemsPerPage }).map((_, cellIndex) => {
                             const label = pageLabels[cellIndex];
-                            const url = label ? (printType === 'etiqueta' ? label.pdfUrlEtiqueta : (label.pdfUrlDeclaracao || label.declaracaoUrl)) : null;
+                            const url = label ? (printType === 'etiqueta' 
+                              ? (label.pdfUrlEtiqueta || (label.codigoObjeto ? `https://cepcerto.com/etiquetas/codigo-rastreamento-${label.codigoObjeto}.pdf` : null))
+                              : (label.pdfUrlDeclaracao || label.declaracaoUrl || (label.codigoObjeto ? `https://cepcerto.com/etiquetas/declaracao-conteudo-${label.codigoObjeto}.pdf` : null))
+                            ) : null;
                             console.log(`  - P${pageIndex+1} C${cellIndex+1}: ${url ? 'URL OK' : 'Vazio'}`);
                             
                             return (

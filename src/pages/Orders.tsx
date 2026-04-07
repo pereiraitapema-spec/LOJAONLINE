@@ -517,19 +517,40 @@ export default function Orders() {
 
   const extractEtiquetaUrl = (order: Order) => {
     console.log("🔎 Verificando etiqueta pedido:", order);
-    let url =
-      order.shipping_label_url ||
-      (order as any).pdfUrlEtiqueta ||
-      (order as any).etiquetaUrl ||
-      (order as any).etiqueta_url ||
-      (order as any).cepcerto_etiqueta ||
-      (order as any).frete?.etiquetaUrl ||
-      (order as any).shipping?.frete?.etiquetaUrl ||
-      (order as any).logistica?.etiquetaUrl ||
-      (order as any).cepcerto?.frete?.etiquetaUrl;
     
+    // Tenta construir pelo código de rastreio primeiro, conforme solicitado pelo usuário
+    const tracking = extractTrackingCode(order);
+    let url = null;
+    
+    if (tracking && tracking !== 'CLIENTE RETIRA NO BALCAO') {
+      url = buildEtiquetaUrl(tracking);
+    }
+    
+    // Se não conseguiu pelo rastreio, tenta os campos do pedido
+    if (!url) {
+      url =
+        order.shipping_label_url ||
+        (order as any).pdfUrlEtiqueta ||
+        (order as any).etiquetaUrl ||
+        (order as any).etiqueta_url ||
+        (order as any).cepcerto_etiqueta ||
+        (order as any).frete?.etiquetaUrl ||
+        (order as any).shipping?.frete?.etiquetaUrl ||
+        (order as any).logistica?.etiquetaUrl ||
+        (order as any).cepcerto?.frete?.etiquetaUrl;
+    }
+
     console.log("📄 URL etiqueta final:", url);
     return url;
+  };
+
+  const handlePrintEtiqueta = (order: Order) => {
+    const url = extractEtiquetaUrl(order);
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      handleGenerateLabel(order.id);
+    }
   };
 
   const handlePrintEtiquetas = () => {
@@ -619,17 +640,11 @@ export default function Orders() {
           ${html}
           <script>
             window.onload = () => {
-              const iframes = document.querySelectorAll('iframe');
-              let loaded = 0;
-              if (iframes.length === 0) { window.print(); return; }
-              iframes.forEach(f => {
-                f.onload = () => {
-                  loaded++;
-                  if (loaded === iframes.length) setTimeout(() => window.print(), 2000);
-                };
-                if (f.contentDocument && f.contentDocument.readyState === 'complete') f.onload();
-              });
-              setTimeout(() => window.print(), 10000);
+              console.log("LOG DE FORMATAÇÃO DE IMPRESSÃO (ETIQUETA)");
+              // Aguarda um tempo para garantir renderização dos PDFs
+              setTimeout(() => {
+                window.print();
+              }, 2500);
             };
           </script>
         </body>
@@ -960,6 +975,13 @@ export default function Orders() {
       (order as any).shipping?.codigoObjeto ||
       (order as any).logistica?.codigoObjeto
     );
+  };
+
+  const buildEtiquetaUrl = (tracking: string) => {
+    if (!tracking || tracking === 'CLIENTE RETIRA NO BALCAO') return null;
+    const url = `https://cepcerto.com/etiquetas/codigo-rastreamento-${tracking}.pdf`;
+    console.log("📄 URL etiqueta construída:", url);
+    return url;
   };
 
   const buildDeclaracaoUrl = (tracking: string) => {
@@ -2169,13 +2191,7 @@ export default function Orders() {
                         <MessageCircle size={16} />
                       </button>
                       <button 
-                        onClick={async () => {
-                          if (order.shipping_label_url) {
-                            window.open(order.shipping_label_url, '_blank');
-                          } else {
-                            await handleGenerateLabel(order.id);
-                          }
-                        }}
+                        onClick={() => handlePrintEtiqueta(order)}
                         className="p-1.5 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 transition-colors"
                         title="Imprimir Etiqueta"
                       >
@@ -3051,16 +3067,14 @@ export default function Orders() {
                         >
                           Acompanhar no site da transportadora
                         </Link>
-                        {selectedOrder.shipping_label_url && (
-                          <a 
-                            href={selectedOrder.shipping_label_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
+                        {extractEtiquetaUrl(selectedOrder) && (
+                          <button 
+                            onClick={() => handlePrintEtiqueta(selectedOrder)}
                             className="text-xs font-bold text-emerald-600 hover:underline block flex items-center gap-1"
                           >
                             <Printer size={14} />
                             Imprimir Etiqueta
-                          </a>
+                          </button>
                         )}
                       </div>
                     </div>
