@@ -982,7 +982,7 @@ export default function Orders() {
       return;
     }
 
-    console.log("Agrupando declarações em pares...");
+    console.log("Agrupando declarações em pares (1x2)...");
     const pages = [];
     for (let i = 0; i < urls.length; i += 2) {
       const pageGroup = urls.slice(i, i + 2);
@@ -993,7 +993,7 @@ export default function Orders() {
 
     let html = "";
     pages.forEach((page, index) => {
-      console.log(`Renderizando HTML para página ${index + 1} com ${page.length} declarações (Usando layout da logística)`);
+      console.log(`Renderizando HTML para página ${index + 1} com ${page.length} declarações (Layout 1x2)`);
       html += `
         <div class="print-page">
           <div class="grid-container">
@@ -1061,7 +1061,7 @@ export default function Orders() {
                 gap: 0;
               }
               .cell {
-                border: 2px dashed #cbd5e1;
+                border: 1px dashed #cbd5e1;
                 padding: 0;
                 display: flex !important;
                 flex-direction: column;
@@ -1070,7 +1070,6 @@ export default function Orders() {
                 position: relative;
                 overflow: hidden;
                 background: white;
-                border-radius: 0.75rem;
               }
               .iframe-container {
                 width: 100%;
@@ -1083,8 +1082,10 @@ export default function Orders() {
                 position: absolute;
                 top: 0;
                 left: 0;
-                width: 100%;
-                height: 100%;
+                width: 200%;
+                height: 200%;
+                transform: scale(0.5);
+                transform-origin: top left;
               }
               .empty-cell {
                 color: #cbd5e1;
@@ -1119,17 +1120,16 @@ export default function Orders() {
               gap: 0;
             }
             .cell {
-              border: 2px dashed #cbd5e1;
+              border: 1px dashed #cbd5e1;
               display: flex;
               flex-direction: column;
               align-items: center;
               justify-content: center;
               position: relative;
               overflow: hidden;
-              border-radius: 0.75rem;
             }
             .iframe-container { width: 100%; height: 100%; position: relative; overflow: hidden; }
-            iframe { border: 0; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+            iframe { border: 0; position: absolute; top: 0; left: 0; width: 200%; height: 200%; transform: scale(0.5); transform-origin: top left; }
             .empty-cell { color: #cbd5e1; text-transform: uppercase; font-weight: bold; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
             .opacity-20 { opacity: 0.2; }
           </style>

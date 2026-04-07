@@ -4260,8 +4260,10 @@ export default function CepCertoAdmin() {
                                     src={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
                                     className="border-0 absolute top-0 left-0"
                                     style={{ 
-                                      width: '100%', 
-                                      height: '100%',
+                                      width: '200%', 
+                                      height: '200%',
+                                      transform: 'scale(0.5)',
+                                      transformOrigin: '0% 0%',
                                       border: 'none'
                                     }}
                                     title={`Print ${label.codigoObjeto}`} 
@@ -4296,13 +4298,13 @@ export default function CepCertoAdmin() {
                                   src={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
                                   className="border-0 absolute top-0 left-0"
                                   style={{ 
-                                    width: printType === 'etiqueta' ? '190%' : '100%', 
-                                    height: printType === 'etiqueta' ? '210%' : '100%',
-                                    transform: printType === 'etiqueta' ? 'scale(1.0)' : 'none',
+                                    width: printType === 'etiqueta' ? '190%' : '200%', 
+                                    height: printType === 'etiqueta' ? '210%' : '200%',
+                                    transform: printType === 'etiqueta' ? 'scale(1.0)' : 'scale(0.5)',
                                     transformOrigin: '0% 0%',
                                     border: 'none'
                                   }}
-                                  title={`Print ${label.codigoObjeto}`}
+                                  title={`Print ${label.codigoObjeto}`} 
                                 />
                               </div>
                             ) : (
