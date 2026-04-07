@@ -515,6 +515,23 @@ export default function Orders() {
     });
   };
 
+  const extractEtiquetaUrl = (order: Order) => {
+    console.log("🔎 Verificando etiqueta pedido:", order);
+    let url =
+      order.shipping_label_url ||
+      (order as any).pdfUrlEtiqueta ||
+      (order as any).etiquetaUrl ||
+      (order as any).etiqueta_url ||
+      (order as any).cepcerto_etiqueta ||
+      (order as any).frete?.etiquetaUrl ||
+      (order as any).shipping?.frete?.etiquetaUrl ||
+      (order as any).logistica?.etiquetaUrl ||
+      (order as any).cepcerto?.frete?.etiquetaUrl;
+    
+    console.log("📄 URL etiqueta final:", url);
+    return url;
+  };
+
   const handlePrintEtiquetas = () => {
     console.log("🚀 Iniciando impressão etiquetas");
     if (!selectedOrders || selectedOrders.length === 0) {
@@ -523,7 +540,7 @@ export default function Orders() {
     }
 
     const urls = selectedOrders.map((order: any) => {
-      const url = order.shipping_label_url || order.pdfUrlEtiqueta;
+      const url = extractEtiquetaUrl(order);
       return url;
     }).filter((url): url is string => !!url);
 
@@ -988,11 +1005,7 @@ export default function Orders() {
 
     console.log("Extraindo URLs de declaração...");
     const urls = selectedOrders.map((order: any) => {
-      const url = order.declaracao_url 
-        || order.declaration_url 
-        || order.cepcerto_declaracao
-        || order.shipping_declaration_url;
-      
+      const url = extractDeclaracaoUrl(order);
       console.log(`Pedido ${order.id || order.display_id}: ${url ? 'URL encontrada' : 'URL não encontrada'}`);
       return url;
     }).filter((url): url is string => !!url);
