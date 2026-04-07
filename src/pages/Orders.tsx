@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../lib/utils';
@@ -174,10 +174,14 @@ export default function Orders() {
       setTempTrackingCode(selectedOrder.tracking_code || '');
       setRealTimeTracking(null);
       
-      // Se já tem rastreio, tenta buscar o status real
+      // 1. Se já tem rastreio, tenta buscar o status real
       if (selectedOrder.tracking_code) {
         fetchRealTimeTracking(selectedOrder.tracking_code);
       }
+
+      // 2. Busca status de rastreio (histórico) e itens do pedido
+      fetchTrackingStatus(selectedOrder.id);
+      fetchOrderItems(selectedOrder.id);
     }
   }, [selectedOrder]);
 
@@ -875,7 +879,7 @@ export default function Orders() {
     setSelectedOrders([]);
   }, [searchTerm, statusFilter, startDate, endDate]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     console.log('🚀 fetchData chamada. activeTab:', activeTab);
     try {
       setLoading(true);
@@ -962,7 +966,7 @@ export default function Orders() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, isAdmin, navigate]);
 
   const extractTrackingCode = (order: Order) => {
     console.log("🔎 Buscando rastreador no pedido:", order);
@@ -1612,7 +1616,7 @@ export default function Orders() {
     }
   };
 
-  const fetchOrderItems = async (orderId: string) => {
+  const fetchOrderItems = useCallback(async (orderId: string) => {
     setLoadingItems(true);
     try {
       const { data: itemsData, error: itemsError } = await supabase
@@ -1642,9 +1646,9 @@ export default function Orders() {
     } finally {
       setLoadingItems(false);
     }
-  };
+  }, []);
 
-  const fetchTrackingStatus = async (orderId: string) => {
+  const fetchTrackingStatus = useCallback(async (orderId: string) => {
     if (!orderId) return;
     try {
       setLoadingTracking(true);
@@ -1665,14 +1669,9 @@ export default function Orders() {
     } finally {
       setLoadingTracking(false);
     }
-  };
+  }, []);
 
-  useEffect(() => {
-    if (selectedOrder) {
-      fetchTrackingStatus(selectedOrder.id);
-      fetchOrderItems(selectedOrder.id);
-    }
-  }, [selectedOrder]);
+  // useEffect removido pois foi consolidado no início do arquivo
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
@@ -1919,30 +1918,32 @@ export default function Orders() {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.customer_email && order.customer_email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (order.customer_name && order.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (order.customer_document && order.customer_document.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (order.customer_email && order.customer_email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (order.customer_name && order.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (order.customer_document && order.customer_document.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesStatus = 
-      statusFilter === 'all' || 
-      (statusFilter === 'no_label' ? !order.tracking_code : order.status === statusFilter);
+      const matchesStatus = 
+        statusFilter === 'all' || 
+        (statusFilter === 'no_label' ? !order.tracking_code : order.status === statusFilter);
 
-    let matchesDate = true;
-    const orderDate = new Date(order.created_at);
-    if (startDate) {
-      matchesDate = matchesDate && orderDate >= new Date(startDate);
-    }
-    if (endDate) {
-      // Ajusta para o final do dia
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      matchesDate = matchesDate && orderDate <= end;
-    }
+      let matchesDate = true;
+      const orderDate = new Date(order.created_at);
+      if (startDate) {
+        matchesDate = matchesDate && orderDate >= new Date(startDate);
+      }
+      if (endDate) {
+        // Ajusta para o final do dia
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && orderDate <= end;
+      }
 
-    return matchesSearch && matchesStatus && matchesDate;
-  });
+      return matchesSearch && matchesStatus && matchesDate;
+    });
+  }, [orders, searchTerm, statusFilter, startDate, endDate]);
 
   if (loading) return <Loading message="Carregando pedidos..." />;
 

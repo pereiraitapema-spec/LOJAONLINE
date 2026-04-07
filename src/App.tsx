@@ -129,6 +129,12 @@ function AppContent() {
             await supabase.from('profiles').update({ role: 'affiliate' }).eq('id', userId);
           } else {
             console.log('⚠️ Afiliado encontrado mas não está aprovado/ativo:', { status: affiliateById.status, active: affiliateById.active });
+            // Se o perfil diz que é afiliado mas o registro de afiliado não está aprovado, volta para customer
+            if (finalRole === 'affiliate') {
+              console.log('🔄 Downgrading role to customer (not approved affiliate)');
+              finalRole = 'customer';
+              await supabase.from('profiles').update({ role: 'customer' }).eq('id', userId);
+            }
           }
         } else if (email) {
           console.log('🔍 Não encontrado por ID, buscando por e-mail:', email);
@@ -155,9 +161,21 @@ function AppContent() {
               await supabase.from('profiles').update({ role: 'affiliate' }).eq('id', userId);
             } else {
               console.log('⚠️ Afiliado por e-mail não está aprovado/ativo:', { status: affiliateByEmail.status, active: affiliateByEmail.active });
+              // Se o perfil diz que é afiliado mas o registro de afiliado não está aprovado, volta para customer
+              if (finalRole === 'affiliate') {
+                console.log('🔄 Downgrading role to customer (not approved affiliate by email)');
+                finalRole = 'customer';
+                await supabase.from('profiles').update({ role: 'customer' }).eq('id', userId);
+              }
             }
           } else {
             console.log('❌ Nenhum registro de afiliado encontrado para este usuário.');
+            // Se o perfil diz que é afiliado mas não existe registro na tabela affiliates, volta para customer
+            if (finalRole === 'affiliate') {
+              console.log('🔄 Downgrading role to customer (no affiliate record found)');
+              finalRole = 'customer';
+              await supabase.from('profiles').update({ role: 'customer' }).eq('id', userId);
+            }
           }
         }
       }
