@@ -4248,7 +4248,10 @@ export default function CepCertoAdmin() {
                   {/* Declarações */}
                   {(() => {
                     const filtered = etiquetasGeradas.filter(e => selectedLabels.includes(e.id));
-                    console.log(`[Logística] Gerando ${filtered.length} declarações...`);
+                    console.log("%c[Logística] Gerando " + filtered.length + " declarações...", "color: #2563eb; font-weight: bold;");
+                    console.log("Configuração: 2 por página (100% largura, 50% altura)");
+                    console.log("CSS: width: 100%, height: 200%, transform: scale(1.0)");
+                    
                     return chunkArray(filtered, 2).map((pageLabels, pageIndex) => {
                       console.log(`[Logística] Página Declaração ${pageIndex + 1}:`, pageLabels);
                       return (
@@ -4294,7 +4297,14 @@ export default function CepCertoAdmin() {
                 (() => {
                   const filtered = etiquetasGeradas.filter(e => selectedLabels.includes(e.id));
                   const itemsPerPage = printType === 'etiqueta' ? 4 : 2;
-                  console.log(`[Logística Single] Gerando ${filtered.length} itens (${printType})...`);
+                  console.log("%c[Logística Single] Gerando " + filtered.length + " itens (" + printType + ")...", "color: #2563eb; font-weight: bold;");
+                  if (printType !== 'etiqueta') {
+                    console.log("Configuração: 2 por página (100% largura, 50% altura)");
+                    console.log("CSS: width: 100%, height: 200%, transform: scale(1.0)");
+                  } else {
+                    console.log("Configuração: 4 por página (Etiquetas)");
+                    console.log("CSS: width: 190%, height: 210%, transform: scale(1.0)");
+                  }
                   
                   return chunkArray(filtered, itemsPerPage).map((pageLabels, pageIndex) => {
                     console.log(`[Logística Single] Página ${pageIndex + 1}:`, pageLabels);

@@ -1142,7 +1142,19 @@ export default function Orders() {
           ${html}
           <script>
             window.onload = () => {
-              console.log("Janela de impressão aberta (Layout Logística). Verificando iframes...");
+              console.log("%c==========================================", "color: #2563eb; font-weight: bold;");
+              console.log("%cLOG DE FORMATAÇÃO DE IMPRESSÃO (DECLARAÇÃO)", "color: #2563eb; font-weight: bold;");
+              console.log("%c==========================================", "color: #2563eb; font-weight: bold;");
+              console.log("Layout: A4 Vertical (210mm x 297mm)");
+              console.log("Distribuição: 1 Coluna x 2 Linhas");
+              console.log("Itens por Página: 2");
+              console.log("Configuração do Iframe:");
+              console.log("- Largura: 100% (Preenche a largura da célula)");
+              console.log("- Altura: 200% (O dobro da altura da célula)");
+              console.log("- Escala: 1.0 (Tamanho original)");
+              console.log("- Resultado: Exibe a metade superior do PDF em 50% da folha.");
+              console.log("------------------------------------------");
+
               const iframes = document.querySelectorAll('iframe');
               console.log("Total de iframes encontrados:", iframes.length);
               let loadedCount = 0;
@@ -1155,9 +1167,9 @@ export default function Orders() {
               
               const checkAllLoaded = () => {
                 loadedCount++;
-                console.log("Iframe carregado (" + loadedCount + "/" + iframes.length + ")");
+                console.log("%cIframe carregado (" + loadedCount + "/" + iframes.length + ")", "color: #059669;");
                 if (loadedCount === iframes.length) {
-                  console.log("Todos os iframes carregados. Iniciando impressão em 2.5s...");
+                  console.log("%cTodos os iframes carregados. Iniciando impressão em 2.5s...", "color: #059669; font-weight: bold;");
                   setTimeout(() => {
                     window.print();
                   }, 2500);
