@@ -107,17 +107,19 @@ export default function Dashboard() {
           return Promise.race([promise, timeoutPromise]);
         };
 
-        const [ordersRes, productsRes, affiliatesRes, abandonedRes, leadsRes, allOrdersRes] = await Promise.all([
+        const [ordersRes, productsRes, affiliatesRes, abandonedRes, leadsRes] = await Promise.all([
           fetchWithTimeout(Promise.resolve(supabase.from('orders')
-            .select('*')
+            .select('*, order_items(*)')
             .in('status', ['paid', 'processing', 'shipped', 'delivered'])
             .gte('created_at', `${dateRange.start}T00:00:00Z`)
             .lte('created_at', `${dateRange.end}T23:59:59Z`))),
           fetchWithTimeout(Promise.resolve(supabase.from('products').select('*'))),
           fetchWithTimeout(Promise.resolve(supabase.from('affiliates').select('*'))),
-          fetchWithTimeout(Promise.resolve(supabase.from('abandoned_carts').select('*'))),
-          fetchWithTimeout(Promise.resolve(supabase.from('leads').select('*'))),
-          fetchWithTimeout(Promise.resolve(supabase.from('orders').select('*, order_items(*)')))
+          fetchWithTimeout(Promise.resolve(supabase.from('abandoned_carts')
+            .select('*')
+            .gte('created_at', `${dateRange.start}T00:00:00Z`)
+            .lte('created_at', `${dateRange.end}T23:59:59Z`))),
+          fetchWithTimeout(Promise.resolve(supabase.from('leads').select('*')))
         ]);
 
         const orders = ordersRes.data || [];
@@ -125,34 +127,24 @@ export default function Dashboard() {
         const affiliates = affiliatesRes.data || [];
         const abandoned = abandonedRes.data || [];
         const leads = leadsRes.data || [];
-        const allOrders = allOrdersRes.data || [];
 
         // Calculate Revenue
         const revenue = orders.reduce((acc, o) => acc + o.total, 0);
 
         // Calculate Costs
         const totalCommissions = orders.reduce((acc, o) => acc + (o.commission_value || 0), 0);
-        const totalOperational = orders.reduce((acc, o) => acc + (o.operational_cost || 0), 0);
-        const totalMarketing = orders.reduce((acc, o) => acc + (o.marketing_cost || 0), 0);
         const totalShipping = orders.reduce((acc, o) => acc + (o.shipping_cost || 0), 0);
         
-        // Let's try to get a more accurate COGS (Cost of Goods Sold)
+        // Calculate COGS (Cost of Goods Sold) based on items in the filtered orders
         let calculatedCOGS = 0;
-        if (orders.length > 0) {
-          const { data: items } = await supabase
-            .from('order_items')
-            .select('quantity, price, product_id')
-            .in('order_id', orders.map(o => o.id));
-          
-          if (items && items.length > 0) {
-            calculatedCOGS = items.reduce((acc, item: any) => {
-              const product = products.find(p => p.id === item.product_id);
-              // Use actual cost_price if available, otherwise fallback to 40% of selling price
-              const unitCost = product?.cost_price || (item.price * 0.4);
-              return acc + (item.quantity * unitCost);
-            }, 0);
-          }
-        }
+        orders.forEach(order => {
+          (order.order_items || []).forEach((item: any) => {
+            const product = products.find(p => p.id === item.product_id);
+            // Use actual cost_price if available, otherwise fallback to 40% of selling price
+            const unitCost = product?.cost_price || (item.price * 0.4);
+            calculatedCOGS += (item.quantity * unitCost);
+          });
+        });
 
         // Simulating taxes (Nota Fiscal) for now, e.g., 6% of revenue
         const totalTaxes = revenue * 0.06;
@@ -160,7 +152,8 @@ export default function Dashboard() {
         // Simulating Gateway Fees (e.g., 4% average)
         const totalGatewayFees = revenue * 0.04;
 
-        const totalExpenses = calculatedCOGS + totalCommissions + totalOperational + totalMarketing + totalShipping + totalTaxes + totalGatewayFees;
+        // Total expenses (Operational and Marketing removed as they don't exist in schema)
+        const totalExpenses = calculatedCOGS + totalCommissions + totalShipping + totalTaxes + totalGatewayFees;
         const profit = revenue - totalExpenses;
         
         // Stock Metrics
@@ -180,10 +173,10 @@ export default function Dashboard() {
         const avgTicketDirect = directOrders.length > 0 ? directOrders.reduce((acc, o) => acc + o.total, 0) / directOrders.length : 0;
         const avgTicketAffiliate = affiliateOrders.length > 0 ? affiliateOrders.reduce((acc, o) => acc + o.total, 0) / affiliateOrders.length : 0;
 
-        // Shipping Stats (from all orders)
-        const ordersPrepared = allOrders.filter(o => o.status === 'paid' || o.status === 'processing').length;
-        const ordersShipped = allOrders.filter(o => o.status === 'shipped').length;
-        const ordersDelivered = allOrders.filter(o => o.status === 'delivered').length;
+        // Shipping Stats (from filtered orders)
+        const ordersPrepared = orders.filter(o => o.status === 'paid' || o.status === 'processing').length;
+        const ordersShipped = orders.filter(o => o.status === 'shipped').length;
+        const ordersDelivered = orders.filter(o => o.status === 'delivered').length;
 
         // Abandoned Carts
         const abandonedCount = abandoned.filter(c => c.status === 'abandoned').length;
@@ -194,9 +187,9 @@ export default function Dashboard() {
         const leadsWarm = leads.filter(l => l.status_lead === 'morno').length;
         const leadsHot = leads.filter(l => l.status_lead === 'quente').length;
 
-        // Top Products
+        // Top Products (based on filtered orders)
         const productSales: Record<string, { name: string, quantity: number, revenue: number }> = {};
-        allOrders.filter(o => o.status === 'paid' || o.status === 'processing' || o.status === 'shipped' || o.status === 'delivered').forEach(order => {
+        orders.forEach(order => {
           (order.order_items || []).forEach((item: any) => {
             const productId = item.product_id;
             const product = products.find(p => p.id === productId);
@@ -224,8 +217,8 @@ export default function Dashboard() {
           totalCommissions,
           totalTaxes,
           totalGatewayFees,
-          totalMarketing,
-          totalOperational,
+          totalMarketing: 0,
+          totalOperational: 0,
           totalShipping,
           stockValue,
           stockRetailValue,

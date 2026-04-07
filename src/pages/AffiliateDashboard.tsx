@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -76,9 +76,11 @@ interface Lead {
   id: string;
   email: string;
   nome: string | null;
-  phone: string | null;
+  phone?: string | null;
   status_lead: string;
   score: number;
+  ultimo_produto_comprado?: string;
+  valor_total_gasto?: number;
   created_at: string;
   updated_at: string;
 }
@@ -95,12 +97,40 @@ export default function AffiliateDashboard() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'coupons' | 'sales' | 'payments' | 'leads'>('products');
+  
+  const [productStats, setProductStats] = useState<any[]>([]);
+  
+  const stats = useMemo(() => {
+    const validOrders = orders.filter(o => ['paid', 'processing', 'shipped', 'delivered'].includes(o.status));
+    const totalSales = validOrders.reduce((acc, o) => acc + o.total, 0);
+    const totalCommission = validOrders.reduce((acc, o) => acc + (o.commission_value || 0), 0);
+    const avgTicketCommission = validOrders.length > 0 ? totalCommission / validOrders.length : 0;
+    const avgTicketSale = validOrders.length > 0 ? totalSales / validOrders.length : 0;
+
+    const topProduct = productStats.length > 0 ? productStats[0] : null;
+
+    return {
+      totalSales,
+      totalCommission,
+      avgTicketCommission,
+      avgTicketSale,
+      topProduct,
+      validOrdersCount: validOrders.length
+    };
+  }, [orders, productStats]);
+
+  const leadsStats = useMemo(() => {
+    return {
+      total: leads.length,
+      paid: leads.filter(l => l.status_lead === 'cliente').length,
+      unpaid: leads.filter(l => l.status_lead !== 'cliente').length
+    };
+  }, [leads]);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<'7' | '30' | '90' | 'all' | 'custom'>('30');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showCommissionModal, setShowCommissionModal] = useState(false);
-  const [productStats, setProductStats] = useState<any[]>([]);
   
   // Estado para criação de cupom
   const [couponCode, setCouponCode] = useState('');
@@ -255,7 +285,7 @@ export default function AffiliateDashboard() {
   const fetchOrders = async (affiliateId: string, range: string) => {
     let query = supabase
       .from('orders')
-      .select('*, order_items(*)')
+      .select('id, created_at, customer_name, total, commission_value, status, order_items(product_id, product_name, quantity, price)')
       .eq('affiliate_id', affiliateId)
       .order('created_at', { ascending: false });
 
@@ -294,10 +324,11 @@ export default function AffiliateDashboard() {
       }));
       setOrders(mappedOrders);
 
-      // Calcular estatísticas por produto
+      // Calcular estatísticas por produto (Apenas pedidos válidos)
+      const validStatuses = ['paid', 'processing', 'shipped', 'delivered'];
       const statsMap = new Map();
       data.forEach((order: any) => {
-        if (order.status === 'paid' || order.status === 'delivered' || order.status === 'shipped') {
+        if (validStatuses.includes(order.status)) {
           (order.order_items || []).forEach((item: any) => {
             const existing = statsMap.get(item.product_id) || { 
               id: item.product_id, 
@@ -353,7 +384,7 @@ export default function AffiliateDashboard() {
   const fetchLeads = async (affiliateId: string, range: string) => {
     let query = supabase
       .from('leads')
-      .select('*')
+      .select('id, created_at, updated_at, nome, email, status_lead, score, ultimo_produto_comprado, valor_total_gasto')
       .eq('affiliate_id', affiliateId)
       .order('created_at', { ascending: false });
 
@@ -696,10 +727,10 @@ export default function AffiliateDashboard() {
               </div>
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Top Produto (Comissão)</span>
             </div>
-            {productStats.length > 0 ? (
+            {stats.topProduct ? (
               <div>
-                <h3 className="font-black text-slate-900 text-lg truncate mb-1">{productStats[0].name}</h3>
-                <p className="text-xs text-emerald-600 font-bold">R$ {productStats[0].total_commission.toFixed(2)} acumulados</p>
+                <h3 className="font-black text-slate-900 text-lg truncate mb-1">{stats.topProduct.name}</h3>
+                <p className="text-xs text-emerald-600 font-bold">R$ {stats.topProduct.total_commission.toFixed(2)} acumulados</p>
               </div>
             ) : (
               <p className="text-sm text-slate-400 italic">Sem vendas ainda</p>
@@ -715,9 +746,9 @@ export default function AffiliateDashboard() {
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ticket Médio Comissão</span>
             </div>
             <h3 className="font-black text-slate-900 text-2xl">
-              R$ {orders.length > 0 ? (orders.reduce((acc, o) => acc + o.commission_value, 0) / orders.length).toFixed(2) : '0.00'}
+              R$ {stats.avgTicketCommission.toFixed(2)}
             </h3>
-            <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Média por venda</p>
+            <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Média por venda paga</p>
           </div>
 
           {/* Ticket Médio Venda */}
@@ -729,9 +760,9 @@ export default function AffiliateDashboard() {
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ticket Médio Venda</span>
             </div>
             <h3 className="font-black text-slate-900 text-2xl">
-              R$ {orders.length > 0 ? (orders.reduce((acc, o) => acc + o.total, 0) / orders.length).toFixed(2) : '0.00'}
+              R$ {stats.avgTicketSale.toFixed(2)}
             </h3>
-            <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Valor médio do pedido</p>
+            <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Valor médio do pedido pago</p>
           </div>
 
       {/* Filtro de Período */}
@@ -1058,9 +1089,9 @@ export default function AffiliateDashboard() {
                     <tr className="border-b border-slate-100">
                       <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Data</th>
                       <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Nome</th>
-                      <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">E-mail</th>
-                      <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
-                      <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Score</th>
+                      <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Produto</th>
+                      <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Valor</th>
+                      <th className="py-4 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Status Pagamento</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1069,30 +1100,14 @@ export default function AffiliateDashboard() {
                         <tr key={lead.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                           <td className="py-4 px-2 text-sm text-slate-600">{formatDate(lead.created_at)}</td>
                           <td className="py-4 px-2 text-sm font-bold text-slate-900">{lead.nome || 'N/A'}</td>
-                          <td className="py-4 px-2 text-sm text-slate-600">{lead.email}</td>
+                          <td className="py-4 px-2 text-sm text-slate-600">{lead.ultimo_produto_comprado || '-'}</td>
+                          <td className="py-4 px-2 text-sm font-bold text-slate-900">{formatCurrency(lead.valor_total_gasto || 0)}</td>
                           <td className="py-4 px-2">
                             <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${
-                              lead.status_lead === 'quente' ? 'bg-red-100 text-red-600' :
-                              lead.status_lead === 'morno' ? 'bg-amber-100 text-amber-600' :
-                              'bg-blue-100 text-blue-600'
+                              lead.status_lead === 'cliente' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
                             }`}>
-                              {lead.status_lead}
+                              {lead.status_lead === 'cliente' ? 'Pagou' : 'Não pagou'}
                             </span>
-                          </td>
-                          <td className="py-4 px-2">
-                            <div className="flex items-center gap-1">
-                              <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <div 
-                                  className={`h-full rounded-full ${
-                                    lead.score >= 70 ? 'bg-emerald-500' :
-                                    lead.score >= 30 ? 'bg-amber-500' :
-                                    'bg-blue-500'
-                                  }`}
-                                  style={{ width: `${Math.min(lead.score, 100)}%` }}
-                                />
-                              </div>
-                              <span className="text-[10px] font-bold text-slate-400">{lead.score}</span>
-                            </div>
                           </td>
                         </tr>
                       ))

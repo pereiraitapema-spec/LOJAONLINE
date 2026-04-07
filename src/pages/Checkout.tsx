@@ -1079,20 +1079,19 @@ export default function Checkout() {
       }
       
       if (affiliateId) {
-        // Encontrar a maior taxa entre os produtos no carrinho e a taxa padrão do afiliado
-        const productRates = cart.map(item => item.product.affiliate_commission || 0);
-        let maxRate = Math.max(commissionRate, ...productRates);
-        
-        // Se houver cupom de afiliado, descontar metade do valor do cupom da comissão do afiliado
-        if (affiliateCoupon) {
-          const commissionDeduction = affiliateCoupon.discount_percentage / 2;
-          maxRate = Math.max(0, maxRate - commissionDeduction);
-        }
-        
-        // Calculate commission based on the highest rate (adjusted by coupon if applicable)
+        // Calculate commission per item based on the best rate for each product
         commissionValue = cart.reduce((acc, item) => {
           const price = item.product.discount_price || item.product.price;
-          return acc + ((price * maxRate / 100) * item.quantity);
+          const productRate = item.product.affiliate_commission || 0;
+          let effectiveRate = Math.max(commissionRate, productRate);
+          
+          // Se houver cupom de afiliado, descontar metade do valor do cupom da comissão do afiliado
+          if (affiliateCoupon) {
+            const commissionDeduction = affiliateCoupon.discount_percentage / 2;
+            effectiveRate = Math.max(0, effectiveRate - commissionDeduction);
+          }
+          
+          return acc + ((price * effectiveRate / 100) * item.quantity);
         }, 0);
       }
 
@@ -1158,8 +1157,11 @@ export default function Checkout() {
         }
       }
       
-      // Marcar como lead quente ao realizar pedido
-      leadService.updateStatus('quente');
+      // Marcar como lead quente ao realizar pedido e salvar informações de compra
+      leadService.updateStatus('quente', {
+        product: cart.map(i => i.product.name).join(', '),
+        value: finalTotal
+      });
 
       // 1.1 Mark abandoned cart as recovered
       if (abandonedCartId) {

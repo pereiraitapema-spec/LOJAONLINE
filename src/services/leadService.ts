@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 export type LeadStatus = 'frio' | 'morno' | 'quente' | 'cliente' | 'inativo';
 
 export const leadService = {
-  async updateStatus(status: LeadStatus) {
+  async updateStatus(status: LeadStatus, purchaseData?: { product: string, value: number }) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -17,7 +17,7 @@ export const leadService = {
       // 1. Busca status atual para lógica de progressão
       const { data: lead } = await supabase
         .from('leads')
-        .select('status_lead, nome')
+        .select('status_lead, nome, valor_total_gasto')
         .eq('id', userId)
         .maybeSingle();
 
@@ -27,24 +27,32 @@ export const leadService = {
 
       const currentStatus = (lead?.status_lead || 'frio') as LeadStatus;
       
-      // Se status novo não for superior, não faz nada
-      if (statusOrder[status] <= statusOrder[currentStatus]) return;
+      // Se status novo não for superior AND não houver dados de compra, não faz nada
+      if (statusOrder[status] <= statusOrder[currentStatus] && !purchaseData) return;
 
       // 3. Get affiliate_id from localStorage if exists
       const affiliateId = localStorage.getItem('affiliate_code');
 
       // 2. Upsert atômico
+      const payload: any = {
+        id: userId,
+        nome: lead?.nome || name,
+        email: email,
+        status_lead: status,
+        affiliate_id: affiliateId,
+        score: status === 'morno' ? 30 : (status === 'quente' ? 100 : (status === 'cliente' ? 150 : 10)),
+        updated_at: new Date().toISOString()
+      };
+
+      if (purchaseData) {
+        payload.ultimo_produto_comprado = purchaseData.product;
+        payload.valor_total_gasto = (lead?.valor_total_gasto || 0) + purchaseData.value;
+        payload.ultima_compra_data = new Date().toISOString();
+      }
+
       const { data: updatedLead, error } = await supabase
         .from('leads')
-        .upsert({
-          id: userId,
-          nome: lead?.nome || name,
-          email: email,
-          status_lead: status,
-          affiliate_id: affiliateId,
-          score: status === 'morno' ? 30 : (status === 'quente' ? 100 : 10),
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' })
+        .upsert(payload, { onConflict: 'id' })
         .select()
         .single();
 
