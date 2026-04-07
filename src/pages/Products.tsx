@@ -1121,15 +1121,18 @@ export default function Products() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-1">Comissão Afiliado</label>
+                          <label className="block text-sm font-bold text-slate-700 mb-1">Comissão Afiliado (%)</label>
                           <input 
                             type="number" 
                             step="0.01"
                             value={productForm.affiliate_commission}
                             onChange={e => setProductForm({...productForm, affiliate_commission: e.target.value})}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="0.00"
+                            placeholder="Ex: 20"
                           />
+                          <p className="text-[10px] text-slate-400 mt-1 font-medium italic">
+                            Valor estimado: R$ {(parseFloat(productForm.discount_price || productForm.price || '0') * parseFloat(productForm.affiliate_commission || '0') / 100).toFixed(2)}
+                          </p>
                         </div>
                       </div>
 
@@ -1150,8 +1153,8 @@ export default function Products() {
                             <span className="font-bold text-rose-400">- R$ {(parseFloat(productForm.discount_price || productForm.price || '0') * parseFloat(productForm.tax_percentage || '0') / 100).toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between border-b border-white/10 pb-1">
-                            <span className="text-slate-400">Comissão Afiliado:</span>
-                            <span className="font-bold text-rose-400">- R$ {parseFloat(productForm.affiliate_commission || '0').toFixed(2)}</span>
+                            <span className="text-slate-400">Comissão Afiliado ({productForm.affiliate_commission}%):</span>
+                            <span className="font-bold text-rose-400">- R$ {(parseFloat(productForm.discount_price || productForm.price || '0') * parseFloat(productForm.affiliate_commission || '0') / 100).toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between border-b border-white/10 pb-1">
                             <span className="text-slate-400">Outros Custos:</span>
@@ -1164,7 +1167,7 @@ export default function Products() {
                                 parseFloat(productForm.discount_price || productForm.price || '0') -
                                 parseFloat(productForm.cost_price || '0') -
                                 (parseFloat(productForm.discount_price || productForm.price || '0') * parseFloat(productForm.tax_percentage || '0') / 100) -
-                                parseFloat(productForm.affiliate_commission || '0') -
+                                (parseFloat(productForm.discount_price || productForm.price || '0') * parseFloat(productForm.affiliate_commission || '0') / 100) -
                                 (parseFloat(productForm.shipping_cost || '0') + parseFloat(productForm.operational_cost || '0') + parseFloat(productForm.marketing_cost || '0'))
                               ).toFixed(2)}
                             </span>
@@ -1273,17 +1276,6 @@ export default function Products() {
                           <p className="text-[10px] text-slate-400 text-center py-2 italic">Nenhum desconto progressivo configurado.</p>
                         )}
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">Comissão Afiliado (R$ ou %)</label>
-                      <input 
-                        type="number" 
-                        step="0.01"
-                        value={productForm.affiliate_commission}
-                        onChange={e => setProductForm({...productForm, affiliate_commission: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                      />
                     </div>
 
                     <div>
