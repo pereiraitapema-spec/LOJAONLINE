@@ -175,13 +175,39 @@ export default function Affiliates() {
 
   const fetchAllAffiliates = async () => {
     try {
-      const { data, error } = await supabase
-        .from('affiliates')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Fetch affiliates, orders (paid), and payments (paid) in parallel for dynamic calculation
+      const [affRes, ordersRes, paymentsRes] = await Promise.all([
+        supabase.from('affiliates').select('*').order('created_at', { ascending: false }),
+        supabase.from('orders').select('affiliate_id, commission_value').in('status', ['paid', 'processing', 'shipped', 'delivered']),
+        supabase.from('affiliate_payments').select('affiliate_id, amount').eq('status', 'paid')
+      ]);
 
-      if (error) throw error;
-      setAffiliatesList(data || []);
+      if (affRes.error) throw affRes.error;
+
+      const affiliates = affRes.data || [];
+      const orders = ordersRes.data || [];
+      const payments = paymentsRes.data || [];
+
+      const mapped = affiliates.map(aff => {
+        // Calculate total commissions from valid orders
+        const totalCommissions = orders
+          .filter(o => o.affiliate_id === aff.id)
+          .reduce((acc, o) => acc + (o.commission_value || 0), 0);
+        
+        // Calculate total already paid to the affiliate
+        const totalPaid = payments
+          .filter(p => p.affiliate_id === aff.id)
+          .reduce((acc, p) => acc + (p.amount || 0), 0);
+
+        return {
+          ...aff,
+          // Balance is what's left to pay
+          balance: totalCommissions - totalPaid,
+          total_paid: totalPaid
+        };
+      });
+
+      setAffiliatesList(mapped);
     } catch (error: any) {
       toast.error('Erro ao carregar afiliados: ' + error.message);
     } finally {
@@ -191,23 +217,32 @@ export default function Affiliates() {
 
   const fetchAffiliateData = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data: aff, error: affError } = await supabase
         .from('affiliates')
         .select('*')
         .eq('user_id', userId)
         .single();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (affError && affError.code !== 'PGRST116') throw affError;
 
-      if (data) {
-        setAffiliateData(data);
-        setPixKey(data.pix_key || '');
-        // Se aprovado, redirecionar para dashboard? 
-        // Não, aqui é a página de "Status" ou "Cadastro". 
-        // Mas se ele já é aprovado, talvez queira ver o dashboard.
-        if (data.status === 'approved') {
-            // Opcional: navigate('/afiliados/dashboard');
-        }
+      if (aff) {
+        // Fetch orders and payments for this specific affiliate to calculate balance
+        const [ordersRes, paymentsRes] = await Promise.all([
+          supabase.from('orders').select('commission_value').eq('affiliate_id', aff.id).in('status', ['paid', 'processing', 'shipped', 'delivered']),
+          supabase.from('affiliate_payments').select('amount').eq('affiliate_id', aff.id).eq('status', 'paid')
+        ]);
+
+        const totalCommissions = (ordersRes.data || []).reduce((acc, o) => acc + (o.commission_value || 0), 0);
+        const totalPaid = (paymentsRes.data || []).reduce((acc, p) => acc + (p.amount || 0), 0);
+
+        const calculatedAffiliate = {
+          ...aff,
+          balance: totalCommissions - totalPaid,
+          total_paid: totalPaid
+        };
+
+        setAffiliateData(calculatedAffiliate);
+        setPixKey(aff.pix_key || '');
       }
     } catch (error: any) {
       toast.error('Erro ao carregar dados: ' + error.message);
@@ -388,26 +423,9 @@ export default function Affiliates() {
 
       if (updateError) throw updateError;
 
-      // Atualizar saldo do afiliado
-      const payment = paymentsList.find(p => p.id === paymentId);
-      if (payment) {
-        const { data: aff } = await supabase
-          .from('affiliates')
-          .select('balance, total_paid')
-          .eq('id', affiliateId)
-          .single();
-        
-        if (aff) {
-          await supabase
-            .from('affiliates')
-            .update({
-              balance: (aff.balance || 0) - payment.amount,
-              total_paid: (aff.total_paid || 0) + payment.amount
-            })
-            .eq('id', affiliateId);
-        }
-      }
-
+      // O saldo agora é calculado dinamicamente, não precisamos atualizar a coluna 'balance'
+      // Apenas recarregamos os dados para refletir a mudança no status do pagamento
+      
       toast.success('Pagamento realizado e comprovante enviado!');
       fetchPayments();
       fetchAllAffiliates();

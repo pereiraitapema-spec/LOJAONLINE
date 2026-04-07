@@ -1081,18 +1081,32 @@ export default function Checkout() {
       if (affiliateId) {
         // Calculate commission per item based on the best rate for each product
         commissionValue = cart.reduce((acc, item) => {
-          const price = item.product.discount_price || item.product.price;
+          const unitPrice = item.product.discount_price || item.product.price;
           const productRate = item.product.affiliate_commission || 0;
+          // Use the higher rate between affiliate's default and product's specific rate
           let effectiveRate = Math.max(commissionRate, productRate);
           
-          // Se houver cupom de afiliado, descontar metade do valor do cupom da comissão do afiliado
+          // If an affiliate coupon is used, deduct half of the discount percentage from the commission rate
           if (affiliateCoupon) {
             const commissionDeduction = affiliateCoupon.discount_percentage / 2;
             effectiveRate = Math.max(0, effectiveRate - commissionDeduction);
           }
+
+          // Safety cap: Never exceed 50% unless explicitly allowed (for now, hard cap at 50%)
+          if (effectiveRate > 50) {
+            console.warn(`⚠️ Taxa de comissão excessiva detectada (${effectiveRate}%). Limitando a 50%.`);
+            effectiveRate = 50;
+          }
           
-          return acc + ((price * effectiveRate / 100) * item.quantity);
+          const itemCommission = (unitPrice * effectiveRate / 100) * item.quantity;
+          console.log(`💰 Cálculo Comissão: Item=${item.product.name}, Preço=${unitPrice}, Taxa=${effectiveRate}%, Qtd=${item.quantity}, Comissão=${itemCommission}`);
+          
+          // Commission = (Unit Price * Rate / 100) * Quantity
+          return acc + itemCommission;
         }, 0);
+        
+        // Ensure commissionValue is a clean number
+        commissionValue = Number(commissionValue.toFixed(2));
       }
 
       // 1. Create Order in Supabase
@@ -1469,22 +1483,9 @@ export default function Checkout() {
         return;
       }
 
-      // 3.1 Se houver comissão e for pago, atualizar saldo do afiliado
-      // (Em um sistema real, isso seria feito após a confirmação do pagamento)
-      if (initialStatus === 'paid' && commissionValue > 0 && affiliateId) {
-        const { data: aff } = await supabase
-          .from('affiliates')
-          .select('balance')
-          .eq('id', affiliateId)
-          .single();
-        
-        if (aff) {
-          await supabase
-            .from('affiliates')
-            .update({ balance: (aff.balance || 0) + commissionValue })
-            .eq('id', affiliateId);
-        }
-      }
+      // 3.1 Se houver comissão e for pago, o saldo será refletido nos cálculos dinâmicos
+      // Removida atualização manual da coluna 'balance' para evitar desincronização e duplicidade.
+      // O saldo agora é calculado em tempo real: Sum(comissões) - Sum(pagamentos).
 
       // Clear cart
       localStorage.removeItem('cart_items');

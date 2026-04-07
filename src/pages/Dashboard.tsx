@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
@@ -58,10 +58,9 @@ export default function Dashboard() {
     );
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
+  const fetchData = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
           navigate('/login');
@@ -132,7 +131,22 @@ export default function Dashboard() {
         const revenue = orders.reduce((acc, o) => acc + o.total, 0);
 
         // Calculate Costs
-        const totalCommissions = orders.reduce((acc, o) => acc + (o.commission_value || 0), 0);
+        const totalCommissions = orders.reduce((acc, o) => {
+          // Se o valor da comissão estiver faltando ou parecer excessivo (> 50% do total), 
+          // recalculamos com base na taxa do afiliado para garantir a precisão no dashboard.
+          const aff = affiliates.find(a => a.id === o.affiliate_id);
+          const rate = aff?.commission_rate || 20;
+          
+          // Se o valor armazenado for muito diferente do esperado (mais de 5% de margem), usamos o esperado
+          const expected = (o.total * rate / 100);
+          const current = o.commission_value || 0;
+          
+          if (Math.abs(current - expected) > (o.total * 0.05)) {
+            return acc + expected;
+          }
+          
+          return acc + current;
+        }, 0);
         const totalShipping = orders.reduce((acc, o) => acc + (o.shipping_cost || 0), 0);
         
         // Calculate COGS (Cost of Goods Sold) based on items in the filtered orders
@@ -245,17 +259,42 @@ export default function Dashboard() {
       } finally {
         setLoading(false);
       }
-    };
+  }, [dateRange, navigate]);
 
+  useEffect(() => {
     fetchData();
 
-    // Safety timeout to release loading state
-    const safetyTimeout = setTimeout(() => {
-      setLoading(false);
-    }, 10000);
+    // Real-time listeners
+    const ordersChannel = supabase
+      .channel('dashboard-orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        console.log('🔄 Pedidos atualizados, recarregando dashboard...');
+        fetchData();
+      })
+      .subscribe();
 
-    return () => clearTimeout(safetyTimeout);
-  }, [navigate, dateRange]);
+    const leadsChannel = supabase
+      .channel('dashboard-leads')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
+        console.log('🔄 Leads atualizados, recarregando dashboard...');
+        fetchData();
+      })
+      .subscribe();
+
+    const affiliatesChannel = supabase
+      .channel('dashboard-affiliates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'affiliates' }, () => {
+        console.log('🔄 Afiliados atualizados, recarregando dashboard...');
+        fetchData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(leadsChannel);
+      supabase.removeChannel(affiliatesChannel);
+    };
+  }, [fetchData]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

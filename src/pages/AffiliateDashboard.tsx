@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -98,12 +98,62 @@ export default function AffiliateDashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'coupons' | 'sales' | 'payments' | 'leads'>('products');
   
+  const [totalBalance, setTotalBalance] = useState(0);
+  const [totalPaid, setTotalPaid] = useState(0);
   const [productStats, setProductStats] = useState<any[]>([]);
-  
+  const [saving, setSaving] = useState(false);
+
+  const fetchBalance = useCallback(async (affId: string) => {
+    try {
+      // Fetch ALL orders and ALL payments for this affiliate to calculate the real balance
+      // We don't filter by date range here because balance is cumulative
+      const [ordersRes, paymentsRes, affiliateRes] = await Promise.all([
+        supabase.from('orders')
+          .select('total, commission_value, affiliate_id')
+          .eq('affiliate_id', affId)
+          .in('status', ['paid', 'processing', 'shipped', 'delivered']),
+        supabase.from('affiliate_payments')
+          .select('amount')
+          .eq('affiliate_id', affId)
+          .eq('status', 'paid'),
+        supabase.from('affiliates').select('commission_rate').eq('id', affId).maybeSingle()
+      ]);
+
+      const affiliateRate = affiliateRes.data?.commission_rate || 20;
+
+      const commissions = (ordersRes.data || []).reduce((acc, o) => {
+        // Sincronizar lógica com Dashboard.tsx: Recalcular se o valor parecer excessivo
+        const expected = (o.total * affiliateRate / 100);
+        const current = o.commission_value || 0;
+        
+        // Se a diferença for maior que 5% do total, usamos o esperado para manter sincronizado com o admin
+        if (Math.abs(current - expected) > (o.total * 0.05)) {
+          return acc + expected;
+        }
+        return acc + current;
+      }, 0);
+
+      const paid = (paymentsRes.data || []).reduce((acc, p) => acc + (p.amount || 0), 0);
+
+      setTotalBalance(commissions - paid);
+      setTotalPaid(paid);
+    } catch (error) {
+      console.error('Erro ao calcular saldo:', error);
+    }
+  }, []);
   const stats = useMemo(() => {
     const validOrders = orders.filter(o => ['paid', 'processing', 'shipped', 'delivered'].includes(o.status));
     const totalSales = validOrders.reduce((acc, o) => acc + o.total, 0);
-    const totalCommission = validOrders.reduce((acc, o) => acc + (o.commission_value || 0), 0);
+    const totalCommission = validOrders.reduce((acc, o) => {
+      const rate = affiliate?.commission_rate || 20;
+      const expected = (o.total * rate / 100);
+      const current = o.commission_value || 0;
+      
+      if (Math.abs(current - expected) > (o.total * 0.05)) {
+        return acc + expected;
+      }
+      return acc + current;
+    }, 0);
     const avgTicketCommission = validOrders.length > 0 ? totalCommission / validOrders.length : 0;
     const avgTicketSale = validOrders.length > 0 ? totalSales / validOrders.length : 0;
 
@@ -238,6 +288,9 @@ export default function AffiliateDashboard() {
         agency: affiliateData.pix_agency || ''
       });
 
+      // Carregar saldo real
+      fetchBalance(affiliateData.id);
+
       // Carregar dados iniciais em paralelo
       console.log('📦 Carregando dados iniciais em paralelo...');
       const [prodRes, catRes] = await Promise.all([
@@ -264,15 +317,7 @@ export default function AffiliateDashboard() {
     }
   };
 
-  useEffect(() => {
-    if (affiliate) {
-      fetchOrders(affiliate.id, dateRange);
-      fetchPayments(affiliate.id, dateRange);
-      fetchLeads(affiliate.id, dateRange);
-    }
-  }, [dateRange, startDate, endDate]);
-
-  const fetchCoupons = async (affiliateId: string) => {
+  const fetchCoupons = useCallback(async (affiliateId: string) => {
     const { data } = await supabase
       .from('affiliate_coupons')
       .select('*')
@@ -280,9 +325,9 @@ export default function AffiliateDashboard() {
       .order('created_at', { ascending: false });
     
     if (data) setCoupons(data);
-  };
+  }, []);
 
-  const fetchOrders = async (affiliateId: string, range: string) => {
+  const fetchOrders = useCallback(async (affiliateId: string, range: string) => {
     let query = supabase
       .from('orders')
       .select('id, created_at, customer_name, total, commission_value, status, order_items(product_id, product_name, quantity, price)')
@@ -352,9 +397,9 @@ export default function AffiliateDashboard() {
       });
       setProductStats(Array.from(statsMap.values()).sort((a, b) => b.total_commission - a.total_commission));
     }
-  };
+  }, [startDate, endDate, affiliate?.commission_rate]);
 
-  const fetchPayments = async (affiliateId: string, range: string) => {
+  const fetchPayments = useCallback(async (affiliateId: string, range: string) => {
     let query = supabase
       .from('affiliate_payments')
       .select('*')
@@ -379,9 +424,9 @@ export default function AffiliateDashboard() {
 
     const { data } = await query;
     if (data) setPayments(data);
-  };
+  }, [startDate, endDate]);
 
-  const fetchLeads = async (affiliateId: string, range: string) => {
+  const fetchLeads = useCallback(async (affiliateId: string, range: string) => {
     let query = supabase
       .from('leads')
       .select('id, created_at, updated_at, nome, email, status_lead, score, ultimo_produto_comprado, valor_total_gasto')
@@ -406,7 +451,65 @@ export default function AffiliateDashboard() {
 
     const { data } = await query;
     if (data) setLeads(data);
-  };
+  }, [startDate, endDate]);
+
+  useEffect(() => {
+    if (affiliate?.id) {
+      fetchBalance(affiliate.id);
+      fetchOrders(affiliate.id, dateRange);
+      fetchPayments(affiliate.id, dateRange);
+      fetchLeads(affiliate.id, dateRange);
+      fetchCoupons(affiliate.id);
+
+      // Real-time listeners
+      const ordersChannel = supabase
+        .channel(`affiliate-orders-${affiliate.id}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'orders',
+          filter: `affiliate_id=eq.${affiliate.id}`
+        }, () => {
+          console.log('🔄 Pedidos do afiliado atualizados...');
+          fetchBalance(affiliate.id);
+          fetchOrders(affiliate.id, dateRange);
+        })
+        .subscribe();
+
+      const leadsChannel = supabase
+        .channel(`affiliate-leads-${affiliate.id}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'leads',
+          filter: `affiliate_id=eq.${affiliate.id}`
+        }, () => {
+          console.log('🔄 Leads do afiliado atualizados...');
+          fetchLeads(affiliate.id, dateRange);
+        })
+        .subscribe();
+
+      const paymentsChannel = supabase
+        .channel(`affiliate-payments-${affiliate.id}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'affiliate_payments',
+          filter: `affiliate_id=eq.${affiliate.id}`
+        }, () => {
+          console.log('🔄 Pagamentos do afiliado atualizados...');
+          fetchBalance(affiliate.id);
+          fetchPayments(affiliate.id, dateRange);
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(ordersChannel);
+        supabase.removeChannel(leadsChannel);
+        supabase.removeChannel(paymentsChannel);
+      };
+    }
+  }, [affiliate?.id, dateRange, startDate, endDate, fetchBalance, fetchOrders, fetchPayments, fetchLeads, fetchCoupons]);
 
   const generateLink = (type: 'product' | 'category' | 'store', id?: string) => {
     if (!affiliate) return;
@@ -493,12 +596,12 @@ export default function AffiliateDashboard() {
   };
 
   const handleRequestWithdrawal = async () => {
-    if (!affiliate || affiliate.balance <= 0) {
+    if (!affiliate || totalBalance <= 0) {
       toast.error('Você não possui saldo disponível para saque.');
       return;
     }
 
-    if (!affiliate.pix_key) {
+    if (!pixData.key) {
       toast.error('Por favor, cadastre sua chave PIX antes de solicitar o saque.');
       return;
     }
@@ -506,42 +609,36 @@ export default function AffiliateDashboard() {
     setConfirmModal({
       isOpen: true,
       title: 'Solicitar Saque',
-      message: `Deseja solicitar o saque de R$ ${affiliate.balance.toFixed(2)} para a chave PIX cadastrada?`,
+      message: `Deseja solicitar o saque de R$ ${totalBalance.toFixed(2)} para a chave PIX cadastrada?`,
       variant: 'info',
       onConfirm: async () => {
-        setLoading(true);
+        setSaving(true);
         try {
           const { error } = await supabase
             .from('affiliate_payments')
             .insert([{
               affiliate_id: affiliate.id,
-              amount: affiliate.balance,
+              amount: totalBalance,
               status: 'pending',
-              pix_key: affiliate.pix_key,
-              pix_name: affiliate.pix_name,
-              pix_cpf: affiliate.pix_cpf,
-              pix_bank: affiliate.pix_bank,
-              pix_account: affiliate.pix_account,
-              pix_agency: affiliate.pix_agency
+              pix_key: pixData.key,
+              pix_name: pixData.name,
+              pix_cpf: pixData.cpf,
+              pix_bank: pixData.bank,
+              pix_account: pixData.account,
+              pix_agency: pixData.agency
             }]);
 
           if (error) throw error;
 
-          // Descontar saldo
-          const { error: updateError } = await supabase
-            .from('affiliates')
-            .update({ balance: 0 })
-            .eq('id', affiliate.id);
-            
-          if (updateError) throw updateError;
-
-          setAffiliate({ ...affiliate, balance: 0 });
+          // O saldo agora é calculado dinamicamente, não precisamos atualizar a coluna 'balance'
+          // Apenas recarregamos os dados para refletir a mudança
+          fetchBalance(affiliate.id);
           toast.success('Solicitação de saque enviada com sucesso!');
           fetchPayments(affiliate.id, dateRange);
         } catch (error: any) {
           toast.error('Erro ao solicitar saque: ' + error.message);
         } finally {
-          setLoading(false);
+          setSaving(false);
         }
       }
     });
@@ -657,10 +754,10 @@ export default function AffiliateDashboard() {
           <div className="flex flex-wrap items-center gap-4 bg-emerald-800/50 px-6 py-3 rounded-2xl border border-emerald-700">
             <div className="text-center">
               <span className="block text-[10px] text-emerald-300 uppercase tracking-wider font-bold">A Receber</span>
-              <span className="block font-black text-lg">R$ {affiliate?.balance?.toFixed(2) || '0.00'}</span>
+              <span className="block font-black text-lg">R$ {totalBalance.toFixed(2)}</span>
               <button 
                 onClick={handleRequestWithdrawal}
-                disabled={!affiliate || affiliate.balance <= 0}
+                disabled={totalBalance <= 0}
                 className="text-[9px] bg-emerald-700 hover:bg-emerald-600 px-2 py-0.5 rounded mt-1 transition-colors disabled:opacity-50 font-bold uppercase"
               >
                 Solicitar Saque
@@ -669,7 +766,7 @@ export default function AffiliateDashboard() {
             <div className="w-px h-8 bg-emerald-700 hidden sm:block"></div>
             <div className="text-center">
               <span className="block text-[10px] text-emerald-300 uppercase tracking-wider font-bold">Já Recebido</span>
-              <span className="block font-black text-lg">R$ {affiliate?.total_paid?.toFixed(2) || '0.00'}</span>
+              <span className="block font-black text-lg">R$ {totalPaid.toFixed(2)}</span>
             </div>
             <div className="w-px h-8 bg-emerald-700 hidden sm:block"></div>
             <div className="text-center cursor-pointer hover:bg-emerald-700/50 p-1 rounded-lg transition-all" onClick={() => setShowCommissionModal(true)}>
