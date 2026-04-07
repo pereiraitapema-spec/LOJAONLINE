@@ -2,11 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText, Share2, MessageSquare, Bot, Play, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { LogOut, User, Shield, LayoutDashboard, Settings, Package, Image as ImageIcon, ShoppingBag, ShoppingCart, Megaphone, Users, CreditCard, Truck, Zap, History, Eye, TrendingUp, Calendar, DollarSign, FileText, Share2, MessageSquare, Bot, Play, ArrowLeft, ChevronDown, ChevronUp, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import SmartChat from '../components/SmartChat';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
-import { PurchaseSimulator } from '../components/PurchaseSimulator';
 import { checkPermission } from '../lib/rbac';
 import { formatCurrency } from '../lib/utils';
 
@@ -38,8 +37,17 @@ export default function Dashboard() {
     newCustomers: 0,
     avgTicket: 0,
     avgTicketDirect: 0,
-    avgTicketAffiliate: 0
+    avgTicketAffiliate: 0,
+    ordersPrepared: 0,
+    ordersShipped: 0,
+    ordersDelivered: 0,
+    abandonedCount: 0,
+    abandonedValue: 0,
+    leadsCold: 0,
+    leadsWarm: 0,
+    leadsHot: 0
   });
+  const [topProducts, setTopProducts] = useState<any[]>([]);
   const [openGroups, setOpenGroups] = useState<string[]>(['Faturamento']);
   const navigate = useNavigate();
 
@@ -98,19 +106,25 @@ export default function Dashboard() {
           return Promise.race([promise, timeoutPromise]);
         };
 
-        const [ordersRes, productsRes, affiliatesRes] = await Promise.all([
+        const [ordersRes, productsRes, affiliatesRes, abandonedRes, leadsRes, allOrdersRes] = await Promise.all([
           fetchWithTimeout(Promise.resolve(supabase.from('orders')
             .select('*')
             .eq('status', 'paid')
             .gte('created_at', `${dateRange.start}T00:00:00Z`)
             .lte('created_at', `${dateRange.end}T23:59:59Z`))),
           fetchWithTimeout(Promise.resolve(supabase.from('products').select('*'))),
-          fetchWithTimeout(Promise.resolve(supabase.from('affiliates').select('*')))
+          fetchWithTimeout(Promise.resolve(supabase.from('affiliates').select('*'))),
+          fetchWithTimeout(Promise.resolve(supabase.from('abandoned_carts').select('*'))),
+          fetchWithTimeout(Promise.resolve(supabase.from('leads').select('*'))),
+          fetchWithTimeout(Promise.resolve(supabase.from('orders').select('*, order_items(*)')))
         ]);
 
         const orders = ordersRes.data || [];
         const products = productsRes.data || [];
         const affiliates = affiliatesRes.data || [];
+        const abandoned = abandonedRes.data || [];
+        const leads = leadsRes.data || [];
+        const allOrders = allOrdersRes.data || [];
 
         // Calculate Revenue
         const revenue = orders.reduce((acc, o) => acc + o.total, 0);
@@ -156,6 +170,42 @@ export default function Dashboard() {
         const avgTicketDirect = directOrders.length > 0 ? directOrders.reduce((acc, o) => acc + o.total, 0) / directOrders.length : 0;
         const avgTicketAffiliate = affiliateOrders.length > 0 ? affiliateOrders.reduce((acc, o) => acc + o.total, 0) / affiliateOrders.length : 0;
 
+        // Shipping Stats (from all orders)
+        const ordersPrepared = allOrders.filter(o => o.status === 'paid' || o.status === 'processing').length;
+        const ordersShipped = allOrders.filter(o => o.status === 'shipped').length;
+        const ordersDelivered = allOrders.filter(o => o.status === 'delivered').length;
+
+        // Abandoned Carts
+        const abandonedCount = abandoned.filter(c => c.status === 'abandoned').length;
+        const abandonedValue = abandoned.filter(c => c.status === 'abandoned').reduce((acc, c) => acc + (c.total || 0), 0);
+
+        // Leads
+        const leadsCold = leads.filter(l => l.status_lead === 'frio').length;
+        const leadsWarm = leads.filter(l => l.status_lead === 'morno').length;
+        const leadsHot = leads.filter(l => l.status_lead === 'quente').length;
+
+        // Top Products
+        const productSales: Record<string, { name: string, quantity: number, revenue: number }> = {};
+        allOrders.filter(o => o.status === 'paid' || o.status === 'shipped' || o.status === 'delivered').forEach(order => {
+          (order.order_items || []).forEach((item: any) => {
+            const productId = item.product_id;
+            const product = products.find(p => p.id === productId);
+            const productName = product?.name || item.product_name || 'Produto Desconhecido';
+            
+            if (!productSales[productId]) {
+              productSales[productId] = { name: productName, quantity: 0, revenue: 0 };
+            }
+            productSales[productId].quantity += item.quantity;
+            productSales[productId].revenue += item.quantity * item.price;
+          });
+        });
+
+        const sortedProducts = Object.values(productSales)
+          .sort((a, b) => b.quantity - a.quantity)
+          .slice(0, 5);
+
+        setTopProducts(sortedProducts);
+
         setStats({
           revenue,
           cost: totalExpenses,
@@ -174,7 +224,15 @@ export default function Dashboard() {
           newCustomers: new Set(orders.map(o => o.customer_email)).size,
           avgTicket,
           avgTicketDirect,
-          avgTicketAffiliate
+          avgTicketAffiliate,
+          ordersPrepared,
+          ordersShipped,
+          ordersDelivered,
+          abandonedCount,
+          abandonedValue,
+          leadsCold,
+          leadsWarm,
+          leadsHot
         });
 
       } catch (error) {
@@ -311,12 +369,6 @@ export default function Dashboard() {
             <p className="text-slate-500">Bem-vindo ao seu painel de controle.</p>
           </div>
           
-          {/* Simulador de Compras */}
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <span className="text-sm font-bold text-slate-600">Área de Testes:</span>
-            <PurchaseSimulator userId={user?.id} />
-          </div>
-          
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3 bg-white p-2 px-4 rounded-2xl shadow-sm border border-slate-100">
               <Calendar size={18} className="text-slate-400" />
@@ -360,7 +412,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <motion.div 
             whileHover={{ y: -5 }}
-            onClick={() => navigate('/orders')}
+            onClick={() => navigate('/gateways')}
             className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-emerald-200 transition-all"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -375,7 +427,7 @@ export default function Dashboard() {
 
           <motion.div 
             whileHover={{ y: -5 }}
-            onClick={() => navigate('/inventory')}
+            onClick={() => navigate('/gateways')}
             className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-indigo-200 transition-all"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -390,7 +442,7 @@ export default function Dashboard() {
           
           <motion.div 
             whileHover={{ y: -5 }}
-            onClick={() => navigate('/inventory')}
+            onClick={() => navigate('/products')}
             className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-rose-200 transition-all"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -450,7 +502,7 @@ export default function Dashboard() {
 
           <motion.div 
             whileHover={{ y: -5 }}
-            onClick={() => navigate('/orders')}
+            onClick={() => navigate('/settings')}
             className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-rose-200 transition-all"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -492,6 +544,127 @@ export default function Dashboard() {
             <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.stockValue)}</p>
             <p className="text-[10px] text-slate-400 mt-1 font-bold">VALOR DE CUSTO TOTAL</p>
           </motion.div>
+        </div>
+
+        {/* Novos Cards: Pedidos, Produtos Mais Vendidos, Carrinhos Abandonados e Leads */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Card de Pedidos */}
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                  <Truck size={20} />
+                </div>
+                <h3 className="text-slate-900 font-bold uppercase tracking-widest text-sm">Status de Pedidos (Logística)</h3>
+              </div>
+              <button onClick={() => navigate('/shipping/cepcerto')} className="text-xs font-bold text-blue-600 hover:underline">Ver Logística</button>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-slate-50 p-4 rounded-2xl text-center">
+                <Clock className="mx-auto mb-2 text-amber-500" size={20} />
+                <p className="text-2xl font-black text-slate-900">{stats.ordersPrepared}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Preparados</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl text-center">
+                <Truck className="mx-auto mb-2 text-blue-500" size={20} />
+                <p className="text-2xl font-black text-slate-900">{stats.ordersShipped}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Em Trânsito</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl text-center">
+                <CheckCircle2 className="mx-auto mb-2 text-emerald-500" size={20} />
+                <p className="text-2xl font-black text-slate-900">{stats.ordersDelivered}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Entregues</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Produtos Mais Vendidos */}
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                  <TrendingUp size={20} />
+                </div>
+                <h3 className="text-slate-900 font-bold uppercase tracking-widest text-sm">Top 5 Produtos Mais Vendidos</h3>
+              </div>
+              <button onClick={() => navigate('/products')} className="text-xs font-bold text-amber-600 hover:underline">Ver Produtos</button>
+            </div>
+            <div className="space-y-3">
+              {topProducts.length > 0 ? topProducts.map((p, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 flex items-center justify-center bg-white rounded-full text-[10px] font-black text-slate-400">{i + 1}</span>
+                    <span className="text-sm font-bold text-slate-700 truncate max-w-[150px]">{p.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-black text-slate-900">{p.quantity} un.</p>
+                    <p className="text-[10px] font-bold text-emerald-600">{formatCurrency(p.revenue)}</p>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-center text-slate-400 text-sm py-4">Nenhuma venda registrada no período.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {/* Card de Carrinhos Abandonados */}
+          <motion.div 
+            whileHover={{ y: -5 }}
+            onClick={() => navigate('/abandoned-carts')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-rose-200 transition-all"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                <ShoppingCart size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Carrinhos Abandonados</span>
+            </div>
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-3xl font-black text-slate-900">{stats.abandonedCount}</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Carrinhos Ativos</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-rose-600">{formatCurrency(stats.abandonedValue)}</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Valor Potencial</p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Card de Leads */}
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 lg:col-span-2">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <Users size={20} />
+                </div>
+                <h3 className="text-slate-900 font-bold uppercase tracking-widest text-sm">Classificação de Leads</h3>
+              </div>
+              <button onClick={() => navigate('/leads')} className="text-xs font-bold text-indigo-600 hover:underline">Ver Todos Leads</button>
+            </div>
+            <div className="grid grid-cols-3 gap-6">
+              <div className="relative p-4 bg-blue-50 rounded-2xl overflow-hidden">
+                <div className="absolute top-0 right-0 p-2 opacity-10"><Zap size={40} /></div>
+                <p className="text-2xl font-black text-blue-700">{stats.leadsCold}</p>
+                <p className="text-xs font-bold text-blue-600 uppercase">Lead Frio</p>
+                <p className="text-[9px] text-blue-400 mt-1">Apenas visitou o site</p>
+              </div>
+              <div className="relative p-4 bg-amber-50 rounded-2xl overflow-hidden">
+                <div className="absolute top-0 right-0 p-2 opacity-10"><Zap size={40} /></div>
+                <p className="text-2xl font-black text-amber-700">{stats.leadsWarm}</p>
+                <p className="text-xs font-bold text-amber-600 uppercase">Lead Morno</p>
+                <p className="text-[9px] text-amber-400 mt-1">Interagiu ou visualizou produtos</p>
+              </div>
+              <div className="relative p-4 bg-rose-50 rounded-2xl overflow-hidden">
+                <div className="absolute top-0 right-0 p-2 opacity-10"><Zap size={40} /></div>
+                <p className="text-2xl font-black text-rose-700">{stats.leadsHot}</p>
+                <p className="text-xs font-bold text-rose-600 uppercase">Lead Quente</p>
+                <p className="text-[9px] text-rose-400 mt-1">Iniciou checkout ou alta intenção</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
