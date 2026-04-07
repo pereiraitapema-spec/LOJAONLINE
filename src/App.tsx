@@ -59,7 +59,7 @@ function AppContent() {
       setUserRole('admin');
       localStorage.setItem('user_role', 'admin');
       
-      // Garantir que o profile está como admin no banco
+      // Garantir que o profile está como admin no banco (background)
       supabase.from('profiles').update({ role: 'admin' }).eq('id', userId).then(({ error }) => {
         if (error) console.error('Erro ao atualizar profile do master admin:', error);
       });
@@ -67,117 +67,65 @@ function AppContent() {
       return 'admin';
     }
 
-    // 2. Tentar usar cache para liberar a UI rápido
+    // 2. Tentar usar cache para liberar a UI rápido (Otimista)
     const cachedRole = localStorage.getItem('user_role');
     if (cachedRole) {
       setUserRole(cachedRole);
-      // Não damos return aqui, continuamos em background para validar
     }
 
     try {
-      // 3. Consulta Única Otimizada
-      // Buscamos o profile. Se não existir, criamos.
-      console.log('⏱️ Buscando dados no banco...');
-      const { data: profile, error } = await withTimeout(
-        supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', userId)
-          .maybeSingle(),
-        15000
-      );
+      // 3. Consultas Paralelas Otimizadas
+      console.log('⏱️ Buscando dados no banco em paralelo...');
+      
+      const [profileRes, affiliateIdRes, affiliateEmailRes] = await Promise.all([
+        withTimeout(supabase.from('profiles').select('role').eq('id', userId).maybeSingle(), 8000),
+        withTimeout(supabase.from('affiliates').select('id, status, active, email, user_id').eq('user_id', userId).maybeSingle(), 8000),
+        email ? withTimeout(supabase.from('affiliates').select('id, status, active, user_id').eq('email', email).maybeSingle(), 8000) : Promise.resolve({ data: null, error: null })
+      ]);
 
-      if (error) throw error;
+      if (profileRes.error) throw profileRes.error;
 
-      let finalRole = 'customer';
+      let finalRole = profileRes.data?.role || 'customer';
+      const affiliateData = affiliateIdRes.data || affiliateEmailRes.data;
 
-      if (!profile) {
-        console.log('🆕 Perfil não encontrado, criando perfil inicial...');
-        const { data: newProfile } = await supabase.from('profiles').upsert({
-          id: userId,
-          email: email,
-          role: 'customer',
-          full_name: email?.split('@')[0] || 'Usuário'
-        }, { onConflict: 'id' }).select('role').single();
-        finalRole = newProfile?.role || 'customer';
-      } else {
-        console.log('📄 Perfil encontrado no banco. Role atual:', profile.role);
-        finalRole = profile.role;
-      }
-
-      // 4. Se NÃO for admin, SEMPRE verificar se é um afiliado aprovado
-      // Mudamos de (finalRole === 'customer') para (finalRole !== 'admin') para cobrir roles como 'user'
-      if (finalRole !== 'admin') {
-        console.log('🔍 Iniciando verificação de Afiliado para:', email);
+      // 4. Lógica de Decisão de Role
+      if (affiliateData) {
+        console.log('📍 Registro de Afiliado encontrado:', affiliateData);
+        const isApproved = affiliateData.status === 'approved' && affiliateData.active === true;
         
-        // Tentar por user_id primeiro
-        const { data: affiliateById, error: affIdError } = await withTimeout(supabase
-          .from('affiliates')
-          .select('id, status, active, email')
-          .eq('user_id', userId)
-          .maybeSingle());
-        
-        if (affIdError) console.error('❌ Erro ao buscar afiliado por ID:', affIdError);
-
-        if (affiliateById) {
-          console.log('📍 Afiliado encontrado por ID:', affiliateById);
-          const isApproved = affiliateById.status === 'approved' && affiliateById.active === true;
+        if (isApproved) {
+          console.log('✅ Afiliado aprovado!');
+          finalRole = 'affiliate';
           
-          if (isApproved) {
-            console.log('✅ Afiliado aprovado via ID!');
-            finalRole = 'affiliate';
-            await supabase.from('profiles').update({ role: 'affiliate' }).eq('id', userId);
-          } else {
-            console.log('⚠️ Afiliado encontrado mas não está aprovado/ativo:', { status: affiliateById.status, active: affiliateById.active });
-            // Se o perfil diz que é afiliado mas o registro de afiliado não está aprovado, volta para customer
-            if (finalRole === 'affiliate') {
-              console.log('🔄 Downgrading role to customer (not approved affiliate)');
-              finalRole = 'customer';
-              await supabase.from('profiles').update({ role: 'customer' }).eq('id', userId);
-            }
+          // Sincronizar no banco se necessário (background)
+          if (profileRes.data?.role !== 'affiliate') {
+            supabase.from('profiles').update({ role: 'affiliate' }).eq('id', userId).then();
           }
-        } else if (email) {
-          console.log('🔍 Não encontrado por ID, buscando por e-mail:', email);
-          const { data: affiliateByEmail, error: affEmailError } = await withTimeout(supabase
-            .from('affiliates')
-            .select('id, status, active, user_id')
-            .eq('email', email)
-            .maybeSingle());
-          
-          if (affEmailError) console.error('❌ Erro ao buscar afiliado por Email:', affEmailError);
-
-          if (affiliateByEmail) {
-            console.log('📍 Afiliado encontrado por E-mail:', affiliateByEmail);
-            const isApproved = affiliateByEmail.status === 'approved' && affiliateByEmail.active === true;
-            
-            if (isApproved) {
-              console.log('✅ Afiliado aprovado via E-mail!');
-              finalRole = 'affiliate';
-              // Vincula o user_id se estiver vazio
-              if (!affiliateByEmail.user_id) {
-                console.log('🔗 Vinculando user_id ao registro de afiliado...');
-                await supabase.from('affiliates').update({ user_id: userId }).eq('id', affiliateByEmail.id);
-              }
-              await supabase.from('profiles').update({ role: 'affiliate' }).eq('id', userId);
-            } else {
-              console.log('⚠️ Afiliado por e-mail não está aprovado/ativo:', { status: affiliateByEmail.status, active: affiliateByEmail.active });
-              // Se o perfil diz que é afiliado mas o registro de afiliado não está aprovado, volta para customer
-              if (finalRole === 'affiliate') {
-                console.log('🔄 Downgrading role to customer (not approved affiliate by email)');
-                finalRole = 'customer';
-                await supabase.from('profiles').update({ role: 'customer' }).eq('id', userId);
-              }
-            }
-          } else {
-            console.log('❌ Nenhum registro de afiliado encontrado para este usuário.');
-            // Se o perfil diz que é afiliado mas não existe registro na tabela affiliates, volta para customer
-            if (finalRole === 'affiliate') {
-              console.log('🔄 Downgrading role to customer (no affiliate record found)');
-              finalRole = 'customer';
-              await supabase.from('profiles').update({ role: 'customer' }).eq('id', userId);
-            }
+          if (!affiliateData.user_id) {
+            supabase.from('affiliates').update({ user_id: userId }).eq('id', affiliateData.id).then();
+          }
+        } else {
+          console.log('⚠️ Afiliado não aprovado/ativo. Role:', finalRole);
+          if (finalRole === 'affiliate') {
+            finalRole = 'customer';
+            supabase.from('profiles').update({ role: 'customer' }).eq('id', userId).then();
           }
         }
+      } else if (finalRole === 'affiliate') {
+        // Se o perfil diz que é afiliado mas não existe registro, volta para customer
+        console.log('❌ Nenhum registro de afiliado encontrado. Downgrading...');
+        finalRole = 'customer';
+        supabase.from('profiles').update({ role: 'customer' }).eq('id', userId).then();
+      }
+
+      // 5. Se perfil não existe, criar (background)
+      if (!profileRes.data) {
+        supabase.from('profiles').upsert({
+          id: userId,
+          email: email,
+          role: finalRole,
+          full_name: email?.split('@')[0] || 'Usuário'
+        }).then();
       }
 
       console.log('🏁 Resultado da Sincronização:', { finalRole });
@@ -282,19 +230,18 @@ function AppContent() {
     }
     
     const path = window.location.pathname;
+    // Prioridade: forcedRole > userRole (estado) > localStorage > fallback
     const role = forcedRole || userRole || localStorage.getItem('user_role') || 'customer';
 
     console.log('🚀 handleRoleRedirect:', {
       email: session.user.email,
       role,
       path,
-      forcedRole
+      forcedRole,
+      stateRole: userRole
     });
     
-    // Lista de caminhos que NÃO devem sofrer redirecionamento automático se o usuário for 'user'
-    const isUserPage = path === '/profile' || path === '/success' || path.startsWith('/tracking');
     const isCallback = path === '/callback.html' || path === '/auth/callback';
-
     if (isCallback) {
       console.log('🔄 handleRoleRedirect: Ignorando callback');
       setLoading(false);
@@ -302,23 +249,18 @@ function AppContent() {
     }
 
     // Redirecionamento forçado para Admin e Afiliado
-    if (path === '/login' || path === '/register') {
+    // Se o usuário estiver na Home, Login ou Register, redirecionamos para o painel correto
+    const isAuthPage = path === '/login' || path === '/register';
+    const isHome = path === '/';
+
+    if (isAuthPage || isHome) {
       if (role === 'admin') {
         console.log('➡️ Redirecionando Admin para /admin/dashboard');
         navigate('/admin/dashboard');
       } else if (role === 'affiliate') {
         console.log('➡️ Redirecionando Afiliado para /afiliados/dashboard');
         navigate('/afiliados/dashboard');
-      } else {
-        console.log('➡️ Usuário comum ou sem role especial, mantendo ou indo para home');
-        if (!isUserPage) navigate('/');
       }
-    } else if (path === '/' && role === 'admin') {
-      // Se o admin está na home, não redirecionamos automaticamente para o dashboard
-      // para permitir que ele veja a loja.
-      console.log('ℹ️ Admin na Home: Mantendo na loja.');
-    } else {
-      console.log('ℹ️ handleRoleRedirect: Caminho atual não requer redirecionamento automático');
     }
     
     setLoading(false);

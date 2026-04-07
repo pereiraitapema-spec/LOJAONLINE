@@ -156,37 +156,17 @@ export default function AffiliateDashboard() {
         return;
       }
 
-      // Buscar dados do afiliado
-      let { data: affiliateData, error } = await withTimeout(
-        supabase
-          .from('affiliates')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .maybeSingle()
-      );
+      // Buscar dados do afiliado em paralelo (por user_id e e-mail)
+      console.log('⏱️ Buscando dados do afiliado em paralelo...');
+      const [affById, affByEmail] = await Promise.all([
+        withTimeout(supabase.from('affiliates').select('*').eq('user_id', session.user.id).maybeSingle(), 8000),
+        session.user.email ? withTimeout(supabase.from('affiliates').select('*').eq('email', session.user.email).maybeSingle(), 8000) : Promise.resolve({ data: null, error: null })
+      ]);
 
-      // Se não encontrou por user_id, tentar por e-mail
-      if (!affiliateData && !error && session.user.email) {
-        console.log('🔍 Buscando afiliado por e-mail no dashboard:', session.user.email);
-        const { data: byEmail } = await withTimeout(
-          supabase
-            .from('affiliates')
-            .select('*')
-            .eq('email', session.user.email)
-            .maybeSingle()
-        );
-        if (byEmail) {
-          affiliateData = byEmail;
-          // Vincular o user_id se estiver faltando
-          if (!affiliateData.user_id) {
-            console.log('🔗 Vinculando user_id ao registro de afiliado no dashboard...');
-            await supabase.from('affiliates').update({ user_id: session.user.id }).eq('id', affiliateData.id);
-          }
-        }
-      }
+      let affiliateData = affById.data || affByEmail.data;
 
-      if (error) {
-        console.error('❌ Erro ao buscar dados do afiliado:', error);
+      if (affById.error) {
+        console.error('❌ Erro ao buscar dados do afiliado:', affById.error);
         toast.error('Erro ao carregar dados da conta.');
         navigate('/');
         return;
@@ -197,6 +177,12 @@ export default function AffiliateDashboard() {
         toast.error('Conta de afiliado não encontrada.');
         navigate('/');
         return;
+      }
+
+      // Vincular o user_id se estiver faltando (background)
+      if (!affiliateData.user_id) {
+        console.log('🔗 Vinculando user_id ao registro de afiliado no dashboard...');
+        supabase.from('affiliates').update({ user_id: session.user.id }).eq('id', affiliateData.id).then();
       }
 
       const isMasterAdmin = session.user.email === 'pereira.itapema@gmail.com';
@@ -222,26 +208,20 @@ export default function AffiliateDashboard() {
         agency: affiliateData.pix_agency || ''
       });
 
-      // Carregar produtos e categorias
-      console.log('📦 Carregando produtos e categorias...');
+      // Carregar dados iniciais em paralelo
+      console.log('📦 Carregando dados iniciais em paralelo...');
       const [prodRes, catRes] = await Promise.all([
-        withTimeout(supabase.from('products').select('*').eq('active', true)),
-        withTimeout(supabase.from('categories').select('*'))
+        withTimeout(supabase.from('products').select('*').eq('active', true), 8000),
+        withTimeout(supabase.from('categories').select('*'), 8000)
       ]);
 
       setProducts(prodRes.data || []);
       setCategories(catRes.data || []);
 
-      // Carregar cupons
+      // Carregar outros dados (não bloqueantes para a UI principal se possível, mas aqui mantemos o padrão)
       fetchCoupons(affiliateData.id);
-      
-      // Carregar vendas (orders)
       fetchOrders(affiliateData.id, dateRange);
-
-      // Carregar pagamentos
       fetchPayments(affiliateData.id, dateRange);
-
-      // Carregar leads
       fetchLeads(affiliateData.id, dateRange);
 
     } catch (error: any) {
