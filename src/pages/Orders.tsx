@@ -515,95 +515,118 @@ export default function Orders() {
     });
   };
 
-  const handleBatchPrint = (type: 'etiqueta' | 'declaracao') => {
-    const selectedOrdersToPrint = selectedOrders;
-    
-    if (selectedOrdersToPrint.length === 0) {
-      toast.error('Nenhum pedido selecionado');
+  const handlePrintEtiquetas = () => {
+    console.log("🚀 Iniciando impressão etiquetas");
+    if (!selectedOrders || selectedOrders.length === 0) {
+      toast.error("Selecione pelo menos um pedido");
       return;
     }
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Não foi possível abrir a janela de impressão. Verifique os bloqueadores de popup.');
+    const urls = selectedOrders.map((order: any) => {
+      const url = order.shipping_label_url || order.pdfUrlEtiqueta;
+      return url;
+    }).filter((url): url is string => !!url);
+
+    if (urls.length === 0) {
+      toast.error("Nenhuma etiqueta encontrada para os pedidos selecionados");
       return;
     }
 
-    let htmlContent = `
+    const pages = [];
+    for (let i = 0; i < urls.length; i += 4) {
+      pages.push(urls.slice(i, i + 4));
+    }
+
+    let html = "";
+    pages.forEach((page, index) => {
+      html += `
+        <div class="print-page">
+          <div class="grid-container grid-4">
+            ${[0, 1, 2, 3].map(cellIndex => {
+              const url = page[cellIndex];
+              return `
+                <div class="cell">
+                  ${url ? `
+                    <div class="iframe-container">
+                      <iframe 
+                        src="${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH" 
+                        style="width: 190%; height: 210%; transform: scale(1.0); transform-origin: top left;"
+                      ></iframe>
+                    </div>
+                  ` : `
+                    <div class="empty-cell">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="opacity-20"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v5"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
+                      <span>Espaço Vazio</span>
+                    </div>
+                  `}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    });
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    printWindow.document.write(`
       <html>
         <head>
-          <title>Impressão em Lote</title>
+          <title>Etiquetas em Lote</title>
           <style>
+            * { box-sizing: border-box; }
+            body { margin: 0; padding: 0; background: #f8fafc; }
             @media print {
-              @page { size: A4; margin: 5mm; }
-              body { margin: 0; padding: 0; }
+              body { background: white; }
+              @page { size: A4; margin: 0; }
+              .print-page { width: 210mm; height: 297mm; page-break-after: always; padding: 2mm; display: block !important; }
+              .grid-container { width: 100%; height: 100%; display: grid !important; gap: 0; }
+              .grid-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+              .cell { border: 1px dashed #cbd5e1; position: relative; overflow: hidden; display: flex !important; align-items: center; justify-content: center; }
+              .iframe-container { width: 100%; height: 100%; position: relative; overflow: hidden; }
+              iframe { border: 0; position: absolute; top: 0; left: 0; }
+              .empty-cell { color: #cbd5e1; display: flex !important; flex-direction: column; align-items: center; gap: 8px; font-weight: bold; font-size: 12px; }
+              .opacity-20 { opacity: 0.2; }
             }
-            .print-container {
-              display: grid;
-              ${type === 'etiqueta' 
-                ? 'grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;' 
-                : 'grid-template-columns: 1fr;'}
-              width: 100%;
-              gap: 0;
-            }
-            .item {
-              width: 100%;
-              ${type === 'etiqueta' ? 'height: 50vh;' : 'height: 100vh; page-break-after: always;'}
-              border: none;
-              padding: 0;
-              margin: 0;
-              overflow: hidden;
-            }
-            iframe { width: 100%; height: 100%; border: none; }
+            .print-page { background: white; width: 210mm; height: 297mm; margin: 20px auto; padding: 2mm; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+            .grid-container { width: 100%; height: 100%; display: grid; gap: 0; }
+            .grid-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+            .cell { border: 1px dashed #cbd5e1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+            .iframe-container { width: 100%; height: 100%; position: relative; overflow: hidden; }
+            iframe { border: 0; position: absolute; top: 0; left: 0; }
+            .empty-cell { color: #cbd5e1; display: flex; flex-direction: column; align-items: center; gap: 8px; font-weight: bold; font-size: 12px; }
           </style>
         </head>
         <body>
-          <div class="print-container">
-            ${selectedOrdersToPrint.map(order => {
-              const url = type === 'etiqueta' ? order.shipping_label_url : order.shipping_declaration_url;
-              console.log(`Debug: URL ${type} para pedido ${order.id}:`, url);
-              
-              // Se não tiver URL direta, tenta construir via rastreador (CepCerto)
-              let finalUrl = url;
-              if (!finalUrl) {
-                const tracking = extractTrackingCode(order);
-                finalUrl = buildDeclaracaoUrl(tracking || '');
-                console.log(`Debug: URL construída via rastreador para pedido ${order.id}:`, finalUrl);
-              }
-
-              if (!finalUrl) {
-                console.error(`URL não encontrada para ${order.id}.`);
-                return '';
-              }
-              
-              // Forçar o carregamento da URL no iframe
-              return `<div class="item"><iframe src="${finalUrl}" onload="this.dataset.loaded = 'true'"></iframe></div>`;
-            }).join('')}
-          </div>
+          ${html}
           <script>
-            // Aguarda até que todos os iframes tenham carregado ou um timeout de segurança
-            function checkLoad() {
+            window.onload = () => {
               const iframes = document.querySelectorAll('iframe');
-              const allLoaded = Array.from(iframes).every(i => i.dataset.loaded === 'true');
-              if (allLoaded) {
-                window.print();
-                window.close();
-              } else {
-                setTimeout(checkLoad, 500);
-              }
-            }
-            // Timeout de segurança de 5 segundos caso algum iframe falhe ao carregar
-            setTimeout(checkLoad, 5000);
-            checkLoad();
+              let loaded = 0;
+              if (iframes.length === 0) { window.print(); return; }
+              iframes.forEach(f => {
+                f.onload = () => {
+                  loaded++;
+                  if (loaded === iframes.length) setTimeout(() => window.print(), 2000);
+                };
+                if (f.contentDocument && f.contentDocument.readyState === 'complete') f.onload();
+              });
+              setTimeout(() => window.print(), 10000);
+            };
           </script>
         </body>
       </html>
-    `;
-
-    printWindow.document.write(htmlContent);
+    `);
     printWindow.document.close();
-    
-    console.log(`Impressão ${type} lote`, selectedOrders);
+  };
+
+  const handleBatchPrint = (type: 'etiqueta' | 'declaracao') => {
+    if (type === 'declaracao') {
+      handlePrintDeclaracoes();
+    } else {
+      handlePrintEtiquetas();
+    }
   };
 
   const handleGenerateLabel = async (orderId: string, currentStatus?: string, retryCount = 0) => {
@@ -2001,7 +2024,7 @@ export default function Orders() {
                       Imprimir Etiquetas ({selectedOrders.length})
                     </button>
                     <button 
-                      onClick={() => handleBatchPrint('declaracao')}
+                      onClick={() => handlePrintDeclaracoes()}
                       className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all flex items-center gap-2"
                     >
                       <FileText size={16} />
