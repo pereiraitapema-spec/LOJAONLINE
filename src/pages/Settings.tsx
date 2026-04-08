@@ -54,6 +54,7 @@ export default function Settings() {
   const [siteContent, setSiteContent] = useState<any[]>([]);
   const [loadingContent, setLoadingContent] = useState(false);
   const [showSql, setShowSql] = useState(false);
+  const [showSqlModal, setShowSqlModal] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -260,7 +261,7 @@ export default function Settings() {
         origin_zip_code: settingsData.origin_zip_code || '',
         ai_chat_rules: settingsData.ai_chat_rules || '',
         ai_chat_triggers: settingsData.ai_chat_triggers || '',
-        ai_auto_learning: settingsData.ai_chat_triggers || false,
+        ai_auto_learning: settingsData.ai_auto_learning || false,
         nfe_provider: settingsData.nfe_provider || 'manual',
         nfe_token: settingsData.nfe_token || '',
         nfe_company_id: settingsData.nfe_company_id || ''
@@ -331,6 +332,9 @@ export default function Settings() {
       }
     } catch (error: any) {
       console.error('Error saving settings:', error);
+      if (error.message?.includes('column') || error.message?.includes('does not exist')) {
+        setShowSqlModal(true);
+      }
       toast.error('Erro ao salvar: ' + error.message);
     } finally {
       setSaving(false);
@@ -539,14 +543,57 @@ export default function Settings() {
             <pre id="sql-code-main" className="text-emerald-400 text-xs font-mono">
 {`-- Execute este SQL no Editor SQL do Supabase para corrigir os erros
 
--- 0. Adicionar colunas de Frete e Social (Novo)
+-- 0. Adicionar colunas de Frete, Social e IA (Novo)
 do $$
 begin
+    -- Colunas para store_settings
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'social_links') then
         alter table public.store_settings add column social_links jsonb default '[]'::jsonb;
     end if;
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'shipping_methods') then
         alter table public.store_settings add column shipping_methods jsonb default '[]'::jsonb;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_rules') then
+        alter table public.store_settings add column ai_chat_rules text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
+        alter table public.store_settings add column ai_chat_triggers text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_auto_learning') then
+        alter table public.store_settings add column ai_auto_learning boolean default false;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'n8n_webhook_url') then
+        alter table public.store_settings add column n8n_webhook_url text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'origin_zip_code') then
+        alter table public.store_settings add column origin_zip_code text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'debug_mode') then
+        alter table public.store_settings add column debug_mode boolean default false;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'tracking_pixels') then
+        alter table public.store_settings add column tracking_pixels jsonb default '[]'::jsonb;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_provider') then
+        alter table public.store_settings add column nfe_provider text default 'manual';
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_token') then
+        alter table public.store_settings add column nfe_token text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_company_id') then
+        alter table public.store_settings add column nfe_company_id text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_title') then
+        alter table public.store_settings add column promotions_section_title text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_subtitle') then
+        alter table public.store_settings add column promotions_section_subtitle text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_title') then
+        alter table public.store_settings add column products_section_title text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_subtitle') then
+        alter table public.store_settings add column products_section_subtitle text;
     end if;
 end $$;
 
@@ -884,14 +931,57 @@ create policy "Qualquer um pode atualizar conhecimento" on public.ai_knowledge_b
           <pre id="sql-code" className="text-emerald-400 text-xs font-mono overflow-x-auto max-h-60">
 {`-- Execute este SQL no Editor SQL do Supabase para corrigir os erros
 
--- 0. Adicionar colunas de Frete e Social (Novo)
+-- 0. Adicionar colunas de Frete, Social e IA (Novo)
 do $$
 begin
+    -- Colunas para store_settings
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'social_links') then
         alter table public.store_settings add column social_links jsonb default '[]'::jsonb;
     end if;
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'shipping_methods') then
         alter table public.store_settings add column shipping_methods jsonb default '[]'::jsonb;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_rules') then
+        alter table public.store_settings add column ai_chat_rules text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
+        alter table public.store_settings add column ai_chat_triggers text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_auto_learning') then
+        alter table public.store_settings add column ai_auto_learning boolean default false;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'n8n_webhook_url') then
+        alter table public.store_settings add column n8n_webhook_url text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'origin_zip_code') then
+        alter table public.store_settings add column origin_zip_code text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'debug_mode') then
+        alter table public.store_settings add column debug_mode boolean default false;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'tracking_pixels') then
+        alter table public.store_settings add column tracking_pixels jsonb default '[]'::jsonb;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_provider') then
+        alter table public.store_settings add column nfe_provider text default 'manual';
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_token') then
+        alter table public.store_settings add column nfe_token text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_company_id') then
+        alter table public.store_settings add column nfe_company_id text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_title') then
+        alter table public.store_settings add column promotions_section_title text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_subtitle') then
+        alter table public.store_settings add column promotions_section_subtitle text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_title') then
+        alter table public.store_settings add column products_section_title text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_subtitle') then
+        alter table public.store_settings add column products_section_subtitle text;
     end if;
 end $$;
 

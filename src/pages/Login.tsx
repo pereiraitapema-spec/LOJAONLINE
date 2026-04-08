@@ -342,6 +342,27 @@ export default function Login() {
               ? 'Entre com seu e-mail e senha cadastrados.' 
               : 'Preencha os dados abaixo para se cadastrar.'}
           </p>
+
+          <div className="mt-8 space-y-4">
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading}
+              className="w-full bg-white border-2 border-slate-200 text-slate-700 py-3.5 rounded-xl font-bold hover:bg-slate-50 hover:border-emerald-200 transition-all flex items-center justify-center gap-3 shadow-sm"
+            >
+              <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+              Entrar com Google
+            </button>
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200"></div>
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="px-4 bg-white text-slate-400 uppercase tracking-widest font-bold">Ou use seu e-mail</span>
+              </div>
+            </div>
+          </div>
           
           <div className="flex bg-slate-100 p-1 rounded-xl mt-6">
             <button
@@ -515,28 +536,6 @@ export default function Login() {
               </button>
             </div>
           )}
-
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-slate-500 uppercase tracking-wider text-xs font-semibold">Ou continue com</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            className="w-full bg-white border border-slate-200 text-slate-700 py-3 rounded-xl font-semibold hover:bg-slate-50 transition-colors flex items-center justify-center gap-3"
-          >
-            <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
-            Entrar com Google
-          </button>
-          
-          <p className="text-sm text-center text-slate-400">
-            Esqueceu sua senha? <span className="text-indigo-600 cursor-pointer hover:underline" onClick={handleResetPassword}>Recuperar</span>
-          </p>
 
           <p className="text-sm text-center text-slate-400 mt-4">
             Ao entrar, você concorda com nossos termos.

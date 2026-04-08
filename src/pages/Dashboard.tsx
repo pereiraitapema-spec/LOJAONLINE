@@ -106,7 +106,7 @@ export default function Dashboard() {
           return Promise.race([promise, timeoutPromise]);
         };
 
-        const [ordersRes, productsRes, affiliatesRes, abandonedRes, leadsRes] = await Promise.all([
+        const [ordersRes, productsRes, affiliatesRes, abandonedRes, leadsRes, labelsRes] = await Promise.all([
           fetchWithTimeout(Promise.resolve(supabase.from('orders')
             .select('*, order_items(*)')
             .in('status', ['paid', 'processing', 'shipped', 'delivered'])
@@ -118,7 +118,11 @@ export default function Dashboard() {
             .select('*')
             .gte('created_at', `${dateRange.start}T00:00:00Z`)
             .lte('created_at', `${dateRange.end}T23:59:59Z`))),
-          fetchWithTimeout(Promise.resolve(supabase.from('leads').select('*')))
+          fetchWithTimeout(Promise.resolve(supabase.from('leads').select('*'))),
+          fetchWithTimeout(Promise.resolve(supabase.from('shipping_labels')
+            .select('valor, order_id')
+            .gte('created_at', `${dateRange.start}T00:00:00Z`)
+            .lte('created_at', `${dateRange.end}T23:59:59Z`)))
         ]);
 
         const orders = ordersRes.data || [];
@@ -126,6 +130,7 @@ export default function Dashboard() {
         const affiliates = affiliatesRes.data || [];
         const abandoned = abandonedRes.data || [];
         const leads = leadsRes.data || [];
+        const labels = labelsRes.data || [];
 
         // Calculate Revenue
         const revenue = orders.reduce((acc, o) => acc + o.total, 0);
@@ -147,7 +152,15 @@ export default function Dashboard() {
           
           return acc + current;
         }, 0);
-        const totalShipping = orders.reduce((acc, o) => acc + (o.shipping_cost || 0), 0);
+        const totalShipping = orders.reduce((acc, o) => {
+          // Busca o valor real da etiqueta se existir
+          const label = labels.find(l => l.order_id === o.id);
+          if (label && label.valor > 0) return acc + Number(label.valor);
+          
+          // Fallback: se não houver etiqueta, mas o cliente pagou frete, usamos esse valor como estimativa de custo
+          // (ou poderíamos usar um custo médio se o frete foi grátis)
+          return acc + (o.shipping_cost || 0);
+        }, 0);
         
         // Calculate COGS (Cost of Goods Sold) based on items in the filtered orders
         let calculatedCOGS = 0;

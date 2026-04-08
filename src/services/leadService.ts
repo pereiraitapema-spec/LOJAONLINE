@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { automationService } from './automationService';
 
 export type LeadStatus = 'frio' | 'morno' | 'quente' | 'cliente' | 'inativo';
 
@@ -61,7 +62,10 @@ export const leadService = {
       console.log(`🔥 Lead (ID: ${userId}) atualizado: ${currentStatus} -> ${status}`);
       
       // Se foi criado (não existia), envia webhook
-      if (!lead) await this.sendToWebhook('lead:created', updatedLead);
+      if (!lead) {
+        await this.sendToWebhook('lead:created', updatedLead);
+        await automationService.trigger('new_lead', updatedLead);
+      }
     } catch (error) {
       console.error('❌ Erro crítico em leadService.updateStatus:', error);
     }

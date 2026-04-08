@@ -264,7 +264,7 @@ export default function AffiliateRegister() {
                   Dados Pessoais
                 </h3>
 
-                {session && (
+                {session ? (
                   <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-3">
                     <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
                       <User size={20} />
@@ -272,6 +272,34 @@ export default function AffiliateRegister() {
                     <div>
                       <p className="text-sm font-bold text-emerald-900">Você está logado!</p>
                       <p className="text-xs text-emerald-700">Usaremos sua conta atual ({session.user.email}) para o cadastro.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-6 space-y-4">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const { error } = await supabase.auth.signInWithOAuth({
+                          provider: 'google',
+                          options: {
+                            redirectTo: window.location.origin + '/afiliados/cadastro'
+                          }
+                        });
+                        if (error) toast.error('Erro ao entrar com Google: ' + error.message);
+                      }}
+                      className="w-full bg-white border-2 border-slate-200 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-50 hover:border-emerald-200 transition-all flex items-center justify-center gap-3 shadow-sm"
+                    >
+                      <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+                      Entrar com Google
+                    </button>
+                    
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-slate-200"></div>
+                      </div>
+                      <div className="relative flex justify-center text-xs">
+                        <span className="px-4 bg-white text-slate-400 uppercase tracking-widest font-bold">Ou preencha manualmente</span>
+                      </div>
                     </div>
                   </div>
                 )}

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { automationService } from './automationService';
 
 export const orderService = {
   async getOrderById(orderId: number) {
@@ -36,16 +37,7 @@ export const orderService = {
 
     if (itemsError) throw itemsError;
 
-    // Criar shipment padrão com CepCerto
-    // const { error: shipmentError } = await supabase
-    //   .from('shipments')
-    //   .insert([{
-    //     order_id: order.id,
-    //     carrier_name: 'CepCerto',
-    //     tracking_number: 'TRACK-' + Math.random().toString(36).substr(2, 9).toUpperCase()
-    //   }]);
-    
-    // if (shipmentError) throw shipmentError;
+    await automationService.trigger('new_order', order);
 
     return order;
   },
@@ -56,6 +48,14 @@ export const orderService = {
       .eq('id', orderId);
 
     if (error) throw error;
+
+    if (status === 'paid') {
+      const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).single();
+      if (order) await automationService.trigger('order_paid', order);
+    } else if (status === 'shipped') {
+      const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).single();
+      if (order) await automationService.trigger('order_shipped', order);
+    }
   },
 
   async updateOrder(orderId: string, updateData: any) {

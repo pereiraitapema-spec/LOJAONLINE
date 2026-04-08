@@ -34,6 +34,7 @@ interface AffiliateData {
   commission_rate: number;
   balance: number;
   total_paid?: number;
+  total_commissions?: number;
   pix_key: string;
   pix_name?: string;
   pix_cpf?: string;
@@ -658,6 +659,7 @@ export default function Affiliates() {
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase">WhatsApp</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase">Status</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase">Comissão (%)</th>
+                      <th className="p-4 text-xs font-bold text-slate-500 uppercase">Total Comissões</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase">A Receber</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase">Total Pago</th>
                       <th className="p-4 text-xs font-bold text-slate-500 uppercase">Ações</th>
@@ -702,6 +704,7 @@ export default function Affiliates() {
                             </div>
                           )}
                         </td>
+                        <td className="p-4 font-bold text-slate-900">{formatCurrency(aff.total_commissions || 0)}</td>
                         <td className="p-4 font-mono text-sm text-indigo-600 font-bold">{formatCurrency(aff.balance)}</td>
                         <td className="p-4 font-mono text-sm text-slate-500">{formatCurrency(aff.total_paid || 0)}</td>
                         <td className="p-4">
