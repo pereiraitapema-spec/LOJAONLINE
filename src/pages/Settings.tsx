@@ -1375,6 +1375,14 @@ begin
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_company_id') then
         alter table public.store_settings add column nfe_company_id text;
     end if;
+
+    -- Webhooks de Automação
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'n8n_webhook_url') then
+        alter table public.store_settings add column n8n_webhook_url text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'chat_webhook_url') then
+        alter table public.store_settings add column chat_webhook_url text;
+    end if;
 end $$;
 
 -- 8. Tabela de Automações (n8n-like)

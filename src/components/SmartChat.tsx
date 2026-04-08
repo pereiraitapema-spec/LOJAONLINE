@@ -294,21 +294,28 @@ export default function SmartChat() {
 
     try {
       // 0. Check if AI auto-reply is enabled for this lead or if it's an affiliate
-      const { data: leadData } = await supabase
-        .from('leads')
-        .select('ai_auto_reply')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      
-      const { data: affiliateData } = await supabase
-        .from('affiliates')
-        .select('id, code, commission_rate, ai_auto_reply')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
+      let leadData = null;
+      let affiliateData = null;
 
+      if (session?.user?.id) {
+        const { data: lData } = await supabase
+          .from('leads')
+          .select('ai_auto_reply')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        leadData = lData;
+        
+        const { data: aData } = await supabase
+          .from('affiliates')
+          .select('id, code, commission_rate, ai_auto_reply')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+        affiliateData = aData;
+      }
+      
       const isAffiliate = !!affiliateData;
 
-      if (isAffiliate && affiliateData.ai_auto_reply === false) {
+      if (isAffiliate && affiliateData?.ai_auto_reply === false) {
         console.log('🤖 AI Auto-reply is disabled for this affiliate.');
         return;
       }
@@ -358,44 +365,54 @@ export default function SmartChat() {
         
         // Se houver um webhook de chat configurado, usamos ele em vez do Gemini
         if (settings.chat_webhook_url) {
-          console.log('🔗 Usando Webhook de Chat (n8n) para resposta...');
+          console.log(`🔗 Chamando Webhook de Chat (n8n): ${settings.chat_webhook_url}`);
           try {
+            const payload = {
+              event: 'chat_message',
+              lead_id: session?.user?.id || 'guest',
+              email: session?.user?.email || 'guest@example.com',
+              mensagem: currentMessages[currentMessages.length - 1].content,
+              history: currentMessages,
+              context: {
+                company_name: settings.company_name,
+                products: products?.map(p => ({ id: p.id, name: p.name, price: p.discount_price || p.price }))
+              }
+            };
+            
+            console.log('📤 Payload do Webhook:', payload);
+
             const response = await fetch(settings.chat_webhook_url, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                event: 'chat_message',
-                lead_id: session.user.id,
-                email: session.user.email,
-                mensagem: currentMessages[currentMessages.length - 1].content,
-                history: currentMessages,
-                context: {
-                  company_name: settings.company_name,
-                  products: products?.map(p => ({ id: p.id, name: p.name, price: p.discount_price || p.price }))
-                }
-              })
+              body: JSON.stringify(payload)
             });
 
+            console.log(`📥 Resposta do Webhook: ${response.status} ${response.statusText}`);
+
             if (response.ok) {
-              // O n8n deve responder inserindo na tabela leads_chat, 
-              // que já estamos ouvindo via Realtime.
-              // Mas para dar feedback imediato se o n8n retornar o texto na resposta:
               const data = await response.json();
+              console.log('📦 Dados recebidos do Webhook:', data);
+              
               if (data && data.response) {
                 const botMessage = data.response;
                 setMessages(prev => [...prev, { role: 'bot', content: botMessage }]);
-                localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify([...currentMessages, { role: 'bot', content: botMessage }]));
                 
-                await chatService.sendMessage({
-                  sender_id: session.user.id,
-                  receiver_id: session.user.id,
-                  message: botMessage,
-                  is_human: false,
-                  is_read: true
-                });
+                if (session?.user?.id) {
+                  localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify([...currentMessages, { role: 'bot', content: botMessage }]));
+                  
+                  await chatService.sendMessage({
+                    sender_id: session.user.id,
+                    receiver_id: session.user.id,
+                    message: botMessage,
+                    is_human: false,
+                    is_read: true
+                  });
+                }
               }
               setLoading(false);
               return;
+            } else {
+              console.warn('⚠️ Webhook retornou erro, tentando fallback para Gemini...');
             }
           } catch (e) {
             console.error('❌ Erro ao chamar webhook de chat:', e);
