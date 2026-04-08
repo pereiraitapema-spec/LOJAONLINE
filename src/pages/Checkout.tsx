@@ -1174,7 +1174,9 @@ export default function Checkout() {
       // Marcar como lead quente ao realizar pedido e salvar informações de compra
       leadService.updateStatus('quente', {
         product: cart.map(i => i.product.name).join(', '),
-        value: finalTotal
+        value: finalTotal,
+        email: customer.email,
+        name: customer.name
       });
 
       // 1.1 Mark abandoned cart as recovered

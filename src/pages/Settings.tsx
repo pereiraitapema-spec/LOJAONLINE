@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { motion } from 'motion/react';
-import { Save, Plus, Trash2, Image as ImageIcon, Settings as SettingsIcon, Sparkles, Link as LinkIcon, CreditCard, Clock, FileText, ArrowLeft, Truck, Zap } from 'lucide-react';
+import { Save, Plus, Trash2, Image as ImageIcon, Settings as SettingsIcon, Sparkles, Link as LinkIcon, CreditCard, Clock, FileText, ArrowLeft, Truck, Zap, Check, Info, MessageSquare } from 'lucide-react';
 import { Loading } from '../components/Loading';
 import { GoogleGenAI } from "@google/genai";
 
@@ -42,6 +42,7 @@ interface StoreSettings {
   nfe_provider?: string;
   nfe_token?: string;
   nfe_company_id?: string;
+  chat_webhook_url?: string;
 }
 
 export default function Settings() {
@@ -201,24 +202,31 @@ export default function Settings() {
 
     const fetchSettings = async () => {
     try {
+      console.log('Buscando configurações da loja...');
       const { data, error } = await supabase
         .from('store_settings')
         .select('*');
 
       if (error) {
-        if (error.message.includes('does not exist') || error.code === '42P01') {
-          setShowSql(true);
-          toast.error('Tabela de configurações não encontrada.');
+        console.error('Erro ao buscar configurações:', error);
+        if (error.message.includes('column') || error.message.includes('does not exist') || error.code === '42P01' || error.code === 'PGRST204') {
+          setShowSqlModal(true);
+          toast.error('Erro de banco de dados detectado. Por favor, execute o script de reparo.');
           return;
         }
         throw error;
       }
 
+      console.log('Dados recebidos do banco:', data);
+
       let settingsData;
       if (data && data.length > 0) {
         settingsData = data[0];
+        if (data.length > 1) {
+          console.warn('Atenção: Múltiplas linhas encontradas em store_settings. Usando a primeira.');
+        }
       } else {
-        // Se não houver dados, tenta inserir
+        console.log('Nenhuma configuração encontrada. Criando padrão...');
         const { data: newData, error: insertError } = await supabase
           .from('store_settings')
           .insert([{
@@ -264,7 +272,8 @@ export default function Settings() {
         ai_auto_learning: settingsData.ai_auto_learning || false,
         nfe_provider: settingsData.nfe_provider || 'manual',
         nfe_token: settingsData.nfe_token || '',
-        nfe_company_id: settingsData.nfe_company_id || ''
+        nfe_company_id: settingsData.nfe_company_id || '',
+        chat_webhook_url: settingsData.chat_webhook_url || ''
       });
     } catch (error: any) {
       console.error('Error fetching settings:', error);
@@ -316,7 +325,8 @@ export default function Settings() {
         ai_auto_learning: settings.ai_auto_learning,
         nfe_provider: settings.nfe_provider,
         nfe_token: settings.nfe_token,
-        nfe_company_id: settings.nfe_company_id
+        nfe_company_id: settings.nfe_company_id,
+        chat_webhook_url: settings.chat_webhook_url
       };
 
       console.log('Salvando configurações:', payload);
@@ -332,10 +342,12 @@ export default function Settings() {
       }
     } catch (error: any) {
       console.error('Error saving settings:', error);
-      if (error.message?.includes('column') || error.message?.includes('does not exist')) {
+      if (error.message?.includes('column') || error.message?.includes('does not exist') || error.code === 'PGRST204') {
         setShowSqlModal(true);
+        toast.error('Erro de banco de dados: Colunas faltando. Use o botão "Reparar Banco" que apareceu no topo.');
+      } else {
+        toast.error('Erro ao salvar: ' + error.message);
       }
-      toast.error('Erro ao salvar: ' + error.message);
     } finally {
       setSaving(false);
     }
@@ -552,6 +564,9 @@ begin
     end if;
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'shipping_methods') then
         alter table public.store_settings add column shipping_methods jsonb default '[]'::jsonb;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'free_shipping_threshold') then
+        alter table public.store_settings add column free_shipping_threshold numeric(10,2) default 299.00;
     end if;
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_rules') then
         alter table public.store_settings add column ai_chat_rules text;
@@ -878,7 +893,149 @@ create policy "Qualquer um pode atualizar conhecimento" on public.ai_knowledge_b
     );
   }
 
-  if (!settings) return <div>Erro ao carregar configurações.</div>;
+  if (!settings) {
+    return (
+      <div className="max-w-4xl mx-auto p-8 text-center">
+        <div className="bg-red-50 border border-red-200 rounded-3xl p-12 shadow-xl">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Zap size={40} className="text-red-600 animate-pulse" />
+          </div>
+          <h2 className="text-3xl font-bold text-slate-900 mb-4">Erro de Banco de Dados</h2>
+          <p className="text-slate-600 mb-8 text-lg">
+            Não conseguimos carregar as configurações. Isso acontece quando o banco de dados precisa ser atualizado para suportar novas funções (NFe, IA, Frete).
+          </p>
+          
+          <div className="bg-slate-900 rounded-2xl p-6 text-left mb-8 shadow-inner">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Script de Reparo Necessário</span>
+              <button 
+                onClick={() => {
+                  const code = document.getElementById('repair-sql-error')?.innerText;
+                  if (code) {
+                    navigator.clipboard.writeText(code);
+                    toast.success('SQL copiado! Cole no Editor SQL do Supabase.');
+                  }
+                }}
+                className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-lg text-xs font-bold hover:bg-emerald-500/20 transition-colors"
+              >
+                Copiar SQL
+              </button>
+            </div>
+            <pre id="repair-sql-error" className="text-emerald-400 text-[10px] font-mono overflow-x-auto max-h-64 leading-relaxed">
+{`-- COPIE E EXECUTE NO EDITOR SQL DO SUPABASE
+
+-- 1. Garantir que a tabela existe
+create table if not exists public.store_settings (
+    id uuid default gen_random_uuid() primary key,
+    company_name text,
+    cnpj text,
+    address text,
+    cep text,
+    phone text,
+    whatsapp text,
+    email text,
+    instagram text,
+    facebook text,
+    business_hours text,
+    business_hours_details text,
+    payment_methods jsonb default '[]'::jsonb,
+    institutional_links jsonb default '[]'::jsonb,
+    affiliate_terms text,
+    top_bar_text text,
+    promotions_section_title text,
+    promotions_section_subtitle text,
+    products_section_title text,
+    products_section_subtitle text,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 2. Adicionar colunas faltantes (NFe, IA, Frete, Social)
+do $$
+begin
+    -- Social e Frete
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'social_links') then
+        alter table public.store_settings add column social_links jsonb default '[]'::jsonb;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'shipping_methods') then
+        alter table public.store_settings add column shipping_methods jsonb default '[]'::jsonb;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'free_shipping_threshold') then
+        alter table public.store_settings add column free_shipping_threshold numeric(10,2) default 299.00;
+    end if;
+
+    -- IA e Automação
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_rules') then
+        alter table public.store_settings add column ai_chat_rules text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
+        alter table public.store_settings add column ai_chat_triggers text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_auto_learning') then
+        alter table public.store_settings add column ai_auto_learning boolean default false;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'n8n_webhook_url') then
+        alter table public.store_settings add column n8n_webhook_url text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'origin_zip_code') then
+        alter table public.store_settings add column origin_zip_code text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'debug_mode') then
+        alter table public.store_settings add column debug_mode boolean default false;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'tracking_pixels') then
+        alter table public.store_settings add column tracking_pixels jsonb default '[]'::jsonb;
+    end if;
+
+    -- Nota Fiscal (NFe)
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_provider') then
+        alter table public.store_settings add column nfe_provider text default 'manual';
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_token') then
+        alter table public.store_settings add column nfe_token text;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_company_id') then
+        alter table public.store_settings add column nfe_company_id text;
+    end if;
+end $$;
+
+-- 3. Garantir uma linha de dados
+insert into public.store_settings (company_name)
+select 'Minha Loja'
+where not exists (select 1 from public.store_settings);
+
+-- 4. Segurança (RLS)
+alter table public.store_settings enable row level security;
+drop policy if exists "Public read settings" on public.store_settings;
+create policy "Public read settings" on public.store_settings for select using (true);
+drop policy if exists "Auth update settings" on public.store_settings;
+create policy "Auth update settings" on public.store_settings for update using (auth.role() = 'authenticated');
+drop policy if exists "Auth insert settings" on public.store_settings;
+create policy "Auth insert settings" on public.store_settings for insert with check (auth.role() = 'authenticated');
+`}
+            </pre>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 flex items-center justify-center gap-2"
+            >
+              <Check size={20} />
+              Já executei o SQL, recarregar
+            </button>
+            <button
+              onClick={() => window.location.href = '/admin/dashboard'}
+              className="bg-slate-100 text-slate-600 px-10 py-4 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+            >
+              <ArrowLeft size={20} />
+              Voltar ao Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -897,6 +1054,18 @@ create policy "Qualquer um pode atualizar conhecimento" on public.ai_knowledge_b
           </h1>
         </div>
         <div className="flex gap-2">
+          {showSqlModal && (
+            <button
+              onClick={() => {
+                setShowSql(true);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="bg-red-100 text-red-600 px-4 py-2 rounded-xl font-bold hover:bg-red-200 transition-colors text-sm flex items-center gap-2 animate-pulse"
+            >
+              <Zap size={18} />
+              Reparar Banco de Dados
+            </button>
+          )}
           <button
             onClick={() => setShowSql(!showSql)}
             className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold hover:bg-slate-200 transition-colors text-sm"
@@ -940,6 +1109,9 @@ begin
     end if;
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'shipping_methods') then
         alter table public.store_settings add column shipping_methods jsonb default '[]'::jsonb;
+    end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'free_shipping_threshold') then
+        alter table public.store_settings add column free_shipping_threshold numeric(10,2) default 299.00;
     end if;
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_rules') then
         alter table public.store_settings add column ai_chat_rules text;
@@ -1242,6 +1414,7 @@ create policy "Enable delete for authenticated users only" on public.automations
           { id: 'payments', label: 'Pagamentos', icon: CreditCard },
           { id: 'shipping', label: 'Frete', icon: Truck },
           { id: 'billing', label: 'Faturamento (NFe)', icon: FileText },
+          { id: 'automation', label: 'Automação', icon: Zap },
           { id: 'hours', label: 'Horários', icon: Clock },
           { id: 'visual', label: 'Conteúdo Visual', icon: ImageIcon },
           { id: 'ai_chat', label: 'Chat Inteligente', icon: Sparkles },
@@ -1262,6 +1435,118 @@ create policy "Enable delete for authenticated users only" on public.automations
       </div>
 
       <div className="space-y-8">
+        {activeTab === 'automation' && (
+          <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+            <div className="flex justify-between items-center mb-8">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
+                  <Zap size={28} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Automação & Webhooks</h2>
+                  <p className="text-slate-500">Conecte sua loja ao n8n, Zapier ou Make.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => handleSave()}
+                disabled={saving}
+                className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {saving ? <Loading message="" /> : <Save size={18} />}
+                Salvar Automação
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Webhook URL Principal (n8n)</label>
+                  <div className="relative">
+                    <input 
+                      type="url"
+                      value={settings.n8n_webhook_url || ''}
+                      onChange={e => handleChange('n8n_webhook_url', e.target.value)}
+                      placeholder="https://seu-n8n.com/webhook/..."
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-mono text-sm"
+                    />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                       <Zap size={18} className={settings.n8n_webhook_url ? "text-emerald-500" : "text-slate-300"} />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                    Este webhook recebe eventos de: <strong>Novo Lead, Carrinho Abandonado, Novo Pedido, Pedido Pago e Pedido Enviado.</strong>
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Webhook de Chat (n8n)</label>
+                  <div className="relative">
+                    <input 
+                      type="url"
+                      value={settings.chat_webhook_url || ''}
+                      onChange={e => handleChange('chat_webhook_url', e.target.value)}
+                      placeholder="https://seu-dominio.com/webhook/chatbot"
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono text-sm"
+                    />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                       <MessageSquare size={18} className={settings.chat_webhook_url ? "text-indigo-500" : "text-slate-300"} />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                    Se configurado, as mensagens do chat serão enviadas para este webhook com o campo <strong>{`{"mensagem": "..."}`}</strong>.
+                  </p>
+                </div>
+
+                <div className="p-6 bg-slate-900 rounded-3xl text-white">
+                  <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+                    <Info size={16} className="text-emerald-400" />
+                    Como responder via n8n?
+                  </h3>
+                  <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                    Para enviar uma mensagem de volta ao chat do cliente, seu n8n deve fazer um POST para a API do Supabase na tabela <strong>leads_chat</strong>.
+                  </p>
+                  <div className="bg-slate-800 p-4 rounded-xl font-mono text-[10px] text-emerald-400 overflow-x-auto">
+                    {`POST https://<sua-url>.supabase.co/rest/v1/leads_chat
+Header: apikey: <sua-key>
+Body: {
+  "sender_id": null,
+  "receiver_id": "{{ lead_id }}",
+  "message": "Sua resposta aqui",
+  "is_human": false
+}`}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100">
+                  <h3 className="font-bold text-indigo-900 mb-2">Dica de Integração</h3>
+                  <p className="text-sm text-indigo-700 leading-relaxed">
+                    Ao receber um evento de <strong>carrinho_abandonado</strong>, você pode usar o n8n para enviar um WhatsApp automático para o cliente usando a API da Evolution ou WPPConnect.
+                  </p>
+                </div>
+
+                <div className="border-t border-slate-100 pt-6">
+                  <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wider">Eventos Disponíveis</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      'lead:created',
+                      'cart_abandoned',
+                      'new_order',
+                      'order_paid',
+                      'order_shipped'
+                    ].map(event => (
+                      <div key={event} className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg text-[10px] font-bold text-slate-600 border border-slate-100">
+                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                        {event}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
         {activeTab === 'ai_chat' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex justify-between items-center mb-4">

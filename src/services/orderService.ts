@@ -51,7 +51,22 @@ export const orderService = {
 
     if (status === 'paid') {
       const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).single();
-      if (order) await automationService.trigger('order_paid', order);
+      if (order) {
+        await automationService.trigger('order_paid', order);
+        
+        // Atualizar status do lead para 'cliente'
+        try {
+          const { leadService } = await import('./leadService');
+          await leadService.updateStatus('cliente', {
+            product: 'Pedido Pago',
+            value: order.total,
+            email: order.customer_email,
+            name: order.customer_name
+          });
+        } catch (e) {
+          console.warn('⚠️ Erro ao atualizar lead para cliente:', e);
+        }
+      }
     } else if (status === 'shipped') {
       const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).single();
       if (order) await automationService.trigger('order_shipped', order);

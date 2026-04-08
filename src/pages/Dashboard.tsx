@@ -212,7 +212,7 @@ export default function Dashboard() {
         // Leads
         const leadsCold = leads.filter(l => l.status_lead === 'frio').length;
         const leadsWarm = leads.filter(l => l.status_lead === 'morno').length;
-        const leadsHot = leads.filter(l => l.status_lead === 'quente').length;
+        const leadsHot = leads.filter(l => l.status_lead === 'quente' || l.status_lead === 'cliente').length;
 
         // Top Products (based on filtered orders)
         const productSales: Record<string, { name: string, quantity: number, revenue: number }> = {};

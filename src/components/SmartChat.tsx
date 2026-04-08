@@ -355,6 +355,53 @@ export default function SmartChat() {
       context = 'Informações da Loja:\n';
       if (settings) {
         context += `Nome: ${settings.company_name}\nEndereço: ${settings.address}\nWhatsApp: ${settings.whatsapp}\nHorário: ${settings.business_hours}\n`;
+        
+        // Se houver um webhook de chat configurado, usamos ele em vez do Gemini
+        if (settings.chat_webhook_url) {
+          console.log('🔗 Usando Webhook de Chat (n8n) para resposta...');
+          try {
+            const response = await fetch(settings.chat_webhook_url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                event: 'chat_message',
+                lead_id: session.user.id,
+                email: session.user.email,
+                mensagem: currentMessages[currentMessages.length - 1].content,
+                history: currentMessages,
+                context: {
+                  company_name: settings.company_name,
+                  products: products?.map(p => ({ id: p.id, name: p.name, price: p.discount_price || p.price }))
+                }
+              })
+            });
+
+            if (response.ok) {
+              // O n8n deve responder inserindo na tabela leads_chat, 
+              // que já estamos ouvindo via Realtime.
+              // Mas para dar feedback imediato se o n8n retornar o texto na resposta:
+              const data = await response.json();
+              if (data && data.response) {
+                const botMessage = data.response;
+                setMessages(prev => [...prev, { role: 'bot', content: botMessage }]);
+                localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify([...currentMessages, { role: 'bot', content: botMessage }]));
+                
+                await chatService.sendMessage({
+                  sender_id: session.user.id,
+                  receiver_id: session.user.id,
+                  message: botMessage,
+                  is_human: false,
+                  is_read: true
+                });
+              }
+              setLoading(false);
+              return;
+            }
+          } catch (e) {
+            console.error('❌ Erro ao chamar webhook de chat:', e);
+            // Fallback para Gemini se o webhook falhar
+          }
+        }
       }
       
       context += `\nRegras do Agente:\n${aiSettings.rules}\n`;

@@ -4,23 +4,26 @@ import { automationService } from './automationService';
 export type LeadStatus = 'frio' | 'morno' | 'quente' | 'cliente' | 'inativo';
 
 export const leadService = {
-  async updateStatus(status: LeadStatus, purchaseData?: { product: string, value: number }) {
+  async updateStatus(status: LeadStatus, purchaseData?: { product: string, value: number, email?: string, name?: string }) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const userId = session.user.id;
-      const email = session.user.email;
-      const name = session.user.user_metadata?.full_name || email?.split('@')[0];
+      
+      let userId = session?.user?.id;
+      let email = purchaseData?.email || session?.user?.email;
+      let name = purchaseData?.name || session?.user?.user_metadata?.full_name || email?.split('@')[0];
 
       if (email === 'pereira.itapema@gmail.com') return;
+      if (!email && !userId) return;
 
-      // 1. Busca status atual para lógica de progressão
-      const { data: lead } = await supabase
-        .from('leads')
-        .select('status_lead, nome, valor_total_gasto')
-        .eq('id', userId)
-        .maybeSingle();
+      // 1. Busca lead existente por ID ou E-mail
+      let query = supabase.from('leads').select('*');
+      if (userId) {
+        query = query.eq('id', userId);
+      } else {
+        query = query.eq('email', email);
+      }
+
+      const { data: lead } = await query.maybeSingle();
 
       const statusOrder: Record<LeadStatus, number> = {
         'inativo': 0, 'frio': 1, 'morno': 2, 'quente': 3, 'cliente': 4
@@ -29,14 +32,14 @@ export const leadService = {
       const currentStatus = (lead?.status_lead || 'frio') as LeadStatus;
       
       // Se status novo não for superior AND não houver dados de compra, não faz nada
+      // Exceto se estivermos forçando um status (como 'cliente' após pagamento)
       if (statusOrder[status] <= statusOrder[currentStatus] && !purchaseData) return;
 
       // 3. Get affiliate_id from localStorage if exists
-      const affiliateId = localStorage.getItem('affiliate_code');
+      const affiliateId = localStorage.getItem('affiliate_code') || lead?.affiliate_id;
 
       // 2. Upsert atômico
       const payload: any = {
-        id: userId,
         nome: lead?.nome || name,
         email: email,
         status_lead: status,
@@ -44,6 +47,13 @@ export const leadService = {
         score: status === 'morno' ? 30 : (status === 'quente' ? 100 : (status === 'cliente' ? 150 : 10)),
         updated_at: new Date().toISOString()
       };
+
+      // Se temos o ID do usuário, usamos como PK
+      if (userId) {
+        payload.id = userId;
+      } else if (lead?.id) {
+        payload.id = lead.id;
+      }
 
       if (purchaseData) {
         payload.ultimo_produto_comprado = purchaseData.product;
@@ -53,13 +63,13 @@ export const leadService = {
 
       const { data: updatedLead, error } = await supabase
         .from('leads')
-        .upsert(payload, { onConflict: 'id' })
+        .upsert(payload, { onConflict: userId ? 'id' : 'email' })
         .select()
         .single();
 
       if (error) throw new Error(`Erro ao atualizar lead: ${error.message}`);
       
-      console.log(`🔥 Lead (ID: ${userId}) atualizado: ${currentStatus} -> ${status}`);
+      console.log(`🔥 Lead (${email}) atualizado: ${currentStatus} -> ${status}`);
       
       // Se foi criado (não existia), envia webhook
       if (!lead) {
