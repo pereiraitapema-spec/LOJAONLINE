@@ -39,6 +39,7 @@ interface StoreSettings {
   ai_chat_rules?: string;
   ai_chat_triggers?: string;
   ai_auto_learning?: boolean;
+  ai_chat_memory?: string;
   nfe_provider?: string;
   nfe_token?: string;
   nfe_company_id?: string;
@@ -249,6 +250,13 @@ export default function Settings() {
         if (settingsData.facebook) socialLinks.push({ platform: 'Facebook', url: settingsData.facebook, active: true });
       }
 
+      // Buscar regras da IA da tabela ai_settings (vendas)
+      const { data: aiSettingsData } = await supabase
+        .from('ai_settings')
+        .select('rules, memory')
+        .eq('agent_type', 'vendas')
+        .maybeSingle();
+
       setSettings({
         ...settingsData,
         payment_methods: settingsData.payment_methods || [],
@@ -267,9 +275,10 @@ export default function Settings() {
         debug_mode: settingsData.debug_mode || false,
         n8n_webhook_url: settingsData.n8n_webhook_url || '',
         origin_zip_code: settingsData.origin_zip_code || '',
-        ai_chat_rules: settingsData.ai_chat_rules || '',
+        ai_chat_rules: aiSettingsData?.rules || settingsData.ai_chat_rules || '',
         ai_chat_triggers: settingsData.ai_chat_triggers || '',
         ai_auto_learning: settingsData.ai_auto_learning || false,
+        ai_chat_memory: aiSettingsData?.memory || settingsData.ai_chat_memory || '',
         nfe_provider: settingsData.nfe_provider || 'manual',
         nfe_token: settingsData.nfe_token || '',
         nfe_company_id: settingsData.nfe_company_id || '',
@@ -323,6 +332,7 @@ export default function Settings() {
         ai_chat_rules: settings.ai_chat_rules,
         ai_chat_triggers: settings.ai_chat_triggers,
         ai_auto_learning: settings.ai_auto_learning,
+        ai_chat_memory: settings.ai_chat_memory,
         nfe_provider: settings.nfe_provider,
         nfe_token: settings.nfe_token,
         nfe_company_id: settings.nfe_company_id,
@@ -337,6 +347,16 @@ export default function Settings() {
         .eq('id', settings.id);
 
       if (error) throw error;
+
+      // Sincronizar com a tabela ai_settings (vendas)
+      await supabase
+        .from('ai_settings')
+        .upsert({
+          agent_type: 'vendas',
+          rules: settings.ai_chat_rules,
+          memory: settings.ai_chat_memory || ''
+        }, { onConflict: 'agent_type' });
+
       if (showToast) {
         toast.success('Configurações salvas e aplicadas na loja!');
       }
@@ -1383,6 +1403,9 @@ begin
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'chat_webhook_url') then
         alter table public.store_settings add column chat_webhook_url text;
     end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_memory') then
+        alter table public.store_settings add column ai_chat_memory text;
+    end if;
 end $$;
 
 -- 8. Tabela de Automações (n8n-like)
@@ -1602,6 +1625,17 @@ Body: {
                   onChange={(e) => handleChange('ai_chat_rules', e.target.value)}
                   className="w-full h-64 p-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
                   placeholder="Ex: 1. Use gatilhos mentais de escassez..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Memória Persistente da IA</label>
+                <p className="text-xs text-slate-500 mb-2">Informações que a IA deve sempre lembrar sobre a loja, promoções fixas ou preferências de atendimento.</p>
+                <textarea
+                  value={settings.ai_chat_memory || ''}
+                  onChange={(e) => handleChange('ai_chat_memory', e.target.value)}
+                  className="w-full h-48 p-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+                  placeholder="Ex: A loja oferece 10% de desconto na primeira compra com o cupom BEMVINDO..."
                 />
               </div>
 
