@@ -56,8 +56,6 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('general'); // general, institutional, payments, shipping, hours, footer, marketing, visual
   const [siteContent, setSiteContent] = useState<any[]>([]);
   const [loadingContent, setLoadingContent] = useState(false);
-  const [showSql, setShowSql] = useState(false);
-  const [showSqlModal, setShowSqlModal] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -211,11 +209,6 @@ export default function Settings() {
 
       if (error) {
         console.error('Erro ao buscar configurações:', error);
-        if (error.message.includes('column') || error.message.includes('does not exist') || error.code === '42P01' || error.code === 'PGRST204') {
-          setShowSqlModal(true);
-          toast.error('Erro de banco de dados detectado. Por favor, execute o script de reparo.');
-          return;
-        }
         throw error;
       }
 
@@ -349,12 +342,7 @@ export default function Settings() {
       }
     } catch (error: any) {
       console.error('Error saving settings:', error);
-      if (error.message?.includes('column') || error.message?.includes('does not exist') || error.code === 'PGRST204') {
-        setShowSqlModal(true);
-        toast.error('Erro de banco de dados: Colunas faltando. Use o botão "Reparar Banco" que apareceu no topo.');
-      } else {
-        toast.error('Erro ao salvar: ' + error.message);
-      }
+      toast.error('Erro ao salvar: ' + error.message);
     } finally {
       setSaving(false);
     }
@@ -905,131 +893,20 @@ create policy "Qualquer um pode atualizar conhecimento" on public.ai_knowledge_b
       <div className="max-w-4xl mx-auto p-8 text-center">
         <div className="bg-red-50 border border-red-200 rounded-3xl p-12 shadow-xl">
           <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Zap size={40} className="text-red-600 animate-pulse" />
+            <Zap size={40} className="text-red-600" />
           </div>
-          <h2 className="text-3xl font-bold text-slate-900 mb-4">Erro de Banco de Dados</h2>
+          <h2 className="text-3xl font-bold text-slate-900 mb-4">Erro ao Carregar Configurações</h2>
           <p className="text-slate-600 mb-8 text-lg">
-            Não conseguimos carregar as configurações. Isso acontece quando o banco de dados precisa ser atualizado para suportar novas funções (NFe, IA, Frete).
+            Não conseguimos carregar as configurações da loja. Isso geralmente acontece quando o banco de dados não está sincronizado.
           </p>
           
-          <div className="bg-slate-900 rounded-2xl p-6 text-left mb-8 shadow-inner">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Script de Reparo Necessário</span>
-              <button 
-                onClick={() => {
-                  const code = document.getElementById('repair-sql-error')?.innerText;
-                  if (code) {
-                    navigator.clipboard.writeText(code);
-                    toast.success('SQL copiado! Cole no Editor SQL do Supabase.');
-                  }
-                }}
-                className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-lg text-xs font-bold hover:bg-emerald-500/20 transition-colors"
-              >
-                Copiar SQL
-              </button>
-            </div>
-            <pre id="repair-sql-error" className="text-emerald-400 text-[10px] font-mono overflow-x-auto max-h-64 leading-relaxed">
-{`-- COPIE E EXECUTE NO EDITOR SQL DO SUPABASE
-
--- 1. Garantir que a tabela existe
-create table if not exists public.store_settings (
-    id uuid default gen_random_uuid() primary key,
-    company_name text,
-    cnpj text,
-    address text,
-    cep text,
-    phone text,
-    whatsapp text,
-    email text,
-    instagram text,
-    facebook text,
-    business_hours text,
-    business_hours_details text,
-    payment_methods jsonb default '[]'::jsonb,
-    institutional_links jsonb default '[]'::jsonb,
-    affiliate_terms text,
-    top_bar_text text,
-    promotions_section_title text,
-    promotions_section_subtitle text,
-    products_section_title text,
-    products_section_subtitle text,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-    updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- 2. Adicionar colunas faltantes (NFe, IA, Frete, Social)
-do $$
-begin
-    -- Social e Frete
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'social_links') then
-        alter table public.store_settings add column social_links jsonb default '[]'::jsonb;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'shipping_methods') then
-        alter table public.store_settings add column shipping_methods jsonb default '[]'::jsonb;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'free_shipping_threshold') then
-        alter table public.store_settings add column free_shipping_threshold numeric(10,2) default 299.00;
-    end if;
-
-    -- IA e Automação
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_rules') then
-        alter table public.store_settings add column ai_chat_rules text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
-        alter table public.store_settings add column ai_chat_triggers text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_auto_learning') then
-        alter table public.store_settings add column ai_auto_learning boolean default false;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'n8n_webhook_url') then
-        alter table public.store_settings add column n8n_webhook_url text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'origin_zip_code') then
-        alter table public.store_settings add column origin_zip_code text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'debug_mode') then
-        alter table public.store_settings add column debug_mode boolean default false;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'tracking_pixels') then
-        alter table public.store_settings add column tracking_pixels jsonb default '[]'::jsonb;
-    end if;
-
-    -- Nota Fiscal (NFe)
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_provider') then
-        alter table public.store_settings add column nfe_provider text default 'manual';
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_token') then
-        alter table public.store_settings add column nfe_token text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_company_id') then
-        alter table public.store_settings add column nfe_company_id text;
-    end if;
-end $$;
-
--- 3. Garantir uma linha de dados
-insert into public.store_settings (company_name)
-select 'Minha Loja'
-where not exists (select 1 from public.store_settings);
-
--- 4. Segurança (RLS)
-alter table public.store_settings enable row level security;
-drop policy if exists "Public read settings" on public.store_settings;
-create policy "Public read settings" on public.store_settings for select using (true);
-drop policy if exists "Auth update settings" on public.store_settings;
-create policy "Auth update settings" on public.store_settings for update using (auth.role() = 'authenticated');
-drop policy if exists "Auth insert settings" on public.store_settings;
-create policy "Auth insert settings" on public.store_settings for insert with check (auth.role() = 'authenticated');
-`}
-            </pre>
-          </div>
-
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={() => window.location.reload()}
               className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 flex items-center justify-center gap-2"
             >
               <Check size={20} />
-              Já executei o SQL, recarregar
+              Tentar Novamente
             </button>
             <button
               onClick={() => window.location.href = '/admin/dashboard'}
@@ -1061,24 +938,6 @@ create policy "Auth insert settings" on public.store_settings for insert with ch
           </h1>
         </div>
         <div className="flex gap-2">
-          {showSqlModal && (
-            <button
-              onClick={() => {
-                setShowSql(true);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="bg-red-100 text-red-600 px-4 py-2 rounded-xl font-bold hover:bg-red-200 transition-colors text-sm flex items-center gap-2 animate-pulse"
-            >
-              <Zap size={18} />
-              Reparar Banco de Dados
-            </button>
-          )}
-          <button
-            onClick={() => setShowSql(!showSql)}
-            className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold hover:bg-slate-200 transition-colors text-sm"
-          >
-            {showSql ? 'Ocultar SQL' : 'Ver SQL de Instalação'}
-          </button>
           <button
             onClick={() => handleSave()}
             disabled={saving}
@@ -1090,80 +949,6 @@ create policy "Auth insert settings" on public.store_settings for insert with ch
         </div>
       </div>
       
-      {showSql && (
-        <div className="mb-8 bg-slate-900 rounded-xl p-4 overflow-hidden">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-slate-400 text-xs font-bold uppercase">SQL de Instalação / Correção</span>
-            <button 
-              onClick={() => {
-                navigator.clipboard.writeText(document.getElementById('sql-code')?.innerText || '');
-                toast.success('Copiado!');
-              }}
-              className="text-emerald-400 text-xs hover:underline"
-            >
-              Copiar
-            </button>
-          </div>
-          <pre id="sql-code" className="text-emerald-400 text-xs font-mono overflow-x-auto max-h-60">
-{`-- COPIE E COLE ESTE CÓDIGO NO SQL EDITOR DO SUPABASE PARA CORRIGIR TODOS OS ERROS DE COLUNA
-
-DO $$ 
-BEGIN 
-    -- 1. Adicionar colunas básicas e de Webhook na tabela store_settings
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'n8n_webhook_url') THEN ALTER TABLE public.store_settings ADD COLUMN n8n_webhook_url text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'chat_webhook_url') THEN ALTER TABLE public.store_settings ADD COLUMN chat_webhook_url text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'affiliate_chat_webhook_url') THEN ALTER TABLE public.store_settings ADD COLUMN affiliate_chat_webhook_url text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'ai_chat_memory') THEN ALTER TABLE public.store_settings ADD COLUMN ai_chat_memory text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'openclaw_api_url') THEN ALTER TABLE public.store_settings ADD COLUMN openclaw_api_url text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'openclaw_api_key') THEN ALTER TABLE public.store_settings ADD COLUMN openclaw_api_key text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'openclaw_instance') THEN ALTER TABLE public.store_settings ADD COLUMN openclaw_instance text; END IF;
-    
-    -- 2. Adicionar colunas de Marketing e Seções
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'social_links') THEN ALTER TABLE public.store_settings ADD COLUMN social_links jsonb DEFAULT '[]'::jsonb; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'tracking_pixels') THEN ALTER TABLE public.store_settings ADD COLUMN tracking_pixels jsonb DEFAULT '[]'::jsonb; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'promotions_section_title') THEN ALTER TABLE public.store_settings ADD COLUMN promotions_section_title text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'promotions_section_subtitle') THEN ALTER TABLE public.store_settings ADD COLUMN promotions_section_subtitle text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'products_section_title') THEN ALTER TABLE public.store_settings ADD COLUMN products_section_title text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'products_section_subtitle') THEN ALTER TABLE public.store_settings ADD COLUMN products_section_subtitle text; END IF;
-    
-    -- 3. Adicionar colunas de Frete e NFe
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'shipping_methods') THEN ALTER TABLE public.store_settings ADD COLUMN shipping_methods jsonb DEFAULT '[]'::jsonb; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'free_shipping_threshold') THEN ALTER TABLE public.store_settings ADD COLUMN free_shipping_threshold numeric(10,2) DEFAULT 299.00; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'origin_zip_code') THEN ALTER TABLE public.store_settings ADD COLUMN origin_zip_code text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'nfe_provider') THEN ALTER TABLE public.store_settings ADD COLUMN nfe_provider text DEFAULT 'manual'; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'nfe_token') THEN ALTER TABLE public.store_settings ADD COLUMN nfe_token text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'nfe_company_id') THEN ALTER TABLE public.store_settings ADD COLUMN nfe_company_id text; END IF;
-
-    -- 4. Adicionar colunas de IA e Debug
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'ai_chat_rules') THEN ALTER TABLE public.store_settings ADD COLUMN ai_chat_rules text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'ai_chat_triggers') THEN ALTER TABLE public.store_settings ADD COLUMN ai_chat_triggers text; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'ai_auto_learning') THEN ALTER TABLE public.store_settings ADD COLUMN ai_auto_learning boolean DEFAULT false; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'debug_mode') THEN ALTER TABLE public.store_settings ADD COLUMN debug_mode boolean DEFAULT false; END IF;
-
-    -- 5. Corrigir tabela de automações
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'automations') THEN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'automations' AND column_name = 'trigger_type') THEN
-            ALTER TABLE public.automations RENAME COLUMN trigger TO trigger_type;
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'automations' AND column_name = 'action_type') THEN
-            ALTER TABLE public.automations RENAME COLUMN action TO action_type;
-        END IF;
-    END IF;
-END $$;
-
--- Criar tabela de configurações de IA se não existir
-CREATE TABLE IF NOT EXISTS public.ai_settings (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    agent_type text UNIQUE CHECK (agent_type IN ('vendas', 'afiliados')),
-    rules text,
-    memory text,
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
-);`}
-          </pre>
-        </div>
-      )}
-
       <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
         {[
           { id: 'general', label: 'Geral', icon: SettingsIcon },
