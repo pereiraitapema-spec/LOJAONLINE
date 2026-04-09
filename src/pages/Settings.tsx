@@ -204,9 +204,11 @@ export default function Settings() {
     const fetchSettings = async () => {
     try {
       console.log('Buscando configurações da loja...');
+      // Buscamos todas as linhas e ordenamos pelo ID para garantir consistência
       const { data, error } = await supabase
         .from('store_settings')
-        .select('*');
+        .select('*')
+        .order('id', { ascending: true });
 
       if (error) {
         console.error('Erro ao buscar configurações:', error);
@@ -217,9 +219,10 @@ export default function Settings() {
 
       let settingsData;
       if (data && data.length > 0) {
+        // Sempre usamos a primeira linha (a mais antiga se houver múltiplas)
         settingsData = data[0];
         if (data.length > 1) {
-          console.warn('Atenção: Múltiplas linhas encontradas em store_settings. Usando a primeira.');
+          console.warn(`Atenção: ${data.length} linhas encontradas em store_settings. Usando a primeira (ID: ${settingsData.id}).`);
         }
       } else {
         console.log('Nenhuma configuração encontrada. Criando padrão...');
@@ -230,7 +233,11 @@ export default function Settings() {
             promotions_section_title: 'PROMOÇÕES DA SEMANA',
             promotions_section_subtitle: 'Aproveite nossas ofertas exclusivas',
             payment_methods: [],
-            institutional_links: []
+            institutional_links: [],
+            shipping_methods: [
+              { name: 'Correios (PAC)', price: 25.90, deadline: '7 a 10 dias úteis', active: true },
+              { name: 'Correios (SEDEX)', price: 45.90, deadline: '2 a 4 dias úteis', active: true }
+            ]
           }])
           .select();
 
@@ -252,8 +259,21 @@ export default function Settings() {
         .eq('agent_type', 'vendas')
         .maybeSingle();
 
+      // Inicialização explícita de TODOS os campos para evitar null/undefined
       setSettings({
-        ...settingsData,
+        id: settingsData.id,
+        company_name: settingsData.company_name || '',
+        cnpj: settingsData.cnpj || '',
+        address: settingsData.address || '',
+        cep: settingsData.cep || '',
+        phone: settingsData.phone || '',
+        whatsapp: settingsData.whatsapp || '',
+        email: settingsData.email || '',
+        instagram: settingsData.instagram || '',
+        facebook: settingsData.facebook || '',
+        social_links: socialLinks,
+        business_hours: settingsData.business_hours || '',
+        business_hours_details: settingsData.business_hours_details || '',
         payment_methods: settingsData.payment_methods || [],
         shipping_methods: settingsData.shipping_methods || [
           { name: 'Correios (PAC)', price: 25.90, deadline: '7 a 10 dias úteis', active: true },
@@ -261,18 +281,19 @@ export default function Settings() {
         ],
         free_shipping_threshold: settingsData.free_shipping_threshold !== undefined ? settingsData.free_shipping_threshold : 299.00,
         institutional_links: settingsData.institutional_links || [],
-        social_links: socialLinks,
+        affiliate_terms: settingsData.affiliate_terms || '',
+        top_bar_text: settingsData.top_bar_text || '',
         promotions_section_title: settingsData.promotions_section_title || 'CAMPANHAS E PROMOÇÕES',
         promotions_section_subtitle: settingsData.promotions_section_subtitle || 'Aproveite nossas ofertas exclusivas',
         products_section_title: settingsData.products_section_title || 'Novidades da Estação',
         products_section_subtitle: settingsData.products_section_subtitle || 'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
         tracking_pixels: settingsData.tracking_pixels || [],
-        debug_mode: settingsData.debug_mode || false,
+        debug_mode: !!settingsData.debug_mode,
         n8n_webhook_url: settingsData.n8n_webhook_url || '',
         origin_zip_code: settingsData.origin_zip_code || '',
         ai_chat_rules: aiSettingsData?.rules || settingsData.ai_chat_rules || '',
         ai_chat_triggers: settingsData.ai_chat_triggers || '',
-        ai_auto_learning: settingsData.ai_auto_learning || false,
+        ai_auto_learning: !!settingsData.ai_auto_learning,
         ai_chat_memory: aiSettingsData?.memory || settingsData.ai_chat_memory || '',
         nfe_provider: settingsData.nfe_provider || 'manual',
         nfe_token: settingsData.nfe_token || '',
@@ -313,7 +334,23 @@ export default function Settings() {
       let payload: any = {};
       allowedFields.forEach(field => {
         if (field in settings) {
-          payload[field] = (settings as any)[field];
+          let value = (settings as any)[field];
+          
+          // Sanitização: Garantir que campos de texto nunca sejam null
+          const textFieldTypes = [
+            'company_name', 'cnpj', 'address', 'cep', 'phone', 'whatsapp', 'email',
+            'instagram', 'facebook', 'business_hours', 'business_hours_details',
+            'affiliate_terms', 'top_bar_text', 'promotions_section_title', 'promotions_section_subtitle',
+            'products_section_title', 'products_section_subtitle', 'n8n_webhook_url', 'origin_zip_code',
+            'ai_chat_rules', 'ai_chat_triggers', 'ai_chat_memory', 'nfe_token', 'nfe_company_id',
+            'chat_webhook_url', 'affiliate_chat_webhook_url', 'chat_response_source'
+          ];
+          
+          if (textFieldTypes.includes(field) && (value === null || value === undefined)) {
+            value = '';
+          }
+          
+          payload[field] = value;
         }
       });
 
@@ -554,358 +591,6 @@ export default function Settings() {
 
   if (loading) return <Loading message="Carregando configurações..." />;
   
-  // Se não tem settings mas tem erro de tabela, mostra o SQL
-  if (!settings && showSql) {
-    return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 text-center">
-          <h2 className="text-2xl font-bold text-rose-700 mb-4">Banco de Dados Incompleto</h2>
-          <p className="text-rose-600 mb-6">
-            As tabelas necessárias para as configurações da loja não foram encontradas.
-            Por favor, execute o comando SQL abaixo no Editor SQL do Supabase.
-          </p>
-          <div className="bg-slate-900 rounded-xl p-4 text-left overflow-x-auto mb-6">
-            <pre id="sql-code-main" className="text-emerald-400 text-xs font-mono">
-{`-- Execute este SQL no Editor SQL do Supabase para corrigir os erros
-
--- 0. Adicionar colunas de Frete, Social e IA (Novo)
-do $$
-begin
-    -- Colunas para store_settings
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'social_links') then
-        alter table public.store_settings add column social_links jsonb default '[]'::jsonb;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'shipping_methods') then
-        alter table public.store_settings add column shipping_methods jsonb default '[]'::jsonb;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'free_shipping_threshold') then
-        alter table public.store_settings add column free_shipping_threshold numeric(10,2) default 299.00;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_rules') then
-        alter table public.store_settings add column ai_chat_rules text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
-        alter table public.store_settings add column ai_chat_triggers text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_auto_learning') then
-        alter table public.store_settings add column ai_auto_learning boolean default false;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'n8n_webhook_url') then
-        alter table public.store_settings add column n8n_webhook_url text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'origin_zip_code') then
-        alter table public.store_settings add column origin_zip_code text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'debug_mode') then
-        alter table public.store_settings add column debug_mode boolean default false;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'tracking_pixels') then
-        alter table public.store_settings add column tracking_pixels jsonb default '[]'::jsonb;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_provider') then
-        alter table public.store_settings add column nfe_provider text default 'manual';
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_token') then
-        alter table public.store_settings add column nfe_token text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_company_id') then
-        alter table public.store_settings add column nfe_company_id text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_title') then
-        alter table public.store_settings add column promotions_section_title text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_subtitle') then
-        alter table public.store_settings add column promotions_section_subtitle text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_title') then
-        alter table public.store_settings add column products_section_title text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_subtitle') then
-        alter table public.store_settings add column products_section_subtitle text;
-    end if;
-end $$;
-
--- 0.1 Adicionar colunas na tabela orders (Novo)
-do $$
-begin
-    if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'tracking_code') then
-        alter table public.orders add column tracking_code text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'shipping_label_url') then
-        alter table public.orders add column shipping_label_url text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'shipping_method') then
-        alter table public.orders add column shipping_method text;
-    end if;
-end $$;
-
--- 0.2 Criar tabela de carrinhos abandonados (Novo)
-create table if not exists public.abandoned_carts (
-  id uuid default gen_random_uuid() primary key,
-  customer_email text,
-  customer_name text,
-  customer_phone text,
-  cart_items jsonb default '[]'::jsonb,
-  total numeric(10,2),
-  status text default 'abandoned',
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- Habilitar RLS para abandoned_carts
-alter table public.abandoned_carts enable row level security;
-drop policy if exists "Enable read for authenticated users" on public.abandoned_carts;
-create policy "Enable read for authenticated users" on public.abandoned_carts for select using (auth.role() = 'authenticated');
-drop policy if exists "Enable insert/update for all" on public.abandoned_carts;
-create policy "Enable insert/update for all" on public.abandoned_carts for insert with check (true);
-drop policy if exists "Enable update for all" on public.abandoned_carts;
-create policy "Enable update for all" on public.abandoned_carts for update using (true);
-
--- 1. Atualizar tabela de categorias (Novo)
-do $$
-begin
-    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'icon') then
-        alter table public.categories add column icon text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'image_url') then
-        alter table public.categories add column image_url text;
-    end if;
-end $$;
-
--- 2. Criar tabela de configurações da loja se não existir
-create table if not exists public.store_settings (
-  id uuid default gen_random_uuid() primary key,
-  company_name text,
-  cnpj text,
-  address text,
-  cep text,
-  phone text,
-  whatsapp text,
-  email text,
-  instagram text,
-  facebook text,
-  business_hours text,
-  business_hours_details text,
-  payment_methods jsonb default '[]'::jsonb,
-  shipping_methods jsonb default '[]'::jsonb,
-  institutional_links jsonb default '[]'::jsonb,
-  affiliate_terms text,
-  top_bar_text text,
-  promotions_section_title text,
-  promotions_section_subtitle text,
-  products_section_title text,
-  products_section_subtitle text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- 2. Adicionar colunas faltantes na tabela campaigns
-do $$
-begin
-    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'text_color') then
-        alter table public.campaigns add column text_color text default '#ffffff';
-    end if;
-
-    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'background_color') then
-        alter table public.campaigns add column background_color text default '#000000';
-    end if;
-
-    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'badge_text') then
-        alter table public.campaigns add column badge_text text;
-    end if;
-
-    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'button_text') then
-        alter table public.campaigns add column button_text text;
-    end if;
-end $$;
-
--- 3. Adicionar colunas faltantes na tabela categories (ícone e imagem)
-do $$
-begin
-    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'icon') then
-        alter table public.categories add column icon text;
-    end if;
-    
-    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'image_url') then
-        alter table public.categories add column image_url text;
-    end if;
-end $$;
-
--- 4. Adicionar colunas faltantes na tabela store_settings (se já existir)
-do $$
-begin
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_title') then
-        alter table public.store_settings add column promotions_section_title text;
-    end if;
-
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_subtitle') then
-        alter table public.store_settings add column promotions_section_subtitle text;
-    end if;
-
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_title') then
-        alter table public.store_settings add column products_section_title text;
-    end if;
-
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_subtitle') then
-        alter table public.store_settings add column products_section_subtitle text;
-    end if;
-end $$;
-
--- 5. Habilitar RLS e Políticas para store_settings
-alter table public.store_settings enable row level security;
-
-drop policy if exists "Enable read access for all users" on public.store_settings;
-create policy "Enable read access for all users" on public.store_settings for select using (true);
-
-drop policy if exists "Enable insert for authenticated users only" on public.store_settings;
-create policy "Enable insert for authenticated users only" on public.store_settings for insert with check (auth.role() = 'authenticated');
-
-drop policy if exists "Enable update for authenticated users only" on public.store_settings;
-create policy "Enable update for authenticated users only" on public.store_settings for update using (auth.role() = 'authenticated');
-
--- 6. Inserir configuração inicial se não existir
-insert into public.store_settings (
-    company_name, 
-    promotions_section_title, 
-    promotions_section_subtitle, 
-    products_section_title,
-    products_section_subtitle,
-    payment_methods, 
-    shipping_methods,
-    institutional_links
-)
-select 
-    'Minha Loja', 
-    'CAMPANHAS E PROMOÇÕES', 
-    'Aproveite nossas ofertas exclusivas', 
-    'Novidades da Estação',
-    'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
-    '[]'::jsonb, 
-    '[]'::jsonb,
-    '[]'::jsonb
-where not exists (select 1 from public.store_settings);
-
--- 7. Adicionar colunas para PIX de afiliados e Chat IA
-do $$
-begin
-    -- Afiliados
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_name') then
-        alter table public.affiliates add column pix_name text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_cpf') then
-        alter table public.affiliates add column pix_cpf text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_bank') then
-        alter table public.affiliates add column pix_bank text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_account') then
-        alter table public.affiliates add column pix_account text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_agency') then
-        alter table public.affiliates add column pix_agency text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'total_paid') then
-        alter table public.affiliates add column total_paid numeric(10,2) default 0;
-    end if;
-
-    -- Pagamentos de Afiliados
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_name') then
-        alter table public.affiliate_payments add column pix_name text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_cpf') then
-        alter table public.affiliate_payments add column pix_cpf text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_bank') then
-        alter table public.affiliate_payments add column pix_bank text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_account') then
-        alter table public.affiliate_payments add column pix_account text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_agency') then
-        alter table public.affiliate_payments add column pix_agency text;
-    end if;
-
-    -- Configurações da Loja (IA)
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_rules') then
-        alter table public.store_settings add column ai_chat_rules text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
-        alter table public.store_settings add column ai_chat_triggers text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_auto_learning') then
-        alter table public.store_settings add column ai_auto_learning boolean default false;
-    end if;
-end $$;
-
--- 8. Tabela de Automações (n8n-like)
-create table if not exists public.automations (
-    id uuid default gen_random_uuid() primary key,
-    name text not null,
-    trigger_type text not null,
-    action_type text not null,
-    config jsonb default '{}'::jsonb,
-    active boolean default true,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
-alter table public.automations enable row level security;
-
-drop policy if exists "Enable read access for all users" on public.automations;
-create policy "Enable read access for all users" on public.automations for select using (true);
-
-drop policy if exists "Enable insert for authenticated users only" on public.automations;
-create policy "Enable insert for authenticated users only" on public.automations for insert with check (auth.role() = 'authenticated');
-
-drop policy if exists "Enable update for authenticated users only" on public.automations;
-create policy "Enable update for authenticated users only" on public.automations for update using (auth.role() = 'authenticated');
-
-drop policy if exists "Enable delete for authenticated users only" on public.automations;
-create policy "Enable delete for authenticated users only" on public.automations for delete using (auth.role() = 'authenticated');
-
--- 9. Tabela de Base de Conhecimento da IA (Novo)
-create table if not exists public.ai_knowledge_base (
-    id uuid default gen_random_uuid() primary key,
-    topic text unique not null,
-    content text not null,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-    updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
-alter table public.ai_knowledge_base enable row level security;
-
-drop policy if exists "Conhecimento público" on public.ai_knowledge_base;
-create policy "Conhecimento público" on public.ai_knowledge_base for select using (true);
-
-drop policy if exists "Qualquer um pode inserir conhecimento" on public.ai_knowledge_base;
-create policy "Qualquer um pode inserir conhecimento" on public.ai_knowledge_base for insert with check (true);
-
-drop policy if exists "Qualquer um pode atualizar conhecimento" on public.ai_knowledge_base;
-create policy "Qualquer um pode atualizar conhecimento" on public.ai_knowledge_base for update using (true);`}
-            </pre>
-          </div>
-          <button
-            onClick={() => {
-              const codeElement = document.getElementById('sql-code-main');
-              if (codeElement) {
-                navigator.clipboard.writeText(codeElement.innerText);
-                toast.success('SQL copiado para a área de transferência!');
-              }
-            }}
-            className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
-          >
-            Copiar SQL
-          </button>
-          <button
-            onClick={() => window.location.reload()}
-            className="ml-4 bg-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-300 transition-colors"
-          >
-            Já executei, recarregar página
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   if (!settings) {
     return (
       <div className="max-w-4xl mx-auto p-8 text-center">
@@ -1800,35 +1485,88 @@ Body: {
         )}
 
         {activeTab === 'institutional' && (
-          <>
-            <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-6">
-              <h2 className="text-xl font-bold text-slate-900 mb-4">Termos e Condições de Afiliados</h2>
-              <div className="flex gap-2 mb-2">
+          <div className="space-y-6">
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <FileText className="text-indigo-600" />
+                Páginas Institucionais (Termos, Privacidade, etc.)
+              </h2>
+              <p className="text-sm text-slate-500 mb-6">
+                Crie e edite as páginas de Termos de Uso, Política de Privacidade e outras informações legais que aparecem no rodapé.
+              </p>
+              
+              <div className="space-y-4">
+                {settings.institutional_links.map((link, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors">
+                    <div>
+                      <h3 className="font-bold text-slate-900">{link.label || '(Sem título)'}</h3>
+                      <p className="text-sm text-slate-500">{link.url || '(Sem URL)'}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startEditLink(index)}
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Editar Conteúdo"
+                      >
+                        <SettingsIcon size={20} />
+                      </button>
+                      <button
+                        onClick={() => removeLink(index)}
+                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Remover"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  onClick={() => {
+                    setEditingLinkIndex(-1);
+                    setTempLink({ label: '', url: '', content: '' });
+                  }}
+                  className="w-full flex items-center justify-center gap-2 text-indigo-600 font-bold hover:bg-indigo-50 px-4 py-3 rounded-xl border border-dashed border-indigo-300 hover:border-indigo-500 transition-all"
+                >
+                  <Plus size={20} /> Adicionar Nova Página Legal
+                </button>
+              </div>
+            </section>
+
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <Sparkles className="text-purple-600" />
+                Termos e Condições de Afiliados
+              </h2>
+              <p className="text-sm text-slate-500 mb-4">
+                Este texto aparece na página de cadastro de novos afiliados.
+              </p>
+              <div className="flex gap-2 mb-4">
                 <input
                   type="text"
                   placeholder="Digite um prompt para gerar os termos com IA..."
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
-                  className="flex-1 p-2 border border-slate-300 rounded-lg text-sm"
+                  className="flex-1 p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none"
                 />
                 <button
                   onClick={() => generateAiText('affiliate_terms')}
                   disabled={generatingAi}
-                  className="px-3 py-1 bg-purple-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-purple-700 disabled:opacity-50"
+                  className="px-6 py-2 bg-purple-600 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-purple-700 disabled:opacity-50 transition-colors shadow-lg shadow-purple-100"
                 >
-                  <Sparkles size={14} />
-                  {generatingAi ? 'Gerando...' : 'Gerar IA'}
+                  <Sparkles size={18} />
+                  {generatingAi ? 'Gerando...' : 'Gerar com IA'}
                 </button>
               </div>
               <textarea
                 value={settings.affiliate_terms || ''}
                 onChange={(e) => handleChange('affiliate_terms', e.target.value)}
-                rows={10}
-                className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
-                placeholder="Cole ou gere aqui os termos e condições..."
+                rows={12}
+                className="w-full p-4 border border-slate-300 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-mono text-sm bg-slate-50"
+                placeholder="Cole ou gere aqui os termos e condições para seus afiliados..."
               />
             </section>
-          </>
+          </div>
         )}
 
         {activeTab === 'payments' && (
