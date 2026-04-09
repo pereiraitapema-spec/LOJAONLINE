@@ -1121,339 +1121,44 @@ create policy "Auth insert settings" on public.store_settings for insert with ch
             </button>
           </div>
           <pre id="sql-code" className="text-emerald-400 text-xs font-mono overflow-x-auto max-h-60">
-{`-- Execute este SQL no Editor SQL do Supabase para corrigir os erros
+{`-- COPIE E COLE ESTE CÓDIGO NO SQL EDITOR DO SUPABASE
 
--- 0. Adicionar colunas de Frete, Social e IA (Novo)
-do $$
-begin
-    -- Colunas para store_settings
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'social_links') then
-        alter table public.store_settings add column social_links jsonb default '[]'::jsonb;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'shipping_methods') then
-        alter table public.store_settings add column shipping_methods jsonb default '[]'::jsonb;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'free_shipping_threshold') then
-        alter table public.store_settings add column free_shipping_threshold numeric(10,2) default 299.00;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_rules') then
-        alter table public.store_settings add column ai_chat_rules text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
-        alter table public.store_settings add column ai_chat_triggers text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_auto_learning') then
-        alter table public.store_settings add column ai_auto_learning boolean default false;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'n8n_webhook_url') then
-        alter table public.store_settings add column n8n_webhook_url text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'origin_zip_code') then
-        alter table public.store_settings add column origin_zip_code text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'debug_mode') then
-        alter table public.store_settings add column debug_mode boolean default false;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'tracking_pixels') then
-        alter table public.store_settings add column tracking_pixels jsonb default '[]'::jsonb;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_provider') then
-        alter table public.store_settings add column nfe_provider text default 'manual';
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_token') then
-        alter table public.store_settings add column nfe_token text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_company_id') then
-        alter table public.store_settings add column nfe_company_id text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_title') then
-        alter table public.store_settings add column promotions_section_title text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_subtitle') then
-        alter table public.store_settings add column promotions_section_subtitle text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_title') then
-        alter table public.store_settings add column products_section_title text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_subtitle') then
-        alter table public.store_settings add column products_section_subtitle text;
-    end if;
-end $$;
+DO $$ 
+BEGIN 
+    -- Adicionar colunas de Webhook na tabela store_settings
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'n8n_webhook_url') THEN
+        ALTER TABLE public.store_settings ADD COLUMN n8n_webhook_url text;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'chat_webhook_url') THEN
+        ALTER TABLE public.store_settings ADD COLUMN chat_webhook_url text;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'affiliate_chat_webhook_url') THEN
+        ALTER TABLE public.store_settings ADD COLUMN affiliate_chat_webhook_url text;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'ai_chat_memory') THEN
+        ALTER TABLE public.store_settings ADD COLUMN ai_chat_memory text;
+    END IF;
 
--- 0.1 Adicionar colunas na tabela orders (Novo)
-do $$
-begin
-    if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'tracking_code') then
-        alter table public.orders add column tracking_code text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'shipping_label_url') then
-        alter table public.orders add column shipping_label_url text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'orders' and column_name = 'shipping_method') then
-        alter table public.orders add column shipping_method text;
-    end if;
-end $$;
+    -- Garantir que a tabela de automações use os nomes corretos
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'automations') THEN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'automations' AND column_name = 'trigger_type') THEN
+            ALTER TABLE public.automations RENAME COLUMN trigger TO trigger_type;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'automations' AND column_name = 'action_type') THEN
+            ALTER TABLE public.automations RENAME COLUMN action TO action_type;
+        END IF;
+    END IF;
+END $$;
 
--- 0.2 Criar tabela de carrinhos abandonados (Novo)
-create table if not exists public.abandoned_carts (
-  id uuid default gen_random_uuid() primary key,
-  customer_email text,
-  customer_name text,
-  customer_phone text,
-  cart_items jsonb default '[]'::jsonb,
-  total numeric(10,2),
-  status text default 'abandoned',
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- Habilitar RLS para abandoned_carts
-alter table public.abandoned_carts enable row level security;
-drop policy if exists "Enable read for authenticated users" on public.abandoned_carts;
-create policy "Enable read for authenticated users" on public.abandoned_carts for select using (auth.role() = 'authenticated');
-drop policy if exists "Enable insert/update for all" on public.abandoned_carts;
-create policy "Enable insert/update for all" on public.abandoned_carts for insert with check (true);
-drop policy if exists "Enable update for all" on public.abandoned_carts;
-create policy "Enable update for all" on public.abandoned_carts for update using (true);
-
--- 1. Atualizar tabela de categorias (Novo)
-do $$
-begin
-    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'icon') then
-        alter table public.categories add column icon text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'image_url') then
-        alter table public.categories add column image_url text;
-    end if;
-end $$;
-
--- 2. Criar tabela de configurações da loja se não existir
-create table if not exists public.store_settings (
-  id uuid default gen_random_uuid() primary key,
-  company_name text,
-  cnpj text,
-  address text,
-  cep text,
-  phone text,
-  whatsapp text,
-  email text,
-  instagram text,
-  facebook text,
-  business_hours text,
-  business_hours_details text,
-  payment_methods jsonb default '[]'::jsonb,
-  shipping_methods jsonb default '[]'::jsonb,
-  institutional_links jsonb default '[]'::jsonb,
-  affiliate_terms text,
-  top_bar_text text,
-  promotions_section_title text,
-  promotions_section_subtitle text,
-  products_section_title text,
-  products_section_subtitle text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- 2. Adicionar colunas faltantes na tabela campaigns
-do $$
-begin
-    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'text_color') then
-        alter table public.campaigns add column text_color text default '#ffffff';
-    end if;
-
-    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'background_color') then
-        alter table public.campaigns add column background_color text default '#000000';
-    end if;
-
-    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'badge_text') then
-        alter table public.campaigns add column badge_text text;
-    end if;
-
-    if not exists (select 1 from information_schema.columns where table_name = 'campaigns' and column_name = 'button_text') then
-        alter table public.campaigns add column button_text text;
-    end if;
-end $$;
-
--- 3. Adicionar colunas faltantes na tabela categories (ícone e imagem)
-do $$
-begin
-    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'icon') then
-        alter table public.categories add column icon text;
-    end if;
-    
-    if not exists (select 1 from information_schema.columns where table_name = 'categories' and column_name = 'image_url') then
-        alter table public.categories add column image_url text;
-    end if;
-end $$;
-
--- 4. Adicionar colunas faltantes na tabela store_settings (se já existir)
-do $$
-begin
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_title') then
-        alter table public.store_settings add column promotions_section_title text;
-    end if;
-
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'promotions_section_subtitle') then
-        alter table public.store_settings add column promotions_section_subtitle text;
-    end if;
-
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_title') then
-        alter table public.store_settings add column products_section_title text;
-    end if;
-
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'products_section_subtitle') then
-        alter table public.store_settings add column products_section_subtitle text;
-    end if;
-end $$;
-
--- 5. Habilitar RLS e Políticas para store_settings
-alter table public.store_settings enable row level security;
-
-drop policy if exists "Enable read access for all users" on public.store_settings;
-create policy "Enable read access for all users" on public.store_settings for select using (true);
-
-drop policy if exists "Enable insert for authenticated users only" on public.store_settings;
-create policy "Enable insert for authenticated users only" on public.store_settings for insert with check (auth.role() = 'authenticated');
-
-drop policy if exists "Enable update for authenticated users only" on public.store_settings;
-create policy "Enable update for authenticated users only" on public.store_settings for update using (auth.role() = 'authenticated');
-
--- 6. Inserir configuração inicial se não existir
-insert into public.store_settings (
-    company_name, 
-    promotions_section_title, 
-    promotions_section_subtitle, 
-    products_section_title,
-    products_section_subtitle,
-    payment_methods, 
-    shipping_methods,
-    institutional_links
-)
-select 
-    'Minha Loja', 
-    'CAMPANHAS E PROMOÇÕES', 
-    'Aproveite nossas ofertas exclusivas', 
-    'Novidades da Estação',
-    'Confira as últimas tendências e ofertas exclusivas que preparamos para você.',
-    '[]'::jsonb, 
-    '[]'::jsonb,
-    '[]'::jsonb
-where not exists (select 1 from public.store_settings);
-
--- 7. Adicionar colunas para PIX de afiliados e Chat IA
-do $$
-begin
-    -- Afiliados
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_name') then
-        alter table public.affiliates add column pix_name text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_cpf') then
-        alter table public.affiliates add column pix_cpf text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_bank') then
-        alter table public.affiliates add column pix_bank text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_account') then
-        alter table public.affiliates add column pix_account text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'pix_agency') then
-        alter table public.affiliates add column pix_agency text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliates' and column_name = 'total_paid') then
-        alter table public.affiliates add column total_paid numeric(10,2) default 0;
-    end if;
-
-    -- Pagamentos de Afiliados
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_name') then
-        alter table public.affiliate_payments add column pix_name text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_cpf') then
-        alter table public.affiliate_payments add column pix_cpf text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_bank') then
-        alter table public.affiliate_payments add column pix_bank text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_account') then
-        alter table public.affiliate_payments add column pix_account text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'affiliate_payments' and column_name = 'pix_agency') then
-        alter table public.affiliate_payments add column pix_agency text;
-    end if;
-
-    -- Configurações da Loja (IA)
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_rules') then
-        alter table public.store_settings add column ai_chat_rules text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_triggers') then
-        alter table public.store_settings add column ai_chat_triggers text;
-    end if;
-
-    -- Configurações de NFe
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_provider') then
-        alter table public.store_settings add column nfe_provider text default 'manual';
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_token') then
-        alter table public.store_settings add column nfe_token text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'nfe_company_id') then
-        alter table public.store_settings add column nfe_company_id text;
-    end if;
-
-    -- Webhooks de Automação
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'n8n_webhook_url') then
-        alter table public.store_settings add column n8n_webhook_url text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'chat_webhook_url') then
-        alter table public.store_settings add column chat_webhook_url text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'affiliate_chat_webhook_url') then
-        alter table public.store_settings add column affiliate_chat_webhook_url text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_memory') then
-        alter table public.store_settings add column ai_chat_memory text;
-    end if;
-end $$;
-
--- 7.1 Tabela de Configurações de IA
-create table if not exists public.ai_settings (
-    id uuid default gen_random_uuid() primary key,
-    agent_type text unique check (agent_type in ('vendas', 'afiliados')),
+-- Criar tabela de configurações de IA se não existir
+CREATE TABLE IF NOT EXISTS public.ai_settings (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    agent_type text UNIQUE CHECK (agent_type IN ('vendas', 'afiliados')),
     rules text,
     memory text,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-    updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
-alter table public.ai_settings enable row level security;
-drop policy if exists "Enable read for all" on public.ai_settings;
-create policy "Enable read for all" on public.ai_settings for select using (true);
-drop policy if exists "Enable all for authenticated" on public.ai_settings;
-create policy "Enable all for authenticated" on public.ai_settings for all using (auth.role() = 'authenticated');
-
--- 8. Tabela de Automações (n8n-like)
-create table if not exists public.automations (
-    id uuid default gen_random_uuid() primary key,
-    name text not null,
-    trigger_type text not null,
-    action_type text not null,
-    config jsonb default '{}'::jsonb,
-    active boolean default true,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
-alter table public.automations enable row level security;
-
-drop policy if exists "Enable read access for all users" on public.automations;
-create policy "Enable read access for all users" on public.automations for select using (true);
-
-drop policy if exists "Enable insert for authenticated users only" on public.automations;
-create policy "Enable insert for authenticated users only" on public.automations for insert with check (auth.role() = 'authenticated');
-
-drop policy if exists "Enable update for authenticated users only" on public.automations;
-create policy "Enable update for authenticated users only" on public.automations for update using (auth.role() = 'authenticated');
-
-drop policy if exists "Enable delete for authenticated users only" on public.automations;
-create policy "Enable delete for authenticated users only" on public.automations for delete using (auth.role() = 'authenticated');`}
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);`}
           </pre>
         </div>
       )}
