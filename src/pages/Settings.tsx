@@ -1121,25 +1121,39 @@ create policy "Auth insert settings" on public.store_settings for insert with ch
             </button>
           </div>
           <pre id="sql-code" className="text-emerald-400 text-xs font-mono overflow-x-auto max-h-60">
-{`-- COPIE E COLE ESTE CÓDIGO NO SQL EDITOR DO SUPABASE
+{`-- COPIE E COLE ESTE CÓDIGO NO SQL EDITOR DO SUPABASE PARA CORRIGIR TODOS OS ERROS DE COLUNA
 
 DO $$ 
 BEGIN 
-    -- Adicionar colunas de Webhook na tabela store_settings
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'n8n_webhook_url') THEN
-        ALTER TABLE public.store_settings ADD COLUMN n8n_webhook_url text;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'chat_webhook_url') THEN
-        ALTER TABLE public.store_settings ADD COLUMN chat_webhook_url text;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'affiliate_chat_webhook_url') THEN
-        ALTER TABLE public.store_settings ADD COLUMN affiliate_chat_webhook_url text;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'ai_chat_memory') THEN
-        ALTER TABLE public.store_settings ADD COLUMN ai_chat_memory text;
-    END IF;
+    -- 1. Adicionar colunas básicas e de Webhook na tabela store_settings
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'n8n_webhook_url') THEN ALTER TABLE public.store_settings ADD COLUMN n8n_webhook_url text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'chat_webhook_url') THEN ALTER TABLE public.store_settings ADD COLUMN chat_webhook_url text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'affiliate_chat_webhook_url') THEN ALTER TABLE public.store_settings ADD COLUMN affiliate_chat_webhook_url text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'ai_chat_memory') THEN ALTER TABLE public.store_settings ADD COLUMN ai_chat_memory text; END IF;
+    
+    -- 2. Adicionar colunas de Marketing e Seções
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'social_links') THEN ALTER TABLE public.store_settings ADD COLUMN social_links jsonb DEFAULT '[]'::jsonb; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'tracking_pixels') THEN ALTER TABLE public.store_settings ADD COLUMN tracking_pixels jsonb DEFAULT '[]'::jsonb; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'promotions_section_title') THEN ALTER TABLE public.store_settings ADD COLUMN promotions_section_title text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'promotions_section_subtitle') THEN ALTER TABLE public.store_settings ADD COLUMN promotions_section_subtitle text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'products_section_title') THEN ALTER TABLE public.store_settings ADD COLUMN products_section_title text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'products_section_subtitle') THEN ALTER TABLE public.store_settings ADD COLUMN products_section_subtitle text; END IF;
+    
+    -- 3. Adicionar colunas de Frete e NFe
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'shipping_methods') THEN ALTER TABLE public.store_settings ADD COLUMN shipping_methods jsonb DEFAULT '[]'::jsonb; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'free_shipping_threshold') THEN ALTER TABLE public.store_settings ADD COLUMN free_shipping_threshold numeric(10,2) DEFAULT 299.00; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'origin_zip_code') THEN ALTER TABLE public.store_settings ADD COLUMN origin_zip_code text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'nfe_provider') THEN ALTER TABLE public.store_settings ADD COLUMN nfe_provider text DEFAULT 'manual'; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'nfe_token') THEN ALTER TABLE public.store_settings ADD COLUMN nfe_token text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'nfe_company_id') THEN ALTER TABLE public.store_settings ADD COLUMN nfe_company_id text; END IF;
 
-    -- Garantir que a tabela de automações use os nomes corretos
+    -- 4. Adicionar colunas de IA e Debug
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'ai_chat_rules') THEN ALTER TABLE public.store_settings ADD COLUMN ai_chat_rules text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'ai_chat_triggers') THEN ALTER TABLE public.store_settings ADD COLUMN ai_chat_triggers text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'ai_auto_learning') THEN ALTER TABLE public.store_settings ADD COLUMN ai_auto_learning boolean DEFAULT false; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'debug_mode') THEN ALTER TABLE public.store_settings ADD COLUMN debug_mode boolean DEFAULT false; END IF;
+
+    -- 5. Corrigir tabela de automações
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'automations') THEN
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'automations' AND column_name = 'trigger_type') THEN
             ALTER TABLE public.automations RENAME COLUMN trigger TO trigger_type;
@@ -1172,7 +1186,7 @@ CREATE TABLE IF NOT EXISTS public.ai_settings (
           { id: 'payments', label: 'Pagamentos', icon: CreditCard },
           { id: 'shipping', label: 'Frete', icon: Truck },
           { id: 'billing', label: 'Faturamento (NFe)', icon: FileText },
-          { id: 'automation', label: 'Automação', icon: Zap },
+          { id: 'automation', label: 'Webhook n8n (Global)', icon: Zap },
           { id: 'hours', label: 'Horários', icon: Clock },
           { id: 'visual', label: 'Conteúdo Visual', icon: ImageIcon },
           { id: 'ai_chat', label: 'Chat Inteligente', icon: Sparkles },
@@ -1201,8 +1215,8 @@ CREATE TABLE IF NOT EXISTS public.ai_settings (
                   <Zap size={28} />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Automação & Webhooks</h2>
-                  <p className="text-slate-500">Conecte sua loja ao n8n, Zapier ou Make.</p>
+                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Integração n8n (Global)</h2>
+                  <p className="text-slate-500">Configure um webhook único que receberá TODOS os eventos da sua loja.</p>
                 </div>
               </div>
               <button

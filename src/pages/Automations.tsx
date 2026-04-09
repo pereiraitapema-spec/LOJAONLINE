@@ -162,6 +162,8 @@ export default function Automations() {
       case 'new_lead': return 'Novo Lead';
       case 'abandoned_cart': return 'Carrinho Abandonado';
       case 'new_order': return 'Novo Pedido';
+      case 'order_paid': return 'Pedido Pago';
+      case 'order_shipped': return 'Pedido Enviado';
       case 'status_change': return 'Mudança de Status';
       default: return type;
     }
@@ -343,7 +345,9 @@ export default function Automations() {
                     >
                       <option value="new_lead">Novo Lead Cadastrado</option>
                       <option value="abandoned_cart">Carrinho Abandonado</option>
-                      <option value="new_order">Novo Pedido Pago</option>
+                      <option value="new_order">Novo Pedido Criado</option>
+                      <option value="order_paid">Pedido Pago (Sucesso)</option>
+                      <option value="order_shipped">Pedido Enviado (Rastreio)</option>
                       <option value="status_change">Mudança de Status de Lead</option>
                     </select>
                   </div>
