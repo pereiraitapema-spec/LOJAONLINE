@@ -368,8 +368,8 @@ export default function SmartChat() {
           ? (settings.affiliate_chat_webhook_url || settings.chat_webhook_url) 
           : settings.chat_webhook_url;
 
-        // Se houver um webhook de chat configurado, usamos ele em vez do Gemini
-        if (webhookUrl) {
+        // Se houver um webhook de chat configurado E a fonte de resposta for 'webhook', usamos ele
+        if (webhookUrl && settings.chat_response_source === 'webhook') {
           console.log(`🔗 Chamando Webhook de Chat (${isAffiliate ? 'Afiliados' : 'Vendas'}): ${webhookUrl}`);
           try {
             // Buscar status atual do lead para enviar ao n8n

@@ -45,6 +45,7 @@ interface StoreSettings {
   nfe_company_id?: string;
   chat_webhook_url?: string;
   affiliate_chat_webhook_url?: string;
+  chat_response_source?: 'site' | 'webhook';
 }
 
 export default function Settings() {
@@ -277,7 +278,8 @@ export default function Settings() {
         nfe_token: settingsData.nfe_token || '',
         nfe_company_id: settingsData.nfe_company_id || '',
         chat_webhook_url: settingsData.chat_webhook_url || '',
-        affiliate_chat_webhook_url: settingsData.affiliate_chat_webhook_url || ''
+        affiliate_chat_webhook_url: settingsData.affiliate_chat_webhook_url || '',
+        chat_response_source: settingsData.chat_response_source || 'site'
       });
     } catch (error: any) {
       console.error('Error fetching settings:', error);
@@ -305,10 +307,10 @@ export default function Settings() {
         'products_section_title', 'products_section_subtitle', 'tracking_pixels', 'debug_mode',
         'n8n_webhook_url', 'origin_zip_code', 'ai_chat_rules', 'ai_chat_triggers',
         'ai_auto_learning', 'ai_chat_memory', 'nfe_provider', 'nfe_token', 'nfe_company_id',
-        'chat_webhook_url', 'affiliate_chat_webhook_url'
+        'chat_webhook_url', 'affiliate_chat_webhook_url', 'chat_response_source'
       ];
 
-      const payload: any = {};
+      let payload: any = {};
       allowedFields.forEach(field => {
         if (field in settings) {
           payload[field] = (settings as any)[field];
@@ -317,10 +319,26 @@ export default function Settings() {
 
       console.log('Salvando configurações:', payload);
 
-      const { error } = await supabase
+      let { error } = await supabase
         .from('store_settings')
         .update(payload)
         .eq('id', settings.id);
+
+      // Se der erro de coluna não encontrada, tentamos remover os campos problemáticos e salvar de novo
+      if (error && (error.message?.includes('column') || error.message?.includes('does not exist'))) {
+        console.warn('Detectado erro de coluna no banco. Tentando salvamento simplificado...');
+        
+        // Remove campos que costumam dar erro se o banco estiver desatualizado
+        const problematicFields = ['nfe_provider', 'nfe_token', 'nfe_company_id', 'chat_response_source'];
+        problematicFields.forEach(f => delete payload[f]);
+        
+        const retry = await supabase
+          .from('store_settings')
+          .update(payload)
+          .eq('id', settings.id);
+        
+        error = retry.error;
+      }
 
       if (error) throw error;
 
@@ -1057,6 +1075,40 @@ create policy "Qualquer um pode atualizar conhecimento" on public.ai_knowledge_b
                   </div>
                   <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
                     Este webhook recebe mensagens de <strong>Afiliados Logados</strong>.
+                  </p>
+                </div>
+
+                <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
+                  <h4 className="font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                    <MessageSquare size={20} />
+                    Quem responde o Chat?
+                  </h4>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => handleChange('chat_response_source', 'site')}
+                      className={`flex-1 p-4 rounded-2xl border-2 transition-all text-center ${
+                        settings.chat_response_source === 'site' || !settings.chat_response_source
+                          ? 'border-indigo-600 bg-white text-indigo-600 shadow-lg shadow-indigo-100'
+                          : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="font-bold text-sm mb-1">Próprio Site</div>
+                      <div className="text-[10px] opacity-70">IA interna responde</div>
+                    </button>
+                    <button
+                      onClick={() => handleChange('chat_response_source', 'webhook')}
+                      className={`flex-1 p-4 rounded-2xl border-2 transition-all text-center ${
+                        settings.chat_response_source === 'webhook'
+                          ? 'border-emerald-600 bg-white text-emerald-600 shadow-lg shadow-emerald-100'
+                          : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="font-bold text-sm mb-1">Webhook OpenClaw</div>
+                      <div className="text-[10px] opacity-70">n8n/OpenClaw responde</div>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-indigo-600/60 mt-4 leading-relaxed italic">
+                    * Se selecionado Webhook, o site enviará a pergunta para o n8n e aguardará a resposta via API.
                   </p>
                 </div>
 
