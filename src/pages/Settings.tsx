@@ -44,6 +44,7 @@ interface StoreSettings {
   nfe_token?: string;
   nfe_company_id?: string;
   chat_webhook_url?: string;
+  affiliate_chat_webhook_url?: string;
 }
 
 export default function Settings() {
@@ -282,7 +283,8 @@ export default function Settings() {
         nfe_provider: settingsData.nfe_provider || 'manual',
         nfe_token: settingsData.nfe_token || '',
         nfe_company_id: settingsData.nfe_company_id || '',
-        chat_webhook_url: settingsData.chat_webhook_url || ''
+        chat_webhook_url: settingsData.chat_webhook_url || '',
+        affiliate_chat_webhook_url: settingsData.affiliate_chat_webhook_url || ''
       });
     } catch (error: any) {
       console.error('Error fetching settings:', error);
@@ -336,7 +338,8 @@ export default function Settings() {
         nfe_provider: settings.nfe_provider,
         nfe_token: settings.nfe_token,
         nfe_company_id: settings.nfe_company_id,
-        chat_webhook_url: settings.chat_webhook_url
+        chat_webhook_url: settings.chat_webhook_url,
+        affiliate_chat_webhook_url: settings.affiliate_chat_webhook_url
       };
 
       console.log('Salvando configurações:', payload);
@@ -1403,6 +1406,9 @@ begin
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'chat_webhook_url') then
         alter table public.store_settings add column chat_webhook_url text;
     end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'affiliate_chat_webhook_url') then
+        alter table public.store_settings add column affiliate_chat_webhook_url text;
+    end if;
     if not exists (select 1 from information_schema.columns where table_name = 'store_settings' and column_name = 'ai_chat_memory') then
         alter table public.store_settings add column ai_chat_memory text;
     end if;
@@ -1510,7 +1516,7 @@ create policy "Enable delete for authenticated users only" on public.automations
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Webhook de Chat (n8n)</label>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Webhook de Chat de Vendas (n8n)</label>
                   <div className="relative">
                     <input 
                       type="url"
@@ -1524,7 +1530,26 @@ create policy "Enable delete for authenticated users only" on public.automations
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
-                    Se configurado, as mensagens do chat serão enviadas para este webhook com o campo <strong>{`{"mensagem": "..."}`}</strong>.
+                    Este webhook recebe mensagens de <strong>Clientes e Visitantes</strong>.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Webhook de Chat de Afiliados (n8n)</label>
+                  <div className="relative">
+                    <input 
+                      type="url"
+                      value={settings.affiliate_chat_webhook_url || ''}
+                      onChange={e => handleChange('affiliate_chat_webhook_url', e.target.value)}
+                      placeholder="https://seu-dominio.com/webhook/affiliate-chatbot"
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-mono text-sm"
+                    />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                       <Zap size={18} className={settings.affiliate_chat_webhook_url ? "text-orange-500" : "text-slate-300"} />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
+                    Este webhook recebe mensagens de <strong>Afiliados Logados</strong>.
                   </p>
                 </div>
 

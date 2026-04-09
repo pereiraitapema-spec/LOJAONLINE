@@ -363,12 +363,18 @@ export default function SmartChat() {
       if (settings) {
         context += `Nome: ${settings.company_name}\nEndereço: ${settings.address}\nWhatsApp: ${settings.whatsapp}\nHorário: ${settings.business_hours}\n`;
         
+        // Determinar qual webhook usar (com fallback para o de vendas se o de afiliados não estiver definido)
+        const webhookUrl = isAffiliate 
+          ? (settings.affiliate_chat_webhook_url || settings.chat_webhook_url) 
+          : settings.chat_webhook_url;
+
         // Se houver um webhook de chat configurado, usamos ele em vez do Gemini
-        if (settings.chat_webhook_url) {
-          console.log(`🔗 Chamando Webhook de Chat (n8n): ${settings.chat_webhook_url}`);
+        if (webhookUrl) {
+          console.log(`🔗 Chamando Webhook de Chat (${isAffiliate ? 'Afiliados' : 'Vendas'}): ${webhookUrl}`);
           try {
             const payload = {
               event: 'chat_message',
+              type: isAffiliate ? 'affiliate' : 'sales',
               lead_id: session?.user?.id || 'guest',
               email: session?.user?.email || 'guest@example.com',
               mensagem: currentMessages[currentMessages.length - 1].content,
@@ -381,7 +387,7 @@ export default function SmartChat() {
             
             console.log('📤 Payload do Webhook:', payload);
 
-            const response = await fetch(settings.chat_webhook_url, {
+            const response = await fetch(webhookUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
