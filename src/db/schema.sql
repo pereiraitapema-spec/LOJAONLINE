@@ -22,7 +22,7 @@ create table if not exists public.profiles (
 );
 
 -- Tabela de Configurações dos Agentes IA
-create table if not exists public.ai_agent_settings (
+create table if not exists public.ai_settings (
   id uuid default gen_random_uuid() primary key,
   agent_type text unique check (agent_type in ('vendas', 'afiliados')),
   rules text,

@@ -1414,6 +1414,22 @@ begin
     end if;
 end $$;
 
+-- 7.1 Tabela de Configurações de IA
+create table if not exists public.ai_settings (
+    id uuid default gen_random_uuid() primary key,
+    agent_type text unique check (agent_type in ('vendas', 'afiliados')),
+    rules text,
+    memory text,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.ai_settings enable row level security;
+drop policy if exists "Enable read for all" on public.ai_settings;
+create policy "Enable read for all" on public.ai_settings for select using (true);
+drop policy if exists "Enable all for authenticated" on public.ai_settings;
+create policy "Enable all for authenticated" on public.ai_settings for all using (auth.role() = 'authenticated');
+
 -- 8. Tabela de Automações (n8n-like)
 create table if not exists public.automations (
     id uuid default gen_random_uuid() primary key,
