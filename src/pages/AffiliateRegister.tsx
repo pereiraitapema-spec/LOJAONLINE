@@ -181,6 +181,14 @@ export default function AffiliateRegister() {
           throw new Error(`Erro ao salvar dados de afiliado: ${affiliateError.message}. Verifique se você já possui um cadastro.`);
         }
 
+        // 4. Salvar como lead também para aparecer no CRM
+        try {
+          const { leadService } = await import('../services/leadService');
+          await leadService.updateStatus('frio');
+        } catch (e) {
+          console.warn('⚠️ Erro ao salvar afiliado como lead:', e);
+        }
+
         setStep(3); // Sucesso
       }
     } catch (error: any) {

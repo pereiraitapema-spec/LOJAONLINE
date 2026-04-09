@@ -39,24 +39,35 @@ export default function SmartChat() {
     const fetchAgentData = async () => {
       if (!session) return;
       
-      // Fetch agent settings
-      const { data: affiliateData } = await supabase.from('affiliates').select('id').eq('user_id', session.user.id).maybeSingle();
+      console.log('[SmartChat] Buscando configurações para o tipo de usuário...');
+      
+      // 1. Determinar tipo de agente
+      const { data: affiliateData } = await supabase.from('affiliates').select('id, code, commission_rate').eq('user_id', session.user.id).maybeSingle();
       const agentType = affiliateData ? 'afiliados' : 'vendas';
       
-      const { data: settings } = await supabase
-        .from('ai_settings')
-        .select('rules, memory')
-        .eq('agent_type', agentType)
-        .maybeSingle();
+      // 2. Buscar configurações globais e específicas em paralelo
+      const [
+        { data: storeSettings },
+        { data: aiSettingsData }
+      ] = await Promise.all([
+        supabase.from('store_settings').select('ai_chat_rules, ai_chat_triggers, ai_auto_learning, ai_chat_memory').maybeSingle(),
+        supabase.from('ai_settings').select('rules, memory').eq('agent_type', agentType).maybeSingle()
+      ]);
       
-      if (settings) {
-        setAiSettings({
-          rules: settings.rules || '',
-          memory: settings.memory || '',
-          triggers: 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?',
-          autoLearning: false
-        });
-      }
+      // Priorizar ai_settings se disponível, senão usar store_settings
+      const finalRules = aiSettingsData?.rules || storeSettings?.ai_chat_rules || '';
+      const finalMemory = aiSettingsData?.memory || storeSettings?.ai_chat_memory || '';
+      const finalTriggers = storeSettings?.ai_chat_triggers || 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?';
+      const finalAutoLearning = !!storeSettings?.ai_auto_learning;
+
+      console.log(`[SmartChat] Configurações carregadas para Agente: ${agentType}`);
+      
+      setAiSettings({
+        rules: finalRules,
+        memory: finalMemory,
+        triggers: finalTriggers,
+        autoLearning: finalAutoLearning
+      });
 
       // Fetch agent photo (from admin profile)
       const { data: adminProfile, error: profileError } = await supabase
@@ -118,6 +129,15 @@ export default function SmartChat() {
         }));
         setMessages(dbMessages);
         localStorage.setItem(`gfitlif_chat_history_${userId}`, JSON.stringify(dbMessages));
+
+        // VERIFICAR SE TEM MENSAGEM DO USUÁRIO SEM RESPOSTA E RESPONDER
+        const lastMessage = dbMessages[dbMessages.length - 1];
+        if (lastMessage && lastMessage.role === 'user') {
+          console.log('[SmartChat] Detectada última mensagem do usuário sem resposta no histórico. Processando resposta automática...');
+          setTimeout(() => {
+            processAiResponse(dbMessages);
+          }, 1500);
+        }
       } else {
         console.log(`[SmartChat] Nenhum histórico encontrado no banco de dados para o usuário: ${userId}`);
       }
@@ -163,20 +183,6 @@ export default function SmartChat() {
     if (session?.user?.id) {
       loadHistory(session.user.id);
       
-      // Fetch AI Settings
-      const fetchAiSettings = async () => {
-        const { data } = await supabase.from('store_settings').select('ai_chat_rules, ai_chat_triggers, ai_auto_learning, ai_chat_memory').maybeSingle();
-        if (data) {
-          setAiSettings({
-            rules: data.ai_chat_rules || '',
-            memory: data.ai_chat_memory || '',
-            triggers: data.ai_chat_triggers || 'Olá! Tenho uma oferta especial para você hoje. Vamos conversar?',
-            autoLearning: !!data.ai_auto_learning
-          });
-        }
-      };
-      fetchAiSettings();
-
       // Subscription for real-time messages
       const msgSubscription = chatService.subscribeToMessages(session.user.id, (payload) => {
         const newMessage = payload.new;
@@ -332,13 +338,22 @@ export default function SmartChat() {
         .eq('service', 'gemini')
         .eq('active', true);
 
-      keysData = fetchedKeys;
-
-      if (!keysData || keysData.length === 0) {
-        throw new Error('Assistente indisponível no momento.');
+      // Combine DB keys with environment key for maximum reliability
+      const envKey = process.env.GEMINI_API_KEY;
+      const allKeys = [...(fetchedKeys || [])];
+      
+      if (envKey && !allKeys.some(k => k.key_value === envKey)) {
+        allKeys.push({ key_value: envKey });
       }
 
-      // Use the first active key
+      keysData = allKeys;
+
+      if (keysData.length === 0) {
+        console.error('[SmartChat] Nenhuma chave de API Gemini encontrada no DB ou ambiente.');
+        throw new Error('Assistente indisponível no momento. Por favor, configure uma chave de API Gemini nas configurações.');
+      }
+
+      // Use the first available key
       keys = keysData[0];
 
       // 2. Fetch Context for "Memory"
@@ -453,6 +468,9 @@ export default function SmartChat() {
         }
       }
       
+      console.log(`[SmartChat] Processando resposta para: ${isAffiliate ? 'AFILIADO' : 'CLIENTE'}`);
+      console.log(`[SmartChat] Regras Ativas: ${aiSettings.rules.substring(0, 100)}...`);
+
       context += `\nRegras do Agente:\n${aiSettings.rules}\n`;
       context += `\nMemória do Agente:\n${aiSettings.memory}\n`;
 
@@ -546,7 +564,12 @@ export default function SmartChat() {
           5. Ensine o afiliado a usar o painel, pegar links e materiais de divulgação.
           6. NÃO tente vender produtos para o afiliado, foque em ajudá-lo a vender.
           7. Se o afiliado perguntar sobre chaves de API ou integrações, explique que o sistema já gerencia isso automaticamente para ele no painel, ou forneça instruções técnicas se disponíveis na base de conhecimento.
-      ` : '';
+      ` : `
+          REGRAS PARA CLIENTES/VENDAS:
+          1. Você está falando com um cliente interessado em comprar produtos.
+          2. Foque em conversão de vendas, tirando dúvidas sobre produtos, frete e pagamentos.
+          3. Seja persuasivo mas educado.
+      `;
 
       const response = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
@@ -791,7 +814,7 @@ export default function SmartChat() {
           try {
             console.log(`📤 Salvando resposta da IA (Retry) para o usuário (${session.user.email} - ${session.user.id}) no DB...`);
             await chatService.sendMessage({
-              sender_id: 'AI', // Ou null, dependendo da convenção
+              sender_id: null, // Mudado de 'AI' para null para evitar erro de UUID
               receiver_id: session.user.id,
               message: botResponse,
               is_human: false,
@@ -816,7 +839,7 @@ export default function SmartChat() {
         // Salvar mensagem de erro no banco para que o CRM também veja
         try {
           await chatService.sendMessage({
-            sender_id: 'AI',
+            sender_id: null, // Mudado de 'AI' para null
             receiver_id: session.user.id,
             message: 'Ops! Tive um problema técnico. Pode tentar novamente?',
             is_human: false,

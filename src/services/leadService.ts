@@ -16,14 +16,16 @@ export const leadService = {
       if (!email && !userId) return;
 
       // 1. Busca lead existente por ID ou E-mail
-      let query = supabase.from('leads').select('*');
+      let lead = null;
       if (userId) {
-        query = query.eq('id', userId);
-      } else {
-        query = query.eq('email', email);
+        const { data } = await supabase.from('leads').select('*').eq('id', userId).maybeSingle();
+        lead = data;
       }
-
-      const { data: lead } = await query.maybeSingle();
+      
+      if (!lead && email) {
+        const { data } = await supabase.from('leads').select('*').eq('email', email).maybeSingle();
+        lead = data;
+      }
 
       const statusOrder: Record<LeadStatus, number> = {
         'inativo': 0, 'frio': 1, 'morno': 2, 'quente': 3, 'cliente': 4

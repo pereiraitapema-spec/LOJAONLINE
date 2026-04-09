@@ -178,6 +178,18 @@ export default function Leads() {
 
   useEffect(() => {
     fetchLeads();
+
+    // Subscription for real-time leads
+    const subscription = supabase
+      .channel('leads_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
+        fetchLeads();
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchLeads = async () => {

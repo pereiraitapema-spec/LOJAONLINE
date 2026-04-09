@@ -247,6 +247,28 @@ export default function LeadsChat() {
     fetchLeads(true, activeTab);
     setSelectedGroupKey(null);
     setMessages([]);
+
+    // Subscription for real-time messages and leads
+    const channel = supabase
+      .channel('leads_chat_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, () => {
+        fetchLeads(false, activeTabRef.current);
+        if (selectedGroupRef.current) {
+          const leadIds = selectedGroupRef.current.leads.map(l => l.id);
+          fetchMessages(leadIds);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
+        fetchLeads(false, activeTabRef.current);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'affiliates' }, () => {
+        fetchLeads(false, activeTabRef.current);
+      })
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
   }, [activeTab]);
 
   const fetchLeads = async (isInitial = false, currentTab = activeTabRef.current) => {
@@ -263,7 +285,6 @@ export default function LeadsChat() {
         const { data, error } = await supabase
           .from('leads')
           .select('*')
-          .is('affiliate_id', null)
           .order('created_at', { ascending: false });
         if (error) throw error;
         
@@ -273,7 +294,6 @@ export default function LeadsChat() {
         const { data, error } = await supabase
           .from('affiliates')
           .select('*')
-          .eq('status', 'approved')
           .not('user_id', 'is', null)
           .order('created_at', { ascending: false });
         if (error) throw error;
