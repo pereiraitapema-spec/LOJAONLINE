@@ -1310,29 +1310,40 @@ CREATE TABLE IF NOT EXISTS public.ai_settings (
                       <ul className="grid grid-cols-2 gap-2 text-[10px]">
                         <li className="bg-slate-800 p-2 rounded-lg border border-slate-700"><b className="text-white">cart_abandoned</b>: Carrinho</li>
                         <li className="bg-slate-800 p-2 rounded-lg border border-slate-700"><b className="text-white">order_paid</b>: Pagamento (Agradecer)</li>
-                        <li className="bg-slate-800 p-2 rounded-lg border border-slate-700"><b className="text-white">chat_message</b>: Mensagem no Chat</li>
+                        <li className="bg-slate-800 p-2 rounded-lg border border-slate-700"><b className="text-white">chat_message</b>: Pergunta no Chat</li>
                         <li className="bg-slate-800 p-2 rounded-lg border border-slate-700"><b className="text-white">lead:created</b>: Novo Lead</li>
                       </ul>
-                      <p className="text-[9px] text-slate-500 mt-2 leading-relaxed">
-                        * No evento <code className="text-slate-300">chat_message</code>, o site envia o <code className="text-slate-300">status_lead</code> (frio, morno, quente, cliente) e o <code className="text-slate-300">whatsapp</code> se disponível.
-                      </p>
                     </div>
 
                     <div>
-                      <h4 className="text-xs font-black text-slate-500 uppercase mb-3">2. Como responder no Chat do Site</h4>
-                      <p className="text-xs text-slate-400 mb-3">Para que sua resposta apareça no chat para o cliente, o n8n deve fazer um POST:</p>
+                      <h4 className="text-xs font-black text-slate-500 uppercase mb-3">2. Tabelas que o n8n deve consultar</h4>
+                      <div className="space-y-2">
+                        <div className="bg-slate-800 p-2 rounded-lg border border-slate-700 text-[10px]">
+                          <b className="text-emerald-400">leads</b>: Para pegar o WhatsApp e Status do cliente.
+                        </div>
+                        <div className="bg-slate-800 p-2 rounded-lg border border-slate-700 text-[10px]">
+                          <b className="text-emerald-400">orders</b>: Para detalhes da compra e valores.
+                        </div>
+                        <div className="bg-slate-800 p-2 rounded-lg border border-slate-700 text-[10px]">
+                          <b className="text-emerald-400">chat_messages</b>: Onde o n8n deve <b className="text-white">ESCREVER</b> a resposta.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs font-black text-slate-500 uppercase mb-3">3. Como responder no Chat do Site</h4>
+                      <p className="text-xs text-slate-400 mb-3">O n8n deve fazer um POST para esta URL:</p>
                       <div className="bg-slate-800 p-4 rounded-xl font-mono text-[10px] text-emerald-400 overflow-x-auto border border-slate-700">
-                        {`POST https://<sua-url>.supabase.co/rest/v1/chat_messages
+                        {`URL: https://<seu-projeto>.supabase.co/rest/v1/chat_messages
 Header: apikey: <sua-key>
 Body: {
   "sender_id": null,
-  "receiver_id": "{{ lead_id }}",
+  "receiver_id": "{{ lead_id_recebido }}",
   "message": "Sua resposta aqui",
   "is_human": false,
   "is_read": true
 }`}
                       </div>
-                      <p className="text-[9px] text-slate-500 mt-2 italic">* Use o <code className="text-slate-300">lead_id</code> recebido no webhook original para o campo <code className="text-slate-300">receiver_id</code>.</p>
                     </div>
 
                     <div className="pt-4 border-t border-slate-800">
