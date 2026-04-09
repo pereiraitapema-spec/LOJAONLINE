@@ -71,44 +71,12 @@ export const leadService = {
       
       console.log(`🔥 Lead (${email}) atualizado: ${currentStatus} -> ${status}`);
       
-      // Se foi criado (não existia), envia webhook
+      // Se foi criado (não existia), dispara automação
       if (!lead) {
-        await this.sendToWebhook('lead:created', updatedLead);
         await automationService.trigger('new_lead', updatedLead);
       }
     } catch (error) {
       console.error('❌ Erro crítico em leadService.updateStatus:', error);
-    }
-  },
-
-  async sendToWebhook(event: string, data: any) {
-    try {
-      const { data: settings } = await supabase
-        .from('store_settings')
-        .select('n8n_webhook_url')
-        .maybeSingle();
-
-      if (!settings?.n8n_webhook_url) return;
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      try {
-        await fetch(settings.n8n_webhook_url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            event,
-            timestamp: new Date().toISOString(),
-            ...data
-          }),
-          signal: controller.signal
-        });
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    } catch (error) {
-      console.warn('⚠️ Falha ao enviar webhook:', error);
     }
   }
 };

@@ -29,6 +29,7 @@ import { paymentService } from '../services/paymentService';
 import { shippingService, ShippingPackage, ShippingQuote } from '../services/shippingService';
 import { TrackingModal } from '../components/TrackingModal';
 import { leadService } from '../services/leadService';
+import { automationService } from '../services/automationService';
 
 interface Product {
   id: string;
@@ -715,10 +716,11 @@ export default function Checkout() {
             .update(payload)
             .eq('id', abandonedCartId);
           
-          // Trigger n8n webhook for update
-          leadService.sendToWebhook('cart_updated', {
+          // Trigger automation for update
+          await automationService.trigger('abandoned_cart', {
             id: abandonedCartId,
-            ...payload
+            ...payload,
+            event: 'cart_updated'
           });
         } else {
           const { data, error } = await supabase
@@ -729,10 +731,11 @@ export default function Checkout() {
           
           if (!error && data) {
             setAbandonedCartId(data.id);
-            // Trigger n8n webhook for new abandoned cart
-            leadService.sendToWebhook('cart_abandoned', {
+            // Trigger automation for new abandoned cart
+            await automationService.trigger('abandoned_cart', {
               id: data.id,
-              ...payload
+              ...payload,
+              event: 'cart_abandoned'
             });
           }
         }
@@ -1408,7 +1411,7 @@ export default function Checkout() {
       }
 
       // Helper function to trigger tracking and webhooks
-      const triggerPostPurchaseActions = () => {
+      const triggerPostPurchaseActions = async () => {
         // Salvar no localStorage para persistência na home
         localStorage.setItem('last_order_id', orderData.id);
         if (finalTrackingCode) {
@@ -1416,8 +1419,8 @@ export default function Checkout() {
           setTrackingCode(finalTrackingCode);
         }
 
-        // Trigger n8n webhook for purchase
-        leadService.sendToWebhook('purchase_complete', {
+        // Trigger automation for purchase complete
+        await automationService.trigger('new_order', {
           order_id: orderData.id,
           customer_email: customer.email,
           customer_name: customer.name,
@@ -1426,7 +1429,8 @@ export default function Checkout() {
             name: item.product.name,
             qty: item.quantity,
             price: item.product.discount_price || item.product.price
-          }))
+          })),
+          event: 'purchase_complete'
         });
 
         // Trigger Purchase Event

@@ -1,13 +1,13 @@
 import { supabase } from '../lib/supabase';
 
-export type AutomationTrigger = 'new_lead' | 'abandoned_cart' | 'new_order' | 'order_paid' | 'order_shipped';
-export type AutomationAction = 'chat_notification' | 'email' | 'webhook' | 'whatsapp_notification';
+export type AutomationTrigger = 'new_lead' | 'abandoned_cart' | 'new_order' | 'order_paid' | 'order_shipped' | 'status_change';
+export type AutomationAction = 'chat_notification' | 'email' | 'webhook' | 'whatsapp_notification' | 'whatsapp';
 
 export interface Automation {
   id: string;
   name: string;
-  trigger: AutomationTrigger;
-  action: AutomationAction;
+  trigger_type: AutomationTrigger;
+  action_type: AutomationAction;
   config: any;
   active: boolean;
 }
@@ -17,16 +17,27 @@ export const automationService = {
     try {
       console.log(`🤖 Triggering automation for: ${trigger}`, data);
       
-      // 1. Fetch active automations for this trigger
+      // 1. Fetch store settings for global webhook
+      const { data: settings } = await supabase
+        .from('store_settings')
+        .select('n8n_webhook_url')
+        .maybeSingle();
+
+      // 2. If global webhook exists, send to it
+      if (settings?.n8n_webhook_url) {
+        await this.sendGlobalWebhook(settings.n8n_webhook_url, trigger, data);
+      }
+
+      // 3. Fetch active automations for this trigger
       const { data: automations, error } = await supabase
         .from('automations')
         .select('*')
-        .eq('trigger', trigger)
+        .eq('trigger_type', trigger)
         .eq('active', true);
 
       if (error) throw error;
       if (!automations || automations.length === 0) {
-        console.log(`ℹ️ No active automations for trigger: ${trigger}`);
+        console.log(`ℹ️ No active specific automations for trigger: ${trigger}`);
         return;
       }
 
@@ -38,11 +49,28 @@ export const automationService = {
     }
   },
 
+  async sendGlobalWebhook(url: string, trigger: string, data: any) {
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: trigger,
+          timestamp: new Date().toISOString(),
+          ...data
+        })
+      });
+      console.log(`✅ Global Webhook sent to ${url}`);
+    } catch (e) {
+      console.warn(`⚠️ Failed to send global webhook to ${url}:`, e);
+    }
+  },
+
   async executeAction(automation: Automation, data: any) {
     try {
-      console.log(`🚀 Executing action: ${automation.action} for automation: ${automation.name}`);
+      console.log(`🚀 Executing action: ${automation.action_type} for automation: ${automation.name}`);
       
-      switch (automation.action) {
+      switch (automation.action_type) {
         case 'chat_notification':
           await this.sendChatNotification(automation, data);
           break;
@@ -54,14 +82,15 @@ export const automationService = {
           console.log('📧 Email automation not fully implemented yet');
           break;
         case 'whatsapp_notification':
+        case 'whatsapp':
           // WhatsApp logic would go here
           console.log('📱 WhatsApp automation not fully implemented yet');
           break;
         default:
-          console.warn(`⚠️ Unknown action type: ${automation.action}`);
+          console.warn(`⚠️ Unknown action type: ${automation.action_type}`);
       }
     } catch (error) {
-      console.error(`❌ Error executing action ${automation.action}:`, error);
+      console.error(`❌ Error executing action ${automation.action_type}:`, error);
     }
   },
 
@@ -96,7 +125,7 @@ export const automationService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           automation_name: automation.name,
-          trigger: automation.trigger,
+          trigger: automation.trigger_type,
           timestamp: new Date().toISOString(),
           data
         })
