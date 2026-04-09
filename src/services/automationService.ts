@@ -83,8 +83,7 @@ export const automationService = {
           break;
         case 'whatsapp_notification':
         case 'whatsapp':
-          // WhatsApp logic would go here
-          console.log('📱 WhatsApp automation not fully implemented yet');
+          await this.sendOpenClawMessage(automation, data);
           break;
         default:
           console.warn(`⚠️ Unknown action type: ${automation.action_type}`);
@@ -133,6 +132,34 @@ export const automationService = {
       console.log(`✅ Webhook sent to ${url}`);
     } catch (e) {
       console.warn(`⚠️ Failed to send webhook to ${url}:`, e);
+    }
+  },
+
+  async sendOpenClawMessage(automation: Automation, data: any) {
+    // O usuário prefere que o n8n gerencie o OpenClaw de forma isolada.
+    // Portanto, apenas garantimos que o Webhook Global seja disparado com a intenção de WhatsApp.
+    console.log(`📱 WhatsApp intent triggered for ${data.nome || 'lead'}. Sending to Global Webhook...`);
+    
+    const { data: settings } = await supabase.from('store_settings').select('n8n_webhook_url').maybeSingle();
+    if (settings?.n8n_webhook_url) {
+      try {
+        await fetch(settings.n8n_webhook_url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: automation.trigger_type,
+            action: 'send_whatsapp',
+            automation_name: automation.name,
+            whatsapp_config: automation.config,
+            data
+          })
+        });
+        console.log(`✅ WhatsApp intent sent to n8n`);
+      } catch (e) {
+        console.warn(`⚠️ Failed to send WhatsApp intent to n8n:`, e);
+      }
+    } else {
+      console.warn('⚠️ No Global Webhook (n8n) configured to handle WhatsApp intent');
     }
   }
 };

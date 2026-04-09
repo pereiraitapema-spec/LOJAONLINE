@@ -360,7 +360,7 @@ export default function Automations() {
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
                     >
                       <option value="chat_notification">Notificação no Chat IA</option>
-                      <option value="whatsapp">Enviar WhatsApp (Evolution)</option>
+                      <option value="whatsapp">Enviar WhatsApp (OpenClaw)</option>
                       <option value="email">Enviar E-mail</option>
                       <option value="webhook">Enviar Webhook (n8n)</option>
                     </select>

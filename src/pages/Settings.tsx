@@ -45,6 +45,9 @@ interface StoreSettings {
   nfe_company_id?: string;
   chat_webhook_url?: string;
   affiliate_chat_webhook_url?: string;
+  openclaw_api_url?: string;
+  openclaw_api_key?: string;
+  openclaw_instance?: string;
 }
 
 export default function Settings() {
@@ -339,7 +342,10 @@ export default function Settings() {
         nfe_token: settings.nfe_token,
         nfe_company_id: settings.nfe_company_id,
         chat_webhook_url: settings.chat_webhook_url,
-        affiliate_chat_webhook_url: settings.affiliate_chat_webhook_url
+        affiliate_chat_webhook_url: settings.affiliate_chat_webhook_url,
+        openclaw_api_url: settings.openclaw_api_url,
+        openclaw_api_key: settings.openclaw_api_key,
+        openclaw_instance: settings.openclaw_instance
       };
 
       console.log('Salvando configurações:', payload);
@@ -1130,6 +1136,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'chat_webhook_url') THEN ALTER TABLE public.store_settings ADD COLUMN chat_webhook_url text; END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'affiliate_chat_webhook_url') THEN ALTER TABLE public.store_settings ADD COLUMN affiliate_chat_webhook_url text; END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'ai_chat_memory') THEN ALTER TABLE public.store_settings ADD COLUMN ai_chat_memory text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'openclaw_api_url') THEN ALTER TABLE public.store_settings ADD COLUMN openclaw_api_url text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'openclaw_api_key') THEN ALTER TABLE public.store_settings ADD COLUMN openclaw_api_key text; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'openclaw_instance') THEN ALTER TABLE public.store_settings ADD COLUMN openclaw_instance text; END IF;
     
     -- 2. Adicionar colunas de Marketing e Seções
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'store_settings' AND column_name = 'social_links') THEN ALTER TABLE public.store_settings ADD COLUMN social_links jsonb DEFAULT '[]'::jsonb; END IF;
@@ -1288,33 +1297,75 @@ CREATE TABLE IF NOT EXISTS public.ai_settings (
                   </p>
                 </div>
 
-                <div className="p-6 bg-slate-900 rounded-3xl text-white">
-                  <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-                    <Info size={16} className="text-emerald-400" />
-                    Como responder via n8n?
+                <div className="bg-slate-900 p-8 rounded-3xl text-white">
+                  <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                    <Info size={20} className="text-emerald-400" />
+                    Guia de Integração n8n
                   </h3>
-                  <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-                    Para enviar uma mensagem de volta ao chat do cliente, seu n8n deve fazer um POST para a API do Supabase na tabela <strong>leads_chat</strong>.
-                  </p>
-                  <div className="bg-slate-800 p-4 rounded-xl font-mono text-[10px] text-emerald-400 overflow-x-auto">
-                    {`POST https://<sua-url>.supabase.co/rest/v1/leads_chat
+                  
+                  <div className="space-y-6">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-500 uppercase mb-3">1. Como identificar o evento</h4>
+                      <p className="text-xs text-slate-400 mb-2">O site envia um JSON. Use o campo <code className="text-emerald-400">event</code> para filtrar no n8n:</p>
+                      <ul className="grid grid-cols-2 gap-2 text-[10px]">
+                        <li className="bg-slate-800 p-2 rounded-lg border border-slate-700"><b className="text-white">cart_abandoned</b>: Carrinho</li>
+                        <li className="bg-slate-800 p-2 rounded-lg border border-slate-700"><b className="text-white">order_paid</b>: Pagamento (Agradecer)</li>
+                        <li className="bg-slate-800 p-2 rounded-lg border border-slate-700"><b className="text-white">chat_message</b>: Mensagem no Chat</li>
+                        <li className="bg-slate-800 p-2 rounded-lg border border-slate-700"><b className="text-white">lead:created</b>: Novo Lead</li>
+                      </ul>
+                      <p className="text-[9px] text-slate-500 mt-2 leading-relaxed">
+                        * No evento <code className="text-slate-300">chat_message</code>, o site envia o <code className="text-slate-300">status_lead</code> (frio, morno, quente, cliente) e o <code className="text-slate-300">whatsapp</code> se disponível.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs font-black text-slate-500 uppercase mb-3">2. Como responder no Chat do Site</h4>
+                      <p className="text-xs text-slate-400 mb-3">Para que sua resposta apareça no chat para o cliente, o n8n deve fazer um POST:</p>
+                      <div className="bg-slate-800 p-4 rounded-xl font-mono text-[10px] text-emerald-400 overflow-x-auto border border-slate-700">
+                        {`POST https://<sua-url>.supabase.co/rest/v1/chat_messages
 Header: apikey: <sua-key>
 Body: {
   "sender_id": null,
   "receiver_id": "{{ lead_id }}",
   "message": "Sua resposta aqui",
-  "is_human": false
+  "is_human": false,
+  "is_read": true
 }`}
+                      </div>
+                      <p className="text-[9px] text-slate-500 mt-2 italic">* Use o <code className="text-slate-300">lead_id</code> recebido no webhook original para o campo <code className="text-slate-300">receiver_id</code>.</p>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-800">
+                      <h4 className="text-xs font-black text-slate-500 uppercase mb-3">3. Fluxo OpenClaw (Isolado)</h4>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        O site <b>não</b> fala diretamente com o OpenClaw. O site avisa o n8n sobre o evento, e o n8n decide se envia via WhatsApp (OpenClaw) ou E-mail. 
+                        <br/><br/>
+                        Se o lead for <b>quente/morno</b> e tiver WhatsApp, o n8n dispara a mensagem pelo OpenClaw. Se não, envia e-mail.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-6">
-                <div className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100">
-                  <h3 className="font-bold text-indigo-900 mb-2">Dica de Integração</h3>
-                  <p className="text-sm text-indigo-700 leading-relaxed">
-                    Ao receber um evento de <strong>carrinho_abandonado</strong>, você pode usar o n8n para enviar um WhatsApp automático para o cliente usando a API da Evolution ou WPPConnect.
+                <div className="bg-indigo-50 p-8 rounded-3xl border border-indigo-100">
+                  <h4 className="font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                    <Sparkles size={20} />
+                    Lógica de Leads (Quente/Morna)
+                  </h4>
+                  <p className="text-sm text-indigo-700 leading-relaxed mb-4">
+                    O sistema identifica automaticamente a temperatura do lead com base no comportamento.
                   </p>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-indigo-100">
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                      <span className="text-xs font-bold text-slate-700">Lead Quente: Carrinho Iniciado</span>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-indigo-100">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full" />
+                      <span className="text-xs font-bold text-slate-700">Lead Morna: Visitou 3+ produtos</span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="border-t border-slate-100 pt-6">

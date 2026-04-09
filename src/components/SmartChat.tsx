@@ -372,11 +372,16 @@ export default function SmartChat() {
         if (webhookUrl) {
           console.log(`🔗 Chamando Webhook de Chat (${isAffiliate ? 'Afiliados' : 'Vendas'}): ${webhookUrl}`);
           try {
+            // Buscar status atual do lead para enviar ao n8n
+            const { data: leadInfo } = await supabase.from('leads').select('status_lead, whatsapp').eq('id', session.user.id).maybeSingle();
+
             const payload = {
               event: 'chat_message',
               type: isAffiliate ? 'affiliate' : 'sales',
               lead_id: session?.user?.id || 'guest',
               email: session?.user?.email || 'guest@example.com',
+              whatsapp: leadInfo?.whatsapp || '',
+              status_lead: leadInfo?.status_lead || 'frio',
               mensagem: currentMessages[currentMessages.length - 1].content,
               history: currentMessages,
               context: {
