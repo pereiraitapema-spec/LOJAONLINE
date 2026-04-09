@@ -156,13 +156,25 @@ function AppContent() {
     // 0. Testar conexão com banco de dados
     const checkDB = async () => {
       try {
-        const { error } = await withTimeout(supabase.from('profiles').select('id').limit(1));
-        if (error && error.message.includes('does not exist')) {
-          console.error('❌ Tabela profiles não encontrada!');
-          toast.error('Banco de dados incompleto. Por favor, execute o script SQL de reparo no Supabase.', { duration: 10000 });
+        // Timeout de 10s para o teste inicial para não travar o log
+        const { error } = await withTimeout(supabase.from('profiles').select('id').limit(1), 10000);
+        
+        if (error) {
+          if (error.message.includes('does not exist')) {
+            console.error('❌ Tabela profiles não encontrada!');
+            toast.error('Banco de dados incompleto. Por favor, execute o script SQL de reparo no Supabase.', { duration: 10000 });
+          } else {
+            console.warn('⚠️ Aviso na conexão com banco:', error.message);
+          }
+        } else {
+          console.log('✅ Conexão com banco de dados OK');
         }
-      } catch (e) {
-        console.error('❌ Erro ao testar conexão com banco de dados:', e);
+      } catch (e: any) {
+        if (e.message?.includes('Timeout')) {
+          console.warn('🕒 Timeout ao testar conexão inicial (Banco pode estar em cold start ou instável)');
+        } else {
+          console.error('❌ Erro ao testar conexão com banco de dados:', e);
+        }
       }
     };
     checkDB();

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { withTimeout } from '../lib/utils';
 import { toast } from 'react-hot-toast';
 import { motion } from 'motion/react';
 import { Save, Plus, Trash2, Image as ImageIcon, Settings as SettingsIcon, Sparkles, Link as LinkIcon, CreditCard, Clock, FileText, ArrowLeft, Truck, Zap, Check, Info, MessageSquare } from 'lucide-react';
@@ -205,10 +206,13 @@ export default function Settings() {
     try {
       console.log('Buscando configurações da loja...');
       // Buscamos todas as linhas e ordenamos pelo ID para garantir consistência
-      const { data, error } = await supabase
-        .from('store_settings')
-        .select('*')
-        .order('id', { ascending: true });
+      const { data, error } = await withTimeout(
+        supabase
+          .from('store_settings')
+          .select('*')
+          .order('id', { ascending: true }),
+        15000
+      );
 
       if (error) {
         console.error('Erro ao buscar configurações:', error);
@@ -764,10 +768,40 @@ export default function Settings() {
                 </div>
 
                 <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
-                  <h4 className="font-bold text-indigo-900 mb-4 flex items-center gap-2">
-                    <MessageSquare size={20} />
-                    Quem responde o Chat?
-                  </h4>
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="font-bold text-indigo-900 flex items-center gap-2">
+                      <MessageSquare size={20} />
+                      Quem responde o Chat?
+                    </h4>
+                    {settings.chat_webhook_url && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(settings.chat_webhook_url.trim(), {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                event: 'test_connection',
+                                mensagem: 'Teste de conexão do site',
+                                lead_id: 'test_admin',
+                                email: 'admin@teste.com'
+                              })
+                            });
+                            if (response.ok) {
+                              toast.success('Webhook de Chat respondeu com sucesso!');
+                            } else {
+                              toast.error(`Erro no Webhook: ${response.status} ${response.statusText}`);
+                            }
+                          } catch (e) {
+                            toast.error('Erro ao conectar com o Webhook. Verifique a URL e se o n8n está ativo.');
+                          }
+                        }}
+                        className="text-xs bg-white text-indigo-600 px-3 py-1 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors font-bold"
+                      >
+                        Testar Webhook
+                      </button>
+                    )}
+                  </div>
                   <div className="flex gap-4">
                     <button
                       onClick={() => handleChange('chat_response_source', 'site')}

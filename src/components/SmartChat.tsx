@@ -369,65 +369,86 @@ export default function SmartChat() {
           : settings.chat_webhook_url;
 
         // Se houver um webhook de chat configurado E a fonte de resposta for 'webhook', usamos ele
-        if (webhookUrl && settings.chat_response_source === 'webhook') {
-          console.log(`🔗 Chamando Webhook de Chat (${isAffiliate ? 'Afiliados' : 'Vendas'}): ${webhookUrl}`);
-          try {
-            // Buscar status atual do lead para enviar ao n8n
-            const { data: leadInfo } = await supabase.from('leads').select('status_lead, whatsapp').eq('id', session.user.id).maybeSingle();
+        if (settings.chat_response_source === 'webhook') {
+          const webhookUrl = isAffiliate 
+            ? (settings.affiliate_chat_webhook_url || settings.chat_webhook_url) 
+            : settings.chat_webhook_url;
 
-            const payload = {
-              event: 'chat_message',
-              type: isAffiliate ? 'affiliate' : 'sales',
-              lead_id: session?.user?.id || 'guest',
-              email: session?.user?.email || 'guest@example.com',
-              whatsapp: leadInfo?.whatsapp || '',
-              status_lead: leadInfo?.status_lead || 'frio',
-              mensagem: currentMessages[currentMessages.length - 1].content,
-              history: currentMessages,
-              context: {
-                company_name: settings.company_name,
-                products: products?.map(p => ({ id: p.id, name: p.name, price: p.discount_price || p.price }))
-              }
-            };
-            
-            console.log('📤 Payload do Webhook:', payload);
+          if (!webhookUrl) {
+            console.warn('⚠️ Fonte de resposta é Webhook, mas nenhuma URL foi configurada nas configurações da loja.');
+          } else {
+            console.log(`🔗 Chamando Webhook de Chat (${isAffiliate ? 'Afiliados' : 'Vendas'}): ${webhookUrl}`);
+            try {
+              // Buscar status atual do lead para enviar ao n8n
+              const { data: leadInfo } = await supabase.from('leads').select('status_lead, whatsapp').eq('id', session.user.id).maybeSingle();
 
-            const response = await fetch(webhookUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-
-            console.log(`📥 Resposta do Webhook: ${response.status} ${response.statusText}`);
-
-            if (response.ok) {
-              const data = await response.json();
-              console.log('📦 Dados recebidos do Webhook:', data);
-              
-              if (data && data.response) {
-                const botMessage = data.response;
-                setMessages(prev => [...prev, { role: 'bot', content: botMessage }]);
-                
-                if (session?.user?.id) {
-                  localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify([...currentMessages, { role: 'bot', content: botMessage }]));
-                  
-                  await chatService.sendMessage({
-                    sender_id: session.user.id,
-                    receiver_id: session.user.id,
-                    message: botMessage,
-                    is_human: false,
-                    is_read: true
-                  });
+              const payload = {
+                event: 'chat_message',
+                type: isAffiliate ? 'affiliate' : 'sales',
+                lead_id: session?.user?.id || 'guest',
+                email: session?.user?.email || 'guest@example.com',
+                whatsapp: leadInfo?.whatsapp || '',
+                status_lead: leadInfo?.status_lead || 'frio',
+                mensagem: currentMessages[currentMessages.length - 1].content,
+                history: currentMessages,
+                context: {
+                  company_name: settings.company_name,
+                  products: products?.map(p => ({ id: p.id, name: p.name, price: p.discount_price || p.price }))
                 }
+              };
+              
+              console.log('📤 Enviando para n8n:', webhookUrl);
+              console.log('📦 Payload:', JSON.stringify(payload, null, 2));
+
+              const response = await fetch(webhookUrl.trim(), {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+                },
+                body: JSON.stringify(payload)
+              });
+
+              console.log(`📥 Resposta do Webhook: ${response.status} ${response.statusText}`);
+              
+              if (response.ok) {
+                // Se o n8n responder com o texto diretamente (responseMode: lastNode)
+                try {
+                  const data = await response.json();
+                  console.log('📦 Dados recebidos do Webhook:', data);
+                  
+                  if (data && (data.response || data.output || data.message)) {
+                    const botMessage = data.response || data.output || data.message;
+                    if (typeof botMessage === 'string') {
+                      setMessages(prev => [...prev, { role: 'bot', content: botMessage }]);
+                      
+                      if (session?.user?.id) {
+                        localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify([...currentMessages, { role: 'bot', content: botMessage }]));
+                        
+                        await chatService.sendMessage({
+                          sender_id: session.user.id,
+                          receiver_id: session.user.id,
+                          message: botMessage,
+                          is_human: false,
+                          is_read: true
+                        });
+                      }
+                    }
+                  }
+                } catch (jsonErr) {
+                  console.log('ℹ️ Webhook respondeu OK, mas não retornou JSON ou formato esperado. Aguardando resposta via DB/Realtime.');
+                }
+                
+                setLoading(false);
+                return;
+              } else {
+                const errorText = await response.text();
+                console.warn(`⚠️ Webhook retornou erro (${response.status}): ${errorText}. Tentando fallback para Gemini...`);
               }
-              setLoading(false);
-              return;
-            } else {
-              console.warn('⚠️ Webhook retornou erro, tentando fallback para Gemini...');
+            } catch (e) {
+              console.error('❌ Erro crítico ao chamar webhook de chat:', e);
+              // Fallback para Gemini se o webhook falhar
             }
-          } catch (e) {
-            console.error('❌ Erro ao chamar webhook de chat:', e);
-            // Fallback para Gemini se o webhook falhar
           }
         }
       }
