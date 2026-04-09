@@ -45,9 +45,6 @@ interface StoreSettings {
   nfe_company_id?: string;
   chat_webhook_url?: string;
   affiliate_chat_webhook_url?: string;
-  openclaw_api_url?: string;
-  openclaw_api_key?: string;
-  openclaw_instance?: string;
 }
 
 export default function Settings() {
@@ -307,46 +304,23 @@ export default function Settings() {
     if (!settings) return;
     setSaving(true);
     try {
-      const payload = {
-        company_name: settings.company_name,
-        cnpj: settings.cnpj,
-        address: settings.address,
-        cep: settings.cep,
-        phone: settings.phone,
-        whatsapp: settings.whatsapp,
-        email: settings.email,
-        instagram: settings.instagram,
-        facebook: settings.facebook,
-        social_links: settings.social_links,
-        business_hours: settings.business_hours,
-        business_hours_details: settings.business_hours_details,
-        payment_methods: settings.payment_methods,
-        shipping_methods: settings.shipping_methods,
-        free_shipping_threshold: settings.free_shipping_threshold,
-        institutional_links: settings.institutional_links,
-        affiliate_terms: settings.affiliate_terms,
-        top_bar_text: settings.top_bar_text,
-        promotions_section_title: settings.promotions_section_title,
-        promotions_section_subtitle: settings.promotions_section_subtitle,
-        products_section_title: settings.products_section_title,
-        products_section_subtitle: settings.products_section_subtitle,
-        tracking_pixels: settings.tracking_pixels,
-        debug_mode: settings.debug_mode,
-        n8n_webhook_url: settings.n8n_webhook_url,
-        origin_zip_code: settings.origin_zip_code,
-        ai_chat_rules: settings.ai_chat_rules,
-        ai_chat_triggers: settings.ai_chat_triggers,
-        ai_auto_learning: settings.ai_auto_learning,
-        ai_chat_memory: settings.ai_chat_memory,
-        nfe_provider: settings.nfe_provider,
-        nfe_token: settings.nfe_token,
-        nfe_company_id: settings.nfe_company_id,
-        chat_webhook_url: settings.chat_webhook_url,
-        affiliate_chat_webhook_url: settings.affiliate_chat_webhook_url,
-        openclaw_api_url: settings.openclaw_api_url,
-        openclaw_api_key: settings.openclaw_api_key,
-        openclaw_instance: settings.openclaw_instance
-      };
+      const allowedFields = [
+        'company_name', 'cnpj', 'address', 'cep', 'phone', 'whatsapp', 'email',
+        'instagram', 'facebook', 'social_links', 'business_hours', 'business_hours_details',
+        'payment_methods', 'shipping_methods', 'free_shipping_threshold', 'institutional_links',
+        'affiliate_terms', 'top_bar_text', 'promotions_section_title', 'promotions_section_subtitle',
+        'products_section_title', 'products_section_subtitle', 'tracking_pixels', 'debug_mode',
+        'n8n_webhook_url', 'origin_zip_code', 'ai_chat_rules', 'ai_chat_triggers',
+        'ai_auto_learning', 'ai_chat_memory', 'nfe_provider', 'nfe_token', 'nfe_company_id',
+        'chat_webhook_url', 'affiliate_chat_webhook_url'
+      ];
+
+      const payload: any = {};
+      allowedFields.forEach(field => {
+        if (field in settings) {
+          payload[field] = (settings as any)[field];
+        }
+      });
 
       console.log('Salvando configurações:', payload);
 
@@ -358,13 +332,17 @@ export default function Settings() {
       if (error) throw error;
 
       // Sincronizar com a tabela ai_settings (vendas)
-      await supabase
-        .from('ai_settings')
-        .upsert({
-          agent_type: 'vendas',
-          rules: settings.ai_chat_rules,
-          memory: settings.ai_chat_memory || ''
-        }, { onConflict: 'agent_type' });
+      try {
+        await supabase
+          .from('ai_settings')
+          .upsert({
+            agent_type: 'vendas',
+            rules: settings.ai_chat_rules || '',
+            memory: settings.ai_chat_memory || ''
+          }, { onConflict: 'agent_type' });
+      } catch (aiError) {
+        console.warn('⚠️ Erro ao sincronizar ai_settings (pode ser que a tabela não exista):', aiError);
+      }
 
       if (showToast) {
         toast.success('Configurações salvas e aplicadas na loja!');
