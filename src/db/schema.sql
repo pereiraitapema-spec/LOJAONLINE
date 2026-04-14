@@ -42,12 +42,13 @@ begin
     default_role := 'admin';
   end if;
 
-  insert into public.profiles (id, email, full_name, role)
+  insert into public.profiles (id, email, full_name, role, avatar_url)
   values (
     new.id, 
     new.email, 
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)), 
-    default_role
+    default_role,
+    new.raw_user_meta_data->>'avatar_url'
   );
 
   -- Se for customer, cria também na tabela de leads como 'frio'

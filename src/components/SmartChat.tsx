@@ -53,7 +53,7 @@ export default function SmartChat() {
         setAgentPhoto(adminProfile.avatar_url);
       } else {
         // Default human photo if admin hasn't set one
-        setAgentPhoto("https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100");
+        setAgentPhoto("https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150");
       }
 
       // Fetch user photo
@@ -62,7 +62,9 @@ export default function SmartChat() {
         .select('avatar_url')
         .eq('id', session.user.id)
         .maybeSingle();
-      if (userProfile) setUserPhoto(userProfile.avatar_url);
+      
+      const googleAvatar = session.user.user_metadata.avatar_url || session.user.user_metadata.picture;
+      setUserPhoto(userProfile?.avatar_url || googleAvatar || null);
     };
     fetchAgentData();
   }, [session]);

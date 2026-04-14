@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, Part } from "@google/generative-ai";
+import * as GenAI from "@google/generative-ai";
 import { supabase } from '../lib/supabase';
 import { orderService } from './orderService';
 
@@ -86,9 +86,10 @@ export const aiService = {
         : 'Nenhum produto encontrado.');
 
       // 3. Call Gemini
-      const genAI = new GoogleGenerativeAI(apiKey);
+      if (!apiKey) throw new Error('API Key is missing');
+      
+      const genAI = new GenAI.GoogleGenerativeAI(apiKey);
       const maxLines = 4;
-
       const model = genAI.getGenerativeModel({
         model: "gemini-1.5-flash",
         systemInstruction: `Você é uma consultora de vendas e suporte da G-FitLif, uma pessoa real e empática.

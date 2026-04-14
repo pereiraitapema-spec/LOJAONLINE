@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { 
   Search, 
@@ -67,6 +68,7 @@ interface Message {
 }
 
 export default function LeadsChat() {
+  const navigate = useNavigate();
   const [groupedLeads, setGroupedLeads] = useState<GroupedLead[]>([]);
   const groupedLeadsRef = useRef<GroupedLead[]>([]);
 
@@ -187,26 +189,12 @@ export default function LeadsChat() {
   }, []); // Only run once on mount
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      const container = messagesEndRef.current.parentElement;
-      if (container) {
-        const isNewLead = selectedGroupKey !== prevSelectedGroupKeyRef.current;
-        const isNewMessage = messages.length > prevMessagesLengthRef.current;
-        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-        
-        const lastMessage = messages[messages.length - 1];
-        const sentByMe = lastMessage && currentUser && lastMessage.sender_id === currentUser.id;
-
-        if (isNewLead || messages.length <= 1 || (isNewMessage && (isNearBottom || sentByMe))) {
-          setTimeout(() => {
-            messagesEndRef.current?.scrollIntoView({ behavior: isNewLead ? 'auto' : 'smooth' });
-          }, 100);
-        }
-      }
+    if (selectedGroupKey && messages.length > 0) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     }
-    prevSelectedGroupKeyRef.current = selectedGroupKey;
-    prevMessagesLengthRef.current = messages.length;
-  }, [messages, selectedGroupKey, currentUser]);
+  }, [messages, selectedGroupKey]);
 
   const getCurrentUser = async () => {
     try {
@@ -857,8 +845,15 @@ export default function LeadsChat() {
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <button 
-                  onClick={() => setSelectedGroupKey(null)}
-                  className="p-2 text-slate-500 hover:bg-slate-200 rounded-full md:hidden"
+                  onClick={() => {
+                    if (selectedGroupKey) {
+                      setSelectedGroupKey(null);
+                    } else {
+                      navigate('/admin/dashboard');
+                    }
+                  }}
+                  className="p-2 text-slate-500 hover:bg-slate-200 rounded-full"
+                  title={selectedGroupKey ? "Voltar para Lista" : "Voltar para Dashboard"}
                 >
                   <ArrowLeft size={20} />
                 </button>
@@ -885,7 +880,7 @@ export default function LeadsChat() {
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
                   <img 
-                    src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100" 
+                    src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150" 
                     alt="Agente" 
                     className={`w-6 h-6 rounded-full object-cover border-2 ${selectedGroup.ai_auto_reply ? 'border-emerald-500' : 'border-slate-300 grayscale'}`}
                     referrerPolicy="no-referrer"
@@ -928,7 +923,7 @@ export default function LeadsChat() {
                   const isFromLead = !isFromAdmin && !isFromAI;
                   
                   const adminAvatarUrl = currentUser?.user_metadata?.avatar_url;
-                  const aiAvatarUrl = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100";
+                  const aiAvatarUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150";
                   
                   return (
                   <div 
@@ -1066,7 +1061,7 @@ export default function LeadsChat() {
                             <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
                               <div className="flex items-center gap-2">
                                 <img 
-                                  src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100" 
+                                  src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150" 
                                   alt="Agente" 
                                   className={`w-5 h-5 rounded-full object-cover border-2 ${selectedGroup.ai_auto_reply ? 'border-emerald-500' : 'border-slate-300 grayscale'}`}
                                   referrerPolicy="no-referrer"

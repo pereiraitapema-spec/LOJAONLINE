@@ -78,7 +78,7 @@ function AppContent() {
       console.log('⏱️ Buscando dados no banco em paralelo...');
       
       const [profileRes, affiliateIdRes, affiliateEmailRes] = await Promise.all([
-        withTimeout(supabase.from('profiles').select('role').eq('id', userId).maybeSingle(), 15000),
+        withTimeout(supabase.from('profiles').select('role, avatar_url').eq('id', userId).maybeSingle(), 15000),
         withTimeout(supabase.from('affiliates').select('id, status, active, email, user_id').eq('user_id', userId).maybeSingle(), 15000),
         email ? withTimeout(supabase.from('affiliates').select('id, status, active, user_id').eq('email', email).maybeSingle(), 15000) : Promise.resolve({ data: null, error: null })
       ]);
@@ -118,14 +118,19 @@ function AppContent() {
         supabase.from('profiles').update({ role: 'customer' }).eq('id', userId).then();
       }
 
-      // 5. Se perfil não existe, criar (background)
+      // 5. Se perfil não existe ou falta avatar, atualizar (background)
+      const googleAvatar = session.user.user_metadata.avatar_url || session.user.user_metadata.picture;
+      
       if (!profileRes.data) {
         supabase.from('profiles').upsert({
           id: userId,
           email: email,
           role: finalRole,
-          full_name: email?.split('@')[0] || 'Usuário'
+          full_name: session.user.user_metadata.full_name || email?.split('@')[0] || 'Usuário',
+          avatar_url: googleAvatar
         }).then();
+      } else if (!profileRes.data.avatar_url && googleAvatar) {
+        supabase.from('profiles').update({ avatar_url: googleAvatar }).eq('id', userId).then();
       }
 
       console.log('🏁 Resultado da Sincronização:', { finalRole });

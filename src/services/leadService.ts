@@ -44,6 +44,7 @@ export const leadService = {
       const payload: any = {
         nome: lead?.nome || name,
         email: email,
+        whatsapp: lead?.whatsapp || session?.user?.user_metadata?.phone || '',
         status_lead: status,
         affiliate_id: affiliateId,
         score: status === 'morno' ? 30 : (status === 'quente' ? 100 : (status === 'cliente' ? 150 : 10)),
