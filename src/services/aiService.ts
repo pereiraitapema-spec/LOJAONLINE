@@ -1,4 +1,4 @@
-import * as GenAI from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase } from '../lib/supabase';
 import { orderService } from './orderService';
 
@@ -88,7 +88,7 @@ export const aiService = {
       // 3. Call Gemini
       if (!apiKey) throw new Error('API Key is missing');
       
-      const genAI = new GenAI.GoogleGenerativeAI(apiKey);
+      const genAI = new GoogleGenerativeAI(apiKey);
       const maxLines = 4;
       const model = genAI.getGenerativeModel({
         model: "gemini-1.5-flash",

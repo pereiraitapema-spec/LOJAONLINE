@@ -527,18 +527,31 @@ export default function Store() {
         }
 
         console.log('⏱️ Buscando dados principais (banners, produtos, etc)...');
+        
+        const fetchWithRetry = async (fn: any, timeout: number, retries = 3): Promise<any> => {
+          for (let i = 0; i < retries; i++) {
+            try {
+              return await withTimeout(fn, timeout);
+            } catch (err) {
+              if (i === retries - 1) throw err;
+              console.warn(`⚠️ Tentativa ${i + 1} falhou, tentando novamente...`);
+              await new Promise(r => setTimeout(r, 1000));
+            }
+          }
+        };
+
         const results = await Promise.allSettled([
-          withTimeout(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }), 5000),
-          withTimeout(supabase.from('products')
+          fetchWithRetry(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }), 15000),
+          fetchWithRetry(supabase.from('products')
             .select('*, tiers:product_tiers(*), media:product_media(*)')
             .eq('active', true)
             .order('created_at', { ascending: false })
-            .order('position', { foreignTable: 'product_media', ascending: true }), 5000),
-          withTimeout(supabase.from('categories').select('*').order('name'), 5000),
-          withTimeout(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }), 5000),
-          withTimeout(supabase.from('store_settings').select('*').maybeSingle(), 5000),
-          withTimeout(supabase.from('site_content').select('*'), 5000),
-          withTimeout(supabase.from('shipping_carriers').select('*').eq('active', true), 5000)
+            .order('position', { foreignTable: 'product_media', ascending: true }), 15000),
+          fetchWithRetry(supabase.from('categories').select('*').order('name'), 15000),
+          fetchWithRetry(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }), 15000),
+          fetchWithRetry(supabase.from('store_settings').select('*').maybeSingle(), 15000),
+          fetchWithRetry(supabase.from('site_content').select('*'), 15000),
+          fetchWithRetry(supabase.from('shipping_carriers').select('*').eq('active', true), 15000)
         ]);
 
         // Só atualizar o estado se a promessa foi cumprida com sucesso

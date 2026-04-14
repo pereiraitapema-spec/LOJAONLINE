@@ -14,7 +14,11 @@ interface Message {
   content: string;
 }
 
-export default function SmartChat() {
+interface SmartChatProps {
+  source?: 'vendas' | 'afiliados';
+}
+
+export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -53,7 +57,7 @@ export default function SmartChat() {
         setAgentPhoto(adminProfile.avatar_url);
       } else {
         // Default human photo if admin hasn't set one
-        setAgentPhoto("https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150");
+        setAgentPhoto("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100&h=100");
       }
 
       // Fetch user photo
@@ -183,11 +187,13 @@ export default function SmartChat() {
         receiver_id: null,
         message: userMessage,
         is_human: true,
-        is_read: false
+        is_read: false,
+        source: source
       });
       
       if (session.user.email !== 'pereira.itapema@gmail.com') {
-        await leadService.updateStatus('morno');
+        // Create/Update lead with the correct source
+        await leadService.updateStatus('frio', { source });
       }
 
       processAiResponse(updatedMessages);
@@ -204,7 +210,7 @@ export default function SmartChat() {
       const { data: leadData } = await supabase.from('leads').select('ai_auto_reply').eq('id', session.user.id).maybeSingle();
       const { data: affiliateData } = await supabase.from('affiliates').select('ai_auto_reply').eq('user_id', session.user.id).maybeSingle();
       
-      const isAffiliate = !!affiliateData;
+      const isAffiliate = source === 'afiliados';
       if ((isAffiliate && affiliateData?.ai_auto_reply === false) || (!isAffiliate && leadData?.ai_auto_reply === false)) {
         setLoading(false);
         return;
@@ -230,7 +236,8 @@ export default function SmartChat() {
           receiver_id: session.user.id,
           message: botPart,
           is_human: false,
-          is_read: true
+          is_read: true,
+          source: source
         });
         
         if (parts.indexOf(part) < parts.length - 1) {

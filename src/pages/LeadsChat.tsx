@@ -177,9 +177,12 @@ export default function LeadsChat() {
       })
       .subscribe((status) => {
         console.log('📡 Status da Conexão Realtime:', status);
-        if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Erro Crítico no Realtime. Tentando reconectar...');
-          setTimeout(() => channel.subscribe(), 5000);
+        if (status === 'CHANNEL_ERROR' || status === 'CLOSED') {
+          console.error(`❌ Conexão Realtime ${status}. Tentando reconectar...`);
+          setTimeout(() => {
+            channel.subscribe();
+            fetchLeads(false, activeTabRef.current);
+          }, 5000);
         }
       });
 
@@ -307,6 +310,13 @@ export default function LeadsChat() {
           throw messagesError;
         }
       } else {
+        console.log('📊 Leads Fetched:', {
+          total: leadsData.length,
+          frio: leadsData.filter(l => l.status_lead === 'frio').length,
+          morno: leadsData.filter(l => l.status_lead === 'morno').length,
+          quente: leadsData.filter(l => l.status_lead === 'quente').length
+        });
+
         processMessages(leadsData, messagesData || []);
       }
     } catch (error: any) {
@@ -671,8 +681,17 @@ export default function LeadsChat() {
       {/* Sidebar - Leads List */}
       <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col ${selectedGroupKey ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 bg-slate-50 border-b border-slate-200">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-3 mb-4">
+            <button 
+              onClick={() => navigate('/admin/dashboard')}
+              className="p-2 text-slate-500 hover:bg-slate-200 rounded-full transition-colors"
+              title="Voltar para Dashboard"
+            >
+              <ArrowLeft size={20} />
+            </button>
             <h1 className="text-xl font-bold text-slate-800 italic uppercase">Conversas</h1>
+          </div>
+          <div className="flex justify-between items-center mb-4">
             <div className="flex gap-2">
               <button 
                 onClick={handleUnifyLeads}
@@ -719,7 +738,7 @@ export default function LeadsChat() {
           <div className="flex items-center justify-between bg-emerald-50 p-3 rounded-xl mb-4 border border-emerald-100">
             <div className="flex items-center gap-2">
               <img 
-                src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100" 
+                src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100&h=100" 
                 alt="Agente" 
                 className="w-6 h-6 rounded-full object-cover border-2 border-emerald-500"
                 referrerPolicy="no-referrer"
@@ -880,7 +899,7 @@ export default function LeadsChat() {
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
                   <img 
-                    src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150" 
+                    src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100&h=100" 
                     alt="Agente" 
                     className={`w-6 h-6 rounded-full object-cover border-2 ${selectedGroup.ai_auto_reply ? 'border-emerald-500' : 'border-slate-300 grayscale'}`}
                     referrerPolicy="no-referrer"
@@ -923,7 +942,7 @@ export default function LeadsChat() {
                   const isFromLead = !isFromAdmin && !isFromAI;
                   
                   const adminAvatarUrl = currentUser?.user_metadata?.avatar_url;
-                  const aiAvatarUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150";
+                  const aiAvatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100&h=100";
                   
                   return (
                   <div 
@@ -1061,7 +1080,7 @@ export default function LeadsChat() {
                             <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
                               <div className="flex items-center gap-2">
                                 <img 
-                                  src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150" 
+                                  src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100&h=100" 
                                   alt="Agente" 
                                   className={`w-5 h-5 rounded-full object-cover border-2 ${selectedGroup.ai_auto_reply ? 'border-emerald-500' : 'border-slate-300 grayscale'}`}
                                   referrerPolicy="no-referrer"

@@ -129,7 +129,7 @@ function AppContent() {
           full_name: session.user.user_metadata.full_name || email?.split('@')[0] || 'Usuário',
           avatar_url: googleAvatar
         }).then();
-      } else if (!profileRes.data.avatar_url && googleAvatar) {
+      } else if (googleAvatar && profileRes.data.avatar_url !== googleAvatar) {
         supabase.from('profiles').update({ avatar_url: googleAvatar }).eq('id', userId).then();
       }
 
@@ -445,7 +445,7 @@ function AppContent() {
         <Route path="*" element={<NotFound />} />
       </Routes>
       {(location.pathname === '/afiliados/dashboard' || location.pathname === '/') && (
-        <SmartChat />
+        <SmartChat source={location.pathname === '/afiliados/dashboard' ? 'afiliados' : 'vendas'} />
       )}
     </>
   );

@@ -4,13 +4,14 @@ import { automationService } from './automationService';
 export type LeadStatus = 'frio' | 'morno' | 'quente' | 'cliente' | 'inativo';
 
 export const leadService = {
-  async updateStatus(status: LeadStatus, purchaseData?: { product: string, value: number, email?: string, name?: string }) {
+  async updateStatus(status: LeadStatus, purchaseData?: { product?: string, value?: number, email?: string, name?: string, source?: string }) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
       let userId = session?.user?.id;
       let email = purchaseData?.email || session?.user?.email;
       let name = purchaseData?.name || session?.user?.user_metadata?.full_name || email?.split('@')[0];
+      let source = purchaseData?.source || 'vendas';
 
       if (email === 'pereira.itapema@gmail.com') return;
       if (!email && !userId) return;
@@ -33,10 +34,6 @@ export const leadService = {
 
       const currentStatus = (lead?.status_lead || 'frio') as LeadStatus;
       
-      // Se status novo não for superior AND não houver dados de compra, não faz nada
-      // Exceto se estivermos forçando um status (como 'cliente' após pagamento)
-      if (statusOrder[status] <= statusOrder[currentStatus] && !purchaseData) return;
-
       // 3. Get affiliate_id from localStorage if exists
       const affiliateId = localStorage.getItem('affiliate_code') || lead?.affiliate_id;
 
@@ -45,10 +42,12 @@ export const leadService = {
         nome: lead?.nome || name,
         email: email,
         whatsapp: lead?.whatsapp || session?.user?.user_metadata?.phone || '',
-        status_lead: status,
+        status_lead: statusOrder[status] > statusOrder[currentStatus] ? status : currentStatus,
         affiliate_id: affiliateId,
+        source: source,
         score: status === 'morno' ? 30 : (status === 'quente' ? 100 : (status === 'cliente' ? 150 : 10)),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        ultima_interacao_data: new Date().toISOString()
       };
 
       // Se temos o ID do usuário, usamos como PK
@@ -58,9 +57,9 @@ export const leadService = {
         payload.id = lead.id;
       }
 
-      if (purchaseData) {
+      if (purchaseData?.product) {
         payload.ultimo_produto_comprado = purchaseData.product;
-        payload.valor_total_gasto = (lead?.valor_total_gasto || 0) + purchaseData.value;
+        payload.valor_total_gasto = (lead?.valor_total_gasto || 0) + (purchaseData.value || 0);
         payload.ultima_compra_data = new Date().toISOString();
       }
 

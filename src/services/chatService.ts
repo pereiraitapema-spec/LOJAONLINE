@@ -9,6 +9,7 @@ export interface ChatMessage {
   created_at: string;
   is_human?: boolean;
   is_read?: boolean;
+  source?: string;
 }
 
 export const chatService = {

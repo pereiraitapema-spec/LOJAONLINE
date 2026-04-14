@@ -608,6 +608,7 @@ create table if not exists public.leads (
   ultima_interacao_data timestamp with time zone default timezone('utc'::text, now()),
   
   -- Metadados
+  source text default 'vendas', -- 'vendas' ou 'afiliados'
   tags jsonb default '[]'::jsonb,
   opt_in_marketing boolean default true,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,

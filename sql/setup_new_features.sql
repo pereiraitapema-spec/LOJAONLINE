@@ -37,6 +37,7 @@ create table if not exists public.chat_messages (
   receiver_id uuid references auth.users(id) not null,
   message text not null,
   is_read boolean default false,
+  source text default 'vendas', -- 'vendas' ou 'afiliados'
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
