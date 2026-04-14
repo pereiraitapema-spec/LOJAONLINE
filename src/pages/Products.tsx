@@ -17,7 +17,8 @@ import {
   Save,
   Upload,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Zap
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -198,6 +199,34 @@ export default function Products() {
       setApiKeys(data || []);
     } catch (error: any) {
       console.error('Erro ao buscar chaves:', error);
+    }
+  };
+
+  const testAPIKey = async (key: any) => {
+    const toastId = toast.loading('Testando conexão com a API...');
+    try {
+      if (key.service === 'gemini') {
+        const ai = new GoogleGenAI({ apiKey: key.key_value });
+        const response = await ai.models.generateContent({
+          model: "gemini-1.5-flash",
+          contents: "Responda apenas com a palavra 'OK'.",
+        });
+        const text = response.text || '';
+        if (text.trim().toUpperCase().includes('OK')) {
+          toast.success('Conexão com Gemini estabelecida com sucesso!', { id: toastId });
+        } else {
+          toast.error('Resposta inesperada da API Gemini.', { id: toastId });
+        }
+      } else if (key.service === 'openai') {
+        toast.error('Teste para OpenAI ainda não implementado.', { id: toastId });
+      } else if (key.service === 'pagarme') {
+        toast.error('Teste para Pagar.me ainda não implementado.', { id: toastId });
+      } else {
+        toast.error('Serviço não suportado para teste automático.', { id: toastId });
+      }
+    } catch (error: any) {
+      console.error('Erro no teste de API:', error);
+      toast.error(`Falha na conexão: ${error.message || 'Erro desconhecido'}`, { id: toastId });
     }
   };
 
@@ -853,13 +882,26 @@ export default function Products() {
                   Gerencie suas credenciais do Google Gemini e OpenAI para automatizar descrições e inteligência da loja.
                 </p>
               </div>
-              <button 
-                onClick={() => setShowAPIModal(true)}
-                className="bg-white text-slate-900 px-8 py-4 rounded-2xl font-black uppercase italic tracking-tighter hover:bg-indigo-50 transition-all shadow-xl flex items-center gap-3"
-              >
-                <Plus size={24} />
-                Nova Chave API
-              </button>
+              <div className="flex flex-wrap gap-4">
+                <button 
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="bg-slate-800 text-white px-6 py-4 rounded-2xl font-black uppercase italic tracking-tighter hover:bg-slate-700 transition-all shadow-xl flex items-center gap-3"
+                >
+                  <ArrowLeft size={24} />
+                  Voltar
+                </button>
+                <button 
+                  onClick={() => {
+                    setApiKeyForm({ id: '', name: '', service: 'gemini', key_value: '', active: true });
+                    setIsEditingKey(false);
+                    setShowAPIModal(true);
+                  }}
+                  className="bg-white text-slate-900 px-8 py-4 rounded-2xl font-black uppercase italic tracking-tighter hover:bg-indigo-50 transition-all shadow-xl flex items-center gap-3"
+                >
+                  <Plus size={24} />
+                  Nova Chave API
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -868,6 +910,13 @@ export default function Products() {
                   <div className="flex items-center justify-between mb-4">
                     <div className={`w-3 h-3 rounded-full ${key.active ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-slate-600'}`}></div>
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => testAPIKey(key)}
+                        className="p-2 hover:bg-white/10 rounded-lg text-amber-400"
+                        title="Testar Conexão"
+                      >
+                        <Zap size={16} />
+                      </button>
                       <button 
                         onClick={() => {
                           setApiKeyForm({ id: key.id, name: key.name, service: key.service, key_value: key.key_value, active: key.active });
@@ -1458,16 +1507,31 @@ export default function Products() {
       {/* Modal de Configuração de APIs */}
       <AnimatePresence>
         {showAPIModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div 
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => {
+              setShowAPIModal(false);
+              setIsEditingKey(false);
+              setApiKeyForm({ id: '', name: '', service: 'gemini', key_value: '', active: true });
+            }}
+          >
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
+              onClick={e => e.stopPropagation()}
               className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-600 text-white">
                 <h2 className="text-xl font-bold">Configurar Chaves de API</h2>
-                <button onClick={() => setShowAPIModal(false)} className="hover:rotate-90 transition-transform">
+                <button 
+                  onClick={() => {
+                    setShowAPIModal(false);
+                    setIsEditingKey(false);
+                    setApiKeyForm({ id: '', name: '', service: 'gemini', key_value: '', active: true });
+                  }} 
+                  className="hover:rotate-90 transition-transform"
+                >
                   <X size={24} />
                 </button>
               </div>
