@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { withTimeout } from '../lib/utils';
 import { toast } from 'react-hot-toast';
@@ -50,6 +51,7 @@ interface StoreSettings {
 }
 
 export default function Settings() {
+  const navigate = useNavigate();
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1019,6 +1021,44 @@ Body: {
 
         {activeTab === 'general' && (
           <>
+            {/* Card de Chaves de API - Adicionado para facilitar acesso */}
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                    <Zap size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Configuração de APIs</h2>
+                    <p className="text-xs text-slate-500">Gerencie as chaves do Gemini e outros serviços</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => navigate('/admin/products')}
+                  className="flex items-center gap-2 text-indigo-600 font-bold text-xs hover:underline"
+                >
+                  Ir para Gestão de APIs
+                  <ArrowLeft size={14} className="rotate-180" />
+                </button>
+              </div>
+              
+              <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex gap-3 items-start">
+                <Info className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
+                <div>
+                  <p className="text-xs text-amber-800 font-medium leading-relaxed">
+                    As chaves de API do Gemini são essenciais para o funcionamento do Chat Inteligente. 
+                    Se o agente parar de responder (como no erro 400), verifique se suas chaves ainda são válidas.
+                  </p>
+                  <button 
+                    onClick={() => navigate('/admin/products')}
+                    className="mt-2 text-[10px] font-black text-amber-900 underline uppercase tracking-widest"
+                  >
+                    Configurar agora em Produtos &gt; APIs
+                  </button>
+                </div>
+              </div>
+            </section>
+
             {/* Informações da Empresa */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
               <h2 className="text-xl font-bold text-slate-900 mb-4">Informações da Empresa</h2>
