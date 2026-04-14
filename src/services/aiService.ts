@@ -1,4 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from '../lib/supabase';
 import { orderService } from './orderService';
 
@@ -26,30 +28,32 @@ export const aiService = {
   },
 
   async processResponse(userId: string, currentMessages: Message[], isAffiliate: boolean) {
+    console.log('[AI] 🚀 Iniciando processamento de resposta...');
+    const agentType = isAffiliate ? 'afiliados' : 'vendas';
+    console.log(`[AI] Origem identificada: ${agentType}`);
+
     try {
-      const agentType = isAffiliate ? 'afiliados' : 'vendas';
       const aiSettings = await this.getSettings(agentType);
+      console.log('[AI] Configurações carregadas');
 
       // 1. Fetch API Keys
-      const { data: fetchedKeys } = await supabase
+      console.log('[AI] Verificando APIs disponíveis...');
+      const { data: allKeys } = await supabase
         .from('api_keys')
-        .select('key_value')
-        .eq('service', 'gemini')
+        .select('service, key_value, active')
         .eq('active', true);
 
-      const envKey = process.env.GEMINI_API_KEY;
-      const allKeys = [...(fetchedKeys || [])];
-      if (envKey && !allKeys.some(k => k.key_value === envKey)) {
-        allKeys.push({ key_value: envKey });
+      const envGeminiKey = process.env.GEMINI_API_KEY;
+      const keys = allKeys || [];
+      
+      if (envGeminiKey && !keys.some(k => k.service === 'gemini' && k.key_value === envGeminiKey)) {
+        keys.push({ service: 'gemini', key_value: envGeminiKey, active: true });
       }
 
-      if (allKeys.length === 0) {
-        throw new Error('Nenhuma chave de API Gemini configurada.');
-      }
-
-      const apiKey = allKeys[0].key_value;
+      console.log(`[AI] Chaves encontradas: ${keys.map(k => k.service).join(', ')}`);
 
       // 2. Fetch Context
+      console.log('[AI] Carregando contexto (produtos, regras, memória)...');
       const [
         { data: products },
         { data: settings },
@@ -85,14 +89,7 @@ export const aiService = {
           }).join('\n\n')
         : 'Nenhum produto encontrado.');
 
-      // 3. Call Gemini
-      if (!apiKey) throw new Error('API Key is missing');
-      
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const maxLines = 4;
-      const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
-        systemInstruction: `Você é uma consultora de vendas e suporte da G-FitLif, uma pessoa real e empática.
+      const systemInstruction = `Você é uma consultora de vendas e suporte da G-FitLif, uma pessoa real e empática.
           
           REGRAS DE IDENTIDADE:
           1. NUNCA diga que você é uma inteligência artificial, robô ou assistente virtual.
@@ -109,7 +106,7 @@ export const aiService = {
           REGRAS PARA CLIENTES (IA COMPRAS):
           1. Você está falando com um cliente interessado em comprar produtos.
           2. Foque em conversão de vendas, tirando dúvidas sobre produtos, frete e pagamentos.
-          3. Responda com no máximo ${maxLines} linhas por mensagem.
+          3. Responda com no máximo 4 linhas por mensagem.
           4. PADRÃO DE RESPOSTA HUMANIZADA:
              - Se o cliente perguntar sobre produtos, liste-os e explique um por um usando [SPLIT].
              - Para cada produto, informe o que é, como tomar e o valor mensal.
@@ -121,23 +118,84 @@ export const aiService = {
           - Se não souber, peça para falar com um atendente humano.
           - Use [SPLIT] para separar mensagens longas ou diferentes produtos.
           
-          Contexto:\n${context}`
-      });
+          Contexto:\n${context}`;
 
-      const history = currentMessages.slice(0, -1).map(msg => ({
-        role: msg.role === 'bot' ? 'model' : 'user',
-        parts: [{ text: msg.content }]
-      }));
+      // 3. Try APIs in order: Gemini -> OpenAI -> Claude
+      const providers = [
+        { name: 'gemini', key: keys.find(k => k.service === 'gemini')?.key_value },
+        { name: 'openai', key: keys.find(k => k.service === 'openai')?.key_value },
+        { name: 'claude', key: keys.find(k => k.service === 'claude')?.key_value }
+      ].filter(p => !!p.key);
 
-      const chat = model.startChat({ history });
-      const lastUserMessage = currentMessages[currentMessages.length - 1].content;
-      const result = await chat.sendMessage(lastUserMessage);
-      const responseText = result.response.text();
+      if (providers.length === 0) {
+        console.error('[AI] Nenhuma chave de API ativa encontrada.');
+        throw new Error('Nenhuma chave de API configurada.');
+      }
 
-      return responseText || 'Desculpe, não consegui processar sua solicitação.';
-    } catch (error) {
-      console.error('AI Service Error:', error);
-      throw error;
+      for (const provider of providers) {
+        try {
+          console.log(`[AI] Testando provedor: ${provider.name.toUpperCase()}`);
+          let responseText = '';
+
+          if (provider.name === 'gemini') {
+            const genAI = new GoogleGenerativeAI(provider.key!);
+            const model = genAI.getGenerativeModel({
+              model: "gemini-1.5-flash",
+              systemInstruction: systemInstruction
+            });
+
+            const history = currentMessages.slice(0, -1).map(msg => ({
+              role: msg.role === 'bot' ? 'model' : 'user',
+              parts: [{ text: msg.content }]
+            }));
+
+            const chat = model.startChat({ history });
+            const lastUserMessage = currentMessages[currentMessages.length - 1].content;
+            const result = await chat.sendMessage(lastUserMessage);
+            responseText = result.response.text();
+          } 
+          else if (provider.name === 'openai') {
+            const openai = new OpenAI({ apiKey: provider.key, dangerouslyAllowBrowser: true });
+            const completion = await openai.chat.completions.create({
+              model: "gpt-4o-mini",
+              messages: [
+                { role: "system", content: systemInstruction },
+                ...currentMessages.map(m => ({
+                  role: (m.role === 'bot' ? 'assistant' : 'user') as 'assistant' | 'user',
+                  content: m.content
+                }))
+              ]
+            });
+            responseText = completion.choices[0].message.content || '';
+          }
+          else if (provider.name === 'claude') {
+            const anthropic = new Anthropic({ apiKey: provider.key, dangerouslyAllowBrowser: true });
+            const message = await anthropic.messages.create({
+              model: "claude-3-5-sonnet-20240620",
+              max_tokens: 1024,
+              system: systemInstruction,
+              messages: currentMessages.map(m => ({
+                role: m.role === 'bot' ? 'assistant' : 'user' as const,
+                content: m.content
+              }))
+            });
+            responseText = (message.content[0] as any).text || '';
+          }
+
+          if (responseText) {
+            console.log(`[AI] Resposta gerada com sucesso via ${provider.name.toUpperCase()}`);
+            return responseText;
+          }
+        } catch (err: any) {
+          console.error(`[AI] Falha no provedor ${provider.name.toUpperCase()}:`, err.message);
+          // Continue to next provider
+        }
+      }
+
+      throw new Error('Todos os provedores de IA falharam.');
+    } catch (error: any) {
+      console.error('[AI] Erro crítico no processamento:', error.message);
+      return 'Desculpe, estou com uma instabilidade momentânea. Posso te ajudar com outra coisa ou você prefere falar com um atendente humano?';
     }
   }
 };

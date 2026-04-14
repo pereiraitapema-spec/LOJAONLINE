@@ -135,6 +135,7 @@ export default function LeadsChat() {
         
         if (payload.eventType === 'INSERT') {
           const newMessage = payload.new as Message;
+          console.log(`[REALTIME] Nova mensagem de: ${newMessage.sender_id} para: ${newMessage.receiver_id}`);
           
           // 1. Update messages if it's for the selected lead(s)
           const currentGroup = selectedGroupRef.current;
@@ -154,10 +155,8 @@ export default function LeadsChat() {
           }
 
           // 2. Trigger AI Response if message is from lead and AI is enabled
-          // Only trigger if the message is from a human (not AI) and receiver is null (to system)
           if (newMessage.is_human && !newMessage.receiver_id) {
             console.log('[REALTIME] Nova mensagem de lead detectada');
-            // Find the group for this lead
             const group = groupedLeadsRef.current.find(g => g.leads.some(l => l.id === newMessage.sender_id));
             if (group && group.ai_auto_reply) {
               console.log('🤖 [AI] Triggering Response para:', group.nome);
@@ -166,20 +165,19 @@ export default function LeadsChat() {
           }
         }
 
-        // 3. Refresh leads list for any message change to update last_message and sorting
         fetchLeads(false, activeTabRef.current);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
-        console.log('👤 [REALTIME] Mudança na tabela LEADS');
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (payload) => {
+        console.log('👤 [REALTIME] Mudança na tabela LEADS:', payload.eventType);
         fetchLeads(false, activeTabRef.current);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'affiliates' }, () => {
-        console.log('🤝 [REALTIME] Mudança na tabela AFILIADOS');
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'affiliates' }, (payload) => {
+        console.log('🤝 [REALTIME] Mudança na tabela AFILIADOS:', payload.eventType);
         fetchLeads(false, activeTabRef.current);
       })
       .subscribe((status) => {
         console.log('📡 [REALTIME] Status da Conexão:', status);
-        if (status === 'CHANNEL_ERROR' || status === 'CLOSED') {
+        if (status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
           console.error(`❌ [REALTIME] Conexão ${status}. Tentando reconectar em 5s...`);
           setTimeout(() => {
             console.log('[REALTIME] Tentando resubscribe...');
@@ -239,6 +237,7 @@ export default function LeadsChat() {
   }, [activeTab]);
 
   const fetchLeads = async (isInitial = false, currentTab = activeTabRef.current) => {
+    console.log(`[LEADS] Iniciando busca de leads (${currentTab})...`);
     try {
       if (isInitial) setLoading(true);
       
@@ -249,13 +248,15 @@ export default function LeadsChat() {
         const { data: affiliates } = await supabase.from('affiliates').select('email');
         const affiliateEmails = affiliates?.map(a => a.email) || [];
 
-        // Fetch leads
+        // Fetch leads - SEM FILTRO DE STATUS para garantir que todos venham
         const { data: leads, error: leadsError } = await supabase
           .from('leads')
           .select('*')
           .order('created_at', { ascending: false });
         
         if (leadsError) throw leadsError;
+
+        console.log(`[LEADS] Banco retornou ${leads?.length || 0} leads.`);
 
         // Fetch profiles separately to avoid relationship issues
         const { data: profiles } = await supabase
@@ -298,8 +299,9 @@ export default function LeadsChat() {
         }));
       }
 
+      console.log(`[LEADS] Total leads após filtragem de afiliados: ${leadsData.length}`);
+
       // Fetch last messages and unread counts for each lead
-      // Using specific columns and handling potential missing columns gracefully
       const { data: messagesData, error: messagesError } = await supabase
         .from('chat_messages')
         .select('sender_id, receiver_id, message, created_at, is_read, is_human')
@@ -307,23 +309,17 @@ export default function LeadsChat() {
         .limit(1000);
 
       if (messagesError) {
-        console.error('Initial messages fetch error:', messagesError);
-        // If it's a Bad Request, it might be a missing column. Try without is_human and is_read
-        if (messagesError.message === 'Bad Request' || messagesError.code === 'PGRST204' || messagesError.code === '42703') {
-          const { data: fallbackData, error: fallbackError } = await supabase
-            .from('chat_messages')
-            .select('sender_id, receiver_id, message, created_at')
-            .order('created_at', { ascending: false })
-            .limit(1000);
-          
-          if (fallbackError) throw fallbackError;
-          // Use fallback data
-          processMessages(leadsData, fallbackData || []);
-        } else {
-          throw messagesError;
-        }
+        console.error('[CHAT] Erro ao buscar mensagens iniciais:', messagesError);
+        // Fallback para colunas básicas se as novas falharem
+        const { data: fallbackData } = await supabase
+          .from('chat_messages')
+          .select('sender_id, receiver_id, message, created_at')
+          .order('created_at', { ascending: false })
+          .limit(1000);
+        
+        processMessages(leadsData, fallbackData || []);
       } else {
-        console.log('📊 Leads Fetched:', {
+        console.log('[LEADS] Estatísticas de carregamento:', {
           total: leadsData.length,
           frio: leadsData.filter(l => l.status_lead === 'frio').length,
           morno: leadsData.filter(l => l.status_lead === 'morno').length,
@@ -333,8 +329,8 @@ export default function LeadsChat() {
         processMessages(leadsData, messagesData || []);
       }
     } catch (error: any) {
-      console.error('Error in fetchLeads:', error);
-      if (isInitial) toast.error('Erro ao carregar leads: ' + (error.message || 'Erro de conexão'));
+      console.error('❌ [LEADS] Erro em fetchLeads:', error);
+      if (isInitial) toast.error('Erro ao carregar leads.');
     } finally {
       if (isInitial) setLoading(false);
     }
