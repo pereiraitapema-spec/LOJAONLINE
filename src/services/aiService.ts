@@ -138,21 +138,41 @@ export const aiService = {
           let responseText = '';
 
           if (provider.name === 'gemini') {
-            const genAI = new GoogleGenerativeAI(provider.key!);
-            const model = genAI.getGenerativeModel({
-              model: "gemini-1.5-flash",
-              systemInstruction: systemInstruction
-            });
+            // Tentar gemini-1.5-flash, se falhar tentar gemini-1.5-flash-latest
+            const modelsToTry = ["gemini-1.5-flash", "gemini-1.5-flash-latest"];
+            let lastGeminiError = null;
 
-            const history = currentMessages.slice(0, -1).map(msg => ({
-              role: msg.role === 'bot' ? 'model' : 'user',
-              parts: [{ text: msg.content }]
-            }));
+            for (const modelName of modelsToTry) {
+              try {
+                console.log(`[AI] Tentando modelo Gemini: ${modelName}`);
+                const genAI = new GoogleGenerativeAI(provider.key!);
+                const model = genAI.getGenerativeModel({
+                  model: modelName,
+                  systemInstruction: systemInstruction
+                });
 
-            const chat = model.startChat({ history });
-            const lastUserMessage = currentMessages[currentMessages.length - 1].content;
-            const result = await chat.sendMessage(lastUserMessage);
-            responseText = result.response.text();
+                const history = currentMessages.slice(0, -1).map(msg => ({
+                  role: msg.role === 'bot' ? 'model' : 'user',
+                  parts: [{ text: msg.content }]
+                }));
+
+                const chat = model.startChat({ history });
+                const lastUserMessage = currentMessages[currentMessages.length - 1].content;
+                const result = await chat.sendMessage(lastUserMessage);
+                responseText = result.response.text();
+                
+                if (responseText) {
+                  // Se funcionou, garante que o status está online
+                  await supabase.from('api_keys').update({ status: 'online' }).eq('service', 'gemini').eq('key_value', provider.key);
+                  break; 
+                }
+              } catch (geminiErr: any) {
+                console.warn(`[AI] Falha no modelo ${modelName}:`, geminiErr.message);
+                lastGeminiError = geminiErr;
+              }
+            }
+            
+            if (!responseText && lastGeminiError) throw lastGeminiError;
           } 
           else if (provider.name === 'openai') {
             const openai = new OpenAI({ apiKey: provider.key, dangerouslyAllowBrowser: true });
@@ -167,6 +187,9 @@ export const aiService = {
               ]
             });
             responseText = completion.choices[0].message.content || '';
+            if (responseText) {
+              await supabase.from('api_keys').update({ status: 'online' }).eq('service', 'openai').eq('key_value', provider.key);
+            }
           }
           else if (provider.name === 'claude') {
             const anthropic = new Anthropic({ apiKey: provider.key, dangerouslyAllowBrowser: true });
@@ -180,6 +203,9 @@ export const aiService = {
               }))
             });
             responseText = (message.content[0] as any).text || '';
+            if (responseText) {
+              await supabase.from('api_keys').update({ status: 'online' }).eq('service', 'claude').eq('key_value', provider.key);
+            }
           }
 
           if (responseText) {
@@ -188,6 +214,12 @@ export const aiService = {
           }
         } catch (err: any) {
           console.error(`[AI] Falha no provedor ${provider.name.toUpperCase()}:`, err.message);
+          // Marcar API como offline no banco
+          await supabase.from('api_keys')
+            .update({ status: 'offline' })
+            .eq('service', provider.name)
+            .eq('key_value', provider.key);
+          
           // Continue to next provider
         }
       }

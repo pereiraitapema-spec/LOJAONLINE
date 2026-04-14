@@ -541,17 +541,17 @@ export default function Store() {
         };
 
         const results = await Promise.allSettled([
-          fetchWithRetry(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }), 15000),
+          fetchWithRetry(supabase.from('banners').select('*').eq('active', true).order('created_at', { ascending: true }), 30000),
           fetchWithRetry(supabase.from('products')
             .select('*, tiers:product_tiers(*), media:product_media(*)')
             .eq('active', true)
             .order('created_at', { ascending: false })
-            .order('position', { foreignTable: 'product_media', ascending: true }), 15000),
-          fetchWithRetry(supabase.from('categories').select('*').order('name'), 15000),
-          fetchWithRetry(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }), 15000),
-          fetchWithRetry(supabase.from('store_settings').select('*').maybeSingle(), 15000),
-          fetchWithRetry(supabase.from('site_content').select('*'), 15000),
-          fetchWithRetry(supabase.from('shipping_carriers').select('*').eq('active', true), 15000)
+            .order('position', { foreignTable: 'product_media', ascending: true }), 30000),
+          fetchWithRetry(supabase.from('categories').select('*').order('name'), 30000),
+          fetchWithRetry(supabase.from('campaigns').select('*').eq('active', true).order('display_order', { ascending: true }), 30000),
+          fetchWithRetry(supabase.from('store_settings').select('*').maybeSingle(), 30000),
+          fetchWithRetry(supabase.from('site_content').select('*'), 30000),
+          fetchWithRetry(supabase.from('shipping_carriers').select('*').eq('active', true), 30000)
         ]);
 
         // Só atualizar o estado se a promessa foi cumprida com sucesso

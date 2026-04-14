@@ -256,7 +256,7 @@ export default function LeadsChat() {
         
         if (leadsError) throw leadsError;
 
-        console.log(`[LEADS] Banco retornou ${leads?.length || 0} leads.`);
+        console.log(`[LEADS] Banco retornou ${leads?.length || 0} leads bruto.`);
 
         // Fetch profiles separately to avoid relationship issues
         const { data: profiles } = await supabase
@@ -265,11 +265,15 @@ export default function LeadsChat() {
         
         const profileMap = new Map(profiles?.map(p => [p.id, p.avatar_url]) || []);
 
-        // Filter out leads that are also affiliates
-        leadsData = (leads || []).filter(lead => !affiliateEmails.includes(lead.email)).map(lead => ({
+        // Filter out leads that are also affiliates ONLY if they are strictly affiliates
+        // But the user wants to see ALL leads from sales site.
+        // Let's log the filtering process.
+        leadsData = (leads || []).map(lead => ({
           ...lead,
           avatar_url: profileMap.get(lead.id)
         }));
+        
+        console.log(`[LEADS] Leads após mapeamento de perfis: ${leadsData.length}`);
       } else {
         const { data: affiliates, error: affError } = await supabase
           .from('affiliates')
@@ -305,8 +309,9 @@ export default function LeadsChat() {
       const { data: messagesData, error: messagesError } = await supabase
         .from('chat_messages')
         .select('sender_id, receiver_id, message, created_at, is_read, is_human')
-        .order('created_at', { ascending: false })
-        .limit(1000);
+        .order('created_at', { ascending: false });
+        // Removido limit(1000) para garantir que pegamos mensagens de todos os leads se necessário
+        // Ou pelo menos aumentar o limite significativamente
 
       if (messagesError) {
         console.error('[CHAT] Erro ao buscar mensagens iniciais:', messagesError);

@@ -588,6 +588,21 @@ export default function Dashboard() {
 
           <motion.div 
             whileHover={{ y: -5 }}
+            onClick={() => navigate('/admin/api-keys')}
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-emerald-200 transition-all"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                <Zap size={20} />
+              </div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">APIs & IA</span>
+            </div>
+            <p className="text-2xl font-black text-slate-900">Gerenciar</p>
+            <p className="text-[10px] text-slate-400 mt-1 font-bold">CONFIGURAR CHAVES E FALLBACK</p>
+          </motion.div>
+
+          <motion.div 
+            whileHover={{ y: -5 }}
             onClick={() => navigate('/inventory')}
             className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-amber-200 transition-all"
           >
