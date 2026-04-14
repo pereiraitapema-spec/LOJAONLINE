@@ -1991,13 +1991,12 @@ export default function Checkout() {
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     >
                       {(() => {
-                        // Calcula o menor valor mínimo de parcela entre os produtos no carrinho
-                        const minInstallmentValue = cart.reduce((min, item) => {
-                          const productMin = item.product.min_installment_value || 50;
-                          return productMin < min ? productMin : min;
-                        }, 50);
+                        // Calcula o valor mínimo de parcela (usamos o maior entre os produtos para segurança)
+                        const minInstallmentValue = cart.length > 0 
+                          ? Math.max(...cart.map(item => item.product.min_installment_value || 50))
+                          : 50;
 
-                        const maxInstallments = 10;
+                        const maxInstallments = 12;
                         let possibleInstallments = Math.floor(finalTotal / minInstallmentValue);
                         if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
                         if (possibleInstallments < 1) possibleInstallments = 1;
@@ -2150,6 +2149,24 @@ export default function Checkout() {
                   <span className="text-3xl font-black text-slate-900 tracking-tighter">
                     {formatCurrency(finalTotal)}
                   </span>
+                  {(() => {
+                    const minInstallmentValue = cart.length > 0 
+                      ? Math.max(...cart.map(item => item.product.min_installment_value || 50))
+                      : 50;
+                    const maxInstallments = 12;
+                    let possibleInstallments = Math.floor(finalTotal / minInstallmentValue);
+                    if (possibleInstallments > maxInstallments) possibleInstallments = maxInstallments;
+                    if (possibleInstallments < 1) possibleInstallments = 1;
+                    
+                    if (possibleInstallments > 1) {
+                      return (
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">
+                          ou em até {possibleInstallments}x de {formatCurrency(finalTotal / possibleInstallments)}
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
 

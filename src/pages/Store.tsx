@@ -367,8 +367,8 @@ export default function Store() {
   };
 
   const calculateInstallments = (price: number, minValue: number = 50) => {
-    const maxInstallments = 10;
-    let installments = Math.floor(price / minValue);
+    const maxInstallments = 12;
+    let installments = Math.floor(price / (minValue || 50));
     if (installments > maxInstallments) installments = maxInstallments;
     if (installments < 1) installments = 1;
     
