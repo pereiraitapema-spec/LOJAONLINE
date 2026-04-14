@@ -206,19 +206,44 @@ export default function Products() {
     const toastId = toast.loading('Testando conexão com a API...');
     try {
       if (key.service === 'gemini') {
-        const ai = new GoogleGenAI({ apiKey: key.key_value });
-        const response = await ai.models.generateContent({
-          model: "gemini-1.5-flash",
-          contents: "Responda apenas com a palavra 'OK'.",
-        });
-        const text = response.text || '';
-        if (text.trim().toUpperCase().includes('OK')) {
-          toast.success('Conexão com Gemini estabelecida com sucesso!', { id: toastId });
-        } else {
-          toast.error('Resposta inesperada da API Gemini.', { id: toastId });
+        try {
+          const ai = new GoogleGenAI(key.key_value);
+          const model = (ai as any).getGenerativeModel({ model: "gemini-1.5-flash" });
+          const result = await model.generateContent("Responda apenas com a palavra 'OK'.");
+          const text = result.response.text();
+          if (text.trim().toUpperCase().includes('OK')) {
+            toast.success('Conexão com Gemini estabelecida com sucesso!', { id: toastId });
+          } else {
+            toast.error('Resposta inesperada da API Gemini.', { id: toastId });
+          }
+        } catch (err: any) {
+          console.error('Erro no teste de API Gemini:', err);
+          toast.error(`Falha na conexão Gemini: ${err.message || 'Erro desconhecido'}`, { id: toastId });
         }
       } else if (key.service === 'openai') {
-        toast.error('Teste para OpenAI ainda não implementado.', { id: toastId });
+        try {
+          const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${key.key_value}`
+            },
+            body: JSON.stringify({
+              model: "gpt-3.5-turbo",
+              messages: [{ role: "user", content: "Say OK" }],
+              max_tokens: 5
+            })
+          });
+          
+          const data = await response.json();
+          if (response.ok) {
+            toast.success('Conexão com OpenAI estabelecida com sucesso!', { id: toastId });
+          } else {
+            toast.error(`Erro OpenAI: ${data.error?.message || 'Erro desconhecido'}`, { id: toastId });
+          }
+        } catch (err: any) {
+          toast.error(`Falha na conexão OpenAI: ${err.message}`, { id: toastId });
+        }
       } else if (key.service === 'pagarme') {
         toast.error('Teste para Pagar.me ainda não implementado.', { id: toastId });
       } else {
@@ -245,10 +270,13 @@ export default function Products() {
 
     setIsGeneratingAI(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Crie uma descrição comercial extremamente persuasiva, altamente focada em conversão, para o produto "${productForm.name}".
+      const ai = new GoogleGenAI(geminiKey);
+      const model = (ai as any).getGenerativeModel({ model: "gemini-1.5-flash" });
+      const response = await model.generateContent({
+        contents: [{
+          role: 'user',
+          parts: [{
+            text: `Crie uma descrição comercial extremamente persuasiva, altamente focada em conversão, para o produto "${productForm.name}".
       
       DADOS DO PRODUTO:
       - Nome: ${productForm.name}
@@ -272,9 +300,11 @@ export default function Products() {
       7. O texto deve ser LONGO, ENVOLVENTE e PROFISSIONAL. Organize em parágrafos claros.
       8. DESTAQUE: Use CAIXA ALTA moderadamente para destacar pontos cruciais.
       9. NÃO use blocos de código markdown (\`\`\`html ou \`\`\`).
-      10. Retorne APENAS o texto da descrição.`,
+      10. Retorne APENAS o texto da descrição.`
+          }]
+        }]
       });
-      let text = response.text || '';
+      let text = response.response.text() || '';
       
       // Limpeza extra de segurança (remover qualquer tag HTML que o modelo possa ter gerado por engano)
       text = text.replace(/<[^>]*>?/gm, '');
@@ -1570,45 +1600,58 @@ export default function Products() {
                       placeholder="Cole sua chave aqui..."
                     />
                   </div>
-                  <button 
-                    onClick={async () => {
-                      if (!apiKeyForm.name || !apiKeyForm.key_value) {
-                        toast.error('Preencha todos os campos da chave.');
-                        return;
-                      }
-                      setSaving(true);
-                      try {
-                        const payload = {
-                          name: apiKeyForm.name,
-                          service: apiKeyForm.service,
-                          key_value: apiKeyForm.key_value,
-                          active: apiKeyForm.active
-                        };
-
-                        if (isEditingKey && apiKeyForm.id) {
-                          const { error } = await supabase.from('api_keys').update(payload).eq('id', apiKeyForm.id);
-                          if (error) throw error;
-                          toast.success('Chave atualizada!');
-                        } else {
-                          const { error } = await supabase.from('api_keys').insert([payload]);
-                          if (error) throw error;
-                          toast.success('Chave de API salva com sucesso!');
-                        }
-                        
-                        setApiKeyForm({ id: '', name: '', service: 'gemini', key_value: '', active: true });
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => {
+                        setShowAPIModal(false);
                         setIsEditingKey(false);
-                        fetchAPIKeys();
-                      } catch (err: any) {
-                        toast.error('Erro ao salvar chave: ' + err.message);
-                      } finally {
-                        setSaving(false);
-                      }
-                    }}
-                    disabled={saving}
-                    className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
-                  >
-                    {isEditingKey ? 'Atualizar Chave' : 'Salvar Chave'}
-                  </button>
+                        setApiKeyForm({ id: '', name: '', service: 'gemini', key_value: '', active: true });
+                      }}
+                      className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all"
+                    >
+                      Voltar
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        if (!apiKeyForm.name || !apiKeyForm.key_value) {
+                          toast.error('Preencha todos os campos da chave.');
+                          return;
+                        }
+                        setSaving(true);
+                        try {
+                          const payload = {
+                            name: apiKeyForm.name,
+                            service: apiKeyForm.service,
+                            key_value: apiKeyForm.key_value,
+                            active: apiKeyForm.active
+                          };
+
+                          if (isEditingKey && apiKeyForm.id) {
+                            const { error } = await supabase.from('api_keys').update(payload).eq('id', apiKeyForm.id);
+                            if (error) throw error;
+                            toast.success('Chave atualizada!');
+                          } else {
+                            const { error } = await supabase.from('api_keys').insert([payload]);
+                            if (error) throw error;
+                            toast.success('Chave de API salva com sucesso!');
+                          }
+                          
+                          setApiKeyForm({ id: '', name: '', service: 'gemini', key_value: '', active: true });
+                          setIsEditingKey(false);
+                          setShowAPIModal(false); // Fechar modal após salvar
+                          fetchAPIKeys();
+                        } catch (err: any) {
+                          toast.error('Erro ao salvar chave: ' + err.message);
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      disabled={saving}
+                      className="flex-[2] bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
+                    >
+                      {isEditingKey ? 'Atualizar Chave' : 'Salvar Chave'}
+                    </button>
+                  </div>
                   {isEditingKey && (
                     <button 
                       onClick={() => {

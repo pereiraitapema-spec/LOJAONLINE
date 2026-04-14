@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, Send, X, User, Bot, Sparkles, LogIn } from 'lucide-react';
-import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
+import { GoogleGenAI, Type, FunctionDeclaration, FunctionCallingConfigMode } from "@google/genai";
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { chatService } from '../services/chatService';
@@ -571,18 +571,9 @@ export default function SmartChat() {
           3. Seja persuasivo mas educado.
       `;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: alternatingHistory,
-        tools: aiSettings.autoLearning ? [
-          { googleSearch: {} },
-          { functionDeclarations: [saveKnowledge, getOrderDetails] }
-        ] : [{ functionDeclarations: [getOrderDetails] }],
-        toolConfig: { 
-          includeServerSideToolInvocations: true
-        },
-        config: {
-          systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
+      const model = (ai as any).getGenerativeModel({
+        model: "gemini-1.5-flash",
+        systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
           
           ${isAffiliate ? affiliateRules : `
           REGRAS OBRIGATÓRIAS DE VENDAS E ATENDIMENTO (EXECUÇÃO RÍGIDA):
@@ -635,12 +626,29 @@ export default function SmartChat() {
           Contexto dos Produtos e Conhecimento da IA:\n${context}
           
           Lembre-se do histórico recente do usuário.`,
+        tools: aiSettings.autoLearning ? [
+          { googleSearch: {} },
+          { functionDeclarations: [saveKnowledge, getOrderDetails] }
+        ] : [{ functionDeclarations: [getOrderDetails] }],
+        toolConfig: { 
+          functionCallingConfig: {
+            mode: FunctionCallingConfigMode.AUTO
+          }
         }
       } as any);
 
+      const chat = (model as any).startChat({
+        history: alternatingHistory,
+      });
+
+      const userMessage = currentMessages[currentMessages.length - 1].content;
+      const result = await chat.sendMessage(userMessage);
+      const responseText = result.response.text();
+      const functionCalls = result.response.functionCalls();
+
       // Handle Function Calls
-      if (response.functionCalls) {
-        for (const call of response.functionCalls) {
+      if (functionCalls && functionCalls.length > 0) {
+        for (const call of functionCalls) {
           if (call.name === 'save_knowledge') {
             const { topic, content } = call.args as any;
             await supabase.from('ai_knowledge_base').upsert({ topic, content }, { onConflict: 'topic' });
@@ -667,7 +675,7 @@ export default function SmartChat() {
         }
       }
 
-      const botResponse = response.text || 'Desculpe, não consegui processar sua solicitação.';
+      const botResponse = responseText || 'Desculpe, não consegui processar sua solicitação.';
 
       // Split response into multiple messages if needed
       // First split by [SPLIT]
@@ -736,12 +744,10 @@ export default function SmartChat() {
         for (let i = 1; i < keysData.length; i++) {
           try {
             const fallbackKey = keysData[i].key_value;
-            const fallbackAi = new GoogleGenAI({ apiKey: fallbackKey });
-            
-            const retryResponse = await fallbackAi.models.generateContent({
-              model: "gemini-3.1-pro-preview",
-              config: {
-                systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
+            const fallbackAi = new GoogleGenAI(fallbackKey);
+            const fallbackModel = (fallbackAi as any).getGenerativeModel({
+              model: "gemini-1.5-flash",
+              systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
                 (RETRY MODE - SEM FERRAMENTAS)
                 Responda com base APENAS no contexto fornecido abaixo.
                 
@@ -749,11 +755,13 @@ export default function SmartChat() {
                 Responda com no máximo ${maxLines} linhas por mensagem.
                 
                 Contexto:\n${context}`,
-              },
+            });
+            
+            const retryResult = await fallbackModel.generateContent({
               contents: alternatingHistory
             });
             
-            const botResponse = retryResponse.text || 'Desculpe, tive um problema ao processar sua pergunta.';
+            const botResponse = retryResult.response.text() || 'Desculpe, tive um problema ao processar sua pergunta.';
             const finalMessages = [...currentMessages, { role: 'bot' as const, content: botResponse }].slice(-40);
             setMessages(finalMessages);
             localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(finalMessages));
@@ -789,23 +797,24 @@ export default function SmartChat() {
       // If still failed, try without tools using the first key
       if (!retrySuccess && (error.message?.includes('include_server_side_tool_invocations') || error.message?.includes('INVALID_ARGUMENT') || error.message?.includes('tool_config'))) {
         try {
-          const ai = new GoogleGenAI({ apiKey: keys.key_value });
-          const retryResponse = await ai.models.generateContent({
-            model: "gemini-3.1-pro-preview",
-            config: {
-              systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
-              (RETRY MODE - SEM FERRAMENTAS)
-              Responda com base APENAS no contexto fornecido abaixo.
-              
-              REGRAS DE LINHAS:
-              Responda com no máximo ${maxLines} linhas por mensagem.
-              
-              Contexto:\n${context}`,
-            },
+          const ai = new GoogleGenAI(keys.key_value);
+          const model = (ai as any).getGenerativeModel({
+            model: "gemini-1.5-flash",
+            systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
+            (RETRY MODE - SEM FERRAMENTAS)
+            Responda com base APENAS no contexto fornecido abaixo.
+            
+            REGRAS DE LINHAS:
+            Responda com no máximo ${maxLines} linhas por mensagem.
+            
+            Contexto:\n${context}`,
+          });
+          
+          const retryResult = await model.generateContent({
             contents: alternatingHistory
           });
           
-          const botResponse = retryResponse.text || 'Desculpe, tive um problema ao processar sua pergunta.';
+          const botResponse = retryResult.response.text() || 'Desculpe, tive um problema ao processar sua pergunta.';
           const finalMessages = [...currentMessages, { role: 'bot' as const, content: botResponse }].slice(-40);
           setMessages(finalMessages);
           localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(finalMessages));
