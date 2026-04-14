@@ -50,18 +50,31 @@ function AppContent() {
   // Helper para timeout em chamadas Supabase - Reduzido para 5s para performance
   // Helper for timeouts
 
-  const syncUserSession = async (userId: string, email?: string) => {
-    console.log('🔄 Sincronizando sessão para:', { userId, email });
+  const syncUserSession = async (session: any) => {
+    if (!session?.user) {
+      console.log('⚠️ [AUTH] Tentativa de sincronização sem usuário válido.');
+      return null;
+    }
+
+    const userId = session.user.id;
+    const email = session.user.email;
+
+    console.log('🔄 [AUTH] Sincronizando sessão:', { 
+      userId, 
+      email,
+      fullName: session.user.user_metadata?.full_name,
+      lastSignIn: session.user.last_sign_in_at
+    });
     
     // 1. Admin Master - Instantâneo
     if (email === 'pereira.itapema@gmail.com') {
-      console.log('👑 Admin Master detectado via e-mail:', email);
+      console.log('👑 [AUTH] Admin Master detectado:', email);
       setUserRole('admin');
       localStorage.setItem('user_role', 'admin');
       
       // Garantir que o profile está como admin no banco (background)
       supabase.from('profiles').update({ role: 'admin' }).eq('id', userId).then(({ error }) => {
-        if (error) console.error('Erro ao atualizar profile do master admin:', error);
+        if (error) console.error('❌ [AUTH] Erro ao atualizar profile do master admin:', error);
       });
       
       return 'admin';
@@ -198,9 +211,11 @@ function AppContent() {
       }
 
       if (session) {
-        const role = await syncUserSession(session.user.id, session.user.email);
-        handleRoleRedirect(session, role);
+        console.log('🔑 [AUTH] Sessão inicial recebida');
+        const role = await syncUserSession(session);
+        handleRoleRedirect(session, role || undefined);
       } else {
+        console.log('ℹ️ [AUTH] Nenhuma sessão inicial encontrada');
         localStorage.removeItem('user_role');
         setLoading(false);
       }
@@ -208,11 +223,12 @@ function AppContent() {
 
     // 2. Ouvir mudanças
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔔 Auth Event:', event);
+      console.log('🔔 [AUTH] Evento:', event);
       setSession(session);
       
       if (event === 'SIGNED_IN' && session) {
-        const role = await syncUserSession(session.user.id, session.user.email);
+        console.log('✅ [AUTH] Usuário logado:', session.user.email);
+        const role = await syncUserSession(session);
         
         if (window.location.hash.includes('type=recovery') || window.location.pathname === '/reset-password') {
           setLoading(false);
@@ -220,11 +236,12 @@ function AppContent() {
         }
 
         if (!sessionStorage.getItem('lead_status_updated')) {
+          console.log('📈 [LEADS] Atualizando status inicial do lead para FRIO');
           leadService.updateStatus('frio');
           sessionStorage.setItem('lead_status_updated', 'true');
         }
 
-        await handleRoleRedirect(session, role);
+        await handleRoleRedirect(session, role || undefined);
       }
       
       if (event === 'SIGNED_OUT') {

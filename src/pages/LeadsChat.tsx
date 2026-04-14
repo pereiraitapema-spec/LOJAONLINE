@@ -131,7 +131,7 @@ export default function LeadsChat() {
     const channel = supabase
       .channel('leads_chat_main')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, async (payload: any) => {
-        console.log('💬 Realtime Message Change:', payload.eventType);
+        console.log('💬 [REALTIME] Mensagem recebida:', payload.eventType);
         
         if (payload.eventType === 'INSERT') {
           const newMessage = payload.new as Message;
@@ -143,6 +143,7 @@ export default function LeadsChat() {
             const isRelevant = leadIds.includes(newMessage.sender_id) || leadIds.includes(newMessage.receiver_id);
             
             if (isRelevant) {
+              console.log('[REALTIME] Atualizando mensagens do grupo selecionado');
               setMessages(prev => {
                 if (prev.some(m => m.id === newMessage.id)) return prev;
                 return [...prev, newMessage].sort((a, b) => 
@@ -155,10 +156,11 @@ export default function LeadsChat() {
           // 2. Trigger AI Response if message is from lead and AI is enabled
           // Only trigger if the message is from a human (not AI) and receiver is null (to system)
           if (newMessage.is_human && !newMessage.receiver_id) {
+            console.log('[REALTIME] Nova mensagem de lead detectada');
             // Find the group for this lead
             const group = groupedLeadsRef.current.find(g => g.leads.some(l => l.id === newMessage.sender_id));
             if (group && group.ai_auto_reply) {
-              console.log('🤖 Triggering AI Response for:', group.nome);
+              console.log('🤖 [AI] Triggering Response para:', group.nome);
               triggerAiResponse(group, newMessage.message);
             }
           }
@@ -168,26 +170,37 @@ export default function LeadsChat() {
         fetchLeads(false, activeTabRef.current);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
-        console.log('👤 Realtime Lead Change');
+        console.log('👤 [REALTIME] Mudança na tabela LEADS');
         fetchLeads(false, activeTabRef.current);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'affiliates' }, () => {
-        console.log('🤝 Realtime Affiliate Change');
+        console.log('🤝 [REALTIME] Mudança na tabela AFILIADOS');
         fetchLeads(false, activeTabRef.current);
       })
       .subscribe((status) => {
-        console.log('📡 Status da Conexão Realtime:', status);
+        console.log('📡 [REALTIME] Status da Conexão:', status);
         if (status === 'CHANNEL_ERROR' || status === 'CLOSED') {
-          console.error(`❌ Conexão Realtime ${status}. Tentando reconectar...`);
+          console.error(`❌ [REALTIME] Conexão ${status}. Tentando reconectar em 5s...`);
           setTimeout(() => {
+            console.log('[REALTIME] Tentando resubscribe...');
             channel.subscribe();
             fetchLeads(false, activeTabRef.current);
           }, 5000);
         }
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [REALTIME] Inscrito com sucesso nos canais');
+        }
       });
+
+    // Fallback Polling (A cada 10 segundos se o realtime falhar ou para garantir)
+    const pollingInterval = setInterval(() => {
+      console.log('🔄 [LEADS] Polling de atualização (fallback)');
+      fetchLeads(false, activeTabRef.current);
+    }, 10000);
 
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollingInterval);
     };
   }, []); // Only run once on mount
 
@@ -670,11 +683,15 @@ export default function LeadsChat() {
     return format(date, 'dd/MM/yy');
   };
 
-  const filteredLeads = groupedLeads.filter(g => 
-    (g.nome || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
-    (g.whatsapp || '').includes(searchTerm) ||
-    (g.email || '').toLowerCase().includes((searchTerm || '').toLowerCase())
-  );
+  const filteredLeads = groupedLeads.filter(g => {
+    const matchesSearch = 
+      (g.nome || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
+      (g.whatsapp || '').includes(searchTerm) ||
+      (g.email || '').toLowerCase().includes((searchTerm || '').toLowerCase());
+    
+    // Garantir que todos os status são mostrados
+    return matchesSearch;
+  });
 
   return (
     <div className="flex h-[calc(100vh-64px)] bg-slate-100 overflow-hidden">
