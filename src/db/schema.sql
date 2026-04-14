@@ -49,6 +49,20 @@ begin
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)), 
     default_role
   );
+
+  -- Se for customer, cria também na tabela de leads como 'frio'
+  if default_role = 'customer' then
+    insert into public.leads (id, nome, email, whatsapp, status_lead)
+    values (
+      new.id,
+      coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+      new.email,
+      coalesce(new.raw_user_meta_data->>'phone', ''),
+      'frio'
+    )
+    on conflict (id) do nothing;
+  end if;
+
   return new;
 exception when others then
   -- Fallback seguro para não impedir o cadastro

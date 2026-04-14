@@ -24,6 +24,8 @@ import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ReactMarkdown from 'react-markdown';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { chatService } from '../services/chatService';
+import { aiService, Message as AiMessage } from '../services/aiService';
 
 interface Lead {
   id: string;
@@ -38,6 +40,7 @@ interface Lead {
   last_message_time?: string;
   unread_count?: number;
   created_at: string;
+  avatar_url?: string;
 }
 
 interface GroupedLead {
@@ -50,6 +53,7 @@ interface GroupedLead {
   unread_count?: number;
   ai_auto_reply: boolean;
   status_lead: string;
+  avatar_url?: string;
 }
 
 interface Message {
@@ -121,74 +125,59 @@ export default function LeadsChat() {
 
     init();
 
+    // Single consolidated channel for all updates
     const channel = supabase
-      .channel('chat_updates')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload) => {
-        const newMessage = payload.new as Message;
+      .channel('leads_chat_main')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, async (payload: any) => {
+        console.log('💬 Realtime Message Change:', payload.eventType);
         
-        // Update messages if it's for the selected lead(s)
-        const currentGroup = selectedGroupRef.current;
-        if (currentGroup) {
-          const leadIds = currentGroup.leads.map(l => l.id);
-          const isRelevant = leadIds.includes(newMessage.sender_id) || leadIds.includes(newMessage.receiver_id);
+        if (payload.eventType === 'INSERT') {
+          const newMessage = payload.new as Message;
           
-          if (isRelevant) {
-            setMessages(prev => {
-              if (prev.some(m => m.id === newMessage.id)) return prev;
-              const updated = [...prev, newMessage].sort((a, b) => 
-                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-              );
-              return updated;
-            });
+          // 1. Update messages if it's for the selected lead(s)
+          const currentGroup = selectedGroupRef.current;
+          if (currentGroup) {
+            const leadIds = currentGroup.leads.map(l => l.id);
+            const isRelevant = leadIds.includes(newMessage.sender_id) || leadIds.includes(newMessage.receiver_id);
+            
+            if (isRelevant) {
+              setMessages(prev => {
+                if (prev.some(m => m.id === newMessage.id)) return prev;
+                return [...prev, newMessage].sort((a, b) => 
+                  new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                );
+              });
+            }
+          }
+
+          // 2. Trigger AI Response if message is from lead and AI is enabled
+          // Only trigger if the message is from a human (not AI) and receiver is null (to system)
+          if (newMessage.is_human && !newMessage.receiver_id) {
+            // Find the group for this lead
+            const group = groupedLeadsRef.current.find(g => g.leads.some(l => l.id === newMessage.sender_id));
+            if (group && group.ai_auto_reply) {
+              console.log('🤖 Triggering AI Response for:', group.nome);
+              triggerAiResponse(group, newMessage.message);
+            }
           }
         }
 
-        // Update groupedLeads state locally without fetching from DB
-        const groupExists = groupedLeadsRef.current.some(g => 
-          g.leads.some(l => l.id === newMessage.sender_id || l.id === newMessage.receiver_id)
-        );
-
-        if (groupExists) {
-          updateGroupedLeads(prevGroups => {
-            const updatedGroups = [...prevGroups];
-            
-            // Find the group that this message belongs to
-            const groupIndex = updatedGroups.findIndex(g => 
-              g.leads.some(l => l.id === newMessage.sender_id || l.id === newMessage.receiver_id)
-            );
-
-            if (groupIndex !== -1) {
-              const group = updatedGroups[groupIndex];
-              const leadIds = group.leads.map(l => l.id);
-              
-              // Check if it's a new unread message from the lead
-              const isUnreadFromLead = leadIds.includes(newMessage.sender_id) && newMessage.is_read === false;
-              
-              updatedGroups[groupIndex] = {
-                ...group,
-                last_message: newMessage.message,
-                last_message_time: newMessage.created_at,
-                unread_count: isUnreadFromLead ? (group.unread_count || 0) + 1 : group.unread_count
-              };
-
-              // Re-sort groups so the one with the new message goes to the top
-              return updatedGroups.sort((a, b) => {
-                const timeA = new Date(a.last_message_time).getTime();
-                const timeB = new Date(b.last_message_time).getTime();
-                return timeB - timeA;
-              });
-            }
-            return prevGroups;
-          });
-        } else {
-          // Se não encontrou o grupo, é um lead novo.
-          fetchLeads(false);
-        }
+        // 3. Refresh leads list for any message change to update last_message and sorting
+        fetchLeads(false, activeTabRef.current);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
+        console.log('👤 Realtime Lead Change');
+        fetchLeads(false, activeTabRef.current);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'affiliates' }, () => {
+        console.log('🤝 Realtime Affiliate Change');
+        fetchLeads(false, activeTabRef.current);
       })
       .subscribe((status) => {
         console.log('📡 Status da Conexão Realtime:', status);
         if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Erro Crítico no Realtime. Verifique se a tabela chat_messages está na publicação supabase_realtime.');
+          console.error('❌ Erro Crítico no Realtime. Tentando reconectar...');
+          setTimeout(() => channel.subscribe(), 5000);
         }
       });
 
@@ -205,17 +194,13 @@ export default function LeadsChat() {
         const isNewMessage = messages.length > prevMessagesLengthRef.current;
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
         
-        // Scroll to bottom if:
-        // 1. User just selected a new lead
-        // 2. It's the first message
-        // 3. A new message arrived AND user is already near bottom
-        // 4. A new message arrived AND it was sent by the current user (is_human is true and sender_id is currentUser.id)
-        
         const lastMessage = messages[messages.length - 1];
         const sentByMe = lastMessage && currentUser && lastMessage.sender_id === currentUser.id;
 
         if (isNewLead || messages.length <= 1 || (isNewMessage && (isNearBottom || sentByMe))) {
-          messagesEndRef.current.scrollIntoView({ behavior: isNewLead ? 'auto' : 'smooth' });
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: isNewLead ? 'auto' : 'smooth' });
+          }, 100);
         }
       }
     }
@@ -247,28 +232,6 @@ export default function LeadsChat() {
     fetchLeads(true, activeTab);
     setSelectedGroupKey(null);
     setMessages([]);
-
-    // Subscription for real-time messages and leads
-    const channel = supabase
-      .channel('leads_chat_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, () => {
-        fetchLeads(false, activeTabRef.current);
-        if (selectedGroupRef.current) {
-          const leadIds = selectedGroupRef.current.leads.map(l => l.id);
-          fetchMessages(leadIds);
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
-        fetchLeads(false, activeTabRef.current);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'affiliates' }, () => {
-        fetchLeads(false, activeTabRef.current);
-      })
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
   }, [activeTab]);
 
   const fetchLeads = async (isInitial = false, currentTab = activeTabRef.current) => {
@@ -282,18 +245,22 @@ export default function LeadsChat() {
         const { data: affiliates } = await supabase.from('affiliates').select('email');
         const affiliateEmails = affiliates?.map(a => a.email) || [];
 
+        // Fetch leads with profile data for avatar
         const { data, error } = await supabase
           .from('leads')
-          .select('*')
+          .select('*, profiles(avatar_url)')
           .order('created_at', { ascending: false });
         if (error) throw error;
         
         // Filter out leads that are also affiliates
-        leadsData = (data || []).filter(lead => !affiliateEmails.includes(lead.email));
+        leadsData = (data || []).filter(lead => !affiliateEmails.includes(lead.email)).map(lead => ({
+          ...lead,
+          avatar_url: lead.profiles?.avatar_url
+        }));
       } else {
         const { data, error } = await supabase
           .from('affiliates')
-          .select('*')
+          .select('*, profiles(avatar_url)')
           .not('user_id', 'is', null)
           .order('created_at', { ascending: false });
         if (error) throw error;
@@ -306,7 +273,8 @@ export default function LeadsChat() {
           whatsapp: aff.whatsapp,
           status_lead: aff.status,
           ai_auto_reply: aff.ai_auto_reply !== undefined ? aff.ai_auto_reply : true, // Use from DB or default to true
-          created_at: aff.created_at
+          created_at: aff.created_at,
+          avatar_url: aff.profiles?.avatar_url
         }));
       }
 
@@ -357,7 +325,8 @@ export default function LeadsChat() {
           whatsapp: lead.whatsapp,
           leads: [],
           ai_auto_reply: lead.ai_auto_reply,
-          status_lead: lead.status_lead
+          status_lead: lead.status_lead,
+          avatar_url: lead.avatar_url
         };
       }
       groups[groupKey].leads.push(lead);
@@ -367,20 +336,29 @@ export default function LeadsChat() {
     const finalGroups = Object.values(groups).map(group => {
       const leadIds = group.leads.map(l => l.id);
       const groupMessages = messagesData.filter(m => leadIds.includes(m.sender_id) || leadIds.includes(m.receiver_id));
-      const lastMsg = groupMessages[0];
+      
+      // Sort group messages by date to get the absolute last one
+      const sortedGroupMessages = [...groupMessages].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      
+      const lastMsg = sortedGroupMessages[0];
       
       // Count unread messages from the lead (where lead is sender and is_read is false)
       const unreadCount = groupMessages.filter(m => leadIds.includes(m.sender_id) && m.is_read === false).length;
       
+      // Use the latest date between last message and lead creation
+      const lastTime = lastMsg?.created_at || group.leads[0].created_at;
+      
       return {
         ...group,
         last_message: lastMsg?.message || 'Nenhuma mensagem',
-        last_message_time: lastMsg?.created_at || group.leads[0].created_at,
+        last_message_time: lastTime,
         unread_count: unreadCount
       };
     });
 
-    // Sort by last message time
+    // Sort by last message time DESC (WhatsApp style)
     const sortedGroups = finalGroups.sort((a, b) => {
       const timeA = new Date(a.last_message_time).getTime();
       const timeB = new Date(b.last_message_time).getTime();
@@ -467,6 +445,47 @@ export default function LeadsChat() {
       handleSelectGroup(groupedLeads[0]);
     }
   }, [groupedLeads.length, selectedGroupKey]);
+
+  const triggerAiResponse = async (group: GroupedLead, lastMessage: string) => {
+    if (!group.ai_auto_reply || !currentUser) return;
+    
+    try {
+      const isAffiliate = activeTabRef.current === 'affiliates';
+      const leadId = group.leads[0].id;
+      
+      // Fetch history for AI
+      const history = await chatService.fetchUserHistory(leadId);
+      const aiMessages: AiMessage[] = history.map(msg => ({
+        role: msg.sender_id === leadId ? 'user' : 'bot',
+        content: msg.message
+      }));
+
+      // If the last message is not in history yet, add it
+      if (!aiMessages.some(m => m.content === lastMessage)) {
+        aiMessages.push({ role: 'user', content: lastMessage });
+      }
+
+      const botResponse = await aiService.processResponse(leadId, aiMessages, isAffiliate);
+      
+      // Split and send
+      const parts = botResponse.split('[SPLIT]').filter(p => p.trim());
+      for (const part of parts) {
+        await chatService.sendMessage({
+          sender_id: null, // AI
+          receiver_id: leadId,
+          message: part.trim(),
+          is_human: false,
+          is_read: true
+        });
+        // Delay between parts
+        if (parts.indexOf(part) < parts.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    } catch (error) {
+      console.error('Error triggering AI response from LeadsChat:', error);
+    }
+  };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -762,9 +781,18 @@ export default function LeadsChat() {
                   className="flex-1 p-4 flex gap-3 text-left min-w-0"
                 >
                   <div className="relative">
-                    <div className="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold">
-                      {(group.nome || group.email || group.whatsapp || 'U').charAt(0).toUpperCase()}
-                    </div>
+                    {group.avatar_url ? (
+                      <img 
+                        src={group.avatar_url} 
+                        alt={group.nome} 
+                        className="w-12 h-12 rounded-full object-cover border border-slate-200"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold">
+                        {(group.nome || group.email || group.whatsapp || 'U').charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     {group.unread_count && group.unread_count > 0 ? (
                       <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
                         {group.unread_count}
@@ -818,9 +846,18 @@ export default function LeadsChat() {
                 >
                   <ArrowLeft size={20} />
                 </button>
-                <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold">
-                  {(selectedGroup.nome || selectedGroup.email || selectedGroup.whatsapp || 'U').charAt(0).toUpperCase()}
-                </div>
+                {selectedGroup.avatar_url ? (
+                  <img 
+                    src={selectedGroup.avatar_url} 
+                    alt={selectedGroup.nome} 
+                    className="w-10 h-10 rounded-full object-cover border border-slate-200"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold">
+                    {(selectedGroup.nome || selectedGroup.email || selectedGroup.whatsapp || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div>
                   <h2 className="font-bold text-slate-800 text-sm">{selectedGroup.nome}</h2>
                   <p className="text-[10px] text-slate-500 flex items-center gap-2">
@@ -884,8 +921,10 @@ export default function LeadsChat() {
                   >
                     {isFromLead && (
                       <div className="flex-shrink-0 mr-2 mt-auto">
-                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs shadow-sm">
-                          {(selectedGroup.nome || selectedGroup.email || selectedGroup.whatsapp || 'U').charAt(0).toUpperCase()}
+                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs shadow-sm overflow-hidden">
+                          {selectedGroup.avatar_url ? (
+                            <img src={selectedGroup.avatar_url} alt={selectedGroup.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (selectedGroup.nome || selectedGroup.email || selectedGroup.whatsapp || 'U').charAt(0).toUpperCase()}
                         </div>
                       </div>
                     )}
