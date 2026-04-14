@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, FunctionDeclaration, FunctionCallingConfigMode } from "@google/genai";
+import { GoogleGenerativeAI, Part } from "@google/generative-ai";
 import { supabase } from '../lib/supabase';
 import { orderService } from './orderService';
 
@@ -86,37 +86,17 @@ export const aiService = {
         : 'Nenhum produto encontrado.');
 
       // 3. Call Gemini
-      const ai = new GoogleGenAI(apiKey);
+      const genAI = new GoogleGenerativeAI(apiKey);
       const maxLines = 4;
 
-      const saveKnowledge: FunctionDeclaration = {
-        name: "save_knowledge",
-        description: "Salva uma informação no banco de dados para uso futuro.",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            topic: { type: Type.STRING, description: "O tópico ou nome do produto." },
-            content: { type: Type.STRING, description: "A informação detalhada para salvar." }
-          },
-          required: ["topic", "content"]
-        }
-      };
-
-      const getOrderDetails: FunctionDeclaration = {
-        name: "get_order_details",
-        description: "Busca detalhes de um pedido pelo número do pedido.",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            orderId: { type: Type.NUMBER, description: "O número do pedido." }
-          },
-          required: ["orderId"]
-        }
-      };
-
-      const model = (ai as any).getGenerativeModel({
+      const model = genAI.getGenerativeModel({
         model: "gemini-1.5-flash",
-        systemInstruction: `Você é o assistente inteligente de ELITE da G-FitLif.
+        systemInstruction: `Você é uma consultora de vendas e suporte da G-FitLif, uma pessoa real e empática.
+          
+          REGRAS DE IDENTIDADE:
+          1. NUNCA diga que você é uma inteligência artificial, robô ou assistente virtual.
+          2. Fale como uma pessoa real (ex: "Oi, tudo bem? Sou a consultora da G-FitLif...").
+          3. Use uma linguagem natural, amigável e persuasiva.
           
           ${isAffiliate ? `
           REGRAS ESPECÍFICAS PARA AFILIADOS (IA AFILIADOS):
@@ -140,43 +120,18 @@ export const aiService = {
           - Se não souber, peça para falar com um atendente humano.
           - Use [SPLIT] para separar mensagens longas ou diferentes produtos.
           
-          Contexto:\n${context}`,
-        tools: aiSettings.autoLearning ? [
-          { googleSearch: {} },
-          { functionDeclarations: [saveKnowledge, getOrderDetails] }
-        ] : [{ functionDeclarations: [getOrderDetails] }],
-        toolConfig: { 
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.AUTO
-          }
-        }
-      } as any);
+          Contexto:\n${context}`
+      });
 
-      const history = currentMessages.map(msg => ({
+      const history = currentMessages.slice(0, -1).map(msg => ({
         role: msg.role === 'bot' ? 'model' : 'user',
         parts: [{ text: msg.content }]
       }));
 
-      const chat = (model as any).startChat({ history });
+      const chat = model.startChat({ history });
       const lastUserMessage = currentMessages[currentMessages.length - 1].content;
       const result = await chat.sendMessage(lastUserMessage);
-      
-      let responseText = result.response.text();
-      const functionCalls = result.response.functionCalls();
-
-      if (functionCalls && functionCalls.length > 0) {
-        for (const call of functionCalls) {
-          if (call.name === 'save_knowledge') {
-            const { topic, content } = call.args as any;
-            await supabase.from('ai_knowledge_base').upsert({ topic, content }, { onConflict: 'topic' });
-          } else if (call.name === 'get_order_details') {
-            const { orderId } = call.args as any;
-            const order = await orderService.getOrderById(orderId);
-            const followUp = await chat.sendMessage(`Dados do Pedido ${orderId}: ${JSON.stringify(order)}`);
-            responseText = followUp.response.text();
-          }
-        }
-      }
+      const responseText = result.response.text();
 
       return responseText || 'Desculpe, não consegui processar sua solicitação.';
     } catch (error) {

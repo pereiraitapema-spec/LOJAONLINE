@@ -18,7 +18,7 @@ export default function SmartChat() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'bot', content: 'Olá! Sou seu assistente inteligente G-FitLif. Como posso te ajudar hoje?' }
+    { role: 'bot', content: 'Olá! Sou a consultora da G-FitLif. Como posso te ajudar hoje?' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,6 +51,9 @@ export default function SmartChat() {
       
       if (adminProfile?.avatar_url) {
         setAgentPhoto(adminProfile.avatar_url);
+      } else {
+        // Default human photo if admin hasn't set one
+        setAgentPhoto("https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100");
       }
 
       // Fetch user photo
@@ -110,7 +113,7 @@ export default function SmartChat() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (!session) {
-        setMessages([{ role: 'bot', content: 'Olá! Sou seu assistente inteligente G-FitLif. Como posso te ajudar hoje?' }]);
+        setMessages([{ role: 'bot', content: 'Olá! Sou a consultora da G-FitLif. Como posso te ajudar hoje?' }]);
       }
       setLoadingSession(false);
     });
@@ -263,8 +266,8 @@ export default function SmartChat() {
                   <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-emerald-600 rounded-full" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm">G-FitLif AI</h3>
-                  <p className="text-[10px] text-emerald-100">Sempre online para você</p>
+                  <h3 className="font-bold text-sm">Suporte G-FitLif</h3>
+                  <p className="text-[10px] text-emerald-100">Online agora</p>
                 </div>
               </div>
               <button 
@@ -367,7 +370,7 @@ export default function SmartChat() {
                   <Sparkles className="text-emerald-600" size={20} />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-800">G-FitLif AI</p>
+                  <p className="text-xs font-bold text-slate-800">Suporte G-FitLif</p>
                   <p className="text-[10px] text-slate-500 mt-1">
                     {aiSettings.triggers || 'Olá! Como posso ajudar você hoje?'}
                   </p>

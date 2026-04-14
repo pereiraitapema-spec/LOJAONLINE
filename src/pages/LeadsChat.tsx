@@ -245,28 +245,44 @@ export default function LeadsChat() {
         const { data: affiliates } = await supabase.from('affiliates').select('email');
         const affiliateEmails = affiliates?.map(a => a.email) || [];
 
-        // Fetch leads with profile data for avatar
-        const { data, error } = await supabase
+        // Fetch leads
+        const { data: leads, error: leadsError } = await supabase
           .from('leads')
-          .select('*, profiles(avatar_url)')
+          .select('*')
           .order('created_at', { ascending: false });
-        if (error) throw error;
         
+        if (leadsError) throw leadsError;
+
+        // Fetch profiles separately to avoid relationship issues
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, avatar_url');
+        
+        const profileMap = new Map(profiles?.map(p => [p.id, p.avatar_url]) || []);
+
         // Filter out leads that are also affiliates
-        leadsData = (data || []).filter(lead => !affiliateEmails.includes(lead.email)).map(lead => ({
+        leadsData = (leads || []).filter(lead => !affiliateEmails.includes(lead.email)).map(lead => ({
           ...lead,
-          avatar_url: lead.profiles?.avatar_url
+          avatar_url: profileMap.get(lead.id)
         }));
       } else {
-        const { data, error } = await supabase
+        const { data: affiliates, error: affError } = await supabase
           .from('affiliates')
-          .select('*, profiles(avatar_url)')
+          .select('*')
           .not('user_id', 'is', null)
           .order('created_at', { ascending: false });
-        if (error) throw error;
         
+        if (affError) throw affError;
+
+        // Fetch profiles separately
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, avatar_url');
+        
+        const profileMap = new Map(profiles?.map(p => [p.id, p.avatar_url]) || []);
+
         // Map affiliates to match Lead interface for the chat
-        leadsData = (data || []).map(aff => ({
+        leadsData = (affiliates || []).map(aff => ({
           id: aff.user_id || aff.id, // Use user_id for chat messages
           nome: aff.name,
           email: aff.email,
@@ -274,7 +290,7 @@ export default function LeadsChat() {
           status_lead: aff.status,
           ai_auto_reply: aff.ai_auto_reply !== undefined ? aff.ai_auto_reply : true, // Use from DB or default to true
           created_at: aff.created_at,
-          avatar_url: aff.profiles?.avatar_url
+          avatar_url: profileMap.get(aff.user_id)
         }));
       }
 
@@ -941,7 +957,7 @@ export default function LeadsChat() {
                           {isFromAdmin 
                             ? 'VOCÊ (ADMIN)' 
                             : isFromAI 
-                              ? 'AGENTE VIRTUAL' 
+                              ? 'CONSULTORA (IA)' 
                               : (activeTab === 'affiliates' ? 'AFILIADO' : 'LEAD')}
                         </span>
                       </div>

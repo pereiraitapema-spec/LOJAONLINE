@@ -195,7 +195,7 @@ create table if not exists public.order_items (
 
 create table if not exists public.affiliates (
   id uuid default gen_random_uuid() primary key,
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id uuid references public.profiles(id) on delete cascade,
   code text unique not null,
   commission_rate numeric(5,2) default 5.00, -- Porcentagem
   balance numeric(10,2) default 0,
@@ -586,7 +586,7 @@ $$ language plpgsql;
 
 -- 2. Criar a tabela de leads
 create table if not exists public.leads (
-  id uuid default gen_random_uuid() primary key,
+  id uuid primary key references public.profiles(id) on delete cascade,
   affiliate_id uuid references public.affiliates(id) on delete set null,
   nome text not null,
   email text,
