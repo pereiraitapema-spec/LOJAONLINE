@@ -18,6 +18,7 @@ export default function Login() {
   const [marketingOptIn, setMarketingOptIn] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Processando...');
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [siteLogo, setSiteLogo] = useState<string | null>(null);
   const [siteName, setSiteName] = useState<string | null>(null);
@@ -94,8 +95,10 @@ export default function Login() {
     }
 
     setLoading(true);
+    setLoadingMessage(mode === 'login' ? 'Autenticando...' : 'Criando conta...');
     try {
       if (mode === 'login') {
+        setLoadingMessage('Verificando credenciais...');
         const { data, error } = await withTimeout(supabase.auth.signInWithPassword({
           email,
           password,
@@ -124,6 +127,7 @@ export default function Login() {
         }
       } else {
         // Modo Cadastro
+        setLoadingMessage('Criando seu perfil...');
         const { data, error } = await withTimeout(supabase.auth.signUp({
           email,
           password,
@@ -173,6 +177,7 @@ export default function Login() {
         
         try {
           setLoading(true);
+          setLoadingMessage('Sincronizando conta...');
           console.log('💾 Exchanging code for session (PKCE)...');
           
           const { data, error } = await withTimeout(supabase.auth.exchangeCodeForSession(code));
@@ -180,9 +185,10 @@ export default function Login() {
           if (error) throw error;
 
           if (data.session) {
+            setLoadingMessage('Conectado! Redirecionando...');
             console.log('✅ Session established successfully!');
             toast.success('Autenticado com sucesso!');
-            setLoading(false);
+            setTimeout(() => setLoading(false), 1000);
           } else {
             throw new Error('Nenhuma sessão retornada após a troca do código.');
           }
@@ -212,6 +218,7 @@ export default function Login() {
 
   const handleGoogleLogin = async () => {
     setLoading(true);
+    setLoadingMessage('Conectando ao Google...');
     try {
       const origin = window.location.origin;
       // Usar a rota do servidor /auth/callback em vez do arquivo estático
@@ -508,9 +515,14 @@ export default function Login() {
           <button 
             type="submit"
             disabled={loading}
-            className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
+            className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {loading ? 'Processando...' : mode === 'login' ? 'Entrar' : 'Cadastrar'}
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                {loadingMessage}
+              </>
+            ) : mode === 'login' ? 'Entrar' : 'Cadastrar'}
           </button>
 
           {mode === 'login' && (

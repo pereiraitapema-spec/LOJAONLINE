@@ -178,12 +178,12 @@ export default function LeadsChat() {
       .subscribe((status) => {
         console.log('📡 [REALTIME] Status da Conexão:', status);
         if (status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
-          console.error(`❌ [REALTIME] Conexão ${status}. Tentando reconectar em 5s...`);
+          console.error(`❌ [REALTIME] Conexão ${status}. Tentando reconectar em 3s...`);
           setTimeout(() => {
             console.log('[REALTIME] Tentando resubscribe...');
             channel.subscribe();
             fetchLeads(false, activeTabRef.current);
-          }, 5000);
+          }, 3000);
         }
         if (status === 'SUBSCRIBED') {
           console.log('✅ [REALTIME] Inscrito com sucesso nos canais');
@@ -265,15 +265,15 @@ export default function LeadsChat() {
         
         const profileMap = new Map(profiles?.map(p => [p.id, p.avatar_url]) || []);
 
-        // Filter out leads that are also affiliates ONLY if they are strictly affiliates
-        // But the user wants to see ALL leads from sales site.
-        // Let's log the filtering process.
-        leadsData = (leads || []).map(lead => ({
-          ...lead,
-          avatar_url: profileMap.get(lead.id)
-        }));
+        // Filter out leads that are also affiliates
+        leadsData = (leads || [])
+          .filter(lead => !affiliateEmails.includes(lead.email))
+          .map(lead => ({
+            ...lead,
+            avatar_url: profileMap.get(lead.id)
+          }));
         
-        console.log(`[LEADS] Leads após mapeamento de perfis: ${leadsData.length}`);
+        console.log(`[LEADS] Leads após filtragem de afiliados: ${leadsData.length}`);
       } else {
         const { data: affiliates, error: affError } = await supabase
           .from('affiliates')
@@ -398,9 +398,12 @@ export default function LeadsChat() {
 
   const fetchMessages = async (leadIds: string[]) => {
     try {
-      if (!currentUser || leadIds.length === 0) return;
+      if (!currentUser || leadIds.length === 0) {
+        console.log('[CHAT] fetchMessages cancelado: sem usuário ou sem IDs', { currentUser: !!currentUser, idsCount: leadIds.length });
+        return;
+      }
       
-      console.log(`Buscando mensagens para ${leadIds.length} IDs de leads:`, leadIds);
+      console.log(`[CHAT] Buscando mensagens para ${leadIds.length} IDs de leads:`, leadIds);
 
       // Usamos CHUNKS para evitar o erro de URL muito longa (Bad Request)
       const CHUNK_SIZE = 50;

@@ -7,9 +7,11 @@ interface ApiKey {
   id: string;
   name: string;
   service: string;
+  model?: string;
   key_value: string;
   active: boolean;
   status: string;
+  last_error_at?: string;
   created_at: string;
 }
 
@@ -20,6 +22,7 @@ export default function ApiKeys() {
   const [newKey, setNewKey] = useState({
     name: '',
     service: 'gemini',
+    model: '',
     key_value: '',
     active: true
   });
@@ -46,6 +49,11 @@ export default function ApiKeys() {
     }
   };
 
+  const handleOpenAdd = () => {
+    setNewKey({ name: '', service: 'gemini', model: '', key_value: '', active: true });
+    setIsAdding(true);
+  };
+
   const handleAddKey = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -57,7 +65,7 @@ export default function ApiKeys() {
       
       toast.success('Chave adicionada com sucesso');
       setIsAdding(false);
-      setNewKey({ name: '', service: 'gemini', key_value: '', active: true });
+      setNewKey({ name: '', service: 'gemini', model: '', key_value: '', active: true });
       fetchKeys();
     } catch (error: any) {
       toast.error('Erro ao adicionar chave');
@@ -105,7 +113,7 @@ export default function ApiKeys() {
           <p className="text-gray-400">Configure as chaves para o Agente de IA e Fallback</p>
         </div>
         <button
-          onClick={() => setIsAdding(!isAdding)}
+          onClick={handleOpenAdd}
           className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
         >
           <Plus size={20} />
@@ -138,7 +146,21 @@ export default function ApiKeys() {
                 <option value="gemini">Google Gemini</option>
                 <option value="openai">OpenAI (GPT)</option>
                 <option value="claude">Anthropic (Claude)</option>
+                <option value="groq">Groq</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="mistral">Mistral AI</option>
+                <option value="together">Together AI</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Modelo (Opcional)</label>
+              <input
+                type="text"
+                value={newKey.model}
+                onChange={e => setNewKey({ ...newKey, model: e.target.value })}
+                placeholder="Ex: gpt-4o, gemini-1.5-pro"
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-400 mb-1">Chave de API (Secret Key)</label>
@@ -194,7 +216,12 @@ export default function ApiKeys() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-white">{key.name}</h3>
-                    <span className="text-xs text-gray-500 uppercase tracking-wider">{key.service}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 uppercase tracking-wider">{key.service}</span>
+                      {key.model && (
+                        <span className="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded uppercase">{key.model}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

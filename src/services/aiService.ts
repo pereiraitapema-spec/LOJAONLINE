@@ -40,17 +40,29 @@ export const aiService = {
       console.log('[AI] Verificando APIs disponíveis...');
       const { data: allKeys } = await supabase
         .from('api_keys')
-        .select('service, key_value, active')
+        .select('service, key_value, active, status, model, last_error_at')
         .eq('active', true);
 
       const envGeminiKey = process.env.GEMINI_API_KEY;
-      const keys = allKeys || [];
+      const keys = (allKeys || []).filter(k => {
+        // Se estiver offline, verifica se já passou 5 minutos para tentar de novo
+        if (k.status === 'offline' && k.last_error_at) {
+          const lastError = new Date(k.last_error_at).getTime();
+          const now = new Date().getTime();
+          const diffMinutes = (now - lastError) / (1000 * 60);
+          if (diffMinutes < 5) {
+            console.log(`[AI] Pulando API ${k.service.toUpperCase()} (Offline há ${Math.round(diffMinutes)}min)`);
+            return false;
+          }
+        }
+        return true;
+      });
       
       if (envGeminiKey && !keys.some(k => k.service === 'gemini' && k.key_value === envGeminiKey)) {
-        keys.push({ service: 'gemini', key_value: envGeminiKey, active: true });
+        keys.push({ service: 'gemini', key_value: envGeminiKey, active: true, status: 'online', model: 'gemini-1.5-flash', last_error_at: null });
       }
 
-      console.log(`[AI] Chaves encontradas: ${keys.map(k => k.service).join(', ')}`);
+      console.log(`[AI] Chaves prontas para uso: ${keys.map(k => k.service).join(', ')}`);
 
       // 2. Fetch Context
       console.log('[AI] Carregando contexto (produtos, regras, memória)...');
@@ -89,6 +101,10 @@ export const aiService = {
           }).join('\n\n')
         : 'Nenhum produto encontrado.');
 
+      // Check if last message was an error to apologize
+      const lastBotMessage = [...currentMessages].reverse().find(m => m.role === 'bot');
+      const wasError = lastBotMessage?.content.includes('problema técnico');
+
       const systemInstruction = `Você é uma consultora de vendas e suporte da G-FitLif, uma pessoa real e empática.
           
           REGRAS DE IDENTIDADE:
@@ -96,6 +112,8 @@ export const aiService = {
           2. Fale como uma pessoa real (ex: "Oi, tudo bem? Sou a consultora da G-FitLif...").
           3. Use uma linguagem natural, amigável e persuasiva.
           
+          ${wasError ? '4. IMPORTANTE: A última mensagem enviada foi um erro técnico. Peça desculpas pelo incômodo antes de responder.' : ''}
+
           ${isAffiliate ? `
           REGRAS ESPECÍFICAS PARA AFILIADOS (IA AFILIADOS):
           1. Você está falando com um afiliado parceiro da G-FitLif.
@@ -106,10 +124,10 @@ export const aiService = {
           REGRAS PARA CLIENTES (IA COMPRAS):
           1. Você está falando com um cliente interessado em comprar produtos.
           2. Foque em conversão de vendas, tirando dúvidas sobre produtos, frete e pagamentos.
-          3. Responda com no máximo 4 linhas por mensagem.
-          4. PADRÃO DE RESPOSTA HUMANIZADA:
-             - Se o cliente perguntar sobre produtos, liste-os e explique um por um usando [SPLIT].
-             - Para cada produto, informe o que é, como tomar e o valor mensal.
+          3. PADRÃO DE RESPOSTA (OBRIGATÓRIO):
+             - Máximo 2 linhas por mensagem.
+             - 1 produto por mensagem (use [SPLIT] para separar).
+             - Seja direto e humano.
           `}
           
           REGRAS GERAIS:
@@ -120,12 +138,12 @@ export const aiService = {
           
           Contexto:\n${context}`;
 
-      // 3. Try APIs in order: Gemini -> OpenAI -> Claude
-      const providers = [
-        { name: 'gemini', key: keys.find(k => k.service === 'gemini')?.key_value },
-        { name: 'openai', key: keys.find(k => k.service === 'openai')?.key_value },
-        { name: 'claude', key: keys.find(k => k.service === 'claude')?.key_value }
-      ].filter(p => !!p.key);
+      // 3. Try APIs in order
+      const providers = keys.map(k => ({
+        name: k.service,
+        key: k.key_value,
+        model: k.model
+      }));
 
       if (providers.length === 0) {
         console.error('[AI] Nenhuma chave de API ativa encontrada.');
@@ -138,64 +156,65 @@ export const aiService = {
           let responseText = '';
 
           if (provider.name === 'gemini') {
-            // Tentar gemini-1.5-flash, se falhar tentar gemini-1.5-flash-latest
-            const modelsToTry = ["gemini-1.5-flash", "gemini-1.5-flash-latest"];
-            let lastGeminiError = null;
+            const modelName = provider.model || "gemini-1.5-flash";
+            const genAI = new GoogleGenerativeAI(provider.key!);
+            const model = genAI.getGenerativeModel({
+              model: modelName,
+              systemInstruction: systemInstruction
+            });
 
-            for (const modelName of modelsToTry) {
-              try {
-                console.log(`[AI] Tentando modelo Gemini: ${modelName}`);
-                const genAI = new GoogleGenerativeAI(provider.key!);
-                const model = genAI.getGenerativeModel({
-                  model: modelName,
-                  systemInstruction: systemInstruction
-                });
+            const history = currentMessages.slice(0, -1).map(msg => ({
+              role: msg.role === 'bot' ? 'model' : 'user',
+              parts: [{ text: msg.content }]
+            }));
 
-                const history = currentMessages.slice(0, -1).map(msg => ({
-                  role: msg.role === 'bot' ? 'model' : 'user',
-                  parts: [{ text: msg.content }]
-                }));
-
-                const chat = model.startChat({ history });
-                const lastUserMessage = currentMessages[currentMessages.length - 1].content;
-                const result = await chat.sendMessage(lastUserMessage);
-                responseText = result.response.text();
-                
-                if (responseText) {
-                  // Se funcionou, garante que o status está online
-                  await supabase.from('api_keys').update({ status: 'online' }).eq('service', 'gemini').eq('key_value', provider.key);
-                  break; 
-                }
-              } catch (geminiErr: any) {
-                console.warn(`[AI] Falha no modelo ${modelName}:`, geminiErr.message);
-                lastGeminiError = geminiErr;
-              }
-            }
-            
-            if (!responseText && lastGeminiError) throw lastGeminiError;
+            const chat = model.startChat({ history });
+            const lastUserMessage = currentMessages[currentMessages.length - 1].content;
+            const result = await chat.sendMessage(lastUserMessage);
+            responseText = result.response.text();
           } 
-          else if (provider.name === 'openai') {
-            const openai = new OpenAI({ apiKey: provider.key, dangerouslyAllowBrowser: true });
+          else if (['openai', 'groq', 'deepseek', 'mistral', 'together'].includes(provider.name)) {
+            let baseURL = undefined;
+            let defaultModel = "gpt-4o-mini";
+
+            if (provider.name === 'groq') {
+              baseURL = "https://api.groq.com/openai/v1";
+              defaultModel = "llama3-8b-8192";
+            } else if (provider.name === 'deepseek') {
+              baseURL = "https://api.deepseek.com";
+              defaultModel = "deepseek-chat";
+            } else if (provider.name === 'mistral') {
+              baseURL = "https://api.mistral.ai/v1";
+              defaultModel = "mistral-tiny";
+            } else if (provider.name === 'together') {
+              baseURL = "https://api.together.xyz/v1";
+              defaultModel = "mistralai/Mixtral-8x7B-Instruct-v0.1";
+            }
+
+            const openai = new OpenAI({ 
+              apiKey: provider.key, 
+              baseURL,
+              dangerouslyAllowBrowser: true 
+            });
+
             const completion = await openai.chat.completions.create({
-              model: "gpt-4o-mini",
+              model: provider.model || defaultModel,
               messages: [
                 { role: "system", content: systemInstruction },
                 ...currentMessages.map(m => ({
                   role: (m.role === 'bot' ? 'assistant' : 'user') as 'assistant' | 'user',
                   content: m.content
                 }))
-              ]
+              ],
+              max_tokens: 150 // Limitar tamanho da resposta
             });
             responseText = completion.choices[0].message.content || '';
-            if (responseText) {
-              await supabase.from('api_keys').update({ status: 'online' }).eq('service', 'openai').eq('key_value', provider.key);
-            }
           }
           else if (provider.name === 'claude') {
             const anthropic = new Anthropic({ apiKey: provider.key, dangerouslyAllowBrowser: true });
             const message = await anthropic.messages.create({
-              model: "claude-3-5-sonnet-20240620",
-              max_tokens: 1024,
+              model: provider.model || "claude-3-5-sonnet-20240620",
+              max_tokens: 150,
               system: systemInstruction,
               messages: currentMessages.map(m => ({
                 role: m.role === 'bot' ? 'assistant' : 'user' as const,
@@ -203,24 +222,21 @@ export const aiService = {
               }))
             });
             responseText = (message.content[0] as any).text || '';
-            if (responseText) {
-              await supabase.from('api_keys').update({ status: 'online' }).eq('service', 'claude').eq('key_value', provider.key);
-            }
           }
 
           if (responseText) {
             console.log(`[AI] Resposta gerada com sucesso via ${provider.name.toUpperCase()}`);
+            // Atualizar status para online
+            await supabase.from('api_keys').update({ status: 'online', last_error_at: null }).eq('service', provider.name).eq('key_value', provider.key);
             return responseText;
           }
         } catch (err: any) {
           console.error(`[AI] Falha no provedor ${provider.name.toUpperCase()}:`, err.message);
           // Marcar API como offline no banco
           await supabase.from('api_keys')
-            .update({ status: 'offline' })
+            .update({ status: 'offline', last_error_at: new Date().toISOString() })
             .eq('service', provider.name)
             .eq('key_value', provider.key);
-          
-          // Continue to next provider
         }
       }
 

@@ -143,8 +143,11 @@ create table if not exists public.api_keys (
   id uuid default gen_random_uuid() primary key,
   name text not null,
   service text not null, -- gemini, openai, etc
+  model text,
   key_value text not null,
   active boolean default true,
+  status text default 'online',
+  last_error_at timestamp with time zone,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
