@@ -105,17 +105,27 @@ export const aiService = {
 
       const stickyApiId = localStorage.getItem('sticky_api_id');
       let keys = (allKeys || []).filter(k => {
-        // Se estiver com erro ou sem crédito, verifica se já passou 15 minutos para tentar de novo
+        // Se estiver com erro ou sem crédito, verifica se já passou o tempo de cooldown
         if (k.status !== 'online' && k.last_error_at) {
           const lastError = new Date(k.last_error_at).getTime();
           const now = new Date().getTime();
           const diffMinutes = (now - lastError) / (1000 * 60);
-          if (diffMinutes < 15) {
+          
+          // Cooldown menor para Rate Limit (429), maior para erros fatais
+          const cooldown = k.status === 'no_credit' ? 2 : 15; 
+          
+          if (diffMinutes < cooldown) {
             console.log(`[AI] Pulando API ${k.service.toUpperCase()} (${k.status} há ${Math.round(diffMinutes)}min)`);
             return false;
           }
         }
         return true;
+      });
+
+      // Load Balancing: Embaralhar chaves de mesma prioridade para distribuir carga entre múltiplos usuários
+      keys = keys.sort((a, b) => {
+        if (b.priority !== a.priority) return b.priority - a.priority;
+        return Math.random() - 0.5; // Randomiza se a prioridade for igual
       });
 
       // Se todas as chaves foram filtradas mas existem chaves ativas, usa as ativas (tentativa de recuperação)
@@ -236,129 +246,144 @@ export const aiService = {
       }
 
       for (const provider of providers) {
-        try {
-          console.log(`[AI] Testando provedor: ${provider.name.toUpperCase()} (${provider.model})`);
-          let responseText = '';
+        let retries = 0;
+        const maxRetries = 1; // Tenta apenas mais uma vez se for Rate Limit
 
-          if (provider.name === 'gemini') {
-            const modelName = provider.model || "gemini-1.5-flash";
-            const genAI = new GoogleGenerativeAI(provider.key!);
-            const model = genAI.getGenerativeModel({
-              model: modelName,
-              systemInstruction: systemInstruction
-            });
+        while (retries <= maxRetries) {
+          try {
+            console.log(`[AI] Testando provedor: ${provider.name.toUpperCase()} (${provider.model}) ${retries > 0 ? '(Retry ' + retries + ')' : ''}`);
+            let responseText = '';
 
-            const history = currentMessages.slice(0, -1).map(msg => ({
-              role: msg.role === 'bot' ? 'model' : 'user',
-              parts: [{ text: msg.content }]
-            }));
+            if (provider.name === 'gemini') {
+              const modelName = provider.model || "gemini-1.5-flash";
+              const genAI = new GoogleGenerativeAI(provider.key!);
+              const model = genAI.getGenerativeModel({
+                model: modelName,
+                systemInstruction: systemInstruction
+              });
 
-            const chat = model.startChat({ history });
-            const lastUserMessage = currentMessages[currentMessages.length - 1].content;
-            const result = await chat.sendMessage(lastUserMessage);
-            responseText = result.response.text();
-          } 
-          else if (['openai', 'groq', 'deepseek', 'mistral', 'together'].includes(provider.name)) {
-            let baseURL = undefined;
-            let defaultModel = "gpt-4o-mini";
+              const history = currentMessages.slice(0, -1).map(msg => ({
+                role: msg.role === 'bot' ? 'model' : 'user',
+                parts: [{ text: msg.content }]
+              }));
 
-            if (provider.name === 'groq') {
-              baseURL = "https://api.groq.com/openai/v1";
-              defaultModel = "llama3-8b-8192";
-            } else if (provider.name === 'deepseek') {
-              baseURL = "https://api.deepseek.com";
-              defaultModel = "deepseek-chat";
-            } else if (provider.name === 'mistral') {
-              baseURL = "https://api.mistral.ai/v1";
-              defaultModel = "mistral-tiny";
-            } else if (provider.name === 'together') {
-              baseURL = "https://api.together.xyz/v1";
-              defaultModel = "mistralai/Mixtral-8x7B-Instruct-v0.1";
+              const chat = model.startChat({ history });
+              const lastUserMessage = currentMessages[currentMessages.length - 1].content;
+              const result = await chat.sendMessage(lastUserMessage);
+              responseText = result.response.text();
+            } 
+            else if (['openai', 'groq', 'deepseek', 'mistral', 'together'].includes(provider.name)) {
+              let baseURL = undefined;
+              let defaultModel = "gpt-4o-mini";
+
+              if (provider.name === 'groq') {
+                baseURL = "https://api.groq.com/openai/v1";
+                defaultModel = "llama3-8b-8192";
+              } else if (provider.name === 'deepseek') {
+                baseURL = "https://api.deepseek.com";
+                defaultModel = "deepseek-chat";
+              } else if (provider.name === 'mistral') {
+                baseURL = "https://api.mistral.ai/v1";
+                defaultModel = "mistral-tiny";
+              } else if (provider.name === 'together') {
+                baseURL = "https://api.together.xyz/v1";
+                defaultModel = "mistralai/Mixtral-8x7B-Instruct-v0.1";
+              }
+
+              const openai = new OpenAI({ 
+                apiKey: provider.key, 
+                baseURL,
+                dangerouslyAllowBrowser: true 
+              });
+
+              const completion = await openai.chat.completions.create({
+                model: provider.model || defaultModel,
+                messages: [
+                  { role: "system", content: systemInstruction },
+                  ...currentMessages.map(m => ({
+                    role: (m.role === 'bot' ? 'assistant' : 'user') as 'assistant' | 'user',
+                    content: m.content
+                  }))
+                ],
+                max_tokens: 150
+              });
+              responseText = completion.choices[0].message.content || '';
             }
-
-            const openai = new OpenAI({ 
-              apiKey: provider.key, 
-              baseURL,
-              dangerouslyAllowBrowser: true 
-            });
-
-            const completion = await openai.chat.completions.create({
-              model: provider.model || defaultModel,
-              messages: [
-                { role: "system", content: systemInstruction },
-                ...currentMessages.map(m => ({
-                  role: (m.role === 'bot' ? 'assistant' : 'user') as 'assistant' | 'user',
+            else if (provider.name === 'claude') {
+              const anthropic = new Anthropic({ apiKey: provider.key, dangerouslyAllowBrowser: true });
+              const message = await anthropic.messages.create({
+                model: provider.model || "claude-3-5-sonnet-20240620",
+                max_tokens: 150,
+                system: systemInstruction,
+                messages: currentMessages.map(m => ({
+                  role: m.role === 'bot' ? 'assistant' : 'user' as const,
                   content: m.content
                 }))
-              ],
-              max_tokens: 150
-            });
-            responseText = completion.choices[0].message.content || '';
-          }
-          else if (provider.name === 'claude') {
-            const anthropic = new Anthropic({ apiKey: provider.key, dangerouslyAllowBrowser: true });
-            const message = await anthropic.messages.create({
-              model: provider.model || "claude-3-5-sonnet-20240620",
-              max_tokens: 150,
-              system: systemInstruction,
-              messages: currentMessages.map(m => ({
-                role: m.role === 'bot' ? 'assistant' : 'user' as const,
-                content: m.content
-              }))
-            });
-            responseText = (message.content[0] as any).text || '';
-          }
-
-          if (responseText) {
-            console.log(`[AI] Resposta gerada com sucesso via ${provider.name.toUpperCase()}`);
-            
-            // Set as sticky API
-            if (provider.id && provider.id !== 'env-gemini') {
-              localStorage.setItem('sticky_api_id', provider.id);
+              });
+              responseText = (message.content[0] as any).text || '';
             }
 
-            // Post-processing: Enforce line limit and split logic
-            let finalResponse = responseText;
-            
-            // Se não tiver [SPLIT] mas tiver muitas linhas, tenta forçar um split ou truncar
-            const lines = finalResponse.split('\n').filter(l => l.trim());
-            if (!finalResponse.includes('[SPLIT]') && lines.length > 2) {
-              // Tenta quebrar em mensagens de 2 linhas
-              const chunks = [];
-              for (let i = 0; i < lines.length; i += 2) {
-                chunks.push(lines.slice(i, i + 2).join('\n'));
+            if (responseText) {
+              console.log(`[AI] Resposta gerada com sucesso via ${provider.name.toUpperCase()}`);
+              
+              // Set as sticky API
+              if (provider.id && provider.id !== 'env-gemini') {
+                localStorage.setItem('sticky_api_id', provider.id);
               }
-              finalResponse = chunks.join(' [SPLIT] ');
+
+              // Post-processing: Enforce line limit and split logic
+              let finalResponse = responseText;
+              
+              const lines = finalResponse.split('\n').filter(l => l.trim());
+              if (!finalResponse.includes('[SPLIT]') && lines.length > 2) {
+                const chunks = [];
+                for (let i = 0; i < lines.length; i += 2) {
+                  chunks.push(lines.slice(i, i + 2).join('\n'));
+                }
+                finalResponse = chunks.join(' [SPLIT] ');
+              }
+
+              // Atualizar status para online e last_used_at
+              if (provider.id && provider.id !== 'env-gemini') {
+                await supabase.from('api_keys').update({ 
+                  status: 'online', 
+                  last_error_at: null,
+                  last_used_at: new Date().toISOString()
+                }).eq('id', provider.id);
+              }
+              return finalResponse;
+            }
+            break; // Sai do while se teve resposta
+          } catch (err: any) {
+            const isRateLimit = err.message.toLowerCase().includes('429') || 
+                               err.message.toLowerCase().includes('rate limit') ||
+                               err.message.toLowerCase().includes('too many requests');
+
+            if (isRateLimit && retries < maxRetries) {
+              retries++;
+              console.log(`[AI] Rate limit atingido em ${provider.name.toUpperCase()}. Aguardando 1s para retry...`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              continue;
             }
 
-            // Atualizar status para online e last_used_at
+            console.error(`[AI] Falha no provedor ${provider.name.toUpperCase()}:`, err.message);
+            
+            if (provider.id === localStorage.getItem('sticky_api_id')) {
+              localStorage.removeItem('sticky_api_id');
+            }
+
             if (provider.id && provider.id !== 'env-gemini') {
+              const status = isRateLimit || 
+                            err.message.toLowerCase().includes('credit') || 
+                            err.message.toLowerCase().includes('quota') || 
+                            err.message.toLowerCase().includes('limit') ? 'no_credit' : 'error';
+              
               await supabase.from('api_keys').update({ 
-                status: 'online', 
-                last_error_at: null,
-                last_used_at: new Date().toISOString()
+                status, 
+                last_error_at: new Date().toISOString() 
               }).eq('id', provider.id);
             }
-            return finalResponse;
-          }
-        } catch (err: any) {
-          console.error(`[AI] Falha no provedor ${provider.name.toUpperCase()}:`, err.message);
-          
-          // If sticky API failed, remove it
-          if (provider.id === localStorage.getItem('sticky_api_id')) {
-            localStorage.removeItem('sticky_api_id');
-          }
-
-          // Marcar API como error ou no_credit no banco
-          if (provider.id && provider.id !== 'env-gemini') {
-            const status = err.message.toLowerCase().includes('credit') || 
-                          err.message.toLowerCase().includes('quota') || 
-                          err.message.toLowerCase().includes('limit') ? 'no_credit' : 'error';
-            
-            await supabase.from('api_keys').update({ 
-              status, 
-              last_error_at: new Date().toISOString() 
-            }).eq('id', provider.id);
+            break; // Sai do while e vai para o próximo provedor
           }
         }
       }
