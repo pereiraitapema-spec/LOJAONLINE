@@ -31,11 +31,13 @@ export const chatService = {
       .from('chat_messages')
       .select('*')
       .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(50);
 
     if (error) throw new Error(`Erro ao buscar histórico: ${error.message}`);
-    return data || [];
+    
+    // Inverter para retornar em ordem cronológica (antiga para nova)
+    return (data || []).reverse();
   },
 
   async sendMessage(messageData: Omit<ChatMessage, 'id' | 'created_at'>): Promise<ChatMessage> {

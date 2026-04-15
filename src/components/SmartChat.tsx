@@ -75,6 +75,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
   }, [session]);
 
   const loadHistory = async (userId: string) => {
+    // 1. Tentar carregar do localStorage primeiro (Instantâneo)
     const saved = localStorage.getItem(`gfitlif_chat_history_${userId}`);
     if (saved) {
       try {
@@ -83,10 +84,11 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
           setMessages(parsed);
         }
       } catch (e) {
-        console.error('Error loading chat history from localStorage:', e);
+        console.error('❌ [CHAT] Erro ao carregar cache local:', e);
       }
     }
 
+    // 2. Sincronizar com o Banco de Dados (Online)
     try {
       const data = await chatService.fetchUserHistory(userId);
       if (data && data.length > 0) {
@@ -94,18 +96,24 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
           role: msg.is_human && msg.sender_id === userId ? 'user' : 'bot',
           content: msg.message
         }));
-        setMessages(dbMessages);
-        localStorage.setItem(`gfitlif_chat_history_${userId}`, JSON.stringify(dbMessages));
-
-        const lastMessage = dbMessages[dbMessages.length - 1];
-        if (lastMessage && lastMessage.role === 'user') {
-          setTimeout(() => {
-            processAiResponse(dbMessages);
-          }, 1500);
-        }
+        
+        // Mesclar com mensagens atuais para não perder o que foi enviado durante o carregamento
+        setMessages(prev => {
+          // Criamos um Set de conteúdos para evitar duplicatas simples (opcional, mas ajuda)
+          // O ideal seria comparar por ID, mas o estado Message não tem ID.
+          // Como as mensagens do banco são a "verdade", vamos usá-las, 
+          // mas se houver mensagens no 'prev' que não estão no 'dbMessages' (mensagens novas), nós as mantemos.
+          
+          const dbContentSet = new Set(dbMessages.map(m => m.content));
+          const newMessages = prev.filter(m => !dbContentSet.has(m.content) && m.content !== 'Olá! Sou a consultora da G-FitLif. Como posso te ajudar hoje?');
+          
+          const merged = [...dbMessages, ...newMessages];
+          localStorage.setItem(`gfitlif_chat_history_${userId}`, JSON.stringify(merged));
+          return merged;
+        });
       }
-    } catch (e) {
-      console.error('Error loading chat history from DB:', e);
+    } catch (error) {
+      console.error('❌ [CHAT] Erro ao carregar histórico online:', error);
     }
   };
 
@@ -189,11 +197,15 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
     const userMessage = input.trim();
     setInput('');
     
-    const updatedMessages = [...messages, { role: 'user' as const, content: userMessage }];
-    setMessages(updatedMessages);
-    localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(updatedMessages));
+    // Use functional update to avoid stale state
+    setMessages(prev => {
+      const updated = [...prev, { role: 'user' as const, content: userMessage }];
+      localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(updated));
+      return updated;
+    });
     
     try {
+      // Save to DB immediately
       await chatService.sendMessage({
         sender_id: session.user.id,
         receiver_id: null,
@@ -208,6 +220,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
       }
     } catch (e) {
       console.error('❌ [CHAT] Erro ao enviar mensagem:', e);
+      // Optional: show error in UI that message might not have been saved online
     }
   };
 
