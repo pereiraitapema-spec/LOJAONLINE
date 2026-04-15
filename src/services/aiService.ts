@@ -9,6 +9,65 @@ export interface Message {
   content: string;
 }
 
+export const apiTestService = {
+  async testKey(key: { service: string; key_value: string; model?: string }) {
+    try {
+      if (key.service === 'gemini') {
+        const genAI = new GoogleGenerativeAI(key.key_value);
+        // Use gemini-1.5-flash-latest as it's often more reliable in some regions
+        const modelName = key.model || 'gemini-1.5-flash';
+        const model = genAI.getGenerativeModel({ model: modelName });
+        await model.generateContent('ping');
+        return { success: true };
+      } else if (key.service === 'openai') {
+        const response = await fetch('https://api.openai.com/v1/models', {
+          headers: { 'Authorization': `Bearer ${key.key_value}` }
+        });
+        if (!response.ok) throw new Error('Chave OpenAI inválida ou sem crédito.');
+        return { success: true };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  async runBackgroundCheck() {
+    console.log('[AI-CHECK] 🔄 Iniciando verificação de APIs em segundo plano...');
+    const { data: keys } = await supabase
+      .from('api_keys')
+      .select('*')
+      .eq('active', true);
+
+    if (!keys) return;
+
+    for (const key of keys) {
+      // Se a chave já está online, NÃO faz teste (para economizar crédito)
+      if (key.status === 'online') {
+        console.log(`[AI-CHECK] ✅ API ${key.name} já está online. Pulando teste.`);
+        continue;
+      }
+
+      // Se não está online, testa para ver se voltou
+      console.log(`[AI-CHECK] 🧪 Testando API ${key.name} (${key.status})...`);
+      const result = await this.testKey(key);
+      
+      if (result.success) {
+        console.log(`[AI-CHECK] ✨ API ${key.name} voltou a ficar ONLINE!`);
+        await supabase.from('api_keys').update({ 
+          status: 'online', 
+          last_error_at: null 
+        }).eq('id', key.id);
+      } else {
+        console.log(`[AI-CHECK] ❌ API ${key.name} continua com erro:`, result.error);
+        await supabase.from('api_keys').update({ 
+          last_error_at: new Date().toISOString() 
+        }).eq('id', key.id);
+      }
+    }
+  }
+};
+
 export const aiService = {
   async getSettings(agentType: 'vendas' | 'afiliados') {
     const [

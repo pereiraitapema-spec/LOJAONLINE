@@ -18,7 +18,7 @@ interface ApiKey {
 }
 
 const MODELS_BY_SERVICE: Record<string, string[]> = {
-  gemini: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-latest'],
+  gemini: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-latest', 'gemini-1.0-pro'],
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
   groq: ['llama3-70b-8192', 'llama3-8b-8192', 'mixtral-8x7b-32768', 'gemma-7b-it'],
   claude: ['claude-3-5-sonnet-20240620', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
@@ -57,21 +57,19 @@ export default function ApiKeys() {
     const toastId = toast.loading('Testando conexão...');
 
     try {
-      if (key.service === 'gemini') {
-        const genAI = new GoogleGenerativeAI(key.key_value);
-        const model = genAI.getGenerativeModel({ model: key.model || 'gemini-1.5-flash' });
-        await model.generateContent('ping');
-        toast.success('Conexão com Gemini bem-sucedida!', { id: toastId });
-      } else if (key.service === 'openai') {
-        const response = await fetch('https://api.openai.com/v1/models', {
-          headers: {
-            'Authorization': `Bearer ${key.key_value}`
-          }
-        });
-        if (!response.ok) throw new Error('Chave OpenAI inválida ou sem crédito.');
-        toast.success('Conexão com OpenAI bem-sucedida!', { id: toastId });
+      const { apiTestService } = await import('../services/aiService');
+      const result = await apiTestService.testKey(key);
+      
+      if (result.success) {
+        toast.success('Conexão bem-sucedida!', { id: toastId });
+        // Atualiza o status no banco se o teste manual deu certo
+        await supabase.from('api_keys').update({ 
+          status: 'online', 
+          last_error_at: null 
+        }).eq('id', key.id);
+        fetchKeys();
       } else {
-        toast.error('Teste não disponível para este serviço ainda.', { id: toastId });
+        throw new Error(result.error);
       }
     } catch (err: any) {
       toast.error('Falha na conexão: ' + err.message, { id: toastId });
@@ -285,122 +283,124 @@ export default function ApiKeys() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {loading ? (
-          Array(3).fill(0).map((_, i) => (
-            <div key={i} className="bg-gray-800 h-48 rounded-xl animate-pulse" />
-          ))
-        ) : keys.length === 0 ? (
-          <div className="col-span-full text-center py-12 bg-gray-800 rounded-xl border border-dashed border-gray-700">
-            <Key className="mx-auto text-gray-600 mb-4" size={48} />
-            <p className="text-gray-400">Nenhuma chave configurada ainda.</p>
-          </div>
-        ) : (
-          keys.map(key => (
-            <div key={key.id} className="bg-gray-800 border border-gray-700 rounded-xl p-5 hover:border-emerald-500/50 transition-all group">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${
-                    key.service === 'gemini' ? 'bg-blue-500/10 text-blue-400' :
-                    key.service === 'openai' ? 'bg-emerald-500/10 text-emerald-400' :
-                    'bg-orange-500/10 text-orange-400'
-                  }`}>
-                    <Key size={20} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-white">{key.name}</h3>
-                      {localStorage.getItem('sticky_api_id') === key.id && key.status === 'online' && (
-                        <span className="bg-emerald-500/20 text-emerald-400 text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter animate-pulse border border-emerald-500/30">Em Uso</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${
-                        !key.active ? 'bg-gray-600' :
-                        key.status === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
-                        key.status === 'no_credit' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' :
-                        'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
-                      }`} />
-                      <span className="text-xs text-gray-500 uppercase tracking-wider">{key.service}</span>
-                      {key.model && (
-                        <span className="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded uppercase">{key.model}</span>
-                      )}
-                      <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">P:{key.priority || 0}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => testConnection(key)}
-                    disabled={isTesting}
-                    className="p-1.5 text-amber-400 hover:bg-amber-400/10 rounded-md transition-colors disabled:opacity-50"
-                    title="Testar Conexão"
-                  >
-                    <RefreshCw size={16} className={isTesting ? 'animate-spin' : ''} />
-                  </button>
-                  <button
-                    onClick={() => handleEdit(key)}
-                    className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-md transition-colors"
-                    title="Editar"
-                  >
-                    <RefreshCw size={16} />
-                  </button>
-                  <button
-                    onClick={() => toggleKeyStatus(key.id, key.active)}
-                    className={`p-1.5 rounded-md transition-colors ${
-                      key.active ? 'text-emerald-400 hover:bg-emerald-400/10' : 'text-gray-500 hover:bg-gray-500/10'
-                    }`}
-                    title={key.active ? 'Ativa' : 'Inativa'}
-                  >
-                    {key.active ? <CheckCircle size={18} /> : <XCircle size={18} />}
-                  </button>
-                  <button
-                    onClick={() => deleteKey(key.id)}
-                    className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-400">Status:</span>
-                  <span className={`flex items-center gap-1.5 font-medium ${
-                    key.status === 'active' ? 'text-emerald-400' : 
-                    key.status === 'credit' ? 'text-amber-400' : 
-                    'text-red-400'
-                  }`}>
-                    <div className={`w-2 h-2 rounded-full ${
-                      key.status === 'active' ? 'bg-emerald-400 animate-pulse' : 
-                      key.status === 'credit' ? 'bg-amber-400' : 
-                      'bg-red-400'
-                    }`} />
-                    {key.status === 'active' ? '🟢 Funcionando' : 
-                     key.status === 'credit' ? '🟡 Sem Crédito' : 
-                     '🔴 Falha / Erro'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-400">Chave:</span>
-                  <span className="text-gray-300 font-mono">••••••••{key.key_value.slice(-4)}</span>
-                </div>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-gray-700 flex justify-between items-center">
-                <span className="text-[10px] text-gray-500">
-                  Adicionada em {new Date(key.created_at).toLocaleDateString()}
-                </span>
-                <button 
-                  onClick={fetchKeys}
-                  className="text-gray-500 hover:text-white transition-colors"
-                >
-                  <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                </button>
-              </div>
+      <div className="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {loading ? (
+            Array(3).fill(0).map((_, i) => (
+              <div key={i} className="bg-gray-800 h-48 rounded-xl animate-pulse" />
+            ))
+          ) : keys.length === 0 ? (
+            <div className="col-span-full text-center py-12 bg-gray-800 rounded-xl border border-dashed border-gray-700">
+              <Key className="mx-auto text-gray-600 mb-4" size={48} />
+              <p className="text-gray-400">Nenhuma chave configurada ainda.</p>
             </div>
-          ))
-        )}
+          ) : (
+            keys.map(key => (
+              <div key={key.id} className="bg-gray-800 border border-gray-700 rounded-xl p-5 hover:border-emerald-500/50 transition-all group">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${
+                      key.service === 'gemini' ? 'bg-blue-500/10 text-blue-400' :
+                      key.service === 'openai' ? 'bg-emerald-500/10 text-emerald-400' :
+                      'bg-orange-500/10 text-orange-400'
+                    }`}>
+                      <Key size={20} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-white">{key.name}</h3>
+                        {localStorage.getItem('sticky_api_id') === key.id && key.status === 'online' && (
+                          <span className="bg-emerald-500/20 text-emerald-400 text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter animate-pulse border border-emerald-500/30">Em Uso</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${
+                          !key.active ? 'bg-gray-600' :
+                          key.status === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                          key.status === 'no_credit' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' :
+                          'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                        }`} />
+                        <span className="text-xs text-gray-500 uppercase tracking-wider">{key.service}</span>
+                        {key.model && (
+                          <span className="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded uppercase">{key.model}</span>
+                        )}
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">P:{key.priority || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => testConnection(key)}
+                      disabled={isTesting}
+                      className="p-1.5 text-amber-400 hover:bg-amber-400/10 rounded-md transition-colors disabled:opacity-50"
+                      title="Testar Conexão"
+                    >
+                      <RefreshCw size={16} className={isTesting ? 'animate-spin' : ''} />
+                    </button>
+                    <button
+                      onClick={() => handleEdit(key)}
+                      className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-md transition-colors"
+                      title="Editar"
+                    >
+                      <RefreshCw size={16} />
+                    </button>
+                    <button
+                      onClick={() => toggleKeyStatus(key.id, key.active)}
+                      className={`p-1.5 rounded-md transition-colors ${
+                        key.active ? 'text-emerald-400 hover:bg-emerald-400/10' : 'text-gray-500 hover:bg-gray-500/10'
+                      }`}
+                      title={key.active ? 'Ativa' : 'Inativa'}
+                    >
+                      {key.active ? <CheckCircle size={18} /> : <XCircle size={18} />}
+                    </button>
+                    <button
+                      onClick={() => deleteKey(key.id)}
+                      className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+  
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-400">Status:</span>
+                    <span className={`flex items-center gap-1.5 font-medium ${
+                      key.status === 'online' ? 'text-emerald-400' : 
+                      key.status === 'no_credit' ? 'text-amber-400' : 
+                      'text-red-400'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        key.status === 'online' ? 'bg-emerald-400 animate-pulse' : 
+                        key.status === 'no_credit' ? 'bg-amber-400' : 
+                        'bg-red-400'
+                      }`} />
+                      {key.status === 'online' ? '🟢 Funcionando' : 
+                       key.status === 'no_credit' ? '🟡 Sem Crédito' : 
+                       '🔴 Falha / Erro'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-400">Chave:</span>
+                    <span className="text-gray-300 font-mono">••••••••{key.key_value.slice(-4)}</span>
+                  </div>
+                </div>
+  
+                <div className="mt-4 pt-4 border-t border-gray-700 flex justify-between items-center">
+                  <span className="text-[10px] text-gray-500">
+                    Adicionada em {new Date(key.created_at).toLocaleDateString()}
+                  </span>
+                  <button 
+                    onClick={fetchKeys}
+                    className="text-gray-500 hover:text-white transition-colors"
+                  >
+                    <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
