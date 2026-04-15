@@ -136,6 +136,7 @@ function AppContent() {
       const googleAvatar = session.user.user_metadata.avatar_url || session.user.user_metadata.picture;
       
       if (!profileRes.data) {
+        console.log('🆕 [AUTH] Criando novo perfil com avatar:', googleAvatar);
         supabase.from('profiles').upsert({
           id: userId,
           email: email,
@@ -143,7 +144,8 @@ function AppContent() {
           full_name: session.user.user_metadata.full_name || email?.split('@')[0] || 'Usuário',
           avatar_url: googleAvatar
         }).then();
-      } else if (googleAvatar && profileRes.data.avatar_url !== googleAvatar) {
+      } else if (googleAvatar && (!profileRes.data.avatar_url || profileRes.data.avatar_url !== googleAvatar)) {
+        console.log('🔄 [AUTH] Atualizando avatar do perfil:', googleAvatar);
         supabase.from('profiles').update({ avatar_url: googleAvatar }).eq('id', userId).then();
       }
 

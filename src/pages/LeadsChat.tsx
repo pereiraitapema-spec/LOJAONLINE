@@ -55,6 +55,7 @@ interface GroupedLead {
   ai_auto_reply: boolean;
   status_lead: string;
   avatar_url?: string;
+  source?: string;
 }
 
 interface Message {
@@ -566,7 +567,8 @@ export default function LeadsChat() {
       if (!selectedGroup?.ai_auto_reply) {
         await supabase.from('ai_knowledge_base').insert({
           topic: `Atendimento: ${selectedGroup.nome}`,
-          content: input
+          content: input,
+          category: selectedGroup.source || 'vendas'
         });
       }
 

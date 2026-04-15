@@ -36,22 +36,24 @@ export const aiService = {
       const aiSettings = await this.getSettings(agentType);
       console.log('[AI] Configurações carregadas');
 
-      // 1. Fetch API Keys
+      // 1. Fetch API Keys sorted by priority and last used
       console.log('[AI] Verificando APIs disponíveis...');
       const { data: allKeys } = await supabase
         .from('api_keys')
-        .select('service, key_value, active, status, model, last_error_at')
-        .eq('active', true);
+        .select('id, service, key_value, active, status, model, last_error_at, priority, last_used_at')
+        .eq('active', true)
+        .order('priority', { ascending: false })
+        .order('last_used_at', { ascending: false });
 
       const envGeminiKey = process.env.GEMINI_API_KEY;
       const keys = (allKeys || []).filter(k => {
-        // Se estiver offline, verifica se já passou 5 minutos para tentar de novo
-        if (k.status === 'offline' && k.last_error_at) {
+        // Se estiver com erro, verifica se já passou 5 minutos para tentar de novo
+        if (k.status === 'error' && k.last_error_at) {
           const lastError = new Date(k.last_error_at).getTime();
           const now = new Date().getTime();
           const diffMinutes = (now - lastError) / (1000 * 60);
           if (diffMinutes < 5) {
-            console.log(`[AI] Pulando API ${k.service.toUpperCase()} (Offline há ${Math.round(diffMinutes)}min)`);
+            console.log(`[AI] Pulando API ${k.service.toUpperCase()} (Erro há ${Math.round(diffMinutes)}min)`);
             return false;
           }
         }
@@ -59,8 +61,21 @@ export const aiService = {
       });
       
       if (envGeminiKey && !keys.some(k => k.service === 'gemini' && k.key_value === envGeminiKey)) {
-        keys.push({ service: 'gemini', key_value: envGeminiKey, active: true, status: 'online', model: 'gemini-1.5-flash', last_error_at: null });
+        keys.push({ 
+          id: 'env-gemini',
+          service: 'gemini', 
+          key_value: envGeminiKey, 
+          active: true, 
+          status: 'active', 
+          model: 'gemini-1.5-flash', 
+          last_error_at: null, 
+          priority: 99,
+          last_used_at: null
+        });
       }
+
+      // Sort again to ensure priority
+      keys.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
       console.log(`[AI] Chaves prontas para uso: ${keys.map(k => k.service).join(', ')}`);
 
@@ -75,7 +90,7 @@ export const aiService = {
         supabase.from('products').select('id, name, description, composition, price, discount_price, stock, quantity_info, usage_instructions, category:categories(name), tiers:product_tiers(*)').eq('active', true),
         supabase.from('store_settings').select('*').maybeSingle(),
         supabase.from('site_content').select('*'),
-        supabase.from('ai_knowledge_base').select('*')
+        supabase.from('ai_knowledge_base').select('*').eq('category', agentType) // Filter by category
       ]);
 
       let context = 'Informações da Loja:\n';
@@ -116,25 +131,23 @@ export const aiService = {
 
           ${isAffiliate ? `
           REGRAS ESPECÍFICAS PARA AFILIADOS (IA AFILIADOS):
-          1. Você está falando com um afiliado parceiro da G-FitLif.
-          2. Responda dúvidas sobre comissões, uso de banners, regras de divulgação e links de afiliado.
-          3. Ensine o afiliado a usar o painel, pegar links e materiais de divulgação.
-          4. NÃO tente vender produtos para o afiliado, foque em ajudá-lo a vender.
+          1. Você fala com parceiros da G-FitLif.
+          2. Ajude com comissões, links e materiais.
+          3. NÃO venda produtos para o afiliado.
           ` : `
           REGRAS PARA CLIENTES (IA COMPRAS):
-          1. Você está falando com um cliente interessado em comprar produtos.
-          2. Foque em conversão de vendas, tirando dúvidas sobre produtos, frete e pagamentos.
-          3. PADRÃO DE RESPOSTA (OBRIGATÓRIO):
-             - Máximo 2 linhas por mensagem.
-             - 1 produto por mensagem (use [SPLIT] para separar).
-             - Seja direto e humano.
+          1. Você fala com clientes interessados em comprar.
+          2. Foque em vendas e tirar dúvidas.
+          3. REGRAS DE OURO (OBRIGATÓRIO):
+             - MÁXIMO 2 LINHAS POR MENSAGEM.
+             - APENAS 1 PRODUTO POR MENSAGEM.
+             - Use [SPLIT] para separar produtos.
           `}
           
           REGRAS GERAIS:
           - RESPONDA SEMPRE EM PORTUGUÊS.
-          - Use o contexto fornecido abaixo.
-          - Se não souber, peça para falar com um atendente humano.
-          - Use [SPLIT] para separar mensagens longas ou diferentes produtos.
+          - Use linguagem natural e empática.
+          - Use [SPLIT] para separar mensagens longas.
           
           Contexto:\n${context}`;
 
@@ -142,7 +155,8 @@ export const aiService = {
       const providers = keys.map(k => ({
         name: k.service,
         key: k.key_value,
-        model: k.model
+        model: k.model,
+        id: (k as any).id
       }));
 
       if (providers.length === 0) {
@@ -152,7 +166,7 @@ export const aiService = {
 
       for (const provider of providers) {
         try {
-          console.log(`[AI] Testando provedor: ${provider.name.toUpperCase()}`);
+          console.log(`[AI] Testando provedor: ${provider.name.toUpperCase()} (${provider.model})`);
           let responseText = '';
 
           if (provider.name === 'gemini') {
@@ -206,7 +220,7 @@ export const aiService = {
                   content: m.content
                 }))
               ],
-              max_tokens: 150 // Limitar tamanho da resposta
+              max_tokens: 150
             });
             responseText = completion.choices[0].message.content || '';
           }
@@ -226,17 +240,40 @@ export const aiService = {
 
           if (responseText) {
             console.log(`[AI] Resposta gerada com sucesso via ${provider.name.toUpperCase()}`);
-            // Atualizar status para online
-            await supabase.from('api_keys').update({ status: 'online', last_error_at: null }).eq('service', provider.name).eq('key_value', provider.key);
-            return responseText;
+            
+            // Post-processing: Enforce line limit and split logic
+            let finalResponse = responseText;
+            
+            // Se não tiver [SPLIT] mas tiver muitas linhas, tenta forçar um split ou truncar
+            const lines = finalResponse.split('\n').filter(l => l.trim());
+            if (!finalResponse.includes('[SPLIT]') && lines.length > 2) {
+              // Tenta quebrar em mensagens de 2 linhas
+              const chunks = [];
+              for (let i = 0; i < lines.length; i += 2) {
+                chunks.push(lines.slice(i, i + 2).join('\n'));
+              }
+              finalResponse = chunks.join(' [SPLIT] ');
+            }
+
+            // Atualizar status para active e last_used_at
+            if (provider.id) {
+              await supabase.from('api_keys').update({ 
+                status: 'active', 
+                last_error_at: null,
+                last_used_at: new Date().toISOString()
+              }).eq('id', provider.id);
+            }
+            return finalResponse;
           }
         } catch (err: any) {
           console.error(`[AI] Falha no provedor ${provider.name.toUpperCase()}:`, err.message);
-          // Marcar API como offline no banco
-          await supabase.from('api_keys')
-            .update({ status: 'offline', last_error_at: new Date().toISOString() })
-            .eq('service', provider.name)
-            .eq('key_value', provider.key);
+          // Marcar API como error no banco
+          if (provider.id) {
+            const status = err.message.includes('credit') || err.message.includes('quota') ? 'credit' : 'error';
+            await supabase.from('api_keys')
+              .update({ status, last_error_at: new Date().toISOString() })
+              .eq('id', provider.id);
+          }
         }
       }
 

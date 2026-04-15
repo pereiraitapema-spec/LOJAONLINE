@@ -10,21 +10,34 @@ interface ApiKey {
   model?: string;
   key_value: string;
   active: boolean;
-  status: string;
+  status: 'active' | 'credit' | 'error';
+  priority: number;
   last_error_at?: string;
   created_at: string;
 }
+
+const MODELS_BY_SERVICE: Record<string, string[]> = {
+  gemini: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-latest'],
+  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+  groq: ['llama3-70b-8192', 'llama3-8b-8192', 'mixtral-8x7b-32768', 'gemma-7b-it'],
+  claude: ['claude-3-5-sonnet-20240620', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+  deepseek: ['deepseek-chat', 'deepseek-coder'],
+  mistral: ['mistral-tiny', 'mistral-small', 'mistral-medium', 'mistral-large-latest'],
+  together: ['mistralai/Mixtral-8x7B-Instruct-v0.1', 'meta-llama/Llama-3-70b-chat-hf', 'nousresearch/hermes-2-pro-llama-3-8b']
+};
 
 export default function ApiKeys() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newKey, setNewKey] = useState({
     name: '',
     service: 'gemini',
-    model: '',
+    model: 'gemini-1.5-flash',
     key_value: '',
-    active: true
+    active: true,
+    priority: 0
   });
 
   useEffect(() => {
@@ -37,6 +50,7 @@ export default function ApiKeys() {
       const { data, error } = await supabase
         .from('api_keys')
         .select('*')
+        .order('priority', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -50,25 +64,48 @@ export default function ApiKeys() {
   };
 
   const handleOpenAdd = () => {
-    setNewKey({ name: '', service: 'gemini', model: '', key_value: '', active: true });
+    setNewKey({ name: '', service: 'gemini', model: 'gemini-1.5-flash', key_value: '', active: true, priority: 0 });
+    setEditingId(null);
     setIsAdding(true);
   };
 
-  const handleAddKey = async (e: React.FormEvent) => {
+  const handleEdit = (key: ApiKey) => {
+    setNewKey({
+      name: key.name,
+      service: key.service,
+      model: key.model || MODELS_BY_SERVICE[key.service][0],
+      key_value: key.key_value,
+      active: key.active,
+      priority: key.priority || 0
+    });
+    setEditingId(key.id);
+    setIsAdding(true);
+  };
+
+  const handleSaveKey = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { error } = await supabase
-        .from('api_keys')
-        .insert([newKey]);
-
-      if (error) throw error;
+      if (editingId) {
+        const { error } = await supabase
+          .from('api_keys')
+          .update(newKey)
+          .eq('id', editingId);
+        if (error) throw error;
+        toast.success('Chave atualizada com sucesso');
+      } else {
+        const { error } = await supabase
+          .from('api_keys')
+          .insert([newKey]);
+        if (error) throw error;
+        toast.success('Chave adicionada com sucesso');
+      }
       
-      toast.success('Chave adicionada com sucesso');
       setIsAdding(false);
-      setNewKey({ name: '', service: 'gemini', model: '', key_value: '', active: true });
+      setEditingId(null);
+      setNewKey({ name: '', service: 'gemini', model: 'gemini-1.5-flash', key_value: '', active: true, priority: 0 });
       fetchKeys();
     } catch (error: any) {
-      toast.error('Erro ao adicionar chave');
+      toast.error(editingId ? 'Erro ao atualizar chave' : 'Erro ao adicionar chave');
     }
   };
 
@@ -123,8 +160,10 @@ export default function ApiKeys() {
 
       {isAdding && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 mb-8 animate-in fade-in slide-in-from-top-4">
-          <h2 className="text-lg font-semibold text-white mb-4">Cadastrar Nova Chave</h2>
-          <form onSubmit={handleAddKey} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <h2 className="text-lg font-semibold text-white mb-4">
+            {editingId ? 'Editar Chave de API' : 'Cadastrar Nova Chave'}
+          </h2>
+          <form onSubmit={handleSaveKey} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">Nome Identificador</label>
               <input
@@ -140,7 +179,14 @@ export default function ApiKeys() {
               <label className="block text-sm font-medium text-gray-400 mb-1">Serviço</label>
               <select
                 value={newKey.service}
-                onChange={e => setNewKey({ ...newKey, service: e.target.value })}
+                onChange={e => {
+                  const service = e.target.value;
+                  setNewKey({ 
+                    ...newKey, 
+                    service, 
+                    model: MODELS_BY_SERVICE[service][0] 
+                  });
+                }}
                 className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-emerald-500 outline-none"
               >
                 <option value="gemini">Google Gemini</option>
@@ -153,12 +199,23 @@ export default function ApiKeys() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Modelo (Opcional)</label>
-              <input
-                type="text"
+              <label className="block text-sm font-medium text-gray-400 mb-1">Modelo</label>
+              <select
                 value={newKey.model}
                 onChange={e => setNewKey({ ...newKey, model: e.target.value })}
-                placeholder="Ex: gpt-4o, gemini-1.5-pro"
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+              >
+                {MODELS_BY_SERVICE[newKey.service]?.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Prioridade (Maior = Primeiro)</label>
+              <input
+                type="number"
+                value={newKey.priority}
+                onChange={e => setNewKey({ ...newKey, priority: parseInt(e.target.value) || 0 })}
                 className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-emerald-500 outline-none"
               />
             </div>
@@ -221,10 +278,18 @@ export default function ApiKeys() {
                       {key.model && (
                         <span className="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded uppercase">{key.model}</span>
                       )}
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">P:{key.priority || 0}</span>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleEdit(key)}
+                    className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-md transition-colors"
+                    title="Editar"
+                  >
+                    <RefreshCw size={16} />
+                  </button>
                   <button
                     onClick={() => toggleKeyStatus(key.id, key.active)}
                     className={`p-1.5 rounded-md transition-colors ${
@@ -245,14 +310,20 @@ export default function ApiKeys() {
 
               <div className="space-y-3">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-400">Status Realtime:</span>
+                  <span className="text-gray-400">Status:</span>
                   <span className={`flex items-center gap-1.5 font-medium ${
-                    key.status === 'online' ? 'text-emerald-400' : 'text-red-400'
+                    key.status === 'active' ? 'text-emerald-400' : 
+                    key.status === 'credit' ? 'text-amber-400' : 
+                    'text-red-400'
                   }`}>
                     <div className={`w-2 h-2 rounded-full ${
-                      key.status === 'online' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
+                      key.status === 'active' ? 'bg-emerald-400 animate-pulse' : 
+                      key.status === 'credit' ? 'bg-amber-400' : 
+                      'bg-red-400'
                     }`} />
-                    {key.status === 'online' ? 'Online' : 'Offline / Erro'}
+                    {key.status === 'active' ? '🟢 Funcionando' : 
+                     key.status === 'credit' ? '🟡 Sem Crédito' : 
+                     '🔴 Falha / Erro'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
