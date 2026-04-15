@@ -26,6 +26,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isAiThinking, setIsAiThinking] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [loadingSession, setLoadingSession] = useState(true);
@@ -165,18 +166,27 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
     }
   }, [messages, isOpen]);
 
+  // Auto-trigger AI response when last message is from user
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.role === 'user' && !isAiThinking && session?.user?.id) {
+      const timer = setTimeout(() => {
+        processAiResponse(messages);
+      }, 1000); // Small delay to allow multiple messages to be grouped
+      return () => clearTimeout(timer);
+    }
+  }, [messages, isAiThinking, session?.user?.id]);
+
   const handleSend = async () => {
-    if (!input.trim() || loading) return;
+    if (!input.trim()) return;
 
     if (!session) {
-      console.log('❌ [CHAT] Tentativa de envio sem sessão');
       toast.error('Você precisa estar logado para enviar mensagens.');
       navigate('/login');
       return;
     }
 
     const userMessage = input.trim();
-    console.log('[CHAT] Enviando mensagem:', userMessage);
     setInput('');
     
     const updatedMessages = [...messages, { role: 'user' as const, content: userMessage }];
@@ -184,7 +194,6 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
     localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(updatedMessages));
     
     try {
-      console.log('[CHAT] Salvando mensagem no banco...');
       await chatService.sendMessage({
         sender_id: session.user.id,
         receiver_id: null,
@@ -195,27 +204,19 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
       });
       
       if (session.user.email !== 'pereira.itapema@gmail.com') {
-        console.log('[LEADS] Garantindo criação/atualização do lead...');
-        // Create/Update lead with the correct source
         await leadService.updateStatus('frio', { source });
       }
-
-      console.log('[AI] Solicitando resposta da IA...');
-      processAiResponse(updatedMessages);
     } catch (e) {
       console.error('❌ [CHAT] Erro ao enviar mensagem:', e);
     }
   };
 
   const processAiResponse = async (currentMessages: Message[]) => {
-    if (loading || !session?.user?.id) {
-      console.log('[AI] Processamento cancelado: carregando ou sem usuário', { loading, userId: session?.user?.id });
-      return;
-    }
+    if (isAiThinking || !session?.user?.id) return;
+    setIsAiThinking(true);
     setLoading(true);
 
     try {
-      console.log('[AI] Verificando se auto-reply está ativo...');
       const { data: leadData } = await supabase.from('leads').select('ai_auto_reply').eq('id', session.user.id).maybeSingle();
       const { data: affiliateData } = await supabase.from('affiliates').select('ai_auto_reply').eq('user_id', session.user.id).maybeSingle();
       
@@ -223,30 +224,30 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
       const autoReplyEnabled = isAffiliate ? (affiliateData?.ai_auto_reply !== false) : (leadData?.ai_auto_reply !== false);
 
       if (!autoReplyEnabled) {
-        console.log('[AI] Auto-reply desativado para este usuário.');
+        setIsAiThinking(false);
         setLoading(false);
         return;
       }
 
-      console.log('[AI] Preparando mensagens para o Gemini...');
       const aiMessages: AiMessage[] = currentMessages.map(m => ({
         role: m.role === 'bot' ? 'bot' : 'user',
         content: m.content
       }));
 
-      console.log('[AI] Chamando processResponse...');
       const botResponse = await aiService.processResponse(session.user.id, aiMessages, isAffiliate);
-      console.log('[AI] Resposta recebida do Gemini');
 
       const parts = botResponse.split('[SPLIT]').filter(p => p.trim());
       
       let latestMessages = currentMessages;
       for (const part of parts) {
         const botPart = part.trim();
-        console.log('[AI] Enviando parte da resposta:', botPart.substring(0, 30) + '...');
-        latestMessages = [...latestMessages, { role: 'bot' as const, content: botPart }];
-        setMessages(latestMessages);
-        localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(latestMessages));
+        
+        // Use functional update to ensure we don't lose user messages sent while bot was typing
+        setMessages(prev => {
+          const updated = [...prev, { role: 'bot' as const, content: botPart }];
+          localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(updated));
+          return updated;
+        });
         
         await chatService.sendMessage({
           sender_id: null,
@@ -261,10 +262,10 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
-      console.log('[AI] Fluxo de resposta finalizado com sucesso.');
     } catch (error) {
       console.error('❌ [AI] Erro no processamento da resposta:', error);
     } finally {
+      setIsAiThinking(false);
       setLoading(false);
     }
   };
@@ -370,7 +371,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
                   />
                   <button
                     onClick={handleSend}
-                    disabled={!input.trim() || loading}
+                    disabled={!input.trim()}
                     className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-emerald-200"
                   >
                     <Send size={20} />

@@ -90,24 +90,13 @@ function AppContent() {
     const userId = session.user.id;
     const email = session.user.email;
 
-    console.log('🔄 [AUTH] Sincronizando sessão:', { 
-      userId, 
-      email,
-      fullName: session.user.user_metadata?.full_name,
-      lastSignIn: session.user.last_sign_in_at
-    });
-    
     // 1. Admin Master - Instantâneo
     if (email === 'pereira.itapema@gmail.com') {
-      console.log('👑 [AUTH] Admin Master detectado:', email);
       setUserRole('admin');
       localStorage.setItem('user_role', 'admin');
+      setLoading(false); // Libera a UI imediatamente para o admin
       
-      // Garantir que o profile está como admin no banco (background)
-      supabase.from('profiles').update({ role: 'admin' }).eq('id', userId).then(({ error }) => {
-        if (error) console.error('❌ [AUTH] Erro ao atualizar profile do master admin:', error);
-      });
-      
+      supabase.from('profiles').update({ role: 'admin' }).eq('id', userId).then();
       return 'admin';
     }
 
@@ -115,16 +104,15 @@ function AppContent() {
     const cachedRole = localStorage.getItem('user_role');
     if (cachedRole) {
       setUserRole(cachedRole);
+      setLoading(false); // Libera a UI imediatamente se tiver cache
     }
 
     try {
-      // 3. Consultas Paralelas Otimizadas
-      console.log('⏱️ Buscando dados no banco em paralelo...');
-      
+      // 3. Consultas Paralelas Otimizadas - Timeout reduzido para 5s
       const [profileRes, affiliateIdRes, affiliateEmailRes] = await Promise.all([
-        withTimeout(supabase.from('profiles').select('role, avatar_url').eq('id', userId).maybeSingle(), 30000),
-        withTimeout(supabase.from('affiliates').select('id, status, active, email, user_id').eq('user_id', userId).maybeSingle(), 30000),
-        email ? withTimeout(supabase.from('affiliates').select('id, status, active, user_id').eq('email', email).maybeSingle(), 30000) : Promise.resolve({ data: null, error: null })
+        withTimeout(supabase.from('profiles').select('role, avatar_url').eq('id', userId).maybeSingle(), 5000),
+        withTimeout(supabase.from('affiliates').select('id, status, active, email, user_id').eq('user_id', userId).maybeSingle(), 5000),
+        email ? withTimeout(supabase.from('affiliates').select('id, status, active, user_id').eq('email', email).maybeSingle(), 5000) : Promise.resolve({ data: null, error: null })
       ]);
 
       if (profileRes.error) throw profileRes.error;
@@ -244,11 +232,18 @@ function AppContent() {
       }
 
       if (session) {
-        console.log('🔑 [AUTH] Sessão inicial recebida');
-        const role = await syncUserSession(session);
-        handleRoleRedirect(session, role || undefined);
+        const cachedRole = localStorage.getItem('user_role');
+        if (cachedRole) {
+          setLoading(false);
+          syncUserSession(session).then(role => {
+            handleRoleRedirect(session, role || undefined);
+          });
+        } else {
+          const role = await syncUserSession(session);
+          handleRoleRedirect(session, role || undefined);
+          setLoading(false);
+        }
       } else {
-        console.log('ℹ️ [AUTH] Nenhuma sessão inicial encontrada');
         localStorage.removeItem('user_role');
         setLoading(false);
       }
@@ -260,21 +255,22 @@ function AppContent() {
       setSession(session);
       
       if (event === 'SIGNED_IN' && session) {
-        console.log('✅ [AUTH] Usuário logado:', session.user.email);
-        const role = await syncUserSession(session);
-        
-        if (window.location.hash.includes('type=recovery') || window.location.pathname === '/reset-password') {
+        const cachedRole = localStorage.getItem('user_role');
+        if (cachedRole) {
           setLoading(false);
-          return;
+          syncUserSession(session).then(role => {
+            handleRoleRedirect(session, role || undefined);
+          });
+        } else {
+          const role = await syncUserSession(session);
+          handleRoleRedirect(session, role || undefined);
+          setLoading(false);
         }
 
         if (!sessionStorage.getItem('lead_status_updated')) {
-          console.log('📈 [LEADS] Atualizando status inicial do lead para FRIO');
           leadService.updateStatus('frio');
           sessionStorage.setItem('lead_status_updated', 'true');
         }
-
-        await handleRoleRedirect(session, role || undefined);
       }
       
       if (event === 'SIGNED_OUT') {
