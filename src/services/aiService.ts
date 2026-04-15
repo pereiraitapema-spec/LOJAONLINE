@@ -36,46 +36,36 @@ export const aiService = {
       const aiSettings = await this.getSettings(agentType);
       console.log('[AI] Configurações carregadas');
 
-      // 1. Fetch API Keys sorted by priority and last used
+      // 1. Fetch API Keys sorted by priority
       console.log('[AI] Verificando APIs disponíveis...');
       const { data: allKeys } = await supabase
         .from('api_keys')
         .select('id, service, key_value, active, status, model, last_error_at, priority, last_used_at')
         .eq('active', true)
-        .order('priority', { ascending: false })
-        .order('last_used_at', { ascending: false });
+        .order('priority', { ascending: false });
 
-      const envGeminiKey = process.env.GEMINI_API_KEY;
-      const keys = (allKeys || []).filter(k => {
-        // Se estiver com erro, verifica se já passou 5 minutos para tentar de novo
-        if (k.status === 'error' && k.last_error_at) {
+      const stickyApiId = localStorage.getItem('sticky_api_id');
+      let keys = (allKeys || []).filter(k => {
+        // Se estiver com erro ou sem crédito, verifica se já passou 15 minutos para tentar de novo
+        if (k.status !== 'online' && k.last_error_at) {
           const lastError = new Date(k.last_error_at).getTime();
           const now = new Date().getTime();
           const diffMinutes = (now - lastError) / (1000 * 60);
-          if (diffMinutes < 5) {
-            console.log(`[AI] Pulando API ${k.service.toUpperCase()} (Erro há ${Math.round(diffMinutes)}min)`);
+          if (diffMinutes < 15) {
+            console.log(`[AI] Pulando API ${k.service.toUpperCase()} (${k.status} há ${Math.round(diffMinutes)}min)`);
             return false;
           }
         }
         return true;
       });
-      
-      if (envGeminiKey && !keys.some(k => k.service === 'gemini' && k.key_value === envGeminiKey)) {
-        keys.push({ 
-          id: 'env-gemini',
-          service: 'gemini', 
-          key_value: envGeminiKey, 
-          active: true, 
-          status: 'active', 
-          model: 'gemini-1.5-flash', 
-          last_error_at: null, 
-          priority: 99,
-          last_used_at: null
-        });
-      }
 
-      // Sort again to ensure priority
-      keys.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+      // Sticky logic: if we have a sticky API and it's still online, use it first
+      if (stickyApiId) {
+        const stickyKey = keys.find(k => k.id === stickyApiId && k.status === 'online');
+        if (stickyKey) {
+          keys = [stickyKey, ...keys.filter(k => k.id !== stickyApiId)];
+        }
+      }
 
       console.log(`[AI] Chaves prontas para uso: ${keys.map(k => k.service).join(', ')}`);
 
@@ -87,7 +77,7 @@ export const aiService = {
         { data: siteContent },
         { data: knowledge }
       ] = await Promise.all([
-        supabase.from('products').select('id, name, description, composition, price, discount_price, stock, quantity_info, usage_instructions, category:categories(name), tiers:product_tiers(*)').eq('active', true),
+        supabase.from('products').select('id, name, description, composition, price, discount_price, stock, quantity_info, usage_instructions, category:categories(name, rules), tiers:product_tiers(*)').eq('active', true),
         supabase.from('store_settings').select('*').maybeSingle(),
         supabase.from('site_content').select('*'),
         supabase.from('ai_knowledge_base').select('*').eq('category', agentType) // Filter by category
@@ -106,6 +96,21 @@ export const aiService = {
       }
       if (knowledge && knowledge.length > 0) {
         context += '\nConhecimento Adicional (Memória):\n' + knowledge.map(k => `${k.topic}: ${k.content}`).join('\n') + '\n';
+      }
+
+      // Group products by category to avoid repeating category rules
+      const categoryRulesMap = new Map();
+      products?.forEach((p: any) => {
+        if (p.category?.rules && !categoryRulesMap.has(p.category.name)) {
+          categoryRulesMap.set(p.category.name, p.category.rules);
+        }
+      });
+
+      if (categoryRulesMap.size > 0) {
+        context += '\nRegras por Categoria:\n';
+        categoryRulesMap.forEach((rules, catName) => {
+          context += `${catName}: ${rules}\n`;
+        });
       }
 
       context += '\nProdutos:\n' + (products && products.length > 0 
@@ -241,6 +246,11 @@ export const aiService = {
           if (responseText) {
             console.log(`[AI] Resposta gerada com sucesso via ${provider.name.toUpperCase()}`);
             
+            // Set as sticky API
+            if (provider.id && provider.id !== 'env-gemini') {
+              localStorage.setItem('sticky_api_id', provider.id);
+            }
+
             // Post-processing: Enforce line limit and split logic
             let finalResponse = responseText;
             
@@ -255,10 +265,10 @@ export const aiService = {
               finalResponse = chunks.join(' [SPLIT] ');
             }
 
-            // Atualizar status para active e last_used_at
-            if (provider.id) {
+            // Atualizar status para online e last_used_at
+            if (provider.id && provider.id !== 'env-gemini') {
               await supabase.from('api_keys').update({ 
-                status: 'active', 
+                status: 'online', 
                 last_error_at: null,
                 last_used_at: new Date().toISOString()
               }).eq('id', provider.id);
@@ -267,12 +277,22 @@ export const aiService = {
           }
         } catch (err: any) {
           console.error(`[AI] Falha no provedor ${provider.name.toUpperCase()}:`, err.message);
-          // Marcar API como error no banco
-          if (provider.id) {
-            const status = err.message.includes('credit') || err.message.includes('quota') ? 'credit' : 'error';
-            await supabase.from('api_keys')
-              .update({ status, last_error_at: new Date().toISOString() })
-              .eq('id', provider.id);
+          
+          // If sticky API failed, remove it
+          if (provider.id === localStorage.getItem('sticky_api_id')) {
+            localStorage.removeItem('sticky_api_id');
+          }
+
+          // Marcar API como error ou no_credit no banco
+          if (provider.id && provider.id !== 'env-gemini') {
+            const status = err.message.toLowerCase().includes('credit') || 
+                          err.message.toLowerCase().includes('quota') || 
+                          err.message.toLowerCase().includes('limit') ? 'no_credit' : 'error';
+            
+            await supabase.from('api_keys').update({ 
+              status, 
+              last_error_at: new Date().toISOString() 
+            }).eq('id', provider.id);
           }
         }
       }

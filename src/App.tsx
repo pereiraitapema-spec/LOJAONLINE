@@ -48,6 +48,36 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Background API Key Re-check (every 15 minutes)
+  useEffect(() => {
+    const checkInterval = setInterval(async () => {
+      const { data: keys } = await supabase
+        .from('api_keys')
+        .select('id, status, last_error_at')
+        .eq('active', true)
+        .neq('status', 'online');
+
+      if (keys && keys.length > 0) {
+        const keysToReset = keys.filter(k => {
+          if (!k.last_error_at) return true;
+          const lastError = new Date(k.last_error_at).getTime();
+          const now = new Date().getTime();
+          const diffMinutes = (now - lastError) / (1000 * 60);
+          return diffMinutes >= 15;
+        });
+
+        if (keysToReset.length > 0) {
+          console.log(`[AI] Re-habilitando ${keysToReset.length} chaves para nova tentativa...`);
+          await supabase.from('api_keys')
+            .update({ status: 'online', last_error_at: null })
+            .in('id', keysToReset.map(k => k.id));
+        }
+      }
+    }, 60000); // Check every minute if any key needs reset (15min rule)
+
+    return () => clearInterval(checkInterval);
+  }, []);
+
   // Helper para timeout em chamadas Supabase - Reduzido para 5s para performance
   // Helper for timeouts
 

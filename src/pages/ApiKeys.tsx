@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { Key, Plus, Trash2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface ApiKey {
   id: string;
@@ -10,7 +11,7 @@ interface ApiKey {
   model?: string;
   key_value: string;
   active: boolean;
-  status: 'active' | 'credit' | 'error';
+  status: 'online' | 'no_credit' | 'error' | 'active' | 'credit';
   priority: number;
   last_error_at?: string;
   created_at: string;
@@ -43,6 +44,41 @@ export default function ApiKeys() {
   useEffect(() => {
     fetchKeys();
   }, []);
+
+  const [isTesting, setIsTesting] = useState(false);
+
+  const testConnection = async (key: any) => {
+    if (!key.key_value) {
+      toast.error('Valor da chave não encontrado.');
+      return;
+    }
+
+    setIsTesting(true);
+    const toastId = toast.loading('Testando conexão...');
+
+    try {
+      if (key.service === 'gemini') {
+        const genAI = new GoogleGenerativeAI(key.key_value);
+        const model = genAI.getGenerativeModel({ model: key.model || 'gemini-1.5-flash' });
+        await model.generateContent('ping');
+        toast.success('Conexão com Gemini bem-sucedida!', { id: toastId });
+      } else if (key.service === 'openai') {
+        const response = await fetch('https://api.openai.com/v1/models', {
+          headers: {
+            'Authorization': `Bearer ${key.key_value}`
+          }
+        });
+        if (!response.ok) throw new Error('Chave OpenAI inválida ou sem crédito.');
+        toast.success('Conexão com OpenAI bem-sucedida!', { id: toastId });
+      } else {
+        toast.error('Teste não disponível para este serviço ainda.', { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error('Falha na conexão: ' + err.message, { id: toastId });
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const fetchKeys = async () => {
     try {
@@ -272,8 +308,19 @@ export default function ApiKeys() {
                     <Key size={20} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-white">{key.name}</h3>
                     <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-white">{key.name}</h3>
+                      {localStorage.getItem('sticky_api_id') === key.id && key.status === 'online' && (
+                        <span className="bg-emerald-500/20 text-emerald-400 text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter animate-pulse border border-emerald-500/30">Em Uso</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        !key.active ? 'bg-gray-600' :
+                        key.status === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                        key.status === 'no_credit' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' :
+                        'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                      }`} />
                       <span className="text-xs text-gray-500 uppercase tracking-wider">{key.service}</span>
                       {key.model && (
                         <span className="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded uppercase">{key.model}</span>
@@ -283,6 +330,14 @@ export default function ApiKeys() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => testConnection(key)}
+                    disabled={isTesting}
+                    className="p-1.5 text-amber-400 hover:bg-amber-400/10 rounded-md transition-colors disabled:opacity-50"
+                    title="Testar Conexão"
+                  >
+                    <RefreshCw size={16} className={isTesting ? 'animate-spin' : ''} />
+                  </button>
                   <button
                     onClick={() => handleEdit(key)}
                     className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-md transition-colors"

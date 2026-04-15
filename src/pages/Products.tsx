@@ -18,11 +18,14 @@ import {
   Upload,
   ChevronRight,
   Sparkles,
-  Zap
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { ConfirmationModal } from '../components/ConfirmationModal';
 
 interface Category {
@@ -30,6 +33,7 @@ interface Category {
   name: string;
   icon?: string;
   image_url?: string;
+  rules?: string;
 }
 
 // ... existing interfaces ...
@@ -66,6 +70,17 @@ interface Product {
   tiers?: { quantity: number; discount_percentage: number }[];
   media?: { url: string; type: 'image' | 'video'; position: number }[];
 }
+
+const MODELS_BY_SERVICE: Record<string, string[]> = {
+  gemini: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-latest'],
+  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+  groq: ['llama3-70b-8192', 'llama3-8b-8192', 'mixtral-8x7b-32768', 'gemma-7b-it'],
+  claude: ['claude-3-5-sonnet-20240620', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+  deepseek: ['deepseek-chat', 'deepseek-coder'],
+  mistral: ['mistral-tiny', 'mistral-small', 'mistral-medium', 'mistral-large-latest'],
+  together: ['mistralai/Mixtral-8x7B-Instruct-v0.1', 'meta-llama/Llama-3-70b-chat-hf', 'nousresearch/hermes-2-pro-llama-3-8b'],
+  pagarme: ['default']
+};
 
 export default function Products() {
   const navigate = useNavigate();
@@ -109,9 +124,10 @@ export default function Products() {
   const [errors, setErrors] = useState<{ [key: string]: boolean }>({});
   const [showAPIModal, setShowAPIModal] = useState(false);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
-  const [apiKeyForm, setApiKeyForm] = useState({ id: '', name: '', service: 'gemini', key_value: '', active: true });
+  const [apiKeyForm, setApiKeyForm] = useState({ id: '', name: '', service: 'gemini', model: 'gemini-1.5-flash', key_value: '', active: true, priority: 0 });
   const [isEditingKey, setIsEditingKey] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [isTestingKey, setIsTestingKey] = useState(false);
 
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
@@ -132,6 +148,7 @@ export default function Products() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState('');
   const [newCategoryImage, setNewCategoryImage] = useState('');
+  const [newCategoryRules, setNewCategoryRules] = useState('');
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -194,7 +211,7 @@ export default function Products() {
       const { data, error } = await supabase
         .from('api_keys')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('priority', { ascending: false });
       if (error) throw error;
       setApiKeys(data || []);
     } catch (error: any) {
@@ -203,12 +220,13 @@ export default function Products() {
   };
 
   const testAPIKey = async (key: any) => {
+    setIsTestingKey(true);
     const toastId = toast.loading('Testando conexão com a API...');
     try {
       if (key.service === 'gemini') {
         try {
-          const ai = new GoogleGenAI(key.key_value);
-          const model = (ai as any).getGenerativeModel({ model: "gemini-1.5-flash" });
+          const ai = new GoogleGenerativeAI(key.key_value);
+          const model = ai.getGenerativeModel({ model: key.model || "gemini-1.5-flash" });
           const result = await model.generateContent("Responda apenas com a palavra 'OK'.");
           const text = result.response.text();
           if (text.trim().toUpperCase().includes('OK')) {
@@ -229,7 +247,7 @@ export default function Products() {
               'Authorization': `Bearer ${key.key_value}`
             },
             body: JSON.stringify({
-              model: "gpt-3.5-turbo",
+              model: key.model || "gpt-3.5-turbo",
               messages: [{ role: "user", content: "Say OK" }],
               max_tokens: 5
             })
@@ -252,6 +270,8 @@ export default function Products() {
     } catch (error: any) {
       console.error('Erro no teste de API:', error);
       toast.error(`Falha na conexão: ${error.message || 'Erro desconhecido'}`, { id: toastId });
+    } finally {
+      setIsTestingKey(false);
     }
   };
 
@@ -261,28 +281,66 @@ export default function Products() {
       return;
     }
     
-    const geminiKey = apiKeys.find(k => k.service === 'gemini' && k.active)?.key_value;
-    if (!geminiKey) {
-      toast.error('Configure uma chave API do Gemini ativa');
+    if (apiKeys.length === 0) {
+      toast.error('Configure uma chave API ativa');
       setShowAPIModal(true);
       return;
     }
 
     setIsGeneratingAI(true);
     try {
-      const ai = new GoogleGenAI(geminiKey);
-      const model = (ai as any).getGenerativeModel({ model: "gemini-1.5-flash" });
-      const response = await model.generateContent({
-        contents: [{
-          role: 'user',
-          parts: [{
-            text: `Crie uma descrição comercial extremamente persuasiva, altamente focada em conversão, para o produto "${productForm.name}".
+      // 1. Fetch Agent Rules (Vendas)
+      const { data: aiSettings } = await supabase
+        .from('ai_settings')
+        .select('rules, memory')
+        .eq('agent_type', 'vendas')
+        .maybeSingle();
+
+      // 2. Try APIs in order of priority
+      const stickyApiId = localStorage.getItem('sticky_api_id');
+      let activeKeys = apiKeys.filter(k => k.active);
+      
+      // Filter by status (allow online or those that haven't been checked in 15 mins)
+      activeKeys = activeKeys.filter(k => {
+        if (k.status !== 'online' && k.last_error_at) {
+          const lastError = new Date(k.last_error_at).getTime();
+          const now = new Date().getTime();
+          const diffMinutes = (now - lastError) / (1000 * 60);
+          return diffMinutes >= 15;
+        }
+        return true;
+      });
+
+      if (stickyApiId) {
+        const stickyKey = activeKeys.find(k => k.id === stickyApiId && k.status === 'online');
+        if (stickyKey) {
+          activeKeys = [stickyKey, ...activeKeys.filter(k => k.id !== stickyApiId)];
+        }
+      }
+
+      if (activeKeys.length === 0) {
+        throw new Error('Nenhuma chave de API ativa encontrada.');
+      }
+
+      let generatedText = '';
+      let lastError = '';
+
+      for (const key of activeKeys) {
+        try {
+          const prompt = `Crie uma descrição comercial extremamente persuasiva, altamente focada em conversão, para o produto "${productForm.name}".
       
       DADOS DO PRODUTO:
       - Nome: ${productForm.name}
       - Composição/Fórmula: ${productForm.composition || 'Não informada'}
       - Quantidade: ${productForm.quantity_info}
+      ${productForm.category_id ? `- Categoria: ${categories.find(c => c.id === productForm.category_id)?.name}` : ''}
       
+      REGRAS DO AGENTE DE VENDAS:
+      ${aiSettings?.rules || 'Não informadas'}
+      
+      MEMÓRIA DO AGENTE:
+      ${aiSettings?.memory || 'Não informada'}
+
       REGRAS CRÍTICAS E OBRIGATÓRIAS:
       1. NÃO USE NENHUMA TAG HTML (como <p>, <strong>, <ul>, etc). O texto deve ser LIMPO.
       2. Use apenas quebras de linha para separar parágrafos.
@@ -300,11 +358,61 @@ export default function Products() {
       7. O texto deve ser LONGO, ENVOLVENTE e PROFISSIONAL. Organize em parágrafos claros.
       8. DESTAQUE: Use CAIXA ALTA moderadamente para destacar pontos cruciais.
       9. NÃO use blocos de código markdown (\`\`\`html ou \`\`\`).
-      10. Retorne APENAS o texto da descrição.`
-          }]
-        }]
-      });
-      let text = response.response.text() || '';
+      10. Retorne APENAS o texto da descrição.`;
+
+          if (key.service === 'gemini') {
+            const ai = new GoogleGenerativeAI(key.key_value);
+            const model = ai.getGenerativeModel({ model: key.model || "gemini-1.5-flash" });
+            const result = await model.generateContent(prompt);
+            generatedText = result.response.text();
+          } else if (key.service === 'openai') {
+            const openai = new OpenAI({ apiKey: key.key_value, dangerouslyAllowBrowser: true });
+            const completion = await openai.chat.completions.create({
+              model: key.model || "gpt-4o-mini",
+              messages: [{ role: "user", content: prompt }]
+            });
+            generatedText = completion.choices[0].message.content || '';
+          } else if (key.service === 'claude') {
+            const anthropic = new Anthropic({ apiKey: key.key_value, dangerouslyAllowBrowser: true });
+            const message = await anthropic.messages.create({
+              model: key.model || "claude-3-5-sonnet-20240620",
+              max_tokens: 1000,
+              messages: [{ role: "user", content: prompt }]
+            });
+            generatedText = (message.content[0] as any).text || '';
+          }
+
+          if (generatedText) {
+            localStorage.setItem('sticky_api_id', key.id);
+            await supabase.from('api_keys').update({ 
+              status: 'online', 
+              last_error_at: null, 
+              last_used_at: new Date().toISOString() 
+            }).eq('id', key.id);
+            break;
+          }
+        } catch (err: any) {
+          console.error(`Erro com API ${key.service}:`, err);
+          lastError = err.message;
+          
+          if (key.id === localStorage.getItem('sticky_api_id')) {
+            localStorage.removeItem('sticky_api_id');
+          }
+
+          const status = err.message.toLowerCase().includes('credit') || 
+                        err.message.toLowerCase().includes('quota') || 
+                        err.message.toLowerCase().includes('limit') ? 'no_credit' : 'error';
+          
+          await supabase.from('api_keys').update({ 
+            status, 
+            last_error_at: new Date().toISOString() 
+          }).eq('id', key.id);
+        }
+      }
+
+      if (!generatedText) throw new Error(lastError || 'Falha ao gerar descrição com as APIs disponíveis.');
+
+      let text = generatedText;
       
       // Limpeza extra de segurança (remover qualquer tag HTML que o modelo possa ter gerado por engano)
       text = text.replace(/<[^>]*>?/gm, '');
@@ -435,7 +543,8 @@ export default function Products() {
       const payload = {
         name: newCategoryName,
         icon: newCategoryIcon,
-        image_url: newCategoryImage
+        image_url: newCategoryImage,
+        rules: newCategoryRules
       };
 
       if (editingCategory) {
@@ -454,6 +563,7 @@ export default function Products() {
       setNewCategoryName('');
       setNewCategoryIcon('');
       setNewCategoryImage('');
+      setNewCategoryRules('');
       setEditingCategory(null);
       fetchData();
     } catch (error: any) {
@@ -463,12 +573,30 @@ export default function Products() {
     }
   };
 
+  const ensureBucketExists = async () => {
+    try {
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const exists = buckets?.some(b => b.name === 'banners');
+      if (!exists) {
+        console.log('📦 Criando bucket "banners"...');
+        await supabase.storage.createBucket('banners', {
+          public: true,
+          allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime'],
+          fileSizeLimit: 52428800 // 50MB
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao verificar/criar bucket:', err);
+    }
+  };
+
   const handleCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setSaving(true);
     try {
+      await ensureBucketExists();
       const fileExt = file.name.split('.').pop();
       const fileName = `categories/${Math.random()}.${fileExt}`;
       
@@ -541,6 +669,7 @@ export default function Products() {
 
     setSaving(true);
     try {
+      await ensureBucketExists();
       const fileExt = file.name.split('.').pop();
       const fileName = `products/${Math.random()}.${fileExt}`;
       
@@ -575,6 +704,7 @@ export default function Products() {
 
     setSaving(true);
     try {
+      await ensureBucketExists();
       const newMedia = [...productMedia];
       
       for (let i = 0; i < files.length; i++) {
@@ -701,11 +831,15 @@ export default function Products() {
 
           <div className="flex gap-3">
             <button 
-              onClick={() => setShowAPIModal(true)}
+              onClick={() => {
+                setApiKeyForm({ id: '', name: '', service: 'gemini', model: 'gemini-1.5-flash', key_value: '', active: true, priority: 0 });
+                setIsEditingKey(false);
+                setShowAPIModal(true);
+              }}
               className="flex items-center gap-2 bg-slate-800 text-white px-5 py-3 rounded-2xl font-bold hover:bg-slate-900 transition-all shadow-lg"
             >
               <Sparkles size={20} className="text-indigo-400" />
-              Configurar APIs
+              Nova API / Config
             </button>
             <button 
               onClick={() => setShowCategoryModal(true)}
@@ -922,7 +1056,7 @@ export default function Products() {
                 </button>
                 <button 
                   onClick={() => {
-                    setApiKeyForm({ id: '', name: '', service: 'gemini', key_value: '', active: true });
+                    setApiKeyForm({ id: '', name: '', service: 'gemini', model: 'gemini-1.5-flash', key_value: '', active: true, priority: 0 });
                     setIsEditingKey(false);
                     setShowAPIModal(true);
                   }}
@@ -949,7 +1083,15 @@ export default function Products() {
                       </button>
                       <button 
                         onClick={() => {
-                          setApiKeyForm({ id: key.id, name: key.name, service: key.service, key_value: key.key_value, active: key.active });
+                          setApiKeyForm({ 
+                            id: key.id, 
+                            name: key.name, 
+                            service: key.service, 
+                            model: key.model || MODELS_BY_SERVICE[key.service]?.[0] || 'default',
+                            key_value: key.key_value, 
+                            active: key.active,
+                            priority: key.priority || 0
+                          });
                           setIsEditingKey(true);
                           setShowAPIModal(true);
                         }}
@@ -982,7 +1124,13 @@ export default function Products() {
                     </div>
                   </div>
                   <h4 className="font-bold text-lg mb-1">{key.name}</h4>
-                  <p className="text-xs font-black uppercase tracking-widest text-indigo-400 mb-4">{key.service}</p>
+                  <div className="flex items-center gap-2 mb-4">
+                    <p className="text-xs font-black uppercase tracking-widest text-indigo-400">{key.service}</p>
+                    {key.model && (
+                      <span className="text-[10px] bg-white/10 text-slate-300 px-1.5 py-0.5 rounded uppercase">{key.model}</span>
+                    )}
+                    <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded">P:{key.priority || 0}</span>
+                  </div>
                   <div className="flex items-center justify-between pt-4 border-t border-white/10">
                     <span className="text-[10px] text-slate-500 font-bold uppercase">Status</span>
                     <button 
@@ -1542,7 +1690,7 @@ export default function Products() {
             onClick={() => {
               setShowAPIModal(false);
               setIsEditingKey(false);
-              setApiKeyForm({ id: '', name: '', service: 'gemini', key_value: '', active: true });
+              setApiKeyForm({ id: '', name: '', service: 'gemini', model: 'gemini-1.5-flash', key_value: '', active: true, priority: 0 });
             }}
           >
             <motion.div 
@@ -1553,43 +1701,102 @@ export default function Products() {
               className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden"
             >
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-600 text-white">
-                <h2 className="text-xl font-bold">Configurar Chaves de API</h2>
-                <button 
-                  onClick={() => {
-                    setShowAPIModal(false);
-                    setIsEditingKey(false);
-                    setApiKeyForm({ id: '', name: '', service: 'gemini', key_value: '', active: true });
-                  }} 
-                  className="hover:rotate-90 transition-transform"
-                >
-                  <X size={24} />
-                </button>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-bold">Configurar Chaves de API</h2>
+                  {!isEditingKey && (
+                    <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">Nova Chave</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {isEditingKey && (
+                    <button 
+                      onClick={() => {
+                        setIsEditingKey(false);
+                        setApiKeyForm({ id: '', name: '', service: 'gemini', model: 'gemini-1.5-flash', key_value: '', active: true, priority: 0 });
+                      }}
+                      className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-xs font-bold transition-colors"
+                    >
+                      Nova Chave
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => {
+                      setShowAPIModal(false);
+                      setIsEditingKey(false);
+                      setApiKeyForm({ id: '', name: '', service: 'gemini', model: 'gemini-1.5-flash', key_value: '', active: true, priority: 0 });
+                    }} 
+                    className="hover:rotate-90 transition-transform"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
               </div>
 
               <div className="p-6 space-y-6">
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Nome da Chave (Identificação)</label>
-                    <input 
-                      type="text" 
-                      value={apiKeyForm.name}
-                      onChange={e => setApiKeyForm({...apiKeyForm, name: e.target.value})}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                      placeholder="Ex: Gemini Principal"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">Nome da Chave</label>
+                      <input 
+                        type="text" 
+                        value={apiKeyForm.name}
+                        onChange={e => setApiKeyForm({...apiKeyForm, name: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                        placeholder="Ex: Gemini Principal"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">Serviço</label>
+                      <select 
+                        value={apiKeyForm.service}
+                        onChange={e => {
+                          const service = e.target.value;
+                          setApiKeyForm({
+                            ...apiKeyForm, 
+                            service,
+                            model: MODELS_BY_SERVICE[service]?.[0] || 'default'
+                          });
+                        }}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                      >
+                        <option value="gemini">Google Gemini</option>
+                        <option value="openai">OpenAI (ChatGPT)</option>
+                        <option value="groq">Groq (Llama/Mixtral)</option>
+                        <option value="claude">Anthropic Claude</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="mistral">Mistral AI</option>
+                        <option value="together">Together AI</option>
+                        <option value="pagarme">Pagar.me (Gateway)</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Serviço</label>
-                    <select 
-                      value={apiKeyForm.service}
-                      onChange={e => setApiKeyForm({...apiKeyForm, service: e.target.value})}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                    >
-                      <option value="gemini">Google Gemini</option>
-                      <option value="openai">OpenAI (ChatGPT)</option>
-                      <option value="pagarme">Pagar.me (Gateway)</option>
-                    </select>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">Modelo</label>
+                      <select 
+                        value={apiKeyForm.model}
+                        onChange={e => setApiKeyForm({...apiKeyForm, model: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                      >
+                        {MODELS_BY_SERVICE[apiKeyForm.service]?.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">Prioridade (0-100)</label>
+                      <input 
+                        type="number" 
+                        value={apiKeyForm.priority}
+                        onChange={e => setApiKeyForm({...apiKeyForm, priority: parseInt(e.target.value) || 0})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                        min="0"
+                        max="100"
+                      />
+                    </div>
                   </div>
+
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1">Valor da Chave</label>
                     <input 
@@ -1600,12 +1807,25 @@ export default function Products() {
                       placeholder="Cole sua chave aqui..."
                     />
                   </div>
+
                   <div className="flex gap-3">
+                    <button 
+                      onClick={() => testAPIKey(apiKeyForm)}
+                      disabled={isTestingKey || !apiKeyForm.key_value}
+                      className="flex-1 bg-slate-100 text-indigo-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isTestingKey ? (
+                        <RefreshCw size={18} className="animate-spin" />
+                      ) : (
+                        <Zap size={18} />
+                      )}
+                      Testar
+                    </button>
                     <button 
                       onClick={() => {
                         setShowAPIModal(false);
                         setIsEditingKey(false);
-                        setApiKeyForm({ id: '', name: '', service: 'gemini', key_value: '', active: true });
+                        setApiKeyForm({ id: '', name: '', service: 'gemini', model: 'gemini-1.5-flash', key_value: '', active: true, priority: 0 });
                       }}
                       className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all"
                     >
@@ -1622,8 +1842,11 @@ export default function Products() {
                           const payload = {
                             name: apiKeyForm.name,
                             service: apiKeyForm.service,
+                            model: apiKeyForm.model,
                             key_value: apiKeyForm.key_value,
-                            active: apiKeyForm.active
+                            active: apiKeyForm.active,
+                            priority: apiKeyForm.priority,
+                            status: 'active'
                           };
 
                           if (isEditingKey && apiKeyForm.id) {
@@ -1636,9 +1859,9 @@ export default function Products() {
                             toast.success('Chave de API salva com sucesso!');
                           }
                           
-                          setApiKeyForm({ id: '', name: '', service: 'gemini', key_value: '', active: true });
+                          setShowAPIModal(false);
+                          setApiKeyForm({ id: '', name: '', service: 'gemini', model: 'gemini-1.5-flash', key_value: '', active: true, priority: 0 });
                           setIsEditingKey(false);
-                          setShowAPIModal(false); // Fechar modal após salvar
                           fetchAPIKeys();
                         } catch (err: any) {
                           toast.error('Erro ao salvar chave: ' + err.message);
@@ -1656,7 +1879,7 @@ export default function Products() {
                     <button 
                       onClick={() => {
                         setIsEditingKey(false);
-                        setApiKeyForm({ id: '', name: '', service: 'gemini', key_value: '', active: true });
+                        setApiKeyForm({ id: '', name: '', service: 'gemini', model: 'gemini-1.5-flash', key_value: '', active: true, priority: 0 });
                       }}
                       className="w-full bg-slate-100 text-slate-600 py-2 rounded-xl text-xs font-bold hover:bg-slate-200 transition-all"
                     >
@@ -1681,12 +1904,22 @@ export default function Products() {
                                 toast.error('Erro ao alternar status: ' + err.message);
                               }
                             }}
-                            className={`w-4 h-4 rounded-full border-2 transition-colors ${key.active ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-slate-300'}`}
-                            title={key.active ? 'Ativa' : 'Inativa'}
+                            className={`w-4 h-4 rounded-full border-2 transition-colors ${
+                              !key.active ? 'bg-white border-slate-300' :
+                              key.status === 'online' ? 'bg-emerald-500 border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                              key.status === 'no_credit' ? 'bg-amber-500 border-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' :
+                              'bg-red-500 border-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                            }`}
+                            title={!key.active ? 'Inativa' : key.status === 'online' ? 'Online' : key.status === 'no_credit' ? 'Sem Crédito' : 'Erro'}
                           />
                           <div>
-                            <p className="text-xs font-bold text-slate-700">{key.name}</p>
-                            <p className="text-[10px] text-slate-400 uppercase">{key.service}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-bold text-slate-700">{key.name}</p>
+                              {localStorage.getItem('sticky_api_id') === key.id && key.status === 'online' && (
+                                <span className="bg-emerald-100 text-emerald-700 text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter animate-pulse">Em Uso</span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 uppercase">{key.service} • {key.model}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1696,8 +1929,10 @@ export default function Products() {
                                 id: key.id,
                                 name: key.name,
                                 service: key.service,
+                                model: key.model || MODELS_BY_SERVICE[key.service]?.[0] || 'default',
                                 key_value: key.key_value,
-                                active: key.active
+                                active: key.active,
+                                priority: key.priority || 0
                               });
                               setIsEditingKey(true);
                             }}
@@ -1765,6 +2000,7 @@ export default function Products() {
                     setEditingCategory(null);
                     setNewCategoryName('');
                     setNewCategoryIcon('');
+                    setNewCategoryRules('');
                   }} 
                   className="hover:rotate-90 transition-transform"
                 >
@@ -1798,6 +2034,7 @@ export default function Products() {
                           setNewCategoryName('');
                           setNewCategoryIcon('');
                           setNewCategoryImage('');
+                          setNewCategoryRules('');
                         }}
                         className="bg-slate-200 text-slate-600 p-3 rounded-xl hover:bg-slate-300"
                       >
@@ -1830,6 +2067,17 @@ export default function Products() {
                       <p className="text-[10px] text-slate-500 mt-1">Use foto OU ícone da biblioteca Lucide React.</p>
                     </div>
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Regras da IA para esta Categoria</label>
+                    <textarea 
+                      rows={3}
+                      value={newCategoryRules}
+                      onChange={e => setNewCategoryRules(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-sm"
+                      placeholder="Ex: Sempre destaque que estes produtos são 100% naturais..."
+                    />
+                  </div>
                 </form>
 
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
@@ -1856,6 +2104,7 @@ export default function Products() {
                             setNewCategoryName(cat.name);
                             setNewCategoryIcon(cat.icon || '');
                             setNewCategoryImage(cat.image_url || '');
+                            setNewCategoryRules(cat.rules || '');
                           }}
                           className="text-indigo-400 hover:text-indigo-600"
                         >
