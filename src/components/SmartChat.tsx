@@ -188,13 +188,21 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
     }
   }, [messages, isOpen]);
 
-  // Auto-trigger AI response when last message is from user
+  // Auto-trigger AI response when there are unanswered user messages
   useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage && lastMessage.role === 'user' && !isAiThinking && session?.user?.id) {
+    if (!session?.user?.id || isAiThinking) return;
+
+    // Encontrar o índice da última mensagem do bot para ver se há mensagens de usuário depois dela
+    const lastBotIndex = [...messages].reverse().findIndex(m => m.role === 'bot');
+    const actualLastBotIndex = lastBotIndex === -1 ? -1 : messages.length - 1 - lastBotIndex;
+    
+    // Verificar se existe alguma mensagem de usuário após o último bot (ou se não há bot e há mensagens de usuário)
+    const hasUnansweredUserMessage = messages.slice(actualLastBotIndex + 1).some(m => m.role === 'user');
+
+    if (hasUnansweredUserMessage) {
       const timer = setTimeout(() => {
         processAiResponse(messages);
-      }, 1000); // Small delay to allow multiple messages to be grouped
+      }, 1000); // Pequeno delay para agrupar mensagens rápidas
       return () => clearTimeout(timer);
     }
   }, [messages, isAiThinking, session?.user?.id]);
@@ -244,8 +252,14 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
     setLoading(true);
 
     try {
-      const { data: leadData } = await supabase.from('leads').select('ai_auto_reply').eq('id', session.user.id).maybeSingle();
-      const { data: affiliateData } = await supabase.from('affiliates').select('ai_auto_reply').eq('user_id', session.user.id).maybeSingle();
+      // Adicionar timeout para evitar travamentos se o banco estiver lento
+      const [
+        { data: leadData },
+        { data: affiliateData }
+      ] = await Promise.all([
+        withTimeout(supabase.from('leads').select('ai_auto_reply').eq('id', session.user.id).maybeSingle(), 3000),
+        withTimeout(supabase.from('affiliates').select('ai_auto_reply').eq('user_id', session.user.id).maybeSingle(), 3000)
+      ]).catch(() => [{ data: null }, { data: null }]);
       
       const isAffiliate = source === 'afiliados';
       const autoReplyEnabled = isAffiliate ? (affiliateData?.ai_auto_reply !== false) : (leadData?.ai_auto_reply !== false);
@@ -366,10 +380,15 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
               ))}
               {loading && (
                 <div className="flex justify-start">
-                  <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex gap-1">
-                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" />
-                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.2s]" />
-                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                  <div className="flex gap-2 items-center">
+                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
+                      {agentPhoto ? <img src={agentPhoto} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <Bot size={16} className="text-emerald-600" />}
+                    </div>
+                    <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex gap-1">
+                      <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" />
+                      <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                      <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                    </div>
                   </div>
                 </div>
               )}

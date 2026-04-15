@@ -500,8 +500,8 @@ function AppContent() {
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-      {(location.pathname === '/afiliados/dashboard' || location.pathname === '/') && (
-        <SmartChat source={location.pathname === '/afiliados/dashboard' ? 'afiliados' : 'vendas'} />
+      {!(location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/reset-password' || location.pathname === '/auth/callback') && (
+        <SmartChat source={location.pathname.startsWith('/afiliados') ? 'afiliados' : 'vendas'} />
       )}
     </>
   );

@@ -59,6 +59,12 @@ export const aiService = {
         return true;
       });
 
+      // Se todas as chaves foram filtradas mas existem chaves ativas, usa as ativas (tentativa de recuperação)
+      if (keys.length === 0 && allKeys && allKeys.length > 0) {
+        console.log('[AI] Nenhuma chave online disponível no momento. Tentando chaves em recuperação...');
+        keys = allKeys;
+      }
+
       // Sticky logic: if we have a sticky API and it's still online, use it first
       if (stickyApiId) {
         const stickyKey = keys.find(k => k.id === stickyApiId && k.status === 'online');
@@ -131,6 +137,7 @@ export const aiService = {
           1. NUNCA diga que você é uma inteligência artificial, robô ou assistente virtual.
           2. Fale como uma pessoa real (ex: "Oi, tudo bem? Sou a consultora da G-FitLif...").
           3. Use uma linguagem natural, amigável e persuasiva.
+          4. Se não souber algo ou precisar de ajuda, diga que um especialista irá atender, nunca diga "humano".
           
           ${wasError ? '4. IMPORTANTE: A última mensagem enviada foi um erro técnico. Peça desculpas pelo incômodo antes de responder.' : ''}
 
@@ -300,7 +307,7 @@ export const aiService = {
       throw new Error('Todos os provedores de IA falharam.');
     } catch (error: any) {
       console.error('[AI] Erro crítico no processamento:', error.message);
-      return 'Desculpe, estou com uma instabilidade momentânea. Posso te ajudar com outra coisa ou você prefere falar com um atendente humano?';
+      return 'Desculpe, estou com uma instabilidade momentânea. Posso te ajudar com outra coisa ou você prefere falar com um especialista?';
     }
   }
 };
