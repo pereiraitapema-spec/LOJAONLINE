@@ -24,15 +24,21 @@ export const chatService = {
     return data || [];
   },
 
-  async fetchUserHistory(userId: string): Promise<ChatMessage[]> {
+  async fetchUserHistory(userId: string, source?: string): Promise<ChatMessage[]> {
     if (!userId) throw new Error('ID do usuário é obrigatório.');
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('chat_messages')
       .select('*')
       .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
       .order('created_at', { ascending: false })
       .limit(50);
+
+    if (source) {
+      query = query.eq('source', source);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw new Error(`Erro ao buscar histórico: ${error.message}`);
     

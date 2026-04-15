@@ -218,8 +218,8 @@ function AppContent() {
     };
     checkDB();
 
-    // 1. Pegar sessão inicial
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    // 1. Pegar sessão inicial com timeout
+    withTimeout(supabase.auth.getSession(), 5000).then(async ({ data: { session } }) => {
       setSession(session);
       
       const hash = window.location.hash;
@@ -234,6 +234,7 @@ function AppContent() {
       if (session) {
         const cachedRole = localStorage.getItem('user_role');
         if (cachedRole) {
+          setUserRole(cachedRole);
           setLoading(false);
           syncUserSession(session).then(role => {
             handleRoleRedirect(session, role || undefined);
@@ -247,6 +248,11 @@ function AppContent() {
         localStorage.removeItem('user_role');
         setLoading(false);
       }
+    }).catch(err => {
+      console.warn('⚠️ [AUTH] Timeout ou erro ao inicializar auth:', err);
+      const cachedRole = localStorage.getItem('user_role');
+      if (cachedRole) setUserRole(cachedRole);
+      setLoading(false);
     });
 
     // 2. Ouvir mudanças

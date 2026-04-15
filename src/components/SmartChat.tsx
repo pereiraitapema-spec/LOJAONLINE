@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { aiService, Message as AiMessage } from '../services/aiService';
 import { leadService } from '../services/leadService';
 import { chatService } from '../services/chatService';
+import { withTimeout } from '../lib/utils';
 
 interface Message {
   role: 'user' | 'bot';
@@ -75,8 +76,10 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
   }, [session]);
 
   const loadHistory = async (userId: string) => {
+    const cacheKey = `gfitlif_chat_history_${source}_${userId}`;
+    
     // 1. Tentar carregar do localStorage primeiro (Instantâneo)
-    const saved = localStorage.getItem(`gfitlif_chat_history_${userId}`);
+    const saved = localStorage.getItem(cacheKey);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -90,7 +93,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
 
     // 2. Sincronizar com o Banco de Dados (Online)
     try {
-      const data = await chatService.fetchUserHistory(userId);
+      const data = await chatService.fetchUserHistory(userId, source);
       if (data && data.length > 0) {
         const dbMessages: Message[] = data.map(msg => ({
           role: msg.is_human && msg.sender_id === userId ? 'user' : 'bot',
@@ -99,16 +102,11 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
         
         // Mesclar com mensagens atuais para não perder o que foi enviado durante o carregamento
         setMessages(prev => {
-          // Criamos um Set de conteúdos para evitar duplicatas simples (opcional, mas ajuda)
-          // O ideal seria comparar por ID, mas o estado Message não tem ID.
-          // Como as mensagens do banco são a "verdade", vamos usá-las, 
-          // mas se houver mensagens no 'prev' que não estão no 'dbMessages' (mensagens novas), nós as mantemos.
-          
           const dbContentSet = new Set(dbMessages.map(m => m.content));
           const newMessages = prev.filter(m => !dbContentSet.has(m.content) && m.content !== 'Olá! Sou a consultora da G-FitLif. Como posso te ajudar hoje?');
           
           const merged = [...dbMessages, ...newMessages];
-          localStorage.setItem(`gfitlif_chat_history_${userId}`, JSON.stringify(merged));
+          localStorage.setItem(cacheKey, JSON.stringify(merged));
           return merged;
         });
       }
@@ -119,9 +117,14 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
 
   useEffect(() => {
     const initSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setLoadingSession(false);
+      try {
+        const { data: { session } } = await withTimeout(supabase.auth.getSession(), 5000);
+        setSession(session);
+      } catch (err) {
+        console.warn('⚠️ [CHAT] Timeout ao inicializar sessão:', err);
+      } finally {
+        setLoadingSession(false);
+      }
     };
     initSession();
 
@@ -142,12 +145,23 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
       
       const msgSubscription = chatService.subscribeToMessages(session.user.id, (payload) => {
         const newMessage = payload.new;
-        if (newMessage && newMessage.message && !newMessage.is_human) {
+        // Filtra por fonte para não misturar mensagens de vendas e afiliados em tempo real
+        if (newMessage && newMessage.message && newMessage.source === source) {
           setMessages(prev => {
-            if (prev.some(m => m.content === newMessage.message && m.role === 'bot')) return prev;
-            return [...prev, { role: 'bot', content: newMessage.message }];
+            const isDuplicate = prev.some(m => m.content === newMessage.message);
+            if (isDuplicate) return prev;
+            
+            const updated: Message[] = [...prev, { 
+              role: newMessage.is_human ? 'user' : 'bot', 
+              content: newMessage.message 
+            }];
+            localStorage.setItem(`gfitlif_chat_history_${source}_${session.user.id}`, JSON.stringify(updated));
+            return updated;
           });
-          setShowNotification(true);
+          
+          if (!newMessage.is_human) {
+            setShowNotification(true);
+          }
         }
       });
 
@@ -155,7 +169,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
         if (msgSubscription) msgSubscription.unsubscribe();
       };
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, source]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -200,7 +214,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
     // Use functional update to avoid stale state
     setMessages(prev => {
       const updated = [...prev, { role: 'user' as const, content: userMessage }];
-      localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(updated));
+      localStorage.setItem(`gfitlif_chat_history_${source}_${session.user.id}`, JSON.stringify(updated));
       return updated;
     });
     
@@ -258,7 +272,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
         // Use functional update to ensure we don't lose user messages sent while bot was typing
         setMessages(prev => {
           const updated = [...prev, { role: 'bot' as const, content: botPart }];
-          localStorage.setItem(`gfitlif_chat_history_${session.user.id}`, JSON.stringify(updated));
+          localStorage.setItem(`gfitlif_chat_history_${source}_${session.user.id}`, JSON.stringify(updated));
           return updated;
         });
         
