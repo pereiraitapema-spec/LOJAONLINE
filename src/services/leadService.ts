@@ -35,7 +35,24 @@ export const leadService = {
       const currentStatus = (lead?.status_lead || 'frio') as LeadStatus;
       
       // 3. Get affiliate_id from localStorage if exists
-      const affiliateId = localStorage.getItem('affiliate_code') || lead?.affiliate_id;
+      const affiliateCode = localStorage.getItem('affiliate_code');
+      let affiliateId = lead?.affiliate_id;
+
+      // Se temos um código mas não temos o ID no lead, tentamos resolver o código para ID (UUID)
+      if (affiliateCode && !affiliateId) {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(affiliateCode);
+        if (isUUID) {
+          affiliateId = affiliateCode;
+        } else {
+          // Busca o ID do afiliado pelo código
+          const { data: affData } = await supabase
+            .from('affiliates')
+            .select('id')
+            .eq('code', affiliateCode)
+            .maybeSingle();
+          if (affData) affiliateId = affData.id;
+        }
+      }
 
       // 2. Upsert atômico
       const payload: any = {

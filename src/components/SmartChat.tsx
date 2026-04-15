@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageSquare, Send, X, User, Bot, Sparkles, LogIn } from 'lucide-react';
+import { MessageSquare, Send, X, User, Headset, LogIn } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { aiService, Message as AiMessage } from '../services/aiService';
@@ -34,6 +34,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
   const [aiSettings, setAiSettings] = useState({ rules: '', memory: '', triggers: '', autoLearning: false });
   const [agentPhoto, setAgentPhoto] = useState<string | null>(null);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
+  const [hasAutoOpened, setHasAutoOpened] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef<number>(0);
   const prevIsOpenRef = useRef<boolean>(false);
@@ -172,11 +173,14 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
   }, [session?.user?.id, source]);
 
   useEffect(() => {
-    if (!isOpen) {
-      const timer = setTimeout(() => setShowNotification(true), 10000);
+    if (!isOpen && !hasAutoOpened) {
+      const timer = setTimeout(() => {
+        setIsOpen(true);
+        setHasAutoOpened(true);
+      }, 10000);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, hasAutoOpened]);
 
   useEffect(() => {
     if (isOpen) setShowNotification(false);
@@ -325,11 +329,11 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
             <div className="p-4 bg-emerald-600 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center overflow-hidden">
+                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center overflow-hidden">
                     {agentPhoto ? (
                       <img src={agentPhoto} alt="Agente" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
-                      <Bot size={24} />
+                      <Headset size={24} />
                     )}
                   </div>
                   <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-emerald-600 rounded-full" />
@@ -359,7 +363,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
                   <div className={`flex gap-2 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                     <div className="w-8 h-8 rounded-full flex-shrink-0 mt-auto overflow-hidden bg-slate-200 flex items-center justify-center">
                       {msg.role === 'bot' ? (
-                        agentPhoto ? <img src={agentPhoto} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <Bot size={16} className="text-emerald-600" />
+                        agentPhoto ? <img src={agentPhoto} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <Headset size={16} className="text-emerald-600" />
                       ) : (
                         userPhoto ? <img src={userPhoto} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <User size={16} className="text-slate-600" />
                       )}
@@ -382,7 +386,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
                 <div className="flex justify-start">
                   <div className="flex gap-2 items-center">
                     <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
-                      {agentPhoto ? <img src={agentPhoto} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <Bot size={16} className="text-emerald-600" />}
+                      {agentPhoto ? <img src={agentPhoto} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <Headset size={16} className="text-emerald-600" />}
                     </div>
                     <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex gap-1">
                       <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" />
@@ -440,8 +444,12 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
               className="absolute bottom-20 right-0 w-64 p-4 bg-white rounded-2xl shadow-xl border border-slate-100 mb-2"
             >
               <div className="flex gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <Sparkles className="text-emerald-600" size={20} />
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  {agentPhoto ? (
+                    <img src={agentPhoto} alt="Agente" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <User className="text-emerald-600" size={20} />
+                  )}
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-800">Suporte G-FitLif</p>
@@ -462,16 +470,20 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
 
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 ${
+          className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 overflow-hidden ${
             isOpen ? 'bg-slate-800 rotate-90' : 'bg-emerald-600 hover:scale-110'
           }`}
         >
           {isOpen ? (
             <X size={32} className="text-white" />
           ) : (
-            <div className="relative">
-              <MessageSquare size={32} className="text-white" />
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 border-2 border-emerald-600 rounded-full animate-pulse" />
+            <div className="relative w-full h-full flex items-center justify-center">
+              {agentPhoto ? (
+                <img src={agentPhoto} alt="Suporte" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                <MessageSquare size={32} className="text-white" />
+              )}
+              <div className="absolute top-2 right-2 w-4 h-4 bg-red-500 border-2 border-emerald-600 rounded-full animate-pulse" />
             </div>
           )}
         </button>

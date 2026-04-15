@@ -660,17 +660,21 @@ export default function Checkout() {
   }, [cartTotal, discountRules, campaigns, paymentMethod, isFirstPurchase, couponCode, affiliateCoupon]);
 
   const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
-  const isBalcao = couponCode?.toLowerCase() === "balcao";
-  const displayShippingMethods = isBalcao ? [{
-    id: 'balcao',
-    name: 'CLIENTE BUSCA NA EMPRESA',
-    price: 0,
-    deadline: '0 dias',
-    provider: 'Balcão',
-    carrierName: 'Balcão'
-  }] : shippingMethods;
+  const displayShippingMethods = [
+    ...(settings?.address ? [{
+      id: 'balcao',
+      name: 'RETIRADA NO BALCÃO',
+      price: 0,
+      deadline: 'Retirada imediata',
+      provider: 'Balcão',
+      carrierName: 'Balcão'
+    }] : []),
+    ...shippingMethods
+  ];
 
-  const currentShipping = isBalcao ? displayShippingMethods[0] : (selectedShipping !== null ? displayShippingMethods[selectedShipping] : null);
+  const isBalcao = couponCode?.toLowerCase() === "balcao" || (selectedShipping !== null && displayShippingMethods[selectedShipping]?.id === 'balcao');
+
+  const currentShipping = selectedShipping !== null ? displayShippingMethods[selectedShipping] : null;
   console.log('DEBUG: cartTotal=', cartTotal, 'threshold=', settings?.free_shipping_threshold || 0, 'selectedShipping=', selectedShipping, 'currentShipping=', currentShipping);
   
   // Se ainda não temos métodos de envio, o frete não é 0, é "não calculado" (null)
@@ -1669,8 +1673,16 @@ export default function Checkout() {
                       onBlur={handleCepBlur}
                       placeholder="00000-000"
                       className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                      required
+                      required={!isBalcao}
                     />
+                    <button 
+                      type="button"
+                      onClick={handleGerarCotacao}
+                      disabled={calculatingShipping || shipping.cep.length !== 8}
+                      className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      {calculatingShipping ? '...' : 'Calcular'}
+                    </button>
                   </div>
                 </div>
                 

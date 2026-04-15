@@ -5,7 +5,6 @@ import {
   Search, 
   MessageSquare, 
   User, 
-  Bot, 
   Send, 
   Clock, 
   MoreVertical, 
@@ -16,7 +15,6 @@ import {
   Phone,
   Mail,
   Filter,
-  Sparkles,
   Trash2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -1022,7 +1020,7 @@ export default function LeadsChat() {
                             className="ml-2 text-emerald-600 hover:text-emerald-800"
                             title="IA Aprender com esta resposta"
                           >
-                            <Sparkles size={12} />
+                            <Zap size={12} />
                           </button>
                         )}
                       </div>
