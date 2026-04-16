@@ -217,10 +217,18 @@ export const aiService = {
             let prodInfo = `Nome: [${p.name}](${productLink})\nPreço: R$ ${currentPrice}\nDescrição: ${p.description}\nUso: ${p.usage_instructions}`;
             
             if (isAffiliate) {
-              const commValue = p.affiliate_commission > 0 
-                ? p.affiliate_commission 
-                : (currentPrice * (commissionRate / 100));
-              prodInfo += `\nComissão estimada para você: R$ ${commValue.toFixed(2)}`;
+              // Se o produto tem uma comissão fixa (> 1), usamos ela. 
+              // Se for 0 ou <= 1, tratamos como porcentagem ou usamos a taxa base do afiliado.
+              // Mas para ser fiel ao pedido: Calcular a porcentagem do afiliado em cima do preço do produto.
+              const calculatedCommission = (currentPrice * (commissionRate / 100));
+              
+              // Se o produto tiver uma comissão específica (valor fixo), ela prevalece apenas se for informada como tal.
+              // Para evitar confusão, vamos passar o cálculo explícito.
+              const finalCommission = p.affiliate_commission > 0 ? p.affiliate_commission : calculatedCommission;
+              
+              prodInfo += `\n- Sua Taxa de Comissão: ${commissionRate}%`;
+              prodInfo += `\n- Seu Ganho em Reais neste produto: R$ ${finalCommission.toFixed(2)}`;
+              prodInfo += `\n- Como calcular: R$ ${currentPrice.toFixed(2)} x ${commissionRate}% = R$ ${calculatedCommission.toFixed(2)}`;
             }
             
             return prodInfo;
@@ -241,14 +249,17 @@ export const aiService = {
           5. MÁXIMA CONSISTÊNCIA: Responda de forma idêntica à personalidade definida em suas regras para todos os usuários.
           
           ${isAffiliate ? `
-          FLUXO DE AFILIADOS (ESTRITAMENTE OBRIGATÓRIO):
-          - PÚBLICO: Você está conversando EXCLUSIVAMENTE com parceiros e afiliados da G-FitLif.
-          - OBJETIVO PRINCIPAL: Apoiar o afiliado em suas vendas, tirando dúvidas sobre comissões, regras de afiliação e PRODUTOS.
-          - REGRAS E MEMÓRIA: Você DEVE seguir cegamente as "Regras do Agente (AFILIADOS)" e a "Memória do Agente" fornecidas no contexto abaixo. Essas informações são a sua verdade absoluta.
-          - SUPORTE A PRODUTOS: Se o afiliado perguntar sobre qualquer produto, use a lista de "Produtos" abaixo para informar nome, composição, preço e benefícios de forma COMPLETA. Ajude-o a ser um expert no produto.
-          - COMISSÕES: Se ele perguntar sobre ganhos, informe a porcentagem atual dele (${commissionRate}%) e o valor em Reais que ele ganha por produto, conforme listado nos dados de cada produto abaixo.
-          - LINKS PERSONALIZADOS: ${affiliateCode ? `Sempre que ele pedir o link dele, envie: [Link de Vendas](${window.location.origin}/?ref=${affiliateCode})` : 'Incentive-o a completar o cadastro para ter seu link.'}
-          - NÃO seja um vendedor para ele; seja um GERENTE DE PARCERIAS técnico e prestativo.
+          REGRAS DO AGENTE (AFILIADOS) - ESTRITAMENTE OBRIGATÓRIO:
+          1. PÚBLICO: Afiliados logados (Parceiros).
+          2. SUA MISSÃO: Ser um Gerente de Conta prestativo. Ajude o afiliado a vender MAIS.
+          3. REGRAS DO AGENTE E MEMÓRIA: Siga EXCLUSIVAMENTE as regras de "Agente Afiliados" cadastradas.
+          4. INFORMAÇÕES DE COMISSÃO:
+             - Sua porcentagem de comissão é: ${commissionRate}%.
+             - Informe SEMPRE o valor exato em Reais que ele ganha por produto, usando o cálculo enviado no contexto de cada produto: Preço x Sua Taxa.
+             - Se ele perguntar "quanto eu ganho", faça o cálculo na hora baseado no preço do produto.
+          5. INFORMAÇÃO COMPLETA DE PRODUTO: No site de afiliados, você tem permissão total para passar composição, como usar, benefícios e preços de TODOS os produtos. Seja um expert técnico.
+          6. LINKS: Sempre use o link dele (${window.location.origin}/?ref=${affiliateCode}) para ele divulgar.
+          7. TOM DE VOZ: Profissional, motivador e técnico.
           ` : `
           FLUXO DE VENDAS (IA VENDEDORA):
           - PÚBLICO: Clientes finais interessados em comprar.
