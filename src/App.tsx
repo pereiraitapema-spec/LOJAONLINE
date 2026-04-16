@@ -88,12 +88,12 @@ function AppContent() {
       setLoading(false); // Libera a UI imediatamente se tiver cache
     }
 
+    // 3. Consultas Paralelas Otimizadas - Timeout aumentado para 10s para redes móveis/Safari
     try {
-      // 3. Consultas Paralelas Otimizadas - Timeout reduzido para 5s
       const [profileRes, affiliateIdRes, affiliateEmailRes] = await Promise.all([
-        withTimeout(supabase.from('profiles').select('role, avatar_url').eq('id', userId).maybeSingle(), 5000),
-        withTimeout(supabase.from('affiliates').select('id, status, active, email, user_id').eq('user_id', userId).maybeSingle(), 5000),
-        email ? withTimeout(supabase.from('affiliates').select('id, status, active, user_id').eq('email', email).maybeSingle(), 5000) : Promise.resolve({ data: null, error: null })
+        withTimeout(supabase.from('profiles').select('role, avatar_url').eq('id', userId).maybeSingle(), 10000),
+        withTimeout(supabase.from('affiliates').select('id, status, active, email, user_id').eq('user_id', userId).maybeSingle(), 10000),
+        email ? withTimeout(supabase.from('affiliates').select('id, status, active, user_id').eq('email', email).maybeSingle(), 10000) : Promise.resolve({ data: null, error: null })
       ]);
 
       if (profileRes.error) throw profileRes.error;
@@ -161,13 +161,13 @@ function AppContent() {
     }
   };
 
-  // Safety timeout for loading state
+  // Safety timeout for loading state - Aumentado para 10s para garantir carregamento em Safari/iOS
   useEffect(() => {
     if (loading) {
       const timer = setTimeout(() => {
         console.warn('⚠️ Loading timeout reached, forcing UI release');
         setLoading(false);
-      }, 6000); 
+      }, 10000); 
       return () => clearTimeout(timer);
     }
   }, [loading]);
@@ -199,8 +199,8 @@ function AppContent() {
     };
     checkDB();
 
-    // 1. Pegar sessão inicial com timeout
-    withTimeout(supabase.auth.getSession(), 5000).then(async ({ data: { session } }) => {
+    // 1. Pegar sessão inicial com timeout de 10s
+    withTimeout(supabase.auth.getSession(), 10000).then(async ({ data: { session } }) => {
       setSession(session);
       
       const hash = window.location.hash;
@@ -241,32 +241,37 @@ function AppContent() {
       console.log('🔔 [AUTH] Evento:', event);
       setSession(session);
       
-      if (event === 'SIGNED_IN' && session) {
-        const cachedRole = localStorage.getItem('user_role');
-        if (cachedRole) {
-          setLoading(false);
-          syncUserSession(session).then(role => {
+      try {
+        if (event === 'SIGNED_IN' && session) {
+          const cachedRole = localStorage.getItem('user_role');
+          if (cachedRole) {
+            setLoading(false);
+            syncUserSession(session).then(role => {
+              handleRoleRedirect(session, role || undefined);
+            });
+          } else {
+            const role = await syncUserSession(session);
             handleRoleRedirect(session, role || undefined);
-          });
-        } else {
-          const role = await syncUserSession(session);
-          handleRoleRedirect(session, role || undefined);
-          setLoading(false);
-        }
+            setLoading(false);
+          }
 
-        if (!sessionStorage.getItem('lead_status_updated')) {
-          leadService.updateStatus('frio');
-          sessionStorage.setItem('lead_status_updated', 'true');
+          if (!sessionStorage.getItem('lead_status_updated')) {
+            leadService.updateStatus('frio');
+            sessionStorage.setItem('lead_status_updated', 'true');
+          }
         }
+      } catch (err) {
+        console.error('❌ [AUTH] Erro no onAuthStateChange:', err);
+      } finally {
+        setLoading(false);
       }
       
       if (event === 'SIGNED_OUT') {
         setUserRole(null);
         localStorage.removeItem('user_role');
         navigate('/login');
+        setLoading(false);
       }
-
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();

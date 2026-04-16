@@ -219,9 +219,27 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     setLoading(true);
     setLoadingMessage('Conectando ao Google...');
+    
+    // Abrir janela vazia IMEDIATAMENTE para evitar bloqueio do Safari
+    const width = 500;
+    const height = 600;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    const authWindow = window.open(
+      '',
+      'google_login',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    if (!authWindow) {
+      toast.error('O bloqueador de popups impediu a abertura da janela. Por favor, autorize popups para este site.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const origin = window.location.origin;
-      // Usar a rota do servidor /auth/callback em vez do arquivo estático
       const redirectTo = `${origin}/auth/callback`;
       
       console.log('🚀 Iniciando Google Login (Popup Flow):', redirectTo);
@@ -236,23 +254,13 @@ export default function Login() {
             prompt: 'consent',
           },
         }
-      }));
+      }), 15000); // Timeout de 15s para obter a URL
 
       if (error) throw error;
 
       if (data?.url) {
-        // Abrir em popup
-        const width = 500;
-        const height = 600;
-        const left = window.screenX + (window.outerWidth - width) / 2;
-        const top = window.screenY + (window.outerHeight - height) / 2;
+        authWindow.location.href = data.url;
         
-        const authWindow = window.open(
-          data.url,
-          'google_login',
-          `width=${width},height=${height},left=${left},top=${top}`
-        );
-
         // Verificar se o popup foi fechado pelo usuário
         const checkWindow = setInterval(() => {
           if (authWindow?.closed) {
@@ -260,10 +268,14 @@ export default function Login() {
             setLoading(false);
           }
         }, 1000);
+      } else {
+        authWindow.close();
+        throw new Error('Não foi possível obter a URL de autenticação.');
       }
       
     } catch (error: any) {
       console.error('❌ Erro no Google Login:', error);
+      if (authWindow) authWindow.close();
       toast.error(error.message || 'Erro ao iniciar login com Google.');
       setLoading(false);
     }
