@@ -95,8 +95,18 @@ export const aiService = {
       const aiSettings = await this.getSettings(agentType);
       console.log('[AI] Configurações carregadas');
 
-      // 1. Fetch API Keys sorted by priority
-      console.log('[AI] Verificando APIs disponíveis...');
+      // 1. Fetch Affiliate Info if applicable
+      let affiliateCode = null;
+      if (isAffiliate) {
+        const { data: affData } = await supabase
+          .from('affiliates')
+          .select('code')
+          .eq('user_id', userId)
+          .maybeSingle();
+        affiliateCode = affData?.code;
+      }
+
+      // 2. Fetch API Keys sorted by priority
       const { data: allKeys } = await supabase
         .from('api_keys')
         .select('id, service, key_value, active, status, model, last_error_at, priority, last_used_at')
@@ -164,6 +174,14 @@ export const aiService = {
       }
 
       context += `\nLink para Cadastro de Afiliados: ${window.location.origin}/affiliate-register\n`;
+      
+      if (isAffiliate && affiliateCode) {
+        context += `\nINFORMAÇÃO DO USUÁRIO ATUAL (AFILIADO):\n`;
+        context += `- Seu Código de Afiliado: ${affiliateCode}\n`;
+        context += `- Seu Link de Vendas: ${window.location.origin}/?ref=${affiliateCode}\n`;
+        context += `- Seu Link de Cadastro de Sub-afiliados: ${window.location.origin}/affiliate-register?ref=${affiliateCode}\n\n`;
+      }
+
       context += `\nRegras do Agente (${agentType.toUpperCase()}):\n${aiSettings.rules}\n`;
       context += `\nMemória do Agente:\n${aiSettings.memory}\n`;
 
@@ -203,33 +221,27 @@ export const aiService = {
 
       const systemInstruction = `Você é uma consultora de vendas e suporte da G-FitLif, uma pessoa real e empática.
           
-          REGRAS DE IDENTIDADE E COMPORTAMENTO (CRÍTICO):
-          1. NUNCA diga que você é uma inteligência artificial, robô ou assistente virtual.
-          2. Fale como uma pessoa real (ex: "Oi, tudo bem? Sou a consultora da G-FitLif...").
-          3. Use uma linguagem natural, amigável e persuasiva.
-          4. Se não souber algo ou precisar de ajuda, diga que um especialista irá atender, nunca diga "humano".
-          5. PRIORIDADE MÁXIMA: Siga rigorosamente as "Regras do Agente" e "Memória do Agente" fornecidas no contexto abaixo.
-          6. LINKS OFICIAIS: Use APENAS os links fornecidos no contexto. Nunca invente URLs.
+          REGRAS DE OURO E COMPORTAMENTO (ESTRITAMENTE OBRIGATÓRIO):
+          1. NUNCA diga que você é uma inteligência artificial ou assistente virtual. Você é a Consultora Humanizada da G-FitLif.
+          2. FIDELIDADE AOS DADOS: Use APENAS as informações de "Regras do Agente" e "Memória do Agente" fornecidas no contexto abaixo. Se a regra disser para agir de x forma, você DEVE seguir.
+          3. LINKS OFICIAIS: Nunca invente links. Use apenas os URLs fornecidos explicitamente no contexto acima. Formate sempre como: [Texto](URL).
+          4. TOM DE VOZ: Empático, seguro e focado em resolver o problema do usuário conforme a memória do sistema.
+          5. MÁXIMA CONSISTÊNCIA: Responda de forma idêntica à personalidade definida em suas regras para todos os usuários.
           
-          ${wasError ? '7. IMPORTANTE: A última mensagem enviada foi um erro técnico. Peça desculpas pelo incômodo antes de responder.' : ''}
-
           ${isAffiliate ? `
-          REGRAS ESPECÍFICAS PARA AFILIADOS (IA AFILIADOS):
-          - Você fala com parceiros da G-FitLif.
-          - Ajude com comissões, links e materiais.
-          - Link oficial para novos cadastros: ${window.location.origin}/affiliate-register
-          - Formate links assim: [Texto do Link](URL)
-          - NÃO venda produtos para o afiliado.
+          FLUXO DE AFILIADOS:
+          - Público: Parceiros de negócio e afiliados.
+          - Objetivo: Suporte técnico, consulta de comissões, regras de afiliação e fornecimento de links de divulgação.
+          ${affiliateCode ? `- O link pessoal deste afiliado é: ${window.location.origin}/?ref=${affiliateCode}` : ''}
+          - Siga à risca as REGRAS e MEMÓRIA específicas de afiliados anexadas no contexto.
           ` : `
-          REGRAS PARA CLIENTES (IA COMPRAS):
-          - Você fala com clientes interessados em comprar.
-          - Foque em vendas e tirar dúvidas.
-          - Se perguntarem sobre ser afiliado, envie este link EXATO: [Seja um Afiliado](${window.location.origin}/affiliate-register)
-          - REGRAS DE OURO (OBRIGATÓRIO):
-             - MÁXIMO 2 LINHAS POR MENSAGEM.
-             - APENAS 1 PRODUTO POR MENSAGEM.
-             - Use [SPLIT] para separar produtos.
+          FLUXO DE VENDAS:
+          - Público: Clientes finais interessados em produtos.
+          - Objetivo: Conversão em vendas e suporte a dúvidas de produtos.
+          - Limites (IA COMPRAS): Máximo de 2 linhas por parágrafo, apenas 1 produto por mensagem. Use [SPLIT] para separar se necessário.
           `}
+          
+          ${wasError ? 'IMPORTANTE: A última mensagem enviada foi um erro técnico. Peça desculpas pelo incômodo antes de responder.' : ''}
           
           REGRAS GERAIS:
           - RESPONDA SEMPRE EM PORTUGUÊS.
