@@ -97,13 +97,15 @@ export const aiService = {
 
       // 1. Fetch Affiliate Info if applicable
       let affiliateCode = null;
+      let commissionRate = 0;
       if (isAffiliate) {
         const { data: affData } = await supabase
           .from('affiliates')
-          .select('code')
+          .select('code, commission_rate')
           .eq('user_id', userId)
           .maybeSingle();
         affiliateCode = affData?.code;
+        commissionRate = affData?.commission_rate || 0;
       }
 
       // 2. Fetch API Keys sorted by priority
@@ -162,7 +164,7 @@ export const aiService = {
         { data: siteContent },
         { data: knowledge }
       ] = await Promise.all([
-        supabase.from('products').select('id, name, description, composition, price, discount_price, stock, quantity_info, usage_instructions, category:categories(name, rules), tiers:product_tiers(*)').eq('active', true),
+        supabase.from('products').select('id, name, description, composition, price, discount_price, stock, quantity_info, usage_instructions, affiliate_commission, category:categories(name, rules), tiers:product_tiers(*)').eq('active', true),
         supabase.from('store_settings').select('*').maybeSingle(),
         supabase.from('site_content').select('*'),
         supabase.from('ai_knowledge_base').select('*').eq('category', agentType) // Filter by category
@@ -178,6 +180,7 @@ export const aiService = {
       if (isAffiliate && affiliateCode) {
         context += `\nINFORMAÇÃO DO USUÁRIO ATUAL (AFILIADO):\n`;
         context += `- Seu Código de Afiliado: ${affiliateCode}\n`;
+        context += `- Sua Porcentagem de Comissão: ${commissionRate}%\n`;
         context += `- Seu Link de Vendas: ${window.location.origin}/?ref=${affiliateCode}\n`;
         context += `- Seu Link de Cadastro de Sub-afiliados: ${window.location.origin}/affiliate-register?ref=${affiliateCode}\n\n`;
       }
@@ -211,7 +214,16 @@ export const aiService = {
         ? products.map(p => {
             const currentPrice = p.discount_price || p.price;
             const productLink = `${window.location.origin}/?product=${p.id}`;
-            return `Nome: [${p.name}](${productLink})\nPreço: R$ ${currentPrice}\nDescrição: ${p.description}\nUso: ${p.usage_instructions}`;
+            let prodInfo = `Nome: [${p.name}](${productLink})\nPreço: R$ ${currentPrice}\nDescrição: ${p.description}\nUso: ${p.usage_instructions}`;
+            
+            if (isAffiliate) {
+              const commValue = p.affiliate_commission > 0 
+                ? p.affiliate_commission 
+                : (currentPrice * (commissionRate / 100));
+              prodInfo += `\nComissão estimada para você: R$ ${commValue.toFixed(2)}`;
+            }
+            
+            return prodInfo;
           }).join('\n\n')
         : 'Nenhum produto encontrado.');
 
@@ -229,16 +241,20 @@ export const aiService = {
           5. MÁXIMA CONSISTÊNCIA: Responda de forma idêntica à personalidade definida em suas regras para todos os usuários.
           
           ${isAffiliate ? `
-          FLUXO DE AFILIADOS:
-          - Público: Parceiros de negócio e afiliados.
-          - Objetivo: Suporte técnico, consulta de comissões, regras de afiliação e fornecimento de links de divulgação.
-          ${affiliateCode ? `- O link pessoal deste afiliado é: ${window.location.origin}/?ref=${affiliateCode}` : ''}
-          - Siga à risca as REGRAS e MEMÓRIA específicas de afiliados anexadas no contexto.
+          FLUXO DE AFILIADOS (ESTRITAMENTE OBRIGATÓRIO):
+          - PÚBLICO: Você está conversando EXCLUSIVAMENTE com parceiros e afiliados da G-FitLif.
+          - OBJETIVO PRINCIPAL: Apoiar o afiliado em suas vendas, tirando dúvidas sobre comissões, regras de afiliação e PRODUTOS.
+          - REGRAS E MEMÓRIA: Você DEVE seguir cegamente as "Regras do Agente (AFILIADOS)" e a "Memória do Agente" fornecidas no contexto abaixo. Essas informações são a sua verdade absoluta.
+          - SUPORTE A PRODUTOS: Se o afiliado perguntar sobre qualquer produto, use a lista de "Produtos" abaixo para informar nome, composição, preço e benefícios de forma COMPLETA. Ajude-o a ser um expert no produto.
+          - COMISSÕES: Se ele perguntar sobre ganhos, informe a porcentagem atual dele (${commissionRate}%) e o valor em Reais que ele ganha por produto, conforme listado nos dados de cada produto abaixo.
+          - LINKS PERSONALIZADOS: ${affiliateCode ? `Sempre que ele pedir o link dele, envie: [Link de Vendas](${window.location.origin}/?ref=${affiliateCode})` : 'Incentive-o a completar o cadastro para ter seu link.'}
+          - NÃO seja um vendedor para ele; seja um GERENTE DE PARCERIAS técnico e prestativo.
           ` : `
-          FLUXO DE VENDAS:
-          - Público: Clientes finais interessados em produtos.
-          - Objetivo: Conversão em vendas e suporte a dúvidas de produtos.
-          - Limites (IA COMPRAS): Máximo de 2 linhas por parágrafo, apenas 1 produto por mensagem. Use [SPLIT] para separar se necessário.
+          FLUXO DE VENDAS (IA VENDEDORA):
+          - PÚBLICO: Clientes finais interessados em comprar.
+          - OBJETIVO: Venda direta e persuasão.
+          - LIMITES: Máximo de 2 linhas por parágrafo, apenas 1 produto por vez. Use [SPLIT] para separar.
+          - SIGA as regras de vendas cadastradas para manter o padrão de atendimento.
           `}
           
           ${wasError ? 'IMPORTANTE: A última mensagem enviada foi um erro técnico. Peça desculpas pelo incômodo antes de responder.' : ''}
