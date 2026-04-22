@@ -670,9 +670,9 @@ export default function Checkout() {
           provider: 'Balcão',
           carrierName: 'Balcão'
         },
-        ...shippingMethods
+        ...shippingMethods.filter(m => m.id !== 'balcao' && !m.name.includes('BALCÃO'))
       ]
-    : shippingMethods;
+    : shippingMethods.filter(m => m.id !== 'balcao' && !m.name.includes('BALCÃO'));
 
   const isBalcao = couponCode?.toLowerCase() === "balcao" || (selectedShipping !== null && displayShippingMethods[selectedShipping]?.id === 'balcao');
 
