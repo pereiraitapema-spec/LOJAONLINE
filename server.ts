@@ -249,7 +249,7 @@ async function startServer() {
         altura: Math.max(maxHeight, 2).toString(),
         largura: Math.max(maxWidth, 11).toString(),
         comprimento: Math.max(maxLength, 16).toString(),
-        valor_encomenda: totalValue.toFixed(2)
+        valor_encomenda: Math.max(totalValue, 50).toFixed(2)
       };
 
       console.log("📦 Chamando CepCerto para cotação:", payload);

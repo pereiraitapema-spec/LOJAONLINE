@@ -370,8 +370,8 @@ const cepcertoProvider: ShippingProvider = {
       const finalW = Math.max(totalDim.w, 11);
       const finalL = Math.max(totalDim.l, 16);
       
-      // Valor da encomenda (padrão 50.00 se não informado)
-      const totalValue = packages.reduce((acc, p) => acc + (p.price || 0), 0) || 50;
+      // Valor da encomenda (padrão 50.00 como mínimo exigido por correios/transportadoras)
+      const totalValue = Math.max(packages.reduce((acc, p) => acc + (p.price || 0), 0), 50);
 
       // Tentar a nova API via POST primeiro
       try {
