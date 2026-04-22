@@ -986,8 +986,11 @@ export default function AffiliateDashboard() {
                   })
                   .map(product => {
                     const price = product.discount_price || product.price;
-                    // Use product specific commission or fallback to affiliate rate
-                    const rate = product.affiliate_commission || affiliate?.commission_rate || 0;
+                    // Sync logic with Checkout.tsx: Use Math.max between product rate and affiliate rate
+                    let rate = Math.max(product.affiliate_commission || 0, affiliate?.commission_rate || 0);
+                    // Default fallback if both are 0
+                    if (rate === 0) rate = 20;
+                    
                     const commission = (price * rate) / 100;
                     
                     return (

@@ -660,7 +660,7 @@ export default function Checkout() {
   }, [cartTotal, discountRules, campaigns, paymentMethod, isFirstPurchase, couponCode, affiliateCoupon]);
 
   const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
-  const displayShippingMethods = settings?.address && couponCode?.toUpperCase() === 'BALCAO' 
+  const displayShippingMethods = settings?.address && couponCode?.trim().toUpperCase() === 'BALCAO' 
     ? [
         {
           id: 'balcao',
@@ -670,11 +670,11 @@ export default function Checkout() {
           provider: 'Balcão',
           carrierName: 'Balcão'
         },
-        ...shippingMethods.filter(m => m.id !== 'balcao' && !m.name.includes('BALCÃO'))
+        ...shippingMethods.filter(m => m.id !== 'balcao' && !m.name.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('BALCAO'))
       ]
-    : shippingMethods.filter(m => m.id !== 'balcao' && !m.name.includes('BALCÃO'));
+    : shippingMethods.filter(m => m.id !== 'balcao' && !m.name.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('BALCAO'));
 
-  const isBalcao = couponCode?.toLowerCase() === "balcao" || (selectedShipping !== null && displayShippingMethods[selectedShipping]?.id === 'balcao');
+  const isBalcao = couponCode?.trim().toLowerCase() === "balcao" || (selectedShipping !== null && displayShippingMethods[selectedShipping]?.id === 'balcao');
 
   const currentShipping = selectedShipping !== null ? displayShippingMethods[selectedShipping] : null;
   console.log('DEBUG: cartTotal=', cartTotal, 'threshold=', settings?.free_shipping_threshold || 0, 'selectedShipping=', selectedShipping, 'currentShipping=', currentShipping);
@@ -1091,10 +1091,16 @@ export default function Checkout() {
         // Calculate commission per item based on the best rate for each product
         commissionValue = cart.reduce((acc, item) => {
           const unitPrice = item.product.discount_price || item.product.price;
-          const productRate = item.product.affiliate_commission || 0;
-          // Use the higher rate between affiliate's default and product's specific rate
-          let effectiveRate = Math.max(commissionRate, productRate);
+          const productSpecificRate = item.product.affiliate_commission;
           
+          // Se o produto tiver uma comissão específica (mesmo que 0), ela PREVALECE sobre a do afiliado
+          // Mas aqui a regra de negócio costuma ser Math.max para incentivar o afiliado
+          // O usuário reclamou que não está calculando certo, vamos usar Math.max para garantir o melhor ganho
+          let effectiveRate = Math.max(commissionRate || 0, productSpecificRate || 0);
+          
+          // Se for 0 em ambos, usamos o padrão de 20%
+          if (effectiveRate === 0) effectiveRate = 20;
+
           // If an affiliate coupon is used, deduct half of the discount percentage from the commission rate
           if (affiliateCoupon) {
             const commissionDeduction = affiliateCoupon.discount_percentage / 2;
@@ -1906,6 +1912,7 @@ export default function Checkout() {
                     >
                       <CreditCard size={20} />
                       <span className="font-bold text-xs text-center">Cartão</span>
+                      <span className="text-[10px] opacity-70 text-center">Até 12x</span>
                     </button>
                   </>
                 )}
@@ -1928,6 +1935,7 @@ export default function Checkout() {
                   >
                     <CreditCard size={20} />
                     <span className="font-bold text-xs">Cartão Crédito</span>
+                    <span className="text-[10px] opacity-70">Até 12x</span>
                   </button>
                 </div>
               )}

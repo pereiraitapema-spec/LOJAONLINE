@@ -33,16 +33,17 @@ const pagarmeProvider: PaymentProvider = {
               name: orderData.customer_name,
               email: orderData.customer_email,
               document: orderData.customer_document.replace(/\D/g, ''),
+              tax_id: orderData.customer_document.replace(/\D/g, ''),
               type: 'individual',
               phones: {
                 mobile_phone: {
                   country_code: '55',
-                  area_code: orderData.customer_phone.substring(0, 2),
-                  number: orderData.customer_phone.substring(2)
+                  area_code: orderData.customer_phone.replace(/\D/g, '').substring(0, 2),
+                  number: orderData.customer_phone.replace(/\D/g, '').substring(2)
                 }
               },
               address: {
-                line_1: orderData.shipping_address.street ? `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}` : 'Rua Fictícia, 123, Centro',
+                line_1: orderData.shipping_address.street ? `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood || ''}` : 'Rua Fictícia, 123, Centro',
                 zip_code: orderData.shipping_address.cep && orderData.shipping_address.cep.toUpperCase() !== 'BALCAO' ? orderData.shipping_address.cep.replace(/\D/g, '') : '01001000',
                 city: orderData.shipping_address.city || 'São Paulo',
                 state: orderData.shipping_address.state || 'SP',
@@ -53,9 +54,9 @@ const pagarmeProvider: PaymentProvider = {
               amount: Math.round((orderData.shipping_cost || 0) * 100),
               description: orderData.shipping_method || 'Entrega Padrão',
               recipient_name: orderData.customer_name,
-              recipient_phone: orderData.customer_phone,
+              recipient_phone: orderData.customer_phone.replace(/\D/g, ''),
               address: {
-                line_1: orderData.shipping_address.street ? `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}` : 'Rua Fictícia, 123, Centro',
+                line_1: orderData.shipping_address.street ? `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood || ''}` : 'Rua Fictícia, 123, Centro',
                 zip_code: orderData.shipping_address.cep && orderData.shipping_address.cep.toUpperCase() !== 'BALCAO' ? orderData.shipping_address.cep.replace(/\D/g, '') : '01001000',
                 city: orderData.shipping_address.city || 'São Paulo',
                 state: orderData.shipping_address.state || 'SP',
