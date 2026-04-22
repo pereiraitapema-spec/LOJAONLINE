@@ -601,7 +601,7 @@ export default function Checkout() {
       for (const rule of discountRules) {
         let apply = false;
 
-        if (rule.type === 'first_purchase' && isFirstPurchase) {
+        if (rule.type === 'first_purchase' && isFirstPurchase && cartTotal >= 50) {
           apply = true;
         } else if (rule.type === 'pix' && paymentMethod === 'pix') {
           apply = true;
@@ -627,7 +627,7 @@ export default function Checkout() {
           apply = true;
         } else if (trigger === 'min_value' && cartTotal >= (campaign.trigger_value || 0)) {
           apply = true;
-        } else if (trigger === 'first_purchase' && isFirstPurchase) {
+        } else if (trigger === 'first_purchase' && isFirstPurchase && cartTotal >= 50) {
           apply = true;
         }
 
