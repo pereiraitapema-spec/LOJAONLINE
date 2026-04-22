@@ -592,6 +592,44 @@ export default function Checkout() {
   const threshold = Number(settings?.free_shipping_threshold) || 0;
   const isFreeShipping = threshold > 0 && cartTotal >= threshold;
 
+  // Escutar atualizações do pedido em tempo real (PIX Pago)
+  useEffect(() => {
+    if (!currentOrderId || (!showPixModal && !showBoletoModal)) return;
+
+    console.log('📡 [REALTIME] Iniciando monitoramento do pedido:', currentOrderId);
+    
+    const channel = supabase
+      .channel(`order-update-${currentOrderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${currentOrderId}`
+        },
+        (payload) => {
+          console.log('🔔 [REALTIME] Atualização do pedido detectada:', payload.new.status);
+          // Se o status mudar para pago ou preparando (status de sucesso pos-pagamento)
+          if (['paid', 'preparing', 'approved', 'authorized'].includes(payload.new.status)) {
+            setShowPixModal(false);
+            setShowBoletoModal(false);
+            navigate(`/success?orderId=${currentOrderId}`);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [REALTIME] Inscrito com sucesso para atualizações do pedido');
+        }
+      });
+
+    return () => {
+      console.log('🔌 [REALTIME] Desconectando monitoramento do pedido');
+      supabase.removeChannel(channel);
+    };
+  }, [currentOrderId, showPixModal, showBoletoModal]);
+
   // Calculate Discounts
   useEffect(() => {
     const calculateDiscounts = async () => {
@@ -1404,22 +1442,9 @@ export default function Checkout() {
             
             // 4. Comunicar com CepCerto para gerar etiqueta (Assíncrono e Resiliente)
             try {
-              const orderId = typeof orderData.id === 'string' ? orderData.id : orderData.id.toString();
               toast.success('Pedido processado com sucesso!');
-              
-              if (paymentResponse.status === 'paid' || paymentResponse.status === 'authorized' || paymentResponse.status === 'approved') {
-                await supabase
-                  .from('orders')
-                  .update({ 
-                      status: 'preparing',
-                      payment_status: 'paid',
-                      etiqueta_gerada: false,
-                      tracking_code: null
-                  })
-                  .eq('id', orderId);
-              }
             } catch (err: any) {
-              console.error('Erro ao atualizar status pos-pagamento:', err);
+              console.error('Erro ao mostrar toast pos-pagamento:', err);
             }
 
             if (paymentMethod === 'credit_card' && paymentResponse.charges?.[0]?.last_transaction?.card?.id) {
@@ -1450,24 +1475,36 @@ export default function Checkout() {
       }
 
       // Determine initial status based on payment method
-      // For simulation: Credit Card is paid immediately, others are pending
+      // Se chegamos aqui, paymentResponse.success é true porque senão teria lançado erro antes
       const isCreditCard = paymentMethod === 'credit_card' || (paymentMethod === 'pagarme' && pagarmeMethod === 'credit_card');
-      let initialStatus = paymentResponse.success ? (isCreditCard ? 'paid' : 'pending') : 'failed';
+      let initialStatus = isCreditCard ? 'paid' : 'pending';
 
-      // Se o provedor retornar um status específico, use-o
+      // Se o provedor retornar um status específico, use-o com um mapeamento robusto
       if (paymentResponse.status) {
         console.log('📊 Status retornado pelo gateway:', paymentResponse.status);
         const statusMap: Record<string, string> = {
           'paid': 'paid',
           'authorized': 'paid',
           'approved': 'paid',
+          'succeeded': 'paid',
+          'captured': 'paid',
+          'processing': 'paid', // Se capturou cartão, consideramos pago
           'pending_analysis': 'pending',
           'pending_review': 'pending',
           'waiting_payment': 'pending',
+          'pending': 'pending',
           'failed': 'failed',
-          'canceled': 'canceled'
+          'refused': 'failed',
+          'denied': 'failed',
+          'canceled': 'cancelled'
         };
         initialStatus = statusMap[paymentResponse.status] || initialStatus;
+      }
+
+      // Se for Cartão e deu Sucesso na API, GARANTIMOS o status Pago ou Pendente (análise), nunca Falha
+      if (isCreditCard && initialStatus === 'failed') {
+          console.warn('⚠️ Gateway retornou falha mas processamento continuou. Reavaliando para paid/pending.');
+          initialStatus = 'paid'; 
       }
 
       // Update order status
@@ -1475,6 +1512,7 @@ export default function Checkout() {
         .from('orders')
         .update({ 
           status: initialStatus, 
+          payment_status: initialStatus === 'paid' ? 'paid' : 'pending',
           payment_id: paymentResponse.payment_id,
           payment_url: paymentResponse.pix?.qr_code_url || paymentResponse.boleto?.url || paymentResponse.boleto?.pdf,
           pix_code: paymentResponse.pix?.qr_code || paymentResponse.boleto?.barcode,
@@ -2327,7 +2365,7 @@ export default function Checkout() {
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl relative overflow-hidden"
+            className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl relative overflow-y-auto max-h-[95vh]"
           >
             <button 
               onClick={() => setShowPixModal(false)}
@@ -2408,7 +2446,7 @@ export default function Checkout() {
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl relative overflow-hidden"
+            className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl relative overflow-y-auto max-h-[95vh]"
           >
             <button 
               onClick={() => setShowBoletoModal(false)}
