@@ -660,17 +660,19 @@ export default function Checkout() {
   }, [cartTotal, discountRules, campaigns, paymentMethod, isFirstPurchase, couponCode, affiliateCoupon]);
 
   const totalDiscount = appliedDiscounts.reduce((acc, d) => acc + d.value, 0);
-      const displayShippingMethods = [
-    ...(settings?.address && couponCode?.toUpperCase() === 'BALCAO' ? [{
-      id: 'balcao',
-      name: 'RETIRADA NO BALCÃO',
-      price: 0,
-      deadline: 'Retirada imediata',
-      provider: 'Balcão',
-      carrierName: 'Balcão'
-    }] : []),
-    ...shippingMethods
-  ];
+  const displayShippingMethods = settings?.address && couponCode?.toUpperCase() === 'BALCAO' 
+    ? [
+        {
+          id: 'balcao',
+          name: 'RETIRADA NO BALCÃO',
+          price: 0,
+          deadline: 'Retirada imediata',
+          provider: 'Balcão',
+          carrierName: 'Balcão'
+        },
+        ...shippingMethods
+      ]
+    : shippingMethods;
 
   const isBalcao = couponCode?.toLowerCase() === "balcao" || (selectedShipping !== null && displayShippingMethods[selectedShipping]?.id === 'balcao');
 

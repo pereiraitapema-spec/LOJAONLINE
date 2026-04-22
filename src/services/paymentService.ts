@@ -159,15 +159,15 @@ const pagarmeProvider: PaymentProvider = {
             // Tenta extrair de várias formas possíveis baseadas na API V5
             const details = transaction.transaction_details || {};
             pixData = {
-              qr_code: details.qr_code || transaction.qr_code || data.pix?.qr_code,
-              qr_code_url: details.qr_code_url || transaction.qr_code_url || data.pix?.qr_code_url,
-              expires_at: transaction.expires_at || data.pix?.expires_at
+              qr_code: details.qr_code || transaction.qr_code || data.pix?.qr_code || data.charges[0].pix?.qr_code || (data.payments?.[0]?.pix?.qr_code),
+              qr_code_url: details.qr_code_url || transaction.qr_code_url || data.pix?.qr_code_url || data.charges[0].pix?.qr_code_url || (data.payments?.[0]?.pix?.qr_code_url),
+              expires_at: transaction.expires_at || data.pix?.expires_at || data.charges[0].pix?.expires_at
             };
             console.log('✅ PIX Extraído:', pixData);
           }
-        } else if (data.pix) {
+        } else if (data.pix || data.payments?.[0]?.pix) {
             // Fallback
-            pixData = data.pix;
+            pixData = data.pix || data.payments?.[0]?.pix;
             console.log('✅ PIX Extraído (Fallback):', pixData);
         }
 
