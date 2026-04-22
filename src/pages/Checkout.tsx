@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, formatPhone, formatCPF } from '../lib/utils';
+import { isValidDocument } from '../lib/validation';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
 import { 
@@ -22,7 +23,6 @@ import {
   ExternalLink,
   Ticket
 } from 'lucide-react';
-import { isValidDocument } from '../lib/validation';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
 import { cepService } from '../services/cepService';
@@ -989,35 +989,98 @@ export default function Checkout() {
   const handleCheckout = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     
-    if (!customer.name || !customer.email || !customer.phone || !customer.document) {
-      toast.error('Preencha todos os dados pessoais.');
+    // Validação Detalhada (Conforme solicitado pelo usuário)
+    if (!customer.name) {
+      toast.error('O campo NOME é obrigatório.');
+      const el = document.getElementById('customer-name');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.focus();
+      return;
+    }
+    if (!customer.email) {
+      toast.error('O campo E-MAIL é obrigatório.');
+      const el = document.getElementById('customer-email');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.focus();
+      return;
+    }
+    if (!customer.document) {
+      toast.error('O campo CPF/CNPJ é obrigatório.');
+      const el = document.getElementById('customer-document');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.focus();
+      return;
+    }
+    if (!isValidDocument(customer.document)) {
+      toast.error('O CPF/CNPJ informado é inválido.');
+      return;
+    }
+    if (!customer.phone) {
+      toast.error('O campo TELEFONE é obrigatório.');
+      const el = document.getElementById('customer-phone');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.focus();
+      return;
+    }
+    if (customer.phone.replace(/\D/g, '').length < 10) {
+      toast.error('Informe um telefone válido com DDD.');
       return;
     }
 
-    if (!isBalcao && (!shipping.cep || !shipping.street || !shipping.number || !shipping.city || !shipping.state)) {
-      toast.error('Preencha todos os campos obrigatórios do endereço.');
-      return;
-    }
-
-    if (!isBalcao && selectedShipping === null && !isFreeShipping && shippingMethods.length > 0) {
-      alert("Selecione o tipo de entrega antes de finalizar a compra");
-      return;
-    }
-
-    if (paymentMethod === 'credit_card') {
-      if (!cardData.number || !cardData.name || !cardData.expiry || !cardData.cvv) {
-        toast.error('Preencha todos os dados do cartão.');
+    if (!isBalcao) {
+      if (!shipping.cep) {
+        toast.error('O campo CEP é obrigatório.');
+        return;
+      }
+      if (!shipping.street) {
+        toast.error('O campo RUA/AVENIDA é obrigatório.');
+        return;
+      }
+      if (!shipping.number) {
+        toast.error('O campo NÚMERO é obrigatório.');
+        return;
+      }
+      if (!shipping.city) {
+        toast.error('O campo CIDADE é obrigatório.');
+        return;
+      }
+      if (!shipping.state) {
+        toast.error('O campo ESTADO é obrigatório.');
+        return;
+      }
+      
+      if (selectedShipping === null && !isFreeShipping && shippingMethods.length > 0) {
+        toast.error("Por favor, selecione uma opção de frete.");
         return;
       }
     }
 
-    if (!paymentMethod) {
+    if (paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card') {
+      if (!cardData.number) {
+        toast.error('Número do cartão é obrigatório.');
+        return;
+      }
+      if (!cardData.name) {
+        toast.error('Nome no cartão é obrigatório.');
+        return;
+      }
+      if (!cardData.expiry) {
+        toast.error('Data de validade do cartão é obrigatória.');
+        return;
+      }
+      if (!cardData.cvv) {
+        toast.error('Código CVV do cartão é obrigatório.');
+        return;
+      }
+    }
+
+    if (finalTotal > 0 && !paymentMethod) {
       toast.error('Por favor, selecione uma forma de pagamento.');
       return;
     }
 
-    if (paymentMethod === 'pagarme' && !pagarmeMethod) {
-      toast.error('Por favor, selecione o método de pagamento do Pagar.me (PIX ou Cartão).');
+    if (finalTotal > 0 && paymentMethod === 'pagarme' && !pagarmeMethod) {
+      toast.error('Por favor, selecione se deseja PIX ou Cartão no Pagar.me.');
       return;
     }
 
@@ -1478,7 +1541,11 @@ export default function Checkout() {
       };
 
       if (paymentResponse.pix) {
-        console.log('🔍 Dados do PIX recebidos:', paymentResponse.pix);
+        console.log('✅ [DEBUG CHECKOUT] Dados do PIX recebidos:', paymentResponse.pix);
+        if (!paymentResponse.pix.qr_code && !paymentResponse.pix.qr_code_url) {
+          console.error('❌ [DEBUG CHECKOUT] Resposta do PIX veio vazia de dados essenciais.');
+          toast.error('O gateway gerou o PIX mas não retornou o código. Por favor, verifique se o PIX está ativado no seu painel Pagar.me.');
+        }
         triggerPostPurchaseActions();
         setPixData(paymentResponse.pix);
         setCurrentOrderId(orderData.id);
@@ -1580,6 +1647,7 @@ export default function Checkout() {
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-slate-700 mb-1">Nome Completo / Razão Social *</label>
                   <input 
+                    id="customer-name"
                     type="text" 
                     value={customer.name}
                     onChange={e => setCustomer({...customer, name: e.target.value})}
@@ -1591,6 +1659,7 @@ export default function Checkout() {
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">E-mail *</label>
                   <input 
+                    id="customer-email"
                     type="email" 
                     value={customer.email}
                     onChange={e => setCustomer({...customer, email: e.target.value})}
@@ -1602,12 +1671,13 @@ export default function Checkout() {
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">CPF / CNPJ *</label>
                   <input 
+                    id="customer-document"
                     type="text" 
                     value={customer.document}
-                    onChange={e => setCustomer({...customer, document: e.target.value})}
+                    onChange={e => setCustomer({...customer, document: formatCPF(e.target.value)})}
                     onBlur={handleDocumentBlur}
                     placeholder="000.000.000-00"
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
                     required
                   />
                 </div>
@@ -1616,17 +1686,18 @@ export default function Checkout() {
                   <input 
                     type="text" 
                     placeholder="000.000.000.000"
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
                   />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-slate-700 mb-1">Telefone / WhatsApp *</label>
                   <input 
+                    id="customer-phone"
                     type="text" 
                     value={customer.phone}
-                    onChange={e => setCustomer({...customer, phone: e.target.value})}
-                    placeholder="(00) 00000-0000"
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    onChange={e => setCustomer({...customer, phone: formatPhone(e.target.value)})}
+                    placeholder="(00) 9 0000-0000"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
                     required
                   />
                 </div>

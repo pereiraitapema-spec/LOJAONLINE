@@ -34,12 +34,14 @@ const pagarmeProvider: PaymentProvider = {
               email: orderData.customer_email,
               document: orderData.customer_document.replace(/\D/g, ''),
               tax_id: orderData.customer_document.replace(/\D/g, ''),
-              type: 'individual',
+              type: orderData.customer_document.replace(/\D/g, '').length > 11 ? 'company' : 'individual',
               phones: {
                 mobile_phone: {
                   country_code: '55',
                   area_code: orderData.customer_phone.replace(/\D/g, '').substring(0, 2),
-                  number: orderData.customer_phone.replace(/\D/g, '').substring(2)
+                  number: orderData.customer_phone.replace(/\D/g, '').length > 10 
+                    ? orderData.customer_phone.replace(/\D/g, '').substring(2)
+                    : orderData.customer_phone.replace(/\D/g, '')
                 }
               },
               address: {
@@ -154,34 +156,44 @@ const pagarmeProvider: PaymentProvider = {
         // Log detalhado para depuração
         console.log('🔍 RAW RESPONSE DO GATEWAY:', JSON.stringify(data, null, 2));
 
-        if (data.charges?.[0]?.last_transaction) {
-          const transaction = data.charges[0].last_transaction;
-          if (orderData.payment_method === 'pix') {
-            // Tenta extrair de várias formas possíveis baseadas na API V5
-            // No Pagar.me V5, os dados do PIX costumam estar em last_transaction
-            pixData = {
-              qr_code: 
-                transaction.qr_code || 
-                transaction.transaction_details?.qr_code || 
-                data.pix?.qr_code || 
-                data.charges?.[0]?.pix?.qr_code || 
-                data.payments?.[0]?.pix?.qr_code ||
-                (data as any).qr_code,
-              qr_code_url: 
-                transaction.qr_code_url || 
-                transaction.transaction_details?.qr_code_url || 
-                data.pix?.qr_code_url || 
-                data.charges?.[0]?.pix?.qr_code_url || 
-                data.payments?.[0]?.pix?.qr_code_url ||
-                (data as any).qr_code_url,
-              expires_at: transaction.expires_at || data.pix?.expires_at || data.charges?.[0]?.pix?.expires_at
-            };
-            console.log('✅ PIX Extraído:', pixData);
+        if (orderData.payment_method === 'pix') {
+          // Tenta extrair de várias formas possíveis baseadas na API V5
+          // No Pagar.me V5, os dados do PIX costumam estar em last_transaction ou em um objeto pix na raiz do payment
+          const transaction = data.charges?.[0]?.last_transaction || data.last_transaction || {};
+          const payment = data.payments?.[0] || {};
+          const pixFromPayment = payment.pix || {};
+          const pixFromCharge = data.charges?.[0]?.pix || {};
+
+          pixData = {
+            qr_code: 
+              transaction.qr_code || 
+              transaction.transaction_details?.qr_code || 
+              pixFromPayment.qr_code ||
+              pixFromCharge.qr_code ||
+              data.pix?.qr_code || 
+              (data as any).qr_code,
+            qr_code_url: 
+              transaction.qr_code_url || 
+              transaction.transaction_details?.qr_code_url || 
+              pixFromPayment.qr_code_url ||
+              pixFromCharge.qr_code_url ||
+              data.pix?.qr_code_url || 
+              (data as any).qr_code_url,
+            expires_at: 
+              transaction.expires_at || 
+              pixFromPayment.expires_at || 
+              pixFromCharge.expires_at || 
+              data.pix?.expires_at
+          };
+          
+          if (!pixData.qr_code && !pixData.qr_code_url) {
+             console.warn('⚠️ Não foi possível encontrar dados do PIX na resposta.', JSON.stringify(data));
+             // Fallback total se algo estiver na raiz
+             if ((data as any).qr_code) pixData.qr_code = (data as any).qr_code;
+             if ((data as any).qr_code_url) pixData.qr_code_url = (data as any).qr_code_url;
           }
-        } else if (data.pix || data.payments?.[0]?.pix) {
-            // Fallback
-            pixData = data.pix || data.payments?.[0]?.pix;
-            console.log('✅ PIX Extraído (Fallback):', pixData);
+          
+          console.log('✅ PIX Extraído Final:', pixData);
         }
 
         return { 
@@ -194,7 +206,17 @@ const pagarmeProvider: PaymentProvider = {
       }
       
       await logApiCall('pagarme', '/orders', duration, false, data.message || 'Erro no processamento.');
-      return { success: false, error: data.message || 'Erro no processamento.' };
+      
+      let errorMsg = data.message || 'Erro no processamento.';
+      if (data.errors) {
+        errorMsg += ' Detalhes: ' + Object.keys(data.errors).map(key => `${key}: ${data.errors[key]}`).join(', ');
+      }
+      
+      if (errorMsg.toLowerCase().includes('forbidden') || errorMsg.toLowerCase().includes('authorized')) {
+        errorMsg = 'Acesso negado pelo Pagar.me. Verifique se o método de pagamento (PIX ou Cartão) está habilitado na sua conta Pagar.me e se a API Key é de Produção (sk_live).';
+      }
+
+      return { success: false, error: errorMsg };
     } catch (err: any) {
       if (err.name === 'AbortError') {
         console.error('⏱️ Timeout: O processamento do pagamento demorou mais de 60s.');
@@ -240,8 +262,15 @@ const providers: Record<string, PaymentProvider> = {
 
 export const paymentService = {
   async processPayment(provider: string, orderData: any, gatewayConfig: any) {
-    const paymentProvider = providers[provider];
-    if (!paymentProvider) throw new Error(`Provedor ${provider} não suportado.`);
+    const normalizedProvider = provider.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const paymentProvider = providers[normalizedProvider];
+    
+    if (!paymentProvider) {
+      console.error(`❌ Provedor não suportado: "${provider}" (normalizado como: "${normalizedProvider}")`);
+      console.log('📡 Provedores disponíveis:', Object.keys(providers));
+      throw new Error(`Provedor ${provider} não suportado pelo sistema de check-out.`);
+    }
+    
     return paymentProvider.processPayment(orderData, gatewayConfig);
   }
 };

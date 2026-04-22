@@ -17,16 +17,19 @@ export const formatDate = (dateString: string) => {
 
 export const formatCPF = (cpf: string) => {
   const clean = cpf.replace(/\D/g, '');
-  if (clean.length === 11) {
-    return clean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-  }
-  return cpf;
+  if (clean.length > 11) return formatCNPJ(clean);
+  return clean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+};
+
+export const formatCNPJ = (cnpj: string) => {
+  const clean = cnpj.replace(/\D/g, '');
+  return clean.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
 };
 
 export const formatPhone = (phone: string) => {
   const clean = phone.replace(/\D/g, '');
   if (clean.length === 11) {
-    return clean.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    return clean.replace(/(\d{2})(\d{1})(\d{4})(\d{4})/, '($1) $2 $3-$4');
   }
   if (clean.length === 10) {
     return clean.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
