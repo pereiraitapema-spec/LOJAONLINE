@@ -158,11 +158,23 @@ const pagarmeProvider: PaymentProvider = {
           const transaction = data.charges[0].last_transaction;
           if (orderData.payment_method === 'pix') {
             // Tenta extrair de várias formas possíveis baseadas na API V5
-            const details = transaction.transaction_details || {};
+            // No Pagar.me V5, os dados do PIX costumam estar em last_transaction
             pixData = {
-              qr_code: details.qr_code || transaction.qr_code || data.pix?.qr_code || data.charges[0].pix?.qr_code || (data.payments?.[0]?.pix?.qr_code),
-              qr_code_url: details.qr_code_url || transaction.qr_code_url || data.pix?.qr_code_url || data.charges[0].pix?.qr_code_url || (data.payments?.[0]?.pix?.qr_code_url),
-              expires_at: transaction.expires_at || data.pix?.expires_at || data.charges[0].pix?.expires_at
+              qr_code: 
+                transaction.qr_code || 
+                transaction.transaction_details?.qr_code || 
+                data.pix?.qr_code || 
+                data.charges?.[0]?.pix?.qr_code || 
+                data.payments?.[0]?.pix?.qr_code ||
+                (data as any).qr_code,
+              qr_code_url: 
+                transaction.qr_code_url || 
+                transaction.transaction_details?.qr_code_url || 
+                data.pix?.qr_code_url || 
+                data.charges?.[0]?.pix?.qr_code_url || 
+                data.payments?.[0]?.pix?.qr_code_url ||
+                (data as any).qr_code_url,
+              expires_at: transaction.expires_at || data.pix?.expires_at || data.charges?.[0]?.pix?.expires_at
             };
             console.log('✅ PIX Extraído:', pixData);
           }

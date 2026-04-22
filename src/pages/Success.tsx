@@ -181,6 +181,7 @@ export default function Success() {
                         src={order.payment_url || ''} 
                         alt="QR Code PIX" 
                         className="w-full h-full"
+                        referrerPolicy="no-referrer"
                       />
                     </div>
                     <div className="w-full">

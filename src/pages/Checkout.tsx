@@ -19,7 +19,8 @@ import {
   Copy,
   X,
   Store,
-  ExternalLink
+  ExternalLink,
+  Ticket
 } from 'lucide-react';
 import { isValidDocument } from '../lib/validation';
 import { toast } from 'react-hot-toast';
@@ -1264,125 +1265,125 @@ export default function Checkout() {
       // 3. Process Payment Gateway
       console.log('🚀 [DEBUG CHECKOUT] Iniciando processamento de pagamento...');
       
-      // TORNAR A VERIFICAÇÃO DE ROLE NÃO-BLOQUEANTE
-      let activeGateway = gateways.find(g => g.id === selectedGateway);
-      
-      // Se o gateway não foi encontrado, tentamos buscar novamente ou usamos um padrão
-      if (!activeGateway && gateways.length > 0) {
-          console.warn('⚠️ [DEBUG CHECKOUT] Gateway não encontrado inicialmente, usando primeiro disponível.');
-          activeGateway = gateways[0];
-      }
-      
-      console.log('🔍 [DEBUG CHECKOUT] Gateway ativo:', activeGateway);
       let paymentResponse: any = null;
       let finalTrackingCode: string | null = null;
 
-      if (activeGateway) {
-        console.log('✅ [DEBUG CHECKOUT] Gateway encontrado, processando...');
-        
-        // Validação de CPF/CNPJ
-        const document = customer.document.replace(/\D/g, '');
-        if (!document) {
-          console.error('❌ [DEBUG CHECKOUT] CPF/CNPJ obrigatório.');
-          toast.error('CPF ou CNPJ é obrigatório para finalizar o pagamento.');
-          setProcessing(false);
-          return;
-        }
-
-        try {
-          console.log('💳 Iniciando processamento de pagamento real...');
-          console.log('DEBUG pagamento enviado:', { customer_name: customer.name, customer_document: document });
-          
-          paymentResponse = await paymentService.processPayment(activeGateway.provider, {
-            items: cart.map(item => ({
-              price: item.product.discount_price || item.product.price,
-              product_name: item.product.name,
-              quantity: item.quantity,
-              product_id: item.product.id
-            })),
-            customer_name: customer.name,
-            customer_email: customer.email,
-            customer_phone: customer.phone.replace(/\D/g, ''),
-            customer_document: document,
-            shipping_address: shipping,
-            shipping_cost: shippingCost,
-            shipping_method: currentShipping?.name,
-            payment_method: pagarmeMethod || paymentMethod,
-            card_number: cardData.number.replace(/\D/g, ''),
-            card_name: cardData.name,
-            expiry: cardData.expiry,
-            cvv: cardData.cvv,
-            installments: cardData.installments,
-            order_id: orderData.id
-          }, activeGateway.config);
-
-          console.log('📡 Resposta do processamento de pagamento:', paymentResponse);
-
-          if (!paymentResponse.success) {
-            throw new Error(paymentResponse.error || 'Erro ao processar pagamento com Pagar.me');
-          }
-
-          // ATUALIZAÇÃO REMOVIDA: Não forçar status 'paid' no Supabase. 
-          // O status será atualizado via Webhook.
-          console.log('🔄 [DEBUG CHECKOUT] Aguardando confirmação via Webhook para atualizar status.');
-          
-          // O fluxo continua para geração de etiqueta (que agora tem verificação de pagamento)
-          // Se o pagamento ainda não foi confirmado pelo webhook, a geração da etiqueta falhará
-          // e o cliente será informado.
-
-          // 4. Comunicar com CepCerto para gerar etiqueta (Assíncrono e Resiliente)
-          try {
-            const orderId = typeof orderData.id === 'string' ? orderData.id : orderData.id.toString();
-            
-            // Feedback imediato ao cliente
-            toast.success('Pagamento aprovado com sucesso! Seu pedido está sendo preparado.');
-            
-            // Atualizar status do pedido no Supabase
-            console.log("LOG — Pagamento aprovado");
-            console.log("LOG — Pedido marcado como preparando");
-            console.log("LOG — Etiqueta automática desativada");
-            
-            await supabase
-              .from('orders')
-              .update({ 
-                  status: 'preparing',
-                  payment_status: 'paid',
-                  etiqueta_gerada: false,
-                  tracking_code: null
-              })
-              .eq('id', orderId);
-            
-          } catch (err: any) {
-            console.error('Erro ao iniciar processo assíncrono:', err);
-          }
-          // O fluxo continua normalmente aqui, independentemente do sucesso da etiqueta
-
-          // Salvar cartão se for cartão de crédito
-          if (paymentMethod === 'credit_card' && paymentResponse.charges?.[0]?.last_transaction?.card?.id) {
-            try {
-              const card = paymentResponse.charges[0].last_transaction.card;
-              await supabase.from('saved_cards').insert({
-                user_id: currentUserId,
-                card_id: card.id,
-                brand: card.brand,
-                last_four_digits: card.last_four_digits
-              });
-            } catch (cardErr) {
-              console.warn('⚠️ Erro ao salvar cartão (não crítico):', cardErr);
-            }
-          }
-
-        } catch (err: any) {
-          console.error('❌ Erro no processamento de pagamento:', err);
-          toast.error(`Erro no pagamento: ${err.message}`);
-          setProcessing(false);
-          return;
-        }
+      // SE O TOTAL FOR ZERO (Cupom de 100%), BYPASS GATEWAY
+      if (finalTotal <= 0) {
+        console.log('🎁 Pedido com 100% de desconto. Pulando gateway.');
+        paymentResponse = { 
+          success: true, 
+          status: 'paid',
+          payment_id: 'FREE_ORDER_' + Date.now()
+        };
       } else {
-        console.error('❌ Nenhum gateway de pagamento ativo configurado.');
-        toast.error('Nenhum gateway de pagamento ativo configurado.');
-        setProcessing(false);
-        return;
+        // TORNAR A VERIFICAÇÃO DE ROLE NÃO-BLOQUEANTE
+        let activeGateway = gateways.find(g => g.id === selectedGateway);
+        
+        // Se o gateway não foi encontrado, tentamos buscar novamente ou usamos um padrão
+        if (!activeGateway && gateways.length > 0) {
+            console.warn('⚠️ [DEBUG CHECKOUT] Gateway não encontrado inicialmente, usando primeiro disponível.');
+            activeGateway = gateways[0];
+        }
+        
+        console.log('🔍 [DEBUG CHECKOUT] Gateway ativo:', activeGateway);
+        
+        if (activeGateway) {
+          console.log('✅ [DEBUG CHECKOUT] Gateway encontrado, processando...');
+          
+          // Validação de CPF/CNPJ
+          const document = customer.document.replace(/\D/g, '');
+          if (!document) {
+            console.error('❌ [DEBUG CHECKOUT] CPF/CNPJ obrigatório.');
+            toast.error('CPF ou CNPJ é obrigatório para finalizar o pagamento.');
+            setProcessing(false);
+            return;
+          }
+
+          try {
+            console.log('💳 Iniciando processamento de pagamento real...');
+            console.log('DEBUG pagamento enviado:', { customer_name: customer.name, customer_document: document });
+            
+            paymentResponse = await paymentService.processPayment(activeGateway.provider, {
+              items: cart.map(item => ({
+                price: item.product.discount_price || item.product.price,
+                product_name: item.product.name,
+                quantity: item.quantity,
+                product_id: item.product.id
+              })),
+              customer_name: customer.name,
+              customer_email: customer.email,
+              customer_phone: customer.phone.replace(/\D/g, ''),
+              customer_document: document,
+              shipping_address: shipping,
+              shipping_cost: shippingCost,
+              shipping_method: currentShipping?.name,
+              payment_method: pagarmeMethod || paymentMethod,
+              card_number: cardData.number.replace(/\D/g, ''),
+              card_name: cardData.name,
+              expiry: cardData.expiry,
+              cvv: cardData.cvv,
+              installments: cardData.installments,
+              order_id: orderData.id
+            }, activeGateway.config);
+
+            console.log('📡 Resposta do processamento de pagamento:', paymentResponse);
+
+            if (!paymentResponse.success) {
+              throw new Error(paymentResponse.error || 'Erro ao processar pagamento com Pagar.me');
+            }
+            
+            // ... resto do processamento (Webhook, Cartão salvo) ...
+            // (Mantenho a lógica original aqui dentro)
+            
+            // Webhook feedback
+            console.log('🔄 [DEBUG CHECKOUT] Aguardando confirmação via Webhook para atualizar status.');
+            
+            // 4. Comunicar com CepCerto para gerar etiqueta (Assíncrono e Resiliente)
+            try {
+              const orderId = typeof orderData.id === 'string' ? orderData.id : orderData.id.toString();
+              toast.success('Pedido processado com sucesso!');
+              
+              if (paymentResponse.status === 'paid' || paymentResponse.status === 'authorized' || paymentResponse.status === 'approved') {
+                await supabase
+                  .from('orders')
+                  .update({ 
+                      status: 'preparing',
+                      payment_status: 'paid',
+                      etiqueta_gerada: false,
+                      tracking_code: null
+                  })
+                  .eq('id', orderId);
+              }
+            } catch (err: any) {
+              console.error('Erro ao atualizar status pos-pagamento:', err);
+            }
+
+            if (paymentMethod === 'credit_card' && paymentResponse.charges?.[0]?.last_transaction?.card?.id) {
+              try {
+                const card = paymentResponse.charges[0].last_transaction.card;
+                await supabase.from('saved_cards').insert({
+                  user_id: currentUserId,
+                  card_id: card.id,
+                  brand: card.brand,
+                  last_four_digits: card.last_four_digits
+                });
+              } catch (cardErr) {
+                console.warn('⚠️ Erro ao salvar cartão (não crítico):', cardErr);
+              }
+            }
+          } catch (err: any) {
+            console.error('❌ Erro no processamento de pagamento:', err);
+            toast.error(`Erro no pagamento: ${err.message}`);
+            setProcessing(false);
+            return;
+          }
+        } else {
+          console.error('❌ Nenhum gateway de pagamento ativo configurado.');
+          toast.error('Nenhum gateway de pagamento ativo configurado.');
+          setProcessing(false);
+          return;
+        }
       }
 
       // Determine initial status based on payment method
@@ -1869,6 +1870,34 @@ export default function Checkout() {
               </div>
             </section>
 
+            {/* Cupom de Desconto - Movido para antes do pagamento como solicitado */}
+            <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 mb-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
+                  <Ticket size={20} />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900">Cupom de Desconto</h2>
+              </div>
+              
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Possui um cupom de luxo?</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    placeholder="DIGITE O CÓDIGO"
+                    className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none uppercase"
+                  />
+                </div>
+                {couponCode && appliedDiscounts.some(d => campaigns.some(c => c.title === d.name && c.trigger_type === 'coupon')) && (
+                  <p className="text-[10px] text-emerald-600 font-bold mt-3 flex items-center gap-1">
+                    <CheckCircle2 size={12} /> Cupom aplicado com sucesso!
+                  </p>
+                )}
+              </div>
+            </section>
+
             {/* Pagamento */}
             <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
               <div className="flex items-center gap-3 mb-6">
@@ -2117,25 +2146,6 @@ export default function Checkout() {
                     </div>
                   </div>
                 ))}
-              </div>
-
-              {/* Cupom de Desconto */}
-              <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Possui um cupom?</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                    placeholder="DIGITE O CÓDIGO"
-                    className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none uppercase"
-                  />
-                </div>
-                {couponCode && appliedDiscounts.some(d => campaigns.some(c => c.title === d.name && c.trigger_type === 'coupon')) && (
-                  <p className="text-[10px] text-emerald-600 font-bold mt-2 flex items-center gap-1">
-                    <CheckCircle2 size={12} /> Cupom aplicado com sucesso!
-                  </p>
-                )}
               </div>
 
               <div className="space-y-3 pt-6 border-t border-slate-100 mb-6">
