@@ -986,8 +986,8 @@ export default function Checkout() {
     };
   }, [settings]);
 
-  const handleCheckout = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCheckout = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     
     if (!customer.name || !customer.email || !customer.phone || !customer.document) {
       toast.error('Preencha todos os dados pessoais.');
@@ -1947,25 +1947,52 @@ export default function Checkout() {
                 )}
               </div>
 
+              {/* Botão de Finalização para pedidos GRÁTIS */}
+              {finalTotal <= 0 && (
+                <div className="mb-6">
+                  <button
+                    type="button"
+                    onClick={() => handleCheckout()}
+                    disabled={processing}
+                    className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-lg uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {processing ? 'Processando...' : 'Finalizar Pedido Grátis'}
+                  </button>
+                </div>
+              )}
+
               {paymentMethod === 'pagarme' && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-                  <button
-                    type="button"
-                    onClick={() => setPagarmeMethod('pix')}
-                    className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${pagarmeMethod === 'pix' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                  >
-                    <QrCode size={20} />
-                    <span className="font-bold text-xs">PIX</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPagarmeMethod('credit_card')}
-                    className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${pagarmeMethod === 'credit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                  >
-                    <CreditCard size={20} />
-                    <span className="font-bold text-xs">Cartão Crédito</span>
-                    <span className="text-[10px] opacity-70">Até 12x</span>
-                  </button>
+                <div className="mb-6">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => setPagarmeMethod('pix')}
+                      className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${pagarmeMethod === 'pix' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                    >
+                      <QrCode size={20} />
+                      <span className="font-bold text-xs">PIX</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPagarmeMethod('credit_card')}
+                      className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${pagarmeMethod === 'credit_card' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                    >
+                      <CreditCard size={20} />
+                      <span className="font-bold text-xs">Cartão Crédito</span>
+                      <span className="text-[10px] opacity-70">Até 12x</span>
+                    </button>
+                  </div>
+
+                  {pagarmeMethod === 'pix' && finalTotal > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleCheckout()}
+                      disabled={processing}
+                      className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-lg uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {processing ? 'Gerando QR Code...' : 'Gerar QR Code e Finalizar'}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -2063,6 +2090,17 @@ export default function Checkout() {
                         return options;
                       })()}
                     </select>
+                  </div>
+
+                  <div className="pt-4">
+                    <button
+                      type="button"
+                      onClick={() => handleCheckout()}
+                      disabled={processing}
+                      className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {processing ? 'Processando Pagamento...' : `Pagar ${formatCurrency(finalTotal)} Agora`}
+                    </button>
                   </div>
                 </motion.div>
               )}
@@ -2201,21 +2239,6 @@ export default function Checkout() {
                   })()}
                 </div>
               </div>
-
-              <button
-                type="submit"
-                disabled={processing}
-                className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-lg uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {processing ? (
-                  'Processando...'
-                ) : (
-                  <>
-                    <ShieldCheck size={20} />
-                    Finalizar Pedido
-                  </>
-                )}
-              </button>
               
               <div className="mt-4 flex items-center justify-center gap-2 text-slate-400 text-xs font-medium">
                 <ShieldCheck size={14} />
