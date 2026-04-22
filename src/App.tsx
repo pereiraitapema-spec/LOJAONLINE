@@ -99,6 +99,10 @@ function AppContent() {
       if (profileRes.error) throw profileRes.error;
 
       let finalRole = profileRes.data?.role || 'customer';
+      
+      // Normalização de roles legadas ou inconsistentes
+      if (finalRole === 'user') finalRole = 'customer';
+      
       const affiliateData = affiliateIdRes.data || affiliateEmailRes.data;
 
       // 4. Lógica de Decisão de Role
@@ -135,14 +139,19 @@ function AppContent() {
       const googleAvatar = session.user.user_metadata.avatar_url || session.user.user_metadata.picture;
       
       if (!profileRes.data) {
-        console.log('🆕 [AUTH] Criando novo perfil com avatar:', googleAvatar);
-        supabase.from('profiles').upsert({
+        console.log('🆕 [AUTH] Profiles record missing on sync, ensuring profile exists...');
+        const profileData = {
           id: userId,
           email: email,
           role: finalRole,
-          full_name: session.user.user_metadata.full_name || email?.split('@')[0] || 'Usuário',
+          full_name: session.user.user_metadata.full_name || session.user.user_metadata.name || email?.split('@')[0] || 'Usuário',
           avatar_url: googleAvatar
-        }).then();
+        };
+        
+        const { error: upsertError } = await supabase.from('profiles').upsert(profileData);
+        if (upsertError) {
+          console.error('❌ [AUTH] Error creating profile manually:', upsertError);
+        }
       } else if (googleAvatar && (!profileRes.data.avatar_url || profileRes.data.avatar_url !== googleAvatar)) {
         console.log('🔄 [AUTH] Atualizando avatar do perfil:', googleAvatar);
         supabase.from('profiles').update({ avatar_url: googleAvatar }).eq('id', userId).then();

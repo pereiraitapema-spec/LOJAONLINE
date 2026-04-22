@@ -136,6 +136,7 @@ export default function Login() {
               full_name: email.split('@')[0],
               phone: phone,
               role: 'customer',
+              avatar_url: '', // Default placeholder
               marketing_opt_in: marketingOptIn
             }
           }

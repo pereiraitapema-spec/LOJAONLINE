@@ -14,7 +14,7 @@ create table if not exists public.profiles (
   email text unique not null,
   full_name text,
   avatar_url text,
-  role text default 'customer' check (role in ('admin', 'customer', 'affiliate')),
+  role text default 'customer' check (role in ('admin', 'customer', 'affiliate', 'user')),
   phone text,
   document text, -- CPF/CNPJ
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
@@ -42,17 +42,22 @@ begin
     default_role := 'admin';
   end if;
 
+  -- Upsert no profiles para evitar conflitos
   insert into public.profiles (id, email, full_name, role, avatar_url)
   values (
     new.id, 
     new.email, 
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)), 
     default_role,
-    new.raw_user_meta_data->>'avatar_url'
-  );
+    coalesce(new.raw_user_meta_data->>'avatar_url', new.raw_user_meta_data->>'picture')
+  )
+  on conflict (id) do update set
+    email = excluded.email,
+    full_name = coalesce(excluded.full_name, profiles.full_name),
+    avatar_url = coalesce(excluded.avatar_url, profiles.avatar_url);
 
   -- Se for customer, cria também na tabela de leads como 'frio'
-  if default_role = 'customer' then
+  if default_role = 'customer' or default_role = 'user' then
     insert into public.leads (id, nome, email, whatsapp, status_lead)
     values (
       new.id,
@@ -61,12 +66,16 @@ begin
       coalesce(new.raw_user_meta_data->>'phone', ''),
       'frio'
     )
-    on conflict (id) do nothing;
+    on conflict (id) do update set
+      nome = coalesce(excluded.nome, leads.nome),
+      email = excluded.email,
+      whatsapp = case when leads.whatsapp = '' then excluded.whatsapp else leads.whatsapp end;
   end if;
 
   return new;
 exception when others then
-  -- Fallback seguro para não impedir o cadastro
+  -- Logger para ajudar no debug (visível nos logs do Supabase)
+  raise warning 'Erro no handle_new_user para email %: %', new.email, SQLERRM;
   return new;
 end;
 $$ language plpgsql security definer;
