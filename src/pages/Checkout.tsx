@@ -167,6 +167,19 @@ export default function Checkout() {
   const [trackingCode, setTrackingCode] = useState<string | null>(null);
   const [trackingInfo, setTrackingInfo] = useState<any>(null);
 
+  // Auto-focus no campo de cartão para disparar o Google Pay/Apple Pay Autofill no celular
+  useEffect(() => {
+    if (paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card' || pagarmeMethod === 'debit_card') {
+      const timer = setTimeout(() => {
+        const inputElement = document.getElementById('card-number-input');
+        if (inputElement) {
+          inputElement.focus();
+        }
+      }, 500); // Aguarda a animação do formulário renderizar a caixa do cartão
+      return () => clearTimeout(timer);
+    }
+  }, [paymentMethod, pagarmeMethod]);
+
   const SuccessModal = () => {
     const [loading, setLoading] = useState(false);
 
