@@ -1407,7 +1407,7 @@ export default function Checkout() {
             }
           } catch (err: any) {
             console.error('❌ Erro no processamento de pagamento:', err);
-            toast.error(`Erro no pagamento: ${err.message}`);
+            setShowPaymentErrorModal({ isOpen: true, message: `Erro no pagamento: ${err.message}` });
             setProcessing(false);
             return;
           }

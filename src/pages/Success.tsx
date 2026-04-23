@@ -108,7 +108,7 @@ export default function Success() {
             Pedido Confirmado!
           </h1>
           <p className="text-slate-500 text-lg mb-8">
-            Parabéns! Seu pagamento foi confirmado com sucesso. Seu pedido está sendo preparado e em breve será enviado para você.
+            Parabéns! Seu pagamento foi confirmado com sucesso em <span className="font-bold text-slate-800">{window.location.hostname}</span>. Seu pedido está sendo preparado e em breve será enviado para você.
           </p>
 
           {order && (
