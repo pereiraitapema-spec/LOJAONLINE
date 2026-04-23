@@ -1496,15 +1496,9 @@ export default function Checkout() {
           'failed': 'failed',
           'refused': 'failed',
           'denied': 'failed',
-          'canceled': 'cancelled'
+          'canceled': 'canceled'
         };
         initialStatus = statusMap[paymentResponse.status] || initialStatus;
-      }
-
-      // Se for Cartão e deu Sucesso na API, GARANTIMOS o status Pago ou Pendente (análise), nunca Falha
-      if (isCreditCard && initialStatus === 'failed') {
-          console.warn('⚠️ Gateway retornou falha mas processamento continuou. Reavaliando para paid/pending.');
-          initialStatus = 'paid'; 
       }
 
       // Update order status
@@ -1512,7 +1506,7 @@ export default function Checkout() {
         .from('orders')
         .update({ 
           status: initialStatus, 
-          payment_status: initialStatus === 'paid' ? 'paid' : 'pending',
+          payment_status: initialStatus === 'paid' ? 'paid' : (initialStatus === 'failed' || initialStatus === 'canceled' ? 'failed' : 'pending'),
           payment_id: paymentResponse.payment_id,
           payment_url: paymentResponse.pix?.qr_code_url || paymentResponse.boleto?.url || paymentResponse.boleto?.pdf,
           pix_code: paymentResponse.pix?.qr_code || paymentResponse.boleto?.barcode,
@@ -1522,6 +1516,14 @@ export default function Checkout() {
 
       if (updateError) {
         console.error('❌ Erro ao atualizar status do pedido:', updateError);
+      }
+
+      // Se o status retornado for failed ou canceled, nós paramos o fluxo
+      if (initialStatus === 'failed' || initialStatus === 'canceled') {
+          console.error('❌ Pagamento foi recusado ou falhou no gateway.');
+          toast.error('Pagamento recusado pelo banco ou emissor. Verifique o cartão ou tente outro método.');
+          setProcessing(false);
+          return;
       }
 
       // Helper function to trigger tracking and webhooks
@@ -2114,7 +2116,11 @@ export default function Checkout() {
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1">Número do Cartão *</label>
                     <input 
-                      type="text" 
+                      id="card-number-input"
+                      name="cc-number"
+                      autoComplete="cc-number"
+                      inputMode="numeric"
+                      type="tel" 
                       value={cardData.number}
                       onChange={e => {
                         let val = e.target.value.replace(/\D/g, '');
@@ -2130,6 +2136,9 @@ export default function Checkout() {
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1">Nome Impresso no Cartão *</label>
                     <input 
+                      id="card-name-input"
+                      name="cc-name"
+                      autoComplete="cc-name"
                       type="text" 
                       value={cardData.name}
                       onChange={e => setCardData({...cardData, name: e.target.value})}
@@ -2141,7 +2150,11 @@ export default function Checkout() {
                     <div>
                       <label className="block text-sm font-bold text-slate-700 mb-1">Validade *</label>
                       <input 
-                        type="text" 
+                        id="card-expiry-input"
+                        name="cc-exp"
+                        autoComplete="cc-exp"
+                        inputMode="numeric"
+                        type="tel" 
                         value={cardData.expiry}
                         onChange={e => {
                           let val = e.target.value.replace(/\D/g, '');
@@ -2160,7 +2173,11 @@ export default function Checkout() {
                     <div>
                       <label className="block text-sm font-bold text-slate-700 mb-1">CVV *</label>
                       <input 
-                        type="text" 
+                        id="card-cvv-input"
+                        name="cc-csc"
+                        autoComplete="cc-csc"
+                        inputMode="numeric"
+                        type="tel" 
                         value={cardData.cvv}
                         onChange={e => setCardData({...cardData, cvv: e.target.value})}
                         placeholder="123"
