@@ -3,6 +3,11 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
+// Force HTTPS redirect
+if (typeof window !== 'undefined' && window.location.protocol === 'http:' && !window.location.hostname.includes('localhost')) {
+  window.location.protocol = 'https:';
+}
+
 // Suprimir erro do MetaMask (comum em extensões de navegador)
 const handleError = (event: ErrorEvent) => {
   if (event.message?.includes('MetaMask') || event.message?.includes('ethereum')) {
