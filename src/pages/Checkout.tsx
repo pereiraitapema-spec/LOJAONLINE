@@ -150,7 +150,9 @@ export default function Checkout() {
     name: '',
     expiry: '',
     cvv: '',
-    installments: '1'
+    installments: '1',
+    billing_name: '',
+    billing_document: ''
   });
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -1349,7 +1351,7 @@ export default function Checkout() {
                 quantity: item.quantity,
                 product_id: item.product.id
               })),
-              customer_name: customerData.name || customer.name,
+              customer_name: customer.name,
               customer_email: customer.email,
               customer_phone: customer.phone.replace(/\D/g, ''),
               customer_document: document.replace(/\D/g, ''),
@@ -1363,7 +1365,8 @@ export default function Checkout() {
               shipping_method: currentShipping?.name,
               payment_method: pagarmeMethod || paymentMethod,
               card_number: cardData.number.replace(/\D/g, ''),
-              card_name: cardData.name.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+              card_name: cardData.billing_name.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+              card_document: cardData.billing_document.replace(/\D/g, ''),
               expiry: cardData.expiry.replace(/\D/g, ''),
               cvv: cardData.cvv,
               installments: cardData.installments,
@@ -2132,6 +2135,29 @@ export default function Checkout() {
                         required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card' || pagarmeMethod === 'debit_card'}
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Nome no Cartão (Titular) *</label>
+                    <input 
+                      type="text" 
+                      value={cardData.billing_name}
+                      onChange={e => setCardData({...cardData, billing_name: e.target.value})}
+                      placeholder="Nome do titular como no cartão"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all uppercase"
+                      required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card' || pagarmeMethod === 'debit_card'}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">CPF do Titular *</label>
+                    <input 
+                      type="text" 
+                      value={cardData.billing_document}
+                      onChange={e => setCardData({...cardData, billing_document: e.target.value.replace(/\D/g, '')})}
+                      placeholder="000.000.000-00"
+                      maxLength={14}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card' || pagarmeMethod === 'debit_card'}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1">Parcelamento</label>
