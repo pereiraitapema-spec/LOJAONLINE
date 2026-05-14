@@ -183,6 +183,41 @@ export default function Checkout() {
     }
   }, [paymentMethod, pagarmeMethod]);
 
+  // Monitor order status updates via Webhook
+  useEffect(() => {
+    if (!currentOrderId) return;
+
+    const subscription = supabase
+      .channel(`order-${currentOrderId}`)
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'orders',
+        filter: `id=eq.${currentOrderId}`
+      }, (payload) => {
+        const newStatus = payload.new.status;
+        console.log('🔔 [CHECKOUT] Pedido atualizado via webhook:', newStatus);
+
+        if (newStatus === 'paid' || newStatus === 'approved') {
+          setShowPixModal(false);
+          setShowBoletoModal(false);
+          setShowSuccessModal(true);
+        } else if (newStatus === 'failed' || newStatus === 'canceled' || newStatus === 'refused') {
+          setShowPixModal(false);
+          setShowBoletoModal(false);
+          setShowPaymentErrorModal({
+            isOpen: true,
+            message: payload.new.error_message || 'Pagamento recusado.'
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [currentOrderId]);
+
   const SuccessModal = () => {
     // ... (rest of SuccessModal logic) ...
     return (
