@@ -85,6 +85,24 @@ export default function Success() {
     return method?.details || 'Aguardando processamento...';
   };
 
+  // Disparar o Google Ads Conversion quando o pedido for carregado na página de sucesso
+  useEffect(() => {
+    if (order && typeof window !== 'undefined' && (window as any).gtag) {
+      const conversionKey = `gads_conversion_${order.id}`;
+      // Evitar disparo duplicado usando sessionStorage
+      if (!sessionStorage.getItem(conversionKey)) {
+        (window as any).gtag('event', 'conversion', {
+            'send_to': 'AW-18163736955/2HNPCJyLoa0cEPvCktVD',
+            'value': order.total || 1.0,
+            'currency': 'BRL',
+            'transaction_id': order.id
+        });
+        sessionStorage.setItem(conversionKey, 'true');
+        console.log('📈 [Google Ads] Evento de conversão disparado com sucesso!');
+      }
+    }
+  }, [order]);
+
   if (loading) return <Loading message="Carregando detalhes do pedido..." />;
 
   return (

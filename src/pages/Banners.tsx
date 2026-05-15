@@ -72,7 +72,7 @@ export default function Banners() {
         .eq('id', session.user.id)
         .maybeSingle();
 
-      if (profile?.role !== 'admin' && session.user.email !== 'pereira.itapema@gmail.com') {
+      if (profile?.role !== 'admin' && !['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(session.user.email)) {
         toast.error('Acesso negado.');
         navigate('/');
         return;

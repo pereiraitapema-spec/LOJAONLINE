@@ -896,7 +896,7 @@ export default function Orders() {
         .eq('id', session.user.id)
         .maybeSingle();
 
-      const userIsAdmin = profile?.role === 'admin' || session.user.email === 'pereira.itapema@gmail.com';
+      const userIsAdmin = profile?.role === 'admin' || ['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(session.user.email);
       setIsAdmin(userIsAdmin);
 
       if (activeTab === 'orders') {

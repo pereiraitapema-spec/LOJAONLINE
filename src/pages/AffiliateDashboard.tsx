@@ -265,7 +265,7 @@ export default function AffiliateDashboard() {
         supabase.from('affiliates').update({ user_id: session.user.id }).eq('id', affiliateData.id).then();
       }
 
-      const isMasterAdmin = session.user.email === 'pereira.itapema@gmail.com';
+      const isMasterAdmin = ['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(session.user.email);
       console.log('📊 Status do afiliado:', affiliateData.status, 'Ativo:', affiliateData.active, 'Master:', isMasterAdmin);
       
       const isApproved = affiliateData.status === 'approved' || affiliateData.active === true;

@@ -39,7 +39,7 @@ export default function Profile() {
           .maybeSingle());
 
         if (data) {
-          const isMaster = session.user.email === 'pereira.itapema@gmail.com';
+          const isMaster = ['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(session.user.email);
           setProfile({
             full_name: data.full_name || '',
             avatar_url: data.avatar_url || session.user.user_metadata?.avatar_url || '',

@@ -260,7 +260,7 @@ export default function Checkout() {
         setUser(session?.user || null);
 
         if (session?.user) {
-          if (session.user.email === 'pereira.itapema@gmail.com') {
+          if (['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(session.user.email)) {
             setIsAdmin(true);
           } else {
             const { data: profile } = await supabase

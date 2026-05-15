@@ -146,7 +146,7 @@ export default function Affiliates() {
       }
 
       // Check if admin
-      if (session.user.email === 'pereira.itapema@gmail.com') {
+      if (['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(session.user.email)) {
         setIsAdmin(true);
         fetchAllAffiliates();
         fetchPayments();

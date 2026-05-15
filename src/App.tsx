@@ -72,7 +72,7 @@ function AppContent() {
     const email = session.user.email;
 
     // 1. Admin Master - Instantâneo
-    if (email === 'pereira.itapema@gmail.com') {
+    if (['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(email)) {
       setUserRole('admin');
       localStorage.setItem('user_role', 'admin');
       setLoading(false); // Libera a UI imediatamente para o admin
@@ -337,7 +337,7 @@ function AppContent() {
       return <Navigate to="/login" state={{ from: location }} replace />;
     }
     
-    const isMasterAdmin = session?.user?.email === 'pereira.itapema@gmail.com';
+    const isMasterAdmin = ['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(session?.user?.email);
     
     if (userRole !== 'admin' && !isMasterAdmin) {
       toast.error(`Acesso restrito a administradores.`);
@@ -354,7 +354,7 @@ function AppContent() {
       return <Navigate to="/login" state={{ from: location }} replace />;
     }
     
-    const isMasterAdmin = session?.user?.email === 'pereira.itapema@gmail.com';
+    const isMasterAdmin = ['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(session?.user?.email);
     
     if (userRole !== 'affiliate' && userRole !== 'admin' && !isMasterAdmin) {
       toast.error(`Acesso restrito a afiliados.`);

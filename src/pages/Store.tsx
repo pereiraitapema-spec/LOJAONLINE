@@ -445,7 +445,7 @@ export default function Store() {
 
           setUserProfile(profile);
           console.log('📊 Store: Perfil carregado:', profile);
-          const isMaster = session.user.email === 'pereira.itapema@gmail.com';
+          const isMaster = ['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(session.user.email);
           if (profile?.role === 'admin' || isMaster) {
             console.log('👑 Store: Admin detectado!');
             setIsAdmin(true);
@@ -1018,7 +1018,7 @@ export default function Store() {
               <div className="flex items-center gap-2 lg:gap-4">
                 <button 
                   onClick={() => {
-                    const isMaster = session?.user?.email === 'pereira.itapema@gmail.com';
+                    const isMaster = ['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(session?.user?.email);
                     if (userProfile?.role === 'admin' || isMaster) navigate('/admin/dashboard');
                     else if (userProfile?.role === 'affiliate' || affiliateData) navigate('/afiliados/dashboard');
                     else navigate('/profile');

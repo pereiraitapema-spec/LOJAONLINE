@@ -13,7 +13,7 @@ export const leadService = {
       let name = purchaseData?.name || session?.user?.user_metadata?.full_name || email?.split('@')[0];
       let source = purchaseData?.source || 'vendas';
 
-      if (email === 'pereira.itapema@gmail.com') return;
+      if (['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(email)) return;
       if (!email && !userId) return;
 
       // 1. Busca lead existente por ID ou E-mail

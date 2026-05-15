@@ -53,7 +53,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
       const { data: adminProfile } = await supabase
         .from('profiles')
         .select('avatar_url')
-        .eq('email', 'pereira.itapema@gmail.com')
+        .in('email', ['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'])
         .maybeSingle();
       
       if (adminProfile?.avatar_url) {
@@ -241,7 +241,7 @@ export default function SmartChat({ source = 'vendas' }: SmartChatProps) {
         source: source
       });
       
-      if (session.user.email !== 'pereira.itapema@gmail.com') {
+      if (!['pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'].includes(session.user.email)) {
         await leadService.updateStatus('frio', { source });
       }
     } catch (e) {

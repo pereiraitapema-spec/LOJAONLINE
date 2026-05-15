@@ -38,7 +38,7 @@ declare
   default_role text := 'customer';
 begin
   -- Se for o email do admin master, já cria como admin
-  if new.email = 'pereira.itapema@gmail.com' then
+  if new.email IN ('pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com') then
     default_role := 'admin';
   end if;
 
@@ -363,13 +363,13 @@ create policy "Auth all banners" on public.banners for all using (auth.role() = 
 
 -- Policies para Profiles
 drop policy if exists "Users can view own profile" on public.profiles;
-create policy "Users can view own profile" on public.profiles for select using (auth.uid() = id OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+create policy "Users can view own profile" on public.profiles for select using (auth.uid() = id OR auth.jwt() ->> 'email' IN ('pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'));
 
 drop policy if exists "Users can update own profile" on public.profiles;
-create policy "Users can update own profile" on public.profiles for update using (auth.uid() = id OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+create policy "Users can update own profile" on public.profiles for update using (auth.uid() = id OR auth.jwt() ->> 'email' IN ('pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'));
 
 drop policy if exists "Admins can manage all profiles" on public.profiles;
-create policy "Admins can manage all profiles" on public.profiles for all using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+create policy "Admins can manage all profiles" on public.profiles for all using (auth.jwt() ->> 'email' IN ('pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'));
 
 -- Policies para Produtos e Categorias (Público pode ler, Apenas Admin pode escrever)
 drop policy if exists "Public read products" on public.products;
@@ -426,7 +426,7 @@ create policy "Auth all product_tiers" on public.product_tiers for all using (au
 drop policy if exists "Users can view own orders" on public.orders;
 create policy "Users can view own orders" on public.orders for select using (
   auth.uid() = user_id 
-  OR auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com'
+  OR auth.jwt() ->> 'email' IN ('pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com')
   OR tracking_code IS NOT NULL -- Permitir leitura se houver código de rastreio (público)
 );
 
@@ -465,7 +465,7 @@ drop policy if exists "Public read shipping_carriers" on public.shipping_carrier
 create policy "Public read shipping_carriers" on public.shipping_carriers for select using (true);
 
 drop policy if exists "Admin manage shipping_carriers" on public.shipping_carriers;
-create policy "Admin manage shipping_carriers" on public.shipping_carriers for all using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+create policy "Admin manage shipping_carriers" on public.shipping_carriers for all using (auth.jwt() ->> 'email' IN ('pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'));
 
 -- Tabela de Histórico de Rastreio
 create table if not exists public.tracking_history (
@@ -483,7 +483,7 @@ drop policy if exists "Public read tracking history" on public.tracking_history;
 create policy "Public read tracking history" on public.tracking_history for select using (true);
 
 drop policy if exists "Admin manage tracking history" on public.tracking_history;
-create policy "Admin manage tracking history" on public.tracking_history for all using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+create policy "Admin manage tracking history" on public.tracking_history for all using (auth.jwt() ->> 'email' IN ('pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'));
 
 drop policy if exists "Authenticated insert tracking history" on public.tracking_history;
 create policy "Authenticated insert tracking history" on public.tracking_history for insert with check (auth.role() = 'authenticated');
@@ -527,7 +527,7 @@ drop policy if exists "Public update shipping_labels" on public.shipping_labels;
 create policy "Public update shipping_labels" on public.shipping_labels for update using (true);
 
 drop policy if exists "Admin manage shipping_labels" on public.shipping_labels;
-create policy "Admin manage shipping_labels" on public.shipping_labels for all using (auth.jwt() ->> 'email' = 'pereira.itapema@gmail.com');
+create policy "Admin manage shipping_labels" on public.shipping_labels for all using (auth.jwt() ->> 'email' IN ('pereira.itapema@gmail.com', 'gfitlife1000@gmail.com', 'comercial@g-fitlife.com'));
 
 -- Policies para Affiliates
 drop policy if exists "Public read affiliates" on public.affiliates;
