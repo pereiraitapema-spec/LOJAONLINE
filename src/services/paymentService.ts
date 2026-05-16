@@ -65,6 +65,7 @@ const pagarmeProvider: PaymentProvider = {
                 country: 'BR'
               }
             },
+            antifraud_enabled: false,
             metadata: {
               order_id: orderData.order_id
             },
