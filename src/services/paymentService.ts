@@ -123,33 +123,26 @@ const pagarmeProvider: PaymentProvider = {
                 } : undefined,
                 google_pay: orderData.payment_method === 'google_pay' ? (() => {
                   const gPayToken = orderData.google_pay_data;
-                  console.log('💳 [DEBUG] Token recebido no serviço:', gPayToken);
+                  console.log('💳 [GATEWAY] Normalizando token para Pagar.me...');
 
-                  // Se vier como string (JSON do token completo), tenta parsear
+                  // Se vier como string encapsulada, tenta parsear
                   let tokenObj = typeof gPayToken === 'string' ? JSON.parse(gPayToken) : gPayToken;
                   
-                  // Se o token estiver dentro de paymentMethodToken.token
-                  if (tokenObj?.paymentMethodToken?.token) {
-                    tokenObj = JSON.parse(tokenObj.paymentMethodToken.token);
-                  } else if (tokenObj?.token) {
-                    tokenObj = JSON.parse(tokenObj.token);
-                  }
-
-                  // O signedMessage é um JSON string que contém encryptedMessage, ephemeralPublicKey, etc.
-                  const signedMessage = typeof tokenObj?.signedMessage === 'string' 
-                    ? JSON.parse(tokenObj.signedMessage) 
-                    : tokenObj?.signedMessage;
+                  // Google Pay ECv2 format
+                  const signedMsgStr = tokenObj?.signedMessage || tokenObj?.paymentMethodToken?.signedMessage;
+                  const signedMessage = typeof signedMsgStr === 'string' ? JSON.parse(signedMsgStr) : signedMsgStr;
+                  
+                  const header = {
+                    ephemeralPublicKey: signedMessage?.ephemeralPublicKey || tokenObj?.ephemeralPublicKey || tokenObj?.header?.ephemeralPublicKey,
+                    publicKeyHash: signedMessage?.publicKeyHash || tokenObj?.publicKeyHash || tokenObj?.header?.publicKeyHash,
+                    transactionId: signedMessage?.transactionId || tokenObj?.transactionId || tokenObj?.header?.transactionId
+                  };
 
                   return {
-                    // Pagar.me espera o encryptedMessage no campo data
                     data: signedMessage?.encryptedMessage || tokenObj?.encryptedMessage || tokenObj?.data,
-                    signature: tokenObj?.signature,
-                    header: {
-                      ephemeralPublicKey: signedMessage?.ephemeralPublicKey || tokenObj?.ephemeralPublicKey || tokenObj?.header?.ephemeralPublicKey,
-                      publicKeyHash: signedMessage?.publicKeyHash || tokenObj?.publicKeyHash || tokenObj?.header?.publicKeyHash,
-                      transactionId: signedMessage?.transactionId || tokenObj?.transactionId || tokenObj?.header?.transactionId
-                    },
-                    merchant_id: config.merchant_id || '10000000' // Pagar.me Account ID
+                    signature: tokenObj?.signature || tokenObj?.paymentMethodToken?.signature,
+                    header: header,
+                    merchant_id: config.merchant_id || '10000000'
                   };
                 })() : undefined
               }
