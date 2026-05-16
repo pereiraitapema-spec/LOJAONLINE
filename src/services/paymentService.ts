@@ -76,8 +76,8 @@ const pagarmeProvider: PaymentProvider = {
                     number: orderData.card_number,
                     holder_name: orderData.card_name,
                     holder_document: orderData.customer_document.replace(/\D/g, ''),
-                    exp_month: parseInt(orderData.expiry?.split('/')[0]?.trim() || '0', 10),
-                    exp_year: parseInt('20' + (orderData.expiry?.split('/')[1]?.trim() || '0'), 10),
+                    exp_month: parseInt(orderData.expiry?.includes('/') ? orderData.expiry.split('/')[0].trim() : (orderData.expiry?.substring(0, 2) || '0'), 10),
+                    exp_year: parseInt('20' + (orderData.expiry?.includes('/') ? (orderData.expiry.split('/')[1]?.trim() || '0') : (orderData.expiry?.substring(2, 4) || '0')), 10),
                     cvv: orderData.cvv,
                     billing_address: {
                       line_1: orderData.shipping_address.street ? `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}` : 'Rua Fictícia, 123, Centro',
@@ -94,8 +94,8 @@ const pagarmeProvider: PaymentProvider = {
                     number: orderData.card_number,
                     holder_name: orderData.card_name,
                     holder_document: orderData.customer_document.replace(/\D/g, ''),
-                    exp_month: parseInt(orderData.expiry?.split('/')[0]?.trim() || '0', 10),
-                    exp_year: parseInt('20' + (orderData.expiry?.split('/')[1]?.trim() || '0'), 10),
+                    exp_month: parseInt(orderData.expiry?.includes('/') ? orderData.expiry.split('/')[0].trim() : (orderData.expiry?.substring(0, 2) || '0'), 10),
+                    exp_year: parseInt('20' + (orderData.expiry?.includes('/') ? (orderData.expiry.split('/')[1]?.trim() || '0') : (orderData.expiry?.substring(2, 4) || '0')), 10),
                     cvv: orderData.cvv,
                     billing_address: {
                       line_1: orderData.shipping_address.street ? `${orderData.shipping_address.number}, ${orderData.shipping_address.street}, ${orderData.shipping_address.neighborhood}` : 'Rua Fictícia, 123, Centro',
