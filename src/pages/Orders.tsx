@@ -903,9 +903,7 @@ export default function Orders() {
         let query = supabase
           .from('orders')
           .select('*')
-          .neq('status', 'failed')
-          .neq('status', 'canceled')
-          .neq('status', 'refused')
+          .not('status', 'in', '("failed","FAILED","canceled","CANCELED","refused","REFUSED","refusado","REFUSADO")')
           .order('created_at', { ascending: false });
 
         if (!userIsAdmin) {
@@ -1889,6 +1887,9 @@ export default function Orders() {
       case 'shipped': return 'bg-indigo-100 text-indigo-700';
       case 'delivered': return 'bg-emerald-100 text-emerald-700';
       case 'cancelled': return 'bg-rose-100 text-rose-700';
+      case 'failed': return 'bg-rose-100 text-rose-700';
+      case 'refusado': return 'bg-rose-100 text-rose-700';
+      case 'refused': return 'bg-rose-100 text-rose-700';
       case 'refunded': return 'bg-slate-100 text-slate-700';
       default: return 'bg-slate-100 text-slate-700';
     }
@@ -1903,6 +1904,9 @@ export default function Orders() {
       case 'shipped': return 'Enviado';
       case 'delivered': return 'Entregue';
       case 'cancelled': return 'Cancelado';
+      case 'failed': return 'Falhou';
+      case 'refusado': return 'Recusado';
+      case 'refused': return 'Recusado';
       case 'refunded': return 'Reembolsado';
       default: return status;
     }

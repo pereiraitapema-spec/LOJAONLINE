@@ -1251,20 +1251,39 @@ export default function Checkout() {
       
       const rollbackFailedOrder = async (errorMessage: string) => {
         try {
-          console.log('🔄 Desfazendo pedido falso e restaurando estoque...');
-          // Restaura o estoque
+          console.log('🔄 Desfazendo pedido e itens (Falha Pgto) Cancelamento #', orderData.id);
+          
+          // 1. Estorna o estoque visualmente nos logs
           const rollbackLogs = cart.map(item => ({
             product_id: item.product.id,
             change_amount: item.quantity,
-            reason: `Estorno (Falha Pgto) Cancelamento #${orderData.id.split('-')[0].toUpperCase()}`
+            reason: `Estorno (Falha Pgto) #${orderData.id.split('-')[0].toUpperCase()}`
           }));
           await supabase.from('inventory_logs').insert(rollbackLogs);
-          // Apaga o pedido e seus itens associados (garantido no RLS e cascade se houver, ou delete manual aqui)
-          await supabase.from('order_items').delete().eq('order_id', orderData.id);
-          await supabase.from('orders').delete().eq('id', orderData.id);
-          console.log('✅ Estoque restaurado e pedido "falso" excluído.');
+
+          // 2. Restaura o estoque real nos produtos
+          for (const item of cart) {
+            const { data: prod } = await supabase.from('products').select('stock').eq('id', item.product.id).single();
+            if (prod) {
+              await supabase.from('products').update({ stock: prod.stock + item.quantity }).eq('id', item.product.id);
+            }
+          }
+
+          // 3. Apaga o pedido (RLS deve permitir delete se status for pending)
+          const { error: delItemsErr } = await supabase.from('order_items').delete().eq('order_id', orderData.id);
+          const { error: delOrderErr } = await supabase.from('orders').delete().eq('id', orderData.id);
+          
+          if (delOrderErr || delItemsErr) {
+            console.warn('⚠️ Não foi possível excluir o pedido via RLS, marcando como cancelado.');
+            await supabase.from('orders').update({ 
+               status: 'cancelled', 
+               payment_status: 'failed' 
+            }).eq('id', orderData.id);
+          } else {
+            console.log('✅ Pedido "falso" excluído com sucesso.');
+          }
         } catch (e) {
-          console.error('❌ Erro no rollback:', e);
+          console.error('❌ Erro crítico no rollback:', e);
         }
         setShowPaymentErrorModal({ isOpen: true, message: errorMessage });
         setProcessing(false);
@@ -1406,38 +1425,45 @@ export default function Checkout() {
             console.log('💳 Iniciando processamento de pagamento real...');
             console.log('DEBUG pagamento enviado:', { customer_name: customer.name, customer_document: document });
             
-            if (paymentMethod === 'google_pay') {
-              const request = new PaymentRequest([{
-                supportedMethods: 'https://google.com/pay',
-                data: {
-                  environment: 'PRODUCTION', // Alterado para produção conforme solicitado
-                  apiVersion: 2,
-                  apiVersionMinor: 0,
-                  merchantInfo: {
-                    merchantName: settings?.company_name || 'G Fit Life',
-                    merchantId: activeGateway.config.google_pay_merchant_id || '12345678901234567890'
-                  },
-                  allowedPaymentMethods: [{
-                    type: 'CARD',
-                    parameters: {
-                      allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
-                      allowedCardNetworks: ['MASTERCARD', 'VISA', 'AMEX', 'DISCOVER']
-                    },
-                    tokenizationSpecification: {
-                      type: 'PAYMENT_GATEWAY',
-                      parameters: {
-                        gateway: 'pagarme',
-                        gatewayMerchantId: activeGateway.config.encryption_key || activeGateway.config.access_token
-                      }
+                if (paymentMethod === 'google_pay') {
+                  const gPayMerchantId = activeGateway.config.google_pay_merchant_id;
+                  const gPayEnv = gPayMerchantId ? 'PRODUCTION' : 'TEST';
+                  
+                  if (gPayEnv === 'TEST') {
+                    console.warn('⚠️ Google Pay Merchant ID não configurado. Usando ambiente de TESTE.');
+                  }
+
+                  const request = new PaymentRequest([{
+                    supportedMethods: 'https://google.com/pay',
+                    data: {
+                      environment: gPayEnv,
+                      apiVersion: 2,
+                      apiVersionMinor: 0,
+                      merchantInfo: {
+                        merchantName: settings?.company_name || 'G Fit Life',
+                        merchantId: gPayMerchantId || '12345678901234567890'
+                      },
+                      allowedPaymentMethods: [{
+                        type: 'CARD',
+                        parameters: {
+                          allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
+                          allowedCardNetworks: ['MASTERCARD', 'VISA', 'AMEX', 'DISCOVER']
+                        },
+                        tokenizationSpecification: {
+                          type: 'PAYMENT_GATEWAY',
+                          parameters: {
+                            gateway: 'pagarme',
+                            gatewayMerchantId: activeGateway.config.merchant_id || activeGateway.config.public_key || '123456'
+                          }
+                        }
+                      }]
                     }
-                  }]
-                }
-              }], {
-                total: {
-                  label: 'Total da Compra',
-                  amount: { currency: 'BRL', value: finalTotal.toFixed(2) }
-                }
-              });
+                  }], {
+                    total: {
+                      label: 'Total da Compra',
+                      amount: { currency: 'BRL', value: finalTotal.toFixed(2) }
+                    }
+                  });
 
               let gpayResponse;
               try {

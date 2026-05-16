@@ -24,6 +24,7 @@ export default function PaymentGateways() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [showPublicKey, setShowPublicKey] = useState(false);
+  const [showEncryptionKey, setShowEncryptionKey] = useState(false);
   const [showAccessToken, setShowAccessToken] = useState(false);
   const [currentGateway, setCurrentGateway] = useState<Partial<Gateway>>({});
   const navigate = useNavigate();
@@ -315,6 +316,65 @@ export default function PaymentGateways() {
                     {showPublicKey ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
                 </div>
+              </div>
+
+              {currentGateway.provider === 'pagarme' && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                    Chave de Criptografia (V5)
+                  </label>
+                  <div className="relative">
+                    <input 
+                      type={showEncryptionKey ? "text" : "password"}
+                      value={currentGateway.config?.encryption_key || ''}
+                      onChange={e => setCurrentGateway({
+                        ...currentGateway, 
+                        config: { ...currentGateway.config, encryption_key: e.target.value }
+                      })}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all pr-14"
+                      placeholder="Ex: ek_..."
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowEncryptionKey(!showEncryptionKey)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
+                    >
+                      {showEncryptionKey ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                  Pagar.me Account ID (para Google/Apple Pay)
+                </label>
+                <input 
+                  type="text"
+                  value={currentGateway.config?.merchant_id || ''}
+                  onChange={e => setCurrentGateway({
+                    ...currentGateway, 
+                    config: { ...currentGateway.config, merchant_id: e.target.value }
+                  })}
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
+                  placeholder="ID numérico da conta Pagar.me"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
+                  Google Pay Merchant ID (Production)
+                </label>
+                <input 
+                  type="text"
+                  value={currentGateway.config?.google_pay_merchant_id || ''}
+                  onChange={e => setCurrentGateway({
+                    ...currentGateway, 
+                    config: { ...currentGateway.config, google_pay_merchant_id: e.target.value }
+                  })}
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
+                  placeholder="ID numérico fornecido pelo Google Pay Business Console"
+                />
               </div>
 
               <div>

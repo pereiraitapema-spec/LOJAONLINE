@@ -122,9 +122,13 @@ const pagarmeProvider: PaymentProvider = {
                   ]
                 } : undefined,
                 google_pay: orderData.payment_method === 'google_pay' ? {
-                  data: orderData.google_pay_data?.data,
+                  data: orderData.google_pay_data?.signedMessage || orderData.google_pay_data?.data,
                   signature: orderData.google_pay_data?.signature,
-                  header: orderData.google_pay_data?.header,
+                  header: orderData.google_pay_data?.header || {
+                    ephemeralPublicKey: orderData.google_pay_data?.ephemeralPublicKey || JSON.parse(orderData.google_pay_data?.signedMessage || '{}').ephemeralPublicKey,
+                    publicKeyHash: orderData.google_pay_data?.publicKeyHash || JSON.parse(orderData.google_pay_data?.signedMessage || '{}').publicKeyHash,
+                    transactionId: orderData.google_pay_data?.transactionId || JSON.parse(orderData.google_pay_data?.signedMessage || '{}').transactionId
+                  },
                   merchant_id: config.merchant_id || 'merchant.com.gfitlife'
                 } : undefined
               }
