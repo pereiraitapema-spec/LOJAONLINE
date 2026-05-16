@@ -2373,9 +2373,29 @@ export default function Checkout() {
                 </div>
               </div>
               
-              <div className="mt-4 flex items-center justify-center gap-2 text-slate-400 text-xs font-medium">
+              <div className="mt-4 flex items-center justify-center gap-2 text-slate-400 text-xs font-medium pb-4">
                 <ShieldCheck size={14} />
                 Ambiente 100% Seguro
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex flex-col items-center">
+                <p className="text-xs text-center text-slate-500 mb-3">Prefere finalizar com um atendente?</p>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    let number = settings?.whatsapp ? settings.whatsapp.replace(/\D/g, '') : '5547996609618';
+                    if (number.length === 10 || number.length === 11) number = '55' + number;
+                    let text = "Olá, gostaria de finalizar meu pedido.";
+                    if (cart.length > 0) {
+                      text += `\n\nItens:\n${cart.map(c => `- ${c.quantity}x ${c.product.name}`).join('\n')}`;
+                    }
+                    window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="w-full bg-[#25D366] text-white py-3 rounded-2xl font-bold text-sm hover:bg-[#128C7E] transition-colors shadow-lg shadow-[#25D366]/30 flex items-center justify-center gap-2 uppercase tracking-wider"
+                >
+                  <MessageSquare size={20} />
+                  Comprar pelo WhatsApp
+                </button>
               </div>
             </div>
           </div>

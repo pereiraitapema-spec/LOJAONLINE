@@ -1956,7 +1956,11 @@ export default function Store() {
                         </div>
                         
                         <button 
-                          onClick={() => window.open('https://wa.me/5547996609618?text=Olá, gostaria de comprar o produto ' + selectedProduct.name, '_blank')}
+                          onClick={() => {
+                            let number = settings?.whatsapp ? settings.whatsapp.replace(/\D/g, '') : '5547996609618';
+                            if (number.length === 10 || number.length === 11) number = '55' + number;
+                            window.open(`https://wa.me/${number}?text=Olá, gostaria de comprar o produto ${encodeURIComponent(selectedProduct.name)}`, '_blank');
+                          }}
                           className="w-full bg-[#25D366] text-white py-3 rounded-2xl font-bold text-sm hover:bg-[#128C7E] transition-colors shadow-lg shadow-[#25D366]/30 flex items-center justify-center gap-2 uppercase tracking-wider"
                         >
                           <Phone size={20} />
@@ -2710,7 +2714,11 @@ export default function Store() {
 
               <h4 className="font-bold text-slate-900 mb-6 mt-8 uppercase tracking-wider text-sm">Precisa de Ajuda?</h4>
               <ul className="space-y-4">
-                <li><button onClick={() => window.open(`https://wa.me/${settings?.whatsapp?.replace(/\D/g, '')}`, '_blank')} className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Fale Conosco via WhatsApp</button></li>
+                <li><button onClick={() => {
+                  let number = settings?.whatsapp ? settings.whatsapp.replace(/\D/g, '') : '';
+                  if (number.length === 10 || number.length === 11) number = '55' + number;
+                  window.open(`https://wa.me/${number}`, '_blank');
+                }} className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Fale Conosco via WhatsApp</button></li>
                 <li><a href={`mailto:${settings?.email}`} className="text-slate-600 hover:text-emerald-600 transition-colors text-sm">Enviar E-mail</a></li>
               </ul>
             </div>

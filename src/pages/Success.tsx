@@ -19,7 +19,7 @@ export default function Success() {
 
   useEffect(() => {
     if (!orderId) {
-      navigate('/');
+      setLoading(false);
       return;
     }
 
@@ -126,20 +126,18 @@ export default function Success() {
             Pedido Confirmado!
           </h1>
           <p className="text-slate-500 text-lg mb-8">
-            Parabéns! Seu pagamento foi confirmado com sucesso em <span className="font-bold text-slate-800">{window.location.hostname}</span>. Seu pedido está sendo preparado e em breve será enviado para você.
+            Parabéns! Seu pedido foi confirmado com sucesso em <span className="font-bold text-slate-800">{window.location.hostname}</span>. Ele está sendo preparado e em breve será enviado para você.
           </p>
 
-          {order && (
-            <div className="grid grid-cols-1 gap-4 mb-8">
-              <button 
-                onClick={() => navigate('/')}
-                className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
-              >
-                <Home size={20} />
-                Voltar para Loja
-              </button>
-            </div>
-          )}
+          <div className="grid grid-cols-1 gap-4 mb-8">
+            <button 
+              onClick={() => navigate('/')}
+              className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+            >
+              <Home size={20} />
+              Voltar para Loja
+            </button>
+          </div>
 
           {order && (
             <motion.div 
