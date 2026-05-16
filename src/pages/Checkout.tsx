@@ -1270,17 +1270,31 @@ export default function Checkout() {
           }
 
           // 3. Apaga o pedido (RLS deve permitir delete se status for pending)
+          console.log('🗑️ Tentando exclusão definitiva do pedido:', orderData.id);
+          
+          // Tenta deletar logs de inventário primeiro
+          try {
+             await supabase.from('inventory_logs').delete().filter('reason', 'ilike', `%#${orderData.id.split('-')[0]}%`);
+          } catch (e) {
+             console.warn('⚠️ Falha ao limpar logs de inventário:', e);
+          }
+
           const { error: delItemsErr } = await supabase.from('order_items').delete().eq('order_id', orderData.id);
           const { error: delOrderErr } = await supabase.from('orders').delete().eq('id', orderData.id);
           
           if (delOrderErr || delItemsErr) {
-            console.warn('⚠️ Não foi possível excluir o pedido via RLS, marcando como cancelado.');
-            await supabase.from('orders').update({ 
+            console.warn('⚠️ Delete falhou (RLS?), forçando status cancelled no banco:', { delOrderErr, delItemsErr });
+            const { error: updErr } = await supabase.from('orders').update({ 
                status: 'cancelled', 
-               payment_status: 'failed' 
+               payment_status: 'failed',
+               notes: `Cancelamento Automático: Falha no pagamento -> ${errorMessage.substring(0, 150)}`
             }).eq('id', orderData.id);
+            
+            if (updErr) {
+              console.error('❌ Falha crítica: Não foi possível nem excluir nem cancelar o pedido no banco.', updErr);
+            }
           } else {
-            console.log('✅ Pedido "falso" excluído com sucesso.');
+            console.log('✅ Pedido e itens excluídos com sucesso após falha.');
           }
         } catch (e) {
           console.error('❌ Erro crítico no rollback:', e);
@@ -1443,6 +1457,15 @@ export default function Checkout() {
                     apiVersionMinor: 0,
                     merchantInfo: {
                       merchantName: gPayMerchantName,
+                      // O Google Pay exige o merchantId em PRODUCTION. Em TEST, ele ignora.
+                      merchantId: isProduction ? gPayMerchantId : '12345678901234567890'
+                    },
+                    transactionInfo: {
+                      totalPriceStatus: 'FINAL',
+                      totalPriceLabel: 'Total',
+                      totalPrice: finalTotal.toFixed(2),
+                      currencyCode: 'BRL',
+                      countryCode: 'BR'
                     },
                     allowedPaymentMethods: [{
                       type: 'CARD',
@@ -1450,21 +1473,16 @@ export default function Checkout() {
                         allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
                         allowedCardNetworks: ['MASTERCARD', 'VISA', 'AMEX', 'DISCOVER', 'JCB', 'ELO'],
                         allowDebitCard: true
-                        // Removido billingAddressRequired temporariamente para teste de estabilidade
                       },
                       tokenizationSpecification: {
                         type: 'PAYMENT_GATEWAY',
                         parameters: {
                           gateway: 'pagarme',
-                          gatewayMerchantId: activeGateway.config.merchant_id || activeGateway.config.public_key || '10000000'
+                          gatewayMerchantId: activeGateway.config.merchant_id || '10000000'
                         }
                       }
                     }]
                   };
-
-                  if (isProduction) {
-                    googlePayData.merchantInfo.merchantId = gPayMerchantId;
-                  }
 
                   const request = new PaymentRequest([{
                     supportedMethods: 'https://google.com/pay',
