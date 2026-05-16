@@ -1444,12 +1444,12 @@ export default function Checkout() {
                   const gPayMerchantName = settings?.company_name || 'G Fit Life';
                   
                   // Detecção de ambiente
-                  const isProduction = gPayMerchantId && gPayMerchantId.length >= 10 && gPayMerchantId !== '12345678901234567890';
+                  const isProduction = gPayMerchantId && gPayMerchantId.length > 5 && gPayMerchantId !== '12345678901234567890';
                   const gPayEnv = isProduction ? 'PRODUCTION' : 'TEST';
                   
-                  console.log('📱 [G-PAY] Iniciando...');
+                  console.log('📱 [G-PAY] Inicializando Google Pay...');
                   console.log('📱 [G-PAY] Ambiente:', gPayEnv);
-                  console.log('📱 [G-PAY] Google Merchant ID:', gPayMerchantId || 'MODO TESTE');
+                  console.log('📱 [G-PAY] Merchant ID:', isProduction ? gPayMerchantId : 'AMBIENTE DE TESTE');
 
                   const googlePayData: any = {
                     environment: gPayEnv,
@@ -1457,8 +1457,6 @@ export default function Checkout() {
                     apiVersionMinor: 0,
                     merchantInfo: {
                       merchantName: gPayMerchantName,
-                      // O Google Pay exige o merchantId em PRODUCTION. Em TEST, ele ignora.
-                      merchantId: isProduction ? gPayMerchantId : '12345678901234567890'
                     },
                     transactionInfo: {
                       totalPriceStatus: 'FINAL',
@@ -1472,7 +1470,9 @@ export default function Checkout() {
                       parameters: {
                         allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
                         allowedCardNetworks: ['MASTERCARD', 'VISA', 'AMEX', 'DISCOVER', 'JCB', 'ELO'],
-                        allowDebitCard: true
+                        allowDebitCard: true,
+                        billingAddressRequired: true,
+                        billingAddressFormat: 'FULL'
                       },
                       tokenizationSpecification: {
                         type: 'PAYMENT_GATEWAY',
@@ -1483,6 +1483,11 @@ export default function Checkout() {
                       }
                     }]
                   };
+
+                  // O merchantId só deve ser enviado se tivermos um ID de produção real
+                  if (isProduction) {
+                    googlePayData.merchantInfo.merchantId = gPayMerchantId;
+                  }
 
                   const request = new PaymentRequest([{
                     supportedMethods: 'https://google.com/pay',
@@ -1511,6 +1516,8 @@ export default function Checkout() {
                 let rawToken = '';
                 const details = gpayResponse.details;
                 
+                console.log('📱 [G-PAY] Detalhes da resposta:', details);
+                
                 if (details?.paymentMethodToken?.token) {
                   rawToken = details.paymentMethodToken.token;
                 } else if (details?.token) {
@@ -1518,7 +1525,8 @@ export default function Checkout() {
                 } else if (typeof details === 'string') {
                   rawToken = details;
                 } else if (details) {
-                  rawToken = JSON.stringify(details);
+                  // Caso o objeto paymentMethodToken esteja direto no details
+                  rawToken = details.paymentMethodToken || JSON.stringify(details);
                 }
 
                 if (!rawToken || rawToken === '{}' || rawToken === 'undefined') {
@@ -1530,14 +1538,21 @@ export default function Checkout() {
                 
                 let gpayToken;
                 try {
+                  // Normalização do token para objeto
                   gpayToken = typeof rawToken === 'string' ? JSON.parse(rawToken) : rawToken;
-                  // Se o objeto contiver o nó de paymentMethodToken, entra nele
+                  
+                  // Desempacotamento se necessário
                   if (gpayToken.paymentMethodToken?.token) {
-                    gpayToken = JSON.parse(gpayToken.paymentMethodToken.token);
+                    gpayToken = typeof gpayToken.paymentMethodToken.token === 'string' 
+                      ? JSON.parse(gpayToken.paymentMethodToken.token) 
+                      : gpayToken.paymentMethodToken.token;
+                  } else if (gpayToken.token && typeof gpayToken.token === 'string') {
+                    const inner = JSON.parse(gpayToken.token);
+                    if (inner.protocolVersion) gpayToken = inner;
                   }
                 } catch (e) {
-                  console.error('❌ [G-PAY] Falha no Parse:', e);
-                  throw new Error('Formato de token do Google Pay inválido.');
+                  console.error('❌ [G-PAY] Falha no Parse do Token:', e);
+                  throw new Error('O formato do token do Google Pay é inválido ou não pôde ser lido.');
                 }
 
                 console.log('💳 [G-PAY] Token pronto:', gpayToken);

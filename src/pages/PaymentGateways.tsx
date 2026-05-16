@@ -363,7 +363,7 @@ export default function PaymentGateways() {
 
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wide">
-                  Google Pay Merchant ID (Production)
+                  Google Pay Merchant ID (Produção)
                 </label>
                 <input 
                   type="text"
@@ -373,8 +373,12 @@ export default function PaymentGateways() {
                     config: { ...currentGateway.config, google_pay_merchant_id: e.target.value }
                   })}
                   className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all"
-                  placeholder="ID numérico fornecido pelo Google Pay Business Console"
+                  placeholder="Ex: 12345678901234567890"
                 />
+                <p className="mt-2 text-[10px] text-slate-500 bg-amber-50 p-2 rounded-lg border border-amber-100 flex items-start gap-2">
+                  <span className="shrink-0 bg-amber-400 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold text-[8px]">!</span>
+                  <span>O erro <b>OR_BIBED_06</b> ocorre se o ID estiver incorreto ou se o domínio <b>g-fitlife.com</b> não estiver aprovado no Console do Google Pay Business.</span>
+                </p>
               </div>
 
               <div>
