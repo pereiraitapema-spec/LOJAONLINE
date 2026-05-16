@@ -120,6 +120,12 @@ const pagarmeProvider: PaymentProvider = {
                       value: orderData.order_id || 'Magnifique4Life'
                     }
                   ]
+                } : undefined,
+                google_pay: orderData.payment_method === 'google_pay' ? {
+                  data: orderData.google_pay_data?.data,
+                  signature: orderData.google_pay_data?.signature,
+                  header: orderData.google_pay_data?.header,
+                  merchant_id: config.merchant_id || 'merchant.com.gfitlife'
                 } : undefined
               }
             ].filter(p => {
@@ -130,7 +136,8 @@ const pagarmeProvider: PaymentProvider = {
                 (method === 'credit_card' && p.credit_card) ||
                 (method === 'debit_card' && p.debit_card) ||
                 (method === 'boleto' && p.boleto) ||
-                (method === 'pix' && p.pix)
+                (method === 'pix' && p.pix) ||
+                (method === 'google_pay' && p.google_pay)
               );
             })
           },

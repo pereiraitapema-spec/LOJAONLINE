@@ -442,6 +442,18 @@ create policy "Affiliates can view their attributed orders" on public.orders for
 drop policy if exists "Users can create orders" on public.orders;
 create policy "Users can create orders" on public.orders for insert with check (true); -- Permitir guest checkout
 
+drop policy if exists "Anyone can delete their pending orders" on public.orders;
+create policy "Anyone can delete their pending orders" on public.orders for delete using (status = 'pending');
+
+drop policy if exists "Anyone can delete their order items" on public.order_items;
+create policy "Anyone can delete their order items" on public.order_items for delete using (
+  exists (
+    select 1 from public.orders 
+    where id = public.order_items.order_id 
+    and status = 'pending'
+  )
+);
+
 -- Tabela de Transportadoras
 create table if not exists public.shipping_carriers (
   id uuid default gen_random_uuid() primary key,

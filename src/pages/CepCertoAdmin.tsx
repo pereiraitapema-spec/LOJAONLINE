@@ -18,6 +18,7 @@ import { formatCurrency } from '../lib/utils';
 export default function CepCertoAdmin() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<any>(null);
   const [refreshingBalance, setRefreshingBalance] = useState(false);
   const [balance, setBalance] = useState<any>(null);
   const [pixAmount, setPixAmount] = useState('50');
@@ -233,6 +234,29 @@ export default function CepCertoAdmin() {
   });
 
   useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        navigate('/login');
+        return;
+      }
+      setSession(session);
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      
+      if (profile?.role !== 'admin') {
+        toast.error('Acesso restrito a administradores.');
+        navigate('/');
+        return;
+      }
+    };
+    
+    checkAuth();
+
     const saved = localStorage.getItem('cepcerto_remetente_padrao');
     if (saved) {
       const data = JSON.parse(saved);

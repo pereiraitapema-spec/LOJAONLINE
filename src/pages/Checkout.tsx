@@ -1410,48 +1410,78 @@ export default function Checkout() {
               const request = new PaymentRequest([{
                 supportedMethods: 'https://google.com/pay',
                 data: {
-                  environment: 'TEST',
+                  environment: 'PRODUCTION', // Alterado para produção conforme solicitado
                   apiVersion: 2,
                   apiVersionMinor: 0,
                   merchantInfo: {
-                    merchantName: 'G Fit Life',
-                    merchantId: '12345678901234567890'
+                    merchantName: settings?.company_name || 'G Fit Life',
+                    merchantId: activeGateway.config.google_pay_merchant_id || '12345678901234567890'
                   },
                   allowedPaymentMethods: [{
                     type: 'CARD',
                     parameters: {
                       allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
-                      allowedCardNetworks: ['MASTERCARD', 'VISA']
+                      allowedCardNetworks: ['MASTERCARD', 'VISA', 'AMEX', 'DISCOVER']
                     },
                     tokenizationSpecification: {
                       type: 'PAYMENT_GATEWAY',
                       parameters: {
-                        gateway: 'example',
-                        gatewayMerchantId: 'exampleGatewayMerchantId'
+                        gateway: 'pagarme',
+                        gatewayMerchantId: activeGateway.config.encryption_key || activeGateway.config.access_token
                       }
                     }
                   }]
                 }
               }], {
                 total: {
-                  label: 'Total',
+                  label: 'Total da Compra',
                   amount: { currency: 'BRL', value: finalTotal.toFixed(2) }
                 }
               });
 
-              let simulationGPay;
+              let gpayResponse;
               try {
-                simulationGPay = await request.show();
-                await simulationGPay.complete('success');
-                toast.success('Pagamento via Google Pay simulado com sucesso!');
-                paymentResponse = {
-                  success: true,
-                  status: 'paid',
-                  payment_id: 'GPAY_' + Date.now()
-                };
+                gpayResponse = await request.show();
+                console.log('📱 Resposta bruta do Google Pay recebida.');
+                
+                // Extração segura do token
+                const tokenString = gpayResponse.details?.paymentMethodToken?.token;
+                if (!tokenString) throw new Error('Token do Google Pay não encontrado na resposta.');
+                const gpayToken = JSON.parse(tokenString);
+                
+                console.log('💳 Enviando token Google Pay para o Pagar.me via Proxy...');
+                paymentResponse = await paymentService.processPayment(activeGateway.provider, {
+                  items: cart.map(item => ({
+                    price: item.product.discount_price || item.product.price,
+                    product_name: item.product.name,
+                    quantity: item.quantity,
+                    product_id: item.product.id
+                  })),
+                  customer_name: customer.name,
+                  customer_email: customer.email,
+                  customer_phone: customer.phone.replace(/\D/g, ''),
+                  customer_document: document.replace(/\D/g, ''),
+                  shipping_address: {
+                    ...shipping,
+                    street: shipping.street.substring(0, 100).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+                    city: shipping.city.substring(0, 50).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+                    neighborhood: shipping.neighborhood.substring(0, 50).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+                  },
+                  shipping_cost: shippingCost,
+                  shipping_method: currentShipping?.name,
+                  payment_method: 'google_pay',
+                  google_pay_data: gpayToken,
+                  order_id: orderData.id
+                }, activeGateway.config);
+
+                await gpayResponse.complete(paymentResponse.success ? 'success' : 'fail');
+                
+                if (!paymentResponse.success) {
+                   throw new Error(paymentResponse.error || 'Erro no processamento via Google Pay.');
+                }
               } catch (e: any) {
-                console.error(e);
-                await rollbackFailedOrder('Pagamento via Google Pay/Apple Pay cancelado.');
+                console.error('❌ Falha no Google Pay:', e);
+                await rollbackFailedOrder(e.message || 'Pagamento via Google Pay/Apple Pay cancelado ou falhou.');
                 return;
               }
             } else {            
