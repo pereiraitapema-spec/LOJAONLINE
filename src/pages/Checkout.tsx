@@ -1403,7 +1403,7 @@ export default function Checkout() {
               card_number: cardData.number.replace(/\D/g, ''),
               card_name: cardData.billing_name.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
               card_document: cardData.billing_document.replace(/\D/g, ''),
-              expiry: cardData.expiry.replace(/\D/g, ''),
+              expiry: cardData.expiry,
               cvv: cardData.cvv,
               installments: cardData.installments,
               order_id: orderData.id
