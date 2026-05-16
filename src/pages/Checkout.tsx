@@ -22,7 +22,8 @@ import {
   Store,
   ExternalLink,
   Ticket,
-  MessageSquare
+  MessageSquare,
+  Smartphone
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -1096,6 +1097,11 @@ export default function Checkout() {
       return;
     }
 
+    if (paymentMethod === 'google_pay' && !window.PaymentRequest) {
+      toast.error('Google Pay / Apple Pay não é suportado neste navegador.');
+      return;
+    }
+
     if (createAccount && !user && !customer.password) {
       toast.error('Por favor, crie uma senha para sua nova conta.');
       return;
@@ -1400,34 +1406,84 @@ export default function Checkout() {
             console.log('💳 Iniciando processamento de pagamento real...');
             console.log('DEBUG pagamento enviado:', { customer_name: customer.name, customer_document: document });
             
-            paymentResponse = await paymentService.processPayment(activeGateway.provider, {
-              items: cart.map(item => ({
-                price: item.product.discount_price || item.product.price,
-                product_name: item.product.name,
-                quantity: item.quantity,
-                product_id: item.product.id
-              })),
-              customer_name: customer.name,
-              customer_email: customer.email,
-              customer_phone: customer.phone.replace(/\D/g, ''),
-              customer_document: document.replace(/\D/g, ''),
-              shipping_address: {
-                ...shipping,
-                street: shipping.street.substring(0, 100).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-                city: shipping.city.substring(0, 50).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-                neighborhood: shipping.neighborhood.substring(0, 50).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-              },
-              shipping_cost: shippingCost,
-              shipping_method: currentShipping?.name,
-              payment_method: pagarmeMethod || paymentMethod,
-              card_number: cardData.number.replace(/\D/g, ''),
-              card_name: cardData.name.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-              card_document: cardData.billing_document.replace(/\D/g, ''),
-              expiry: cardData.expiry,
-              cvv: cardData.cvv,
-              installments: cardData.installments,
-              order_id: orderData.id
-            }, activeGateway.config);
+            if (paymentMethod === 'google_pay') {
+              const request = new PaymentRequest([{
+                supportedMethods: 'https://google.com/pay',
+                data: {
+                  environment: 'TEST',
+                  apiVersion: 2,
+                  apiVersionMinor: 0,
+                  merchantInfo: {
+                    merchantName: 'G Fit Life',
+                    merchantId: '12345678901234567890'
+                  },
+                  allowedPaymentMethods: [{
+                    type: 'CARD',
+                    parameters: {
+                      allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
+                      allowedCardNetworks: ['MASTERCARD', 'VISA']
+                    },
+                    tokenizationSpecification: {
+                      type: 'PAYMENT_GATEWAY',
+                      parameters: {
+                        gateway: 'example',
+                        gatewayMerchantId: 'exampleGatewayMerchantId'
+                      }
+                    }
+                  }]
+                }
+              }], {
+                total: {
+                  label: 'Total',
+                  amount: { currency: 'BRL', value: finalTotal.toFixed(2) }
+                }
+              });
+
+              let simulationGPay;
+              try {
+                simulationGPay = await request.show();
+                await simulationGPay.complete('success');
+                toast.success('Pagamento via Google Pay simulado com sucesso!');
+                paymentResponse = {
+                  success: true,
+                  status: 'paid',
+                  payment_id: 'GPAY_' + Date.now()
+                };
+              } catch (e: any) {
+                console.error(e);
+                await rollbackFailedOrder('Pagamento via Google Pay/Apple Pay cancelado.');
+                return;
+              }
+            } else {            
+              paymentResponse = await paymentService.processPayment(activeGateway.provider, {
+                items: cart.map(item => ({
+                  price: item.product.discount_price || item.product.price,
+                  product_name: item.product.name,
+                  quantity: item.quantity,
+                  product_id: item.product.id
+                })),
+                customer_name: customer.name,
+                customer_email: customer.email,
+                customer_phone: customer.phone.replace(/\D/g, ''),
+                customer_document: document.replace(/\D/g, ''),
+                shipping_address: {
+                  ...shipping,
+                  street: shipping.street.substring(0, 100).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+                  city: shipping.city.substring(0, 50).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+                  neighborhood: shipping.neighborhood.substring(0, 50).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+                },
+                shipping_cost: shippingCost,
+                shipping_method: currentShipping?.name,
+                payment_method: pagarmeMethod || paymentMethod,
+                card_number: cardData.number.replace(/\D/g, ''),
+                card_name: cardData.name.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+                card_document: cardData.billing_document.replace(/\D/g, ''),
+                expiry: cardData.expiry,
+                cvv: cardData.cvv,
+                installments: cardData.installments,
+                order_id: orderData.id
+              }, activeGateway.config);
+            }
 
             console.log('📡 Resposta do processamento de pagamento:', paymentResponse);
 
@@ -2033,6 +2089,20 @@ export default function Checkout() {
                     <span className="font-bold text-xs text-center">{gateway.name}</span>
                   </button>
                 ))}
+                
+                {/* Google Pay / Apple Pay */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod('google_pay');
+                    setPagarmeMethod(null);
+                  }}
+                  className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === 'google_pay' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                >
+                  <Smartphone size={20} />
+                  <span className="font-bold text-xs text-center">GPay/Apple</span>
+                </button>
+
                 {/* Fallback para métodos internos se não houver gateways configurados */}
                 {gateways.length === 0 && (
                   <>
@@ -2251,9 +2321,17 @@ export default function Checkout() {
                   <QrCode size={48} className="mx-auto text-emerald-600 mb-4" />
                   <h3 className="font-bold text-emerald-800 mb-2">Pagamento Rápido e Seguro</h3>
                   <p className="text-sm text-emerald-600 mb-4">O código PIX será gerado na próxima etapa. A aprovação é imediata!</p>
-                  <div className="inline-block bg-emerald-200 text-emerald-800 px-4 py-2 rounded-full text-sm font-bold">
+                  <div className="inline-block bg-emerald-200 text-emerald-800 px-4 py-2 rounded-full text-sm font-bold mb-4">
                     Desconto de 5% aplicado: {formatCurrency(finalTotal * 0.05)}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCheckout()}
+                    disabled={processing}
+                    className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-lg uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-lg flex items-center justify-center gap-2"
+                  >
+                    {processing ? 'Gerando PIX...' : 'Gerar Chave PIX'}
+                  </button>
                 </motion.div>
               )}
 
@@ -2266,9 +2344,17 @@ export default function Checkout() {
                   <Barcode size={48} className="mx-auto text-amber-600 mb-4" />
                   <h3 className="font-bold text-amber-800 mb-2">Boleto Bancário</h3>
                   <p className="text-sm text-amber-600 mb-4">O boleto será gerado na próxima etapa. A aprovação pode levar até 3 dias úteis.</p>
-                  <div className="inline-block bg-amber-200 text-amber-800 px-4 py-2 rounded-full text-sm font-bold">
+                  <div className="inline-block bg-amber-200 text-amber-800 px-4 py-2 rounded-full text-sm font-bold mb-4">
                     Vencimento em 3 dias
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCheckout()}
+                    disabled={processing}
+                    className="w-full bg-amber-600 text-white py-4 rounded-2xl font-black text-lg uppercase tracking-wider hover:bg-amber-700 transition-all shadow-lg flex items-center justify-center gap-2"
+                  >
+                    {processing ? 'Gerando Boleto...' : 'Gerar Boleto'}
+                  </button>
                 </motion.div>
               )}
 
@@ -2287,11 +2373,39 @@ export default function Checkout() {
                   ) : (
                     <p className="text-sm text-blue-600 text-center">Dados bancários não configurados.</p>
                   )}
-                  <div className="mt-4 text-center">
+                  <div className="mt-4 text-center mb-6">
                     <div className="inline-block bg-blue-200 text-blue-800 px-4 py-2 rounded-full text-sm font-bold">
                       Aprovação em até 24h
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCheckout()}
+                    disabled={processing}
+                    className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg uppercase tracking-wider hover:bg-blue-700 transition-all shadow-lg flex items-center justify-center gap-2"
+                  >
+                    {processing ? 'Confirmando...' : 'Confirmar Pedido'}
+                  </button>
+                </motion.div>
+              )}
+
+              {paymentMethod === 'google_pay' && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="bg-amber-50 p-6 rounded-2xl border border-amber-100 text-center mb-6"
+                >
+                  <Smartphone size={48} className="mx-auto text-amber-600 mb-4" />
+                  <h3 className="font-bold text-amber-800 mb-2">Google Pay / Apple Pay</h3>
+                  <p className="text-sm text-amber-600 mb-4">Finalize sua compra de forma rápida e segura usando a sua carteira digital preferida.</p>
+                  <button
+                    type="button"
+                    onClick={() => handleCheckout()}
+                    disabled={processing}
+                    className="w-full bg-black text-white py-4 rounded-2xl font-black text-lg uppercase tracking-wider hover:bg-zinc-800 transition-all shadow-lg flex items-center justify-center gap-2"
+                  >
+                    {processing ? 'Processando...' : `Pagar ${formatCurrency(finalTotal)} Agora`}
+                  </button>
                 </motion.div>
               )}
             </section>
