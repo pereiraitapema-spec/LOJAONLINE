@@ -1429,48 +1429,49 @@ export default function Checkout() {
                   const gPayMerchantId = activeGateway.config.google_pay_merchant_id;
                   const gPayMerchantName = settings?.company_name || 'G Fit Life';
                   
-                  // Força produção se o Merchant ID não for o placeholder de teste
-                  const isDemoId = !gPayMerchantId || gPayMerchantId === '12345678901234567890';
-                  const gPayEnv = isDemoId ? 'TEST' : 'PRODUCTION';
+                  // Se o usuário preencheu o Merchant ID, usamos PROD. Se não, usamos TEST.
+                  // Nota: Para usar cartões reais, o Merchant ID de 20 dígitos É OBRIGATÓRIO.
+                  const isProduction = gPayMerchantId && gPayMerchantId.length >= 10 && gPayMerchantId !== '12345678901234567890';
+                  const gPayEnv = isProduction ? 'PRODUCTION' : 'TEST';
                   
                   console.log('📱 [G-PAY] Iniciando solicitação...');
                   console.log('📱 [G-PAY] Ambiente:', gPayEnv);
-                  console.log('📱 [G-PAY] Merchant ID:', gPayMerchantId || 'DEMO');
+                  console.log('📱 [G-PAY] Google Merchant ID:', gPayMerchantId || 'NÃO CONFIGURADO (Usando modo TESTE)');
 
-                  if (isDemoId) {
-                    console.warn('⚠️ Google Pay em modo TESTE. Para usar seus cartões reais de PRODUÇÃO, você deve configurar o Merchant ID no painel de Gateways.');
+                  const googlePayData: any = {
+                    environment: gPayEnv,
+                    apiVersion: 2,
+                    apiVersionMinor: 0,
+                    merchantInfo: {
+                      merchantName: gPayMerchantName,
+                    },
+                    allowedPaymentMethods: [{
+                      type: 'CARD',
+                      parameters: {
+                        allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
+                        allowedCardNetworks: ['MASTERCARD', 'VISA', 'AMEX', 'DISCOVER', 'JCB', 'ELO'],
+                        allowDebitCard: true,
+                        billingAddressRequired: true,
+                        billingAddressFormat: 'FULL'
+                      },
+                      tokenizationSpecification: {
+                        type: 'PAYMENT_GATEWAY',
+                        parameters: {
+                          gateway: 'pagarme',
+                          gatewayMerchantId: activeGateway.config.merchant_id || activeGateway.config.public_key || '10000000'
+                        }
+                      }
+                    }]
+                  };
+
+                  // O merchantId só deve ser enviado se tivermos um ID de produção real
+                  if (isProduction) {
+                    googlePayData.merchantInfo.merchantId = gPayMerchantId;
                   }
 
                   const request = new PaymentRequest([{
                     supportedMethods: 'https://google.com/pay',
-                    data: {
-                      environment: gPayEnv,
-                      apiVersion: 2,
-                      apiVersionMinor: 0,
-                      merchantInfo: {
-                        merchantName: gPayMerchantName,
-                        merchantId: gPayMerchantId || '12345678901234567890'
-                      },
-                      allowedPaymentMethods: [{
-                        type: 'CARD',
-                        parameters: {
-                          allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
-                          allowedCardNetworks: ['MASTERCARD', 'VISA', 'AMEX', 'DISCOVER', 'JCB', 'ELO'],
-                          allowDebitCard: true,
-                          billingAddressRequired: true,
-                          billingAddressFormat: 'FULL'
-                        },
-                        tokenizationSpecification: {
-                          type: 'PAYMENT_GATEWAY',
-                          parameters: {
-                            gateway: 'pagarme',
-                            // O gatewayMerchantId para o Pagar.me PODE ser a chave pública (V5) ou o Account ID
-                            // Tentamos usar o merchant_id da conta ou a chave pública
-                            gatewayMerchantId: activeGateway.config.merchant_id || activeGateway.config.public_key || '123456'
-                          }
-                        }
-                      }]
-                    }
+                    data: googlePayData
                   }], {
                     total: {
                       label: 'Total da Compra',

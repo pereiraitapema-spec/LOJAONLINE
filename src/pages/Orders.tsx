@@ -1879,7 +1879,7 @@ export default function Orders() {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'paid': return 'bg-emerald-100 text-emerald-700';
       case 'approved': return 'bg-emerald-100 text-emerald-700';
       case 'pending': return 'bg-amber-100 text-amber-700';
@@ -1896,7 +1896,7 @@ export default function Orders() {
   };
 
   const getStatusText = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'paid': return 'Pago';
       case 'approved': return 'Pago';
       case 'pending': return 'Pendente';
@@ -1913,7 +1913,7 @@ export default function Orders() {
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'paid': return <CheckCircle2 size={16} />;
       case 'approved': return <CheckCircle2 size={16} />;
       case 'pending': return <Clock size={16} />;
