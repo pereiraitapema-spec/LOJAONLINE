@@ -1429,8 +1429,9 @@ export default function Checkout() {
                   const gPayMerchantId = activeGateway.config.google_pay_merchant_id;
                   const gPayEnv = gPayMerchantId ? 'PRODUCTION' : 'TEST';
                   
+                  console.log(`📱 Iniciando Google Pay no ambiente: ${gPayEnv}`);
                   if (gPayEnv === 'TEST') {
-                    console.warn('⚠️ Google Pay Merchant ID não configurado. Usando ambiente de TESTE.');
+                    console.warn('⚠️ Google Pay Merchant ID não configurado. Usando ambiente de TESTE para evitar erro OR_BIBED_11.');
                   }
 
                   const request = new PaymentRequest([{
@@ -1468,14 +1469,24 @@ export default function Checkout() {
               let gpayResponse;
               try {
                 gpayResponse = await request.show();
-                console.log('📱 Resposta bruta do Google Pay recebida.');
+                console.log('📱 Resposta bruta do Google Pay recebida:', gpayResponse);
                 
-                // Extração segura do token
-                const tokenString = gpayResponse.details?.paymentMethodToken?.token;
-                if (!tokenString) throw new Error('Token do Google Pay não encontrado na resposta.');
+                // Extração robusta do token
+                let tokenString = gpayResponse.details?.paymentMethodToken?.token;
+                
+                // Fallback para outros possíveis locais do token dependendo do navegador/versão
+                if (!tokenString && gpayResponse.details?.token) tokenString = gpayResponse.details.token;
+                if (!tokenString && typeof gpayResponse.details === 'string') tokenString = gpayResponse.details;
+
+                if (!tokenString) {
+                  console.error('❌ Resposta do Google Pay sem token:', gpayResponse.details);
+                  throw new Error('Token do Google Pay não encontrado na resposta.');
+                }
+
                 const gpayToken = JSON.parse(tokenString);
+                console.log('💳 Token Google Pay decodificado:', gpayToken);
                 
-                console.log('💳 Enviando token Google Pay para o Pagar.me via Proxy...');
+                console.log('🚀 Enviando token para o Pagar.me...');
                 paymentResponse = await paymentService.processPayment(activeGateway.provider, {
                   items: cart.map(item => ({
                     price: item.product.discount_price || item.product.price,
