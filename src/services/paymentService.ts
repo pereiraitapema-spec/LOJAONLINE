@@ -121,16 +121,23 @@ const pagarmeProvider: PaymentProvider = {
                     }
                   ]
                 } : undefined,
-                google_pay: orderData.payment_method === 'google_pay' ? {
-                  data: orderData.google_pay_data?.signedMessage || orderData.google_pay_data?.data,
-                  signature: orderData.google_pay_data?.signature,
-                  header: orderData.google_pay_data?.header || {
-                    ephemeralPublicKey: orderData.google_pay_data?.ephemeralPublicKey || JSON.parse(orderData.google_pay_data?.signedMessage || '{}').ephemeralPublicKey,
-                    publicKeyHash: orderData.google_pay_data?.publicKeyHash || JSON.parse(orderData.google_pay_data?.signedMessage || '{}').publicKeyHash,
-                    transactionId: orderData.google_pay_data?.transactionId || JSON.parse(orderData.google_pay_data?.signedMessage || '{}').transactionId
-                  },
-                  merchant_id: config.merchant_id || 'merchant.com.gfitlife'
-                } : undefined
+                google_pay: orderData.payment_method === 'google_pay' ? (() => {
+                  const gPayToken = orderData.google_pay_data;
+                  // Se vier como string encapsulada, tenta parsear
+                  const signedMessage = gPayToken?.signedMessage ? JSON.parse(gPayToken.signedMessage) : null;
+                  
+                  return {
+                    // Pagar.me espera o encryptedMessage no campo data
+                    data: signedMessage?.encryptedMessage || gPayToken?.data || gPayToken?.encryptedMessage,
+                    signature: gPayToken?.signature,
+                    header: {
+                      ephemeralPublicKey: signedMessage?.ephemeralPublicKey || gPayToken?.ephemeralPublicKey || gPayToken?.header?.ephemeralPublicKey,
+                      publicKeyHash: signedMessage?.publicKeyHash || gPayToken?.publicKeyHash || gPayToken?.header?.publicKeyHash,
+                      transactionId: signedMessage?.transactionId || gPayToken?.transactionId || gPayToken?.header?.transactionId
+                    },
+                    merchant_id: config.merchant_id || 'merchant.com.gfitlife'
+                  };
+                })() : undefined
               }
             ].filter(p => {
               // Remove o objeto de pagamento se o método não for o selecionado
