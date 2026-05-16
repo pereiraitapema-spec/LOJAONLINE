@@ -1427,11 +1427,16 @@ export default function Checkout() {
             
                 if (paymentMethod === 'google_pay') {
                   const gPayMerchantId = activeGateway.config.google_pay_merchant_id;
-                  const gPayEnv = gPayMerchantId ? 'PRODUCTION' : 'TEST';
+                  const gPayMerchantName = settings?.company_name || 'G Fit Life';
+                  const gPayEnv = (gPayMerchantId && gPayMerchantId !== '12345678901234567890') ? 'PRODUCTION' : 'TEST';
                   
-                  console.log(`📱 Iniciando Google Pay no ambiente: ${gPayEnv}`);
+                  console.log('📱 [G-PAY] Iniciando solicitação...');
+                  console.log('📱 [G-PAY] Ambiente:', gPayEnv);
+                  console.log('📱 [G-PAY] Merchant ID:', gPayMerchantId);
+                  console.log('📱 [G-PAY] Merchant Name:', gPayMerchantName);
+
                   if (gPayEnv === 'TEST') {
-                    console.warn('⚠️ Google Pay Merchant ID não configurado. Usando ambiente de TESTE para evitar erro OR_BIBED_11.');
+                    console.warn('⚠️ Google Pay em modo TESTE. Para PRODUÇÃO, configure o Merchant ID no painel.');
                   }
 
                   const request = new PaymentRequest([{
@@ -1441,19 +1446,24 @@ export default function Checkout() {
                       apiVersion: 2,
                       apiVersionMinor: 0,
                       merchantInfo: {
-                        merchantName: settings?.company_name || 'G Fit Life',
+                        merchantName: gPayMerchantName,
                         merchantId: gPayMerchantId || '12345678901234567890'
                       },
                       allowedPaymentMethods: [{
                         type: 'CARD',
                         parameters: {
                           allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
-                          allowedCardNetworks: ['MASTERCARD', 'VISA', 'AMEX', 'DISCOVER']
+                          allowedCardNetworks: ['MASTERCARD', 'VISA', 'AMEX', 'DISCOVER', 'JCB', 'ELO'],
+                          allowDebitCard: true,
+                          billingAddressRequired: true,
+                          billingAddressFormat: 'FULL'
                         },
                         tokenizationSpecification: {
                           type: 'PAYMENT_GATEWAY',
                           parameters: {
                             gateway: 'pagarme',
+                            // O gatewayMerchantId para o Pagar.me PODE ser a chave pública (V5) ou o Account ID
+                            // Tentamos usar o merchant_id da conta ou a chave pública
                             gatewayMerchantId: activeGateway.config.merchant_id || activeGateway.config.public_key || '123456'
                           }
                         }
@@ -1466,27 +1476,49 @@ export default function Checkout() {
                     }
                   });
 
+                  try {
+                    // Verifica se o Google Pay está disponível antes de mostrar
+                    const canPay = await request.canMakePayment();
+                    console.log('📱 [G-PAY] Pode realizar pagamento?', canPay);
+                  } catch (e) {
+                    console.warn('⚠️ Falha ao verificar canMakePayment:', e);
+                  }
+
               let gpayResponse;
               try {
                 gpayResponse = await request.show();
-                console.log('📱 Resposta bruta do Google Pay recebida:', gpayResponse);
+                console.log('📱 [G-PAY] Resposta bruta:', gpayResponse);
                 
-                // Extração robusta do token
-                let tokenString = gpayResponse.details?.paymentMethodToken?.token;
-                
-                // Fallback para outros possíveis locais do token dependendo do navegador/versão
-                if (!tokenString && gpayResponse.details?.token) tokenString = gpayResponse.details.token;
-                if (!tokenString && typeof gpayResponse.details === 'string') tokenString = gpayResponse.details;
-
-                if (!tokenString) {
-                  console.error('❌ Resposta do Google Pay sem token:', gpayResponse.details);
-                  throw new Error('Token do Google Pay não encontrado na resposta.');
+                // Extração agressiva do token
+                let rawToken = '';
+                if (gpayResponse.details?.paymentMethodToken?.token) {
+                  rawToken = gpayResponse.details.paymentMethodToken.token;
+                } else if (gpayResponse.details?.token) {
+                  rawToken = gpayResponse.details.token;
+                } else if (typeof gpayResponse.details === 'string') {
+                  rawToken = gpayResponse.details;
+                } else if (gpayResponse.details) {
+                  rawToken = JSON.stringify(gpayResponse.details);
                 }
 
-                const gpayToken = JSON.parse(tokenString);
-                console.log('💳 Token Google Pay decodificado:', gpayToken);
+                if (!rawToken || rawToken === '{}') {
+                  console.error('❌ [G-PAY] Token vazio ou inválido na resposta.');
+                  throw new Error('Não foi possível obter o token de pagamento do Google Pay.');
+                }
+
+                console.log('📱 [G-PAY] Token bruto:', rawToken);
                 
-                console.log('🚀 Enviando token para o Pagar.me...');
+                let gpayToken;
+                try {
+                  gpayToken = JSON.parse(rawToken);
+                } catch (e) {
+                  console.error('❌ [G-PAY] Erro ao parsear token:', e);
+                  throw new Error('O formato do token do Google Pay é inválido.');
+                }
+
+                console.log('💳 [G-PAY] Token decodificado:', gpayToken);
+                
+                console.log('🚀 [G-PAY] Enviando para processamento no Pagar.me...');
                 paymentResponse = await paymentService.processPayment(activeGateway.provider, {
                   items: cart.map(item => ({
                     price: item.product.discount_price || item.product.price,
