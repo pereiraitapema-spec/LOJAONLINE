@@ -21,7 +21,8 @@ import {
   X,
   Store,
   ExternalLink,
-  Ticket
+  Ticket,
+  MessageSquare
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
