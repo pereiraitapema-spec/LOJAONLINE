@@ -152,7 +152,6 @@ export default function Checkout() {
     expiry: '',
     cvv: '',
     installments: '1',
-    billing_name: '',
     billing_document: ''
   });
 
@@ -1244,6 +1243,27 @@ export default function Checkout() {
       
       console.log('✅ Pedido criado com sucesso no Supabase:', orderData);
       
+      const rollbackFailedOrder = async (errorMessage: string) => {
+        try {
+          console.log('🔄 Desfazendo pedido falso e restaurando estoque...');
+          // Restaura o estoque
+          const rollbackLogs = cart.map(item => ({
+            product_id: item.product.id,
+            change_amount: item.quantity,
+            reason: `Estorno (Falha Pgto) Cancelamento #${orderData.id.split('-')[0].toUpperCase()}`
+          }));
+          await supabase.from('inventory_logs').insert(rollbackLogs);
+          // Apaga o pedido e seus itens associados (garantido no RLS e cascade se houver, ou delete manual aqui)
+          await supabase.from('order_items').delete().eq('order_id', orderData.id);
+          await supabase.from('orders').delete().eq('id', orderData.id);
+          console.log('✅ Estoque restaurado e pedido "falso" excluído.');
+        } catch (e) {
+          console.error('❌ Erro no rollback:', e);
+        }
+        setShowPaymentErrorModal({ isOpen: true, message: errorMessage });
+        setProcessing(false);
+      };
+      
       // Atualizar perfil do usuário com os dados do checkout
       if (currentUserId) {
         console.log('🔄 Atualizando perfil do usuário:', currentUserId);
@@ -1401,7 +1421,7 @@ export default function Checkout() {
               shipping_method: currentShipping?.name,
               payment_method: pagarmeMethod || paymentMethod,
               card_number: cardData.number.replace(/\D/g, ''),
-              card_name: cardData.billing_name.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+              card_name: cardData.name.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
               card_document: cardData.billing_document.replace(/\D/g, ''),
               expiry: cardData.expiry,
               cvv: cardData.cvv,
@@ -1443,8 +1463,7 @@ export default function Checkout() {
             }
           } catch (err: any) {
             console.error('❌ Erro no processamento de pagamento:', err);
-            setShowPaymentErrorModal({ isOpen: true, message: `Erro no pagamento: ${err.message}` });
-            setProcessing(false);
+            await rollbackFailedOrder(`Erro no pagamento: ${err.message}`);
             return;
           }
         } else {
@@ -1500,14 +1519,9 @@ export default function Checkout() {
       }
 
       // Se o status retornado for failed ou canceled, nós paramos o fluxo
-      if (initialStatus === 'failed' || initialStatus === 'canceled') {
+      if (initialStatus === 'failed' || initialStatus === 'canceled' || initialStatus === 'refused') {
           console.error('❌ Pagamento foi recusado ou falhou no gateway.');
-          // Exibir modal de erro bloqueante
-          setShowPaymentErrorModal({
-            isOpen: true,
-            message: paymentResponse.error_message || 'Pagamento recusado pelo banco ou emissor. Verifique os dados do cartão ou tente outro método.'
-          });
-          setProcessing(false);
+          await rollbackFailedOrder(paymentResponse.error_message || 'Pagamento recusado pelo banco ou emissor. Verifique os dados do cartão ou tente outro método.');
           return;
       }
 
@@ -2171,17 +2185,6 @@ export default function Checkout() {
                         required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card' || pagarmeMethod === 'debit_card'}
                       />
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Nome no Cartão (Titular) *</label>
-                    <input 
-                      type="text" 
-                      value={cardData.billing_name}
-                      onChange={e => setCardData({...cardData, billing_name: e.target.value})}
-                      placeholder="Nome do titular como no cartão"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all uppercase"
-                      required={paymentMethod === 'credit_card' || pagarmeMethod === 'credit_card' || pagarmeMethod === 'debit_card'}
-                    />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1">CPF do Titular *</label>
