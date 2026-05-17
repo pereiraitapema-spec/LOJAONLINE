@@ -10,6 +10,7 @@ import {
   Truck, 
   ShieldCheck, 
   ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   AlertCircle,
   QrCode,
@@ -101,8 +102,14 @@ export default function Checkout() {
 
   useEffect(() => {
     if (gpayScriptLoaded && gpayButtonContainerRef.current && (window as any).google) {
-      const activeGateway = gateways.find(g => g.id === 'google_pay') || gateways.find(g => g.id === selectedGateway);
-      if (!activeGateway) return;
+      // Tenta encontrar um gateway que suporte Google Pay por ID ou provedor
+      const activeGateway = gateways.find(g => g.id === 'google_pay' || g.provider === 'google_pay' || g.id === selectedGateway);
+      
+      // Se não houver gateway configurado ainda, não podemos renderizar o botão com tokenização correta
+      if (!activeGateway) {
+        console.warn('⚠️ [G-PAY] Nenhum gateway ativo encontrado para o Google Pay.');
+        return;
+      }
 
       const rawGPayMerchantId = activeGateway.config.google_pay_merchant_id;
       const gPayMerchantId = rawGPayMerchantId ? rawGPayMerchantId.replace(/-/g, '').trim() : '';
@@ -138,7 +145,8 @@ export default function Checkout() {
         buttonColor: 'black',
         buttonType: 'buy',
         buttonSizeMode: 'fill',
-        onClick: () => handleCheckout(),
+        buttonLocale: 'pt',
+        onClick: () => handleCheckout('google_pay'),
         allowedPaymentMethods: allowedPaymentMethods
       });
 
@@ -286,10 +294,33 @@ export default function Checkout() {
   }, [currentOrderId]);
 
   const SuccessModal = () => {
-    // ... (rest of SuccessModal logic) ...
+    if (!showSuccessModal) return null;
+
     return (
-      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        {/* ... (SuccessModal content) ... */}
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl relative"
+        >
+          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mx-auto mb-6">
+            <CheckCircle2 size={40} />
+          </div>
+          <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase italic tracking-tighter">Pedido Realizado!</h2>
+          <p className="text-slate-600 mb-8 leading-relaxed">
+            Seu pagamento foi confirmado com sucesso. Estamos preparando seu pedido!
+          </p>
+          <button 
+            onClick={() => {
+              setShowSuccessModal(false);
+              navigate(`/success?orderId=${currentOrderId}`);
+            }}
+            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
+          >
+            Ver Detalhes do Pedido
+            <ArrowRight size={18} />
+          </button>
+        </motion.div>
       </div>
     );
   };
@@ -1065,8 +1096,18 @@ export default function Checkout() {
     };
   }, [settings]);
 
-  const handleCheckout = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const handleCheckout = async (e?: React.FormEvent | string) => {
+    if (e && typeof e !== 'string') e.preventDefault();
+
+    // Se vier uma string (ex: 'google_pay' do botão oficial), definimos o método
+    if (typeof e === 'string') {
+      setPaymentMethod(e);
+      // Garantir que o valor sincronize se houver gateways múltiplos
+      if (e === 'google_pay') {
+        const gpayGateway = gateways.find(g => g.id === 'google_pay' || g.provider === 'google_pay');
+        if (gpayGateway) setSelectedGateway(gpayGateway.id);
+      }
+    }
     
     // Validação Detalhada (Conforme solicitado pelo usuário)
     if (!customer.name) {
@@ -2576,38 +2617,36 @@ export default function Checkout() {
                   animate={{ opacity: 1, height: 'auto' }}
                   className="bg-zinc-50 p-6 rounded-3xl border border-zinc-200 text-center mb-6"
                 >
-                  <div className="flex justify-center mb-4">
-                    <div className="bg-white p-3 rounded-2xl shadow-sm border border-zinc-100">
-                      <Smartphone size={32} className="text-zinc-900" />
-                    </div>
-                  </div>
-                  <h3 className="font-bold text-zinc-900 mb-2">Google Pay / Apple Pay</h3>
-                  <p className="text-xs text-zinc-500 mb-6 max-w-xs mx-auto">
+                  <h3 className="font-bold text-zinc-900 mb-1 text-lg">Google Pay</h3>
+                  <p className="text-zinc-500 text-sm mb-6 leading-relaxed">
                     Finalize sua compra de forma segura com o Google Pay. 
                   </p>
                   
-                  <div 
-                    ref={gpayButtonContainerRef} 
-                    className="w-full min-h-[56px] flex items-center justify-center mb-6"
-                    id="gpay-button-container"
-                  >
-                    {/* Botão oficial do Google Pay será renderizado aqui */}
-                    {!gpayScriptLoaded && (
-                      <div className="w-full h-14 bg-zinc-100 animate-pulse rounded-xl flex items-center justify-center">
-                        <span className="text-zinc-400 text-sm">Carregando Google Pay...</span>
-                      </div>
-                    )}
+                  {/* Container seguindo Brand Guidelines (Espaço livre de 8dp) */}
+                  <div className="p-2 bg-white rounded-2xl border border-zinc-100 shadow-sm inline-block w-full">
+                    <div 
+                      ref={gpayButtonContainerRef} 
+                      className="w-full min-h-[56px] flex items-center justify-center"
+                      id="gpay-button-container"
+                    >
+                      {/* Botão oficial do Google Pay será renderizado aqui */}
+                      {!gpayScriptLoaded && (
+                        <div className="w-full h-14 bg-zinc-100 animate-pulse rounded-xl flex items-center justify-center">
+                          <span className="text-zinc-400 text-sm font-medium tracking-tight">Carregando Google Pay...</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {processing && (
-                    <div className="flex items-center justify-center gap-2 text-indigo-600 font-bold animate-pulse">
-                      <Smartphone className="animate-bounce" />
-                      <span>Processando Pagamento Seguro...</span>
+                    <div className="mt-4 flex items-center justify-center gap-2 text-indigo-600 font-bold animate-pulse">
+                      <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" />
+                      <span className="text-sm">Processando Pagamento Seguro...</span>
                     </div>
                   )}
 
-                  <p className="mt-4 text-[10px] text-zinc-400 italic">
-                    Ao clicar no botão acima, você autoriza o Google a compartilhar seus dados de pagamento com o G Fit Life.
+                  <p className="mt-4 text-[10px] text-zinc-400 uppercase tracking-widest font-bold">
+                    Transação Protegida
                   </p>
                 </motion.div>
               )}
