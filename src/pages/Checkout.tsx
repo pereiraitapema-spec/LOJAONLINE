@@ -24,7 +24,6 @@ import {
   ExternalLink,
   Ticket,
   MessageSquare,
-  Smartphone
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Loading } from '../components/Loading';
@@ -75,9 +74,6 @@ export default function Checkout() {
   const [gateways, setGateways] = useState<any[]>([]);
   const [carriers, setCarriers] = useState<any[]>([]);
   const [affiliateCoupon, setAffiliateCoupon] = useState<any>(null);
-  const gpayButtonContainerRef = useRef<HTMLDivElement>(null);
-  const [gpayScriptLoaded, setGpayScriptLoaded] = useState(false);
-  
   // Form state
   const [customer, setCustomer] = useState({
     name: '',
@@ -86,149 +82,6 @@ export default function Checkout() {
     document: '',
     password: ''
   });
-
-  // Efeito para carregar script do Google Pay e inicializar o botão
-  useEffect(() => {
-    if (paymentMethod === 'google_pay' && !gpayScriptLoaded) {
-      console.log('📱 [G-PAY] Iniciando carregamento do script do Google Pay');
-      const script = document.createElement('script');
-      script.src = "https://pay.google.com/gp/p/js/pay.js";
-      script.async = true;
-      script.onload = () => {
-        console.log('✅ [G-PAY] Script carregado com sucesso.');
-        setGpayScriptLoaded(true);
-      };
-      script.onerror = (e) => {
-        console.error('❌ [G-PAY] Erro ao carregar script do Google Pay:', e);
-        toast.error('Não foi possível carregar o Google Pay.');
-      };
-      document.body.appendChild(script);
-    }
-  }, [paymentMethod, gpayScriptLoaded]);
-
-  useEffect(() => {
-    let isMounted = true;
-    let retryCount = 0;
-
-    const initGPay = async () => {
-      if (paymentMethod !== 'google_pay') return;
-      
-      if (!gpayScriptLoaded || !(window as any).google) {
-        console.log('⏳ [G-PAY] Aguardando script do Google Pay...');
-        return;
-      }
-
-      // Se o ref ainda não carregou no DOM (comum em trocas de aba), tentamos novamente
-      if (!gpayButtonContainerRef.current) {
-        if (retryCount < 10) {
-          retryCount++;
-          console.log(`⏳ [G-PAY] Aguardando container... (tentativa ${retryCount})`);
-          setTimeout(initGPay, 250);
-        }
-        return;
-      }
-
-      console.log('📱 [G-PAY] Configurando botão de pagamento...');
-
-      try {
-        const activeGateway = gateways.find(g => g.id === 'google_pay' || g.provider === 'google_pay' || g.id === selectedGateway) || gateways.find(g => g.provider === 'pagarme');
-        
-        if (!activeGateway) {
-          console.warn('⚠️ [G-PAY] Gateway compatível não encontrado.');
-          return;
-        }
-
-        const rawGPayMerchantId = activeGateway.config?.google_pay_merchant_id;
-        const gPayMerchantId = rawGPayMerchantId ? rawGPayMerchantId.replace(/-/g, '').trim() : '';
-        const isProduction = gPayMerchantId && gPayMerchantId.length > 5 && gPayMerchantId !== '12345678901234567890';
-        
-        console.log('📱 [G-PAY] Ambiente detectado:', isProduction ? 'PRODUÇÃO' : 'TESTE');
-
-        const paymentsClient = new (window as any).google.payments.api.PaymentsClient({
-          environment: isProduction ? 'PRODUCTION' : 'TEST',
-          merchantInfo: {
-            merchantName: settings?.company_name || 'G Fit Life',
-            ...(isProduction ? { merchantId: gPayMerchantId } : {})
-          }
-        });
-
-        const baseCardPaymentMethod = {
-          type: 'CARD',
-          parameters: {
-            allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
-            allowedCardNetworks: ['MASTERCARD', 'VISA', 'AMEX', 'DISCOVER', 'JCB', 'ELO'],
-            allowDebitCard: true,
-            billingAddressRequired: true,
-            billingAddressFormat: 'FULL'
-          }
-        };
-
-        const isReadyToPayRequest = {
-          apiVersion: 2,
-          apiVersionMinor: 0,
-          allowedPaymentMethods: [baseCardPaymentMethod]
-        };
-
-        const readyToPayResponse = await paymentsClient.isReadyToPay(isReadyToPayRequest);
-        
-        if (!isMounted) return;
-
-        console.log('📱 [G-PAY] Resultado isReadyToPay:', readyToPayResponse.result);
-
-        // Renderizamos o botão se estiver pronto OU se for ambiente de teste (como fallback visual)
-        if (readyToPayResponse.result || !isProduction) {
-          const allowedPaymentMethods = [{
-            ...baseCardPaymentMethod,
-            tokenizationSpecification: {
-              type: 'PAYMENT_GATEWAY',
-              parameters: {
-                gateway: 'pagarme',
-                gatewayMerchantId: activeGateway.config?.merchant_id || '10000000'
-              }
-            }
-          }];
-
-          const button = paymentsClient.createButton({
-            buttonColor: 'black',
-            buttonType: 'buy',
-            buttonSizeMode: 'fill',
-            buttonLocale: 'pt',
-            onClick: () => {
-              console.log('📱 [G-PAY] Clique no botão Google Pay detectado');
-              handleCheckout('google_pay');
-            },
-            allowedPaymentMethods: allowedPaymentMethods
-          });
-
-          if (gpayButtonContainerRef.current) {
-            gpayButtonContainerRef.current.innerHTML = '';
-            gpayButtonContainerRef.current.appendChild(button);
-            console.log('✅ [G-PAY] Botão oficialmente injetado.');
-          }
-        } else {
-          console.warn('⚠️ [G-PAY] Google Pay indisponível para este navegador/conta.');
-          if (gpayButtonContainerRef.current) {
-            gpayButtonContainerRef.current.innerHTML = `
-              <div class="p-4 bg-zinc-100 rounded-xl text-center w-full">
-                <p class="text-zinc-600 text-sm font-bold">Google Pay Indisponível</p>
-                <p class="text-zinc-400 text-[10px] uppercase mt-1">Recomendamos usar Cartão de Crédito</p>
-              </div>
-            `;
-          }
-        }
-      } catch (error) {
-        console.error('❌ [G-PAY] Erro crítico na inicialização:', error);
-      }
-    };
-
-    // Pequeno debounce inicial
-    const timer = setTimeout(initGPay, 300);
-
-    return () => { 
-      isMounted = false;
-      clearTimeout(timer);
-    };
-  }, [gpayScriptLoaded, paymentMethod, gateways, selectedGateway, settings]);
 
   // Efeito para buscar dados do usuário logado de forma robusta
   useEffect(() => {
@@ -1171,14 +1024,9 @@ export default function Checkout() {
   const handleCheckout = async (e?: React.FormEvent | string) => {
     if (e && typeof e !== 'string') e.preventDefault();
 
-    // Se vier uma string (ex: 'google_pay' do botão oficial), definimos o método
+    // Se vier uma string (ex: de um gateway específico), definimos o método
     if (typeof e === 'string') {
       setPaymentMethod(e);
-      // Garantir que o valor sincronize se houver gateways múltiplos
-      if (e === 'google_pay') {
-        const gpayGateway = gateways.find(g => g.id === 'google_pay' || g.provider === 'google_pay');
-        if (gpayGateway) setSelectedGateway(gpayGateway.id);
-      }
     }
     
     // Validação Detalhada (Conforme solicitado pelo usuário)
@@ -1273,11 +1121,6 @@ export default function Checkout() {
 
     if (finalTotal > 0 && paymentMethod === 'pagarme' && !pagarmeMethod) {
       toast.error('Por favor, selecione se deseja PIX ou Cartão no Pagar.me.');
-      return;
-    }
-
-    if (finalTotal > 0 && paymentMethod === 'google_pay' && !window.PaymentRequest) {
-      toast.error('Google Pay não é suportado neste navegador.');
       return;
     }
 
@@ -1591,13 +1434,9 @@ export default function Checkout() {
           payment_id: 'FREE_ORDER_' + Date.now()
         };
       } else {
-        // Melhorar seleção de gateway para Google Pay
+        // Melhorar seleção de gateway
         let activeGateway = gateways.find(g => g.id === selectedGateway);
         
-        if (paymentMethod === 'google_pay' || selectedGateway === 'google_pay') {
-          activeGateway = gateways.find(g => g.id === 'google_pay' || g.provider === 'google_pay') || gateways.find(g => g.provider === 'pagarme');
-        }
-
         // Se o gateway não foi encontrado, usamos o primeiro disponível como tentativa final
         if (!activeGateway && gateways.length > 0) {
             activeGateway = gateways[0];
@@ -1618,99 +1457,8 @@ export default function Checkout() {
               return;
             }
 
-             if (paymentMethod === 'google_pay' || selectedGateway === 'google_pay') {
-              const rawGPayMerchantId = activeGateway.config?.google_pay_merchant_id;
-              const gPayMerchantId = rawGPayMerchantId ? rawGPayMerchantId.replace(/-/g, '').trim() : '';
-              const gPayMerchantName = settings?.company_name || 'G Fit Life';
-              const isProduction = gPayMerchantId && gPayMerchantId.length > 5 && gPayMerchantId !== '12345678901234567890';
-              const gPayEnv = isProduction ? 'PRODUCTION' : 'TEST';
-                    
-              console.log('📱 [G-PAY] Iniciando captura de token...');
-              
-              const googlePayData: any = {
-                apiVersion: 2,
-                apiVersionMinor: 0,
-                merchantInfo: {
-                  merchantName: gPayMerchantName,
-                  ...(isProduction ? { merchantId: gPayMerchantId } : {})
-                },
-                transactionInfo: {
-                  totalPriceStatus: 'FINAL',
-                  totalPriceLabel: 'Total',
-                  totalPrice: finalTotal.toFixed(2),
-                  currencyCode: 'BRL',
-                  countryCode: 'BR'
-                },
-                allowedPaymentMethods: [{
-                  type: 'CARD',
-                  parameters: {
-                    allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
-                    allowedCardNetworks: ['MASTERCARD', 'VISA', 'AMEX', 'DISCOVER', 'JCB', 'ELO'],
-                    allowDebitCard: true,
-                    billingAddressRequired: true,
-                    billingAddressFormat: 'FULL'
-                  },
-                  tokenizationSpecification: {
-                    type: 'PAYMENT_GATEWAY',
-                    parameters: {
-                      gateway: 'pagarme',
-                      gatewayMerchantId: activeGateway.config?.merchant_id || '10000000'
-                    }
-                  }
-                }]
-              };
-
-              let gpayToken: any = null;
-
-              if ((window as any).google?.payments?.api) {
-                const paymentsClient = new (window as any).google.payments.api.PaymentsClient({
-                  environment: gPayEnv,
-                  merchantInfo: {
-                    merchantName: gPayMerchantName,
-                    ...(isProduction ? { merchantId: gPayMerchantId } : {})
-                  }
-                });
-
-                try {
-                  const response = await paymentsClient.loadPaymentData(googlePayData);
-                  if (response.paymentMethodData?.tokenizationData?.token) {
-                    const rawToken = response.paymentMethodData.tokenizationData.token;
-                    gpayToken = typeof rawToken === 'string' ? JSON.parse(rawToken) : rawToken;
-                  } else {
-                    throw new Error('Não foi possível obter o token do Google Pay.');
-                  }
-                } catch (err: any) {
-                  if (err.statusCode === 'CANCELED') throw new Error('Pagamento cancelado.');
-                  throw err;
-                }
-              } else {
-                console.log('📱 [G-PAY] Usando fallback nativo');
-                const request = new PaymentRequest([{
-                  supportedMethods: 'https://google.com/pay',
-                  data: { ...googlePayData, environment: gPayEnv }
-                }], {
-                  total: {
-                    label: 'Total',
-                    amount: { currency: 'BRL', value: finalTotal.toFixed(2) }
-                  }
-                });
-
-                const gpayResponse = await request.show();
-                const details = gpayResponse.details;
-                let rawToken = details?.paymentMethodToken?.token || details?.token || (typeof details === 'string' ? details : '');
-                
-                if (rawToken) {
-                  gpayToken = typeof rawToken === 'string' ? JSON.parse(rawToken) : rawToken;
-                  await gpayResponse.complete('success');
-                } else {
-                  await gpayResponse.complete('fail');
-                  throw new Error('Falha no pagamento nativo.');
-                }
-              }
-
-              if (!gpayToken) throw new Error('Dados de cartão não recebidos.');
-
-              paymentResponse = await paymentService.processPayment(activeGateway.provider, {
+            // Processamento para Cartão, Pix ou Boleto
+            paymentResponse = await paymentService.processPayment(activeGateway.provider, {
               items: cart.map(item => ({
                 price: item.product.discount_price || item.product.price,
                 product_name: item.product.name,
@@ -1729,45 +1477,15 @@ export default function Checkout() {
               },
               shipping_cost: shippingCost,
               shipping_method: currentShipping?.name,
-              payment_method: 'google_pay',
-              google_pay_data: gpayToken,
+              payment_method: pagarmeMethod || paymentMethod,
+              card_number: cardData.number.replace(/\D/g, ''),
+              card_name: cardData.name.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+              card_document: cardData.billing_document.replace(/\D/g, ''),
+              expiry: cardData.expiry,
+              cvv: cardData.cvv,
+              installments: cardData.installments,
               order_id: orderData.id
             }, activeGateway.config);
-
-            if (!paymentResponse.success) {
-               throw new Error(paymentResponse.error || 'Erro no processamento via Google Pay.');
-            }
-            } else {   
-              // Processamento para Cartão, Pix ou Boleto
-              paymentResponse = await paymentService.processPayment(activeGateway.provider, {
-                items: cart.map(item => ({
-                  price: item.product.discount_price || item.product.price,
-                  product_name: item.product.name,
-                  quantity: item.quantity,
-                  product_id: item.product.id
-                })),
-                customer_name: customer.name,
-                customer_email: customer.email,
-                customer_phone: customer.phone.replace(/\D/g, ''),
-                customer_document: document.replace(/\D/g, ''),
-                shipping_address: {
-                  ...shipping,
-                  street: shipping.street.substring(0, 100).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-                  city: shipping.city.substring(0, 50).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-                  neighborhood: shipping.neighborhood.substring(0, 50).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-                },
-                shipping_cost: shippingCost,
-                shipping_method: currentShipping?.name,
-                payment_method: pagarmeMethod || paymentMethod,
-                card_number: cardData.number.replace(/\D/g, ''),
-                card_name: cardData.name.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-                card_document: cardData.billing_document.replace(/\D/g, ''),
-                expiry: cardData.expiry,
-                cvv: cardData.cvv,
-                installments: cardData.installments,
-                order_id: orderData.id
-              }, activeGateway.config);
-            }
 
             console.log('📡 Resposta do processamento de pagamento:', paymentResponse);
 
@@ -2374,22 +2092,6 @@ export default function Checkout() {
                   </button>
                 ))}
                 
-                {/* Google Pay - Disponível para todos os dispositivos conforme solicitado */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPaymentMethod('google_pay');
-                    setPagarmeMethod(null);
-                    // Tenta encontrar o gateway Pagar.me para tokenização do Google Pay
-                    const pagarme = gateways.find(g => g.provider === 'pagarme');
-                    if (pagarme) setSelectedGateway(pagarme.id);
-                  }}
-                  className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${paymentMethod === 'google_pay' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                >
-                  <Smartphone size={20} />
-                  <span className="font-bold text-[10px] uppercase tracking-wider text-center">Google Pay</span>
-                </button>
-
                 {/* Fallback para métodos internos se não houver gateways configurados */}
                 {gateways.length === 0 && (
                   <>
@@ -2676,45 +2378,6 @@ export default function Checkout() {
                 </motion.div>
               )}
 
-              {paymentMethod === 'google_pay' && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="bg-zinc-50 p-6 rounded-3xl border border-zinc-200 text-center mb-6"
-                >
-                  <h3 className="font-bold text-zinc-900 mb-1 text-lg">Google Pay</h3>
-                  <p className="text-zinc-500 text-sm mb-6 leading-relaxed">
-                    Finalize sua compra de forma segura com o Google Pay. 
-                  </p>
-                  
-                  {/* Container seguindo Brand Guidelines (Espaço livre de 8dp) */}
-                  <div className="p-2 bg-white rounded-2xl border border-zinc-100 shadow-sm inline-block w-full">
-                    <div 
-                      ref={gpayButtonContainerRef} 
-                      className="w-full min-h-[56px] flex items-center justify-center"
-                      id="gpay-button-container"
-                    >
-                      {/* Botão oficial do Google Pay será renderizado aqui */}
-                      {!gpayScriptLoaded && (
-                        <div className="w-full h-14 bg-zinc-100 animate-pulse rounded-xl flex items-center justify-center">
-                          <span className="text-zinc-400 text-sm font-medium tracking-tight">Carregando Google Pay...</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {processing && (
-                    <div className="mt-4 flex items-center justify-center gap-2 text-indigo-600 font-bold animate-pulse">
-                      <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" />
-                      <span className="text-sm">Processando Pagamento Seguro...</span>
-                    </div>
-                  )}
-
-                  <p className="mt-4 text-[10px] text-zinc-400 uppercase tracking-widest font-bold">
-                    Transação Protegida
-                  </p>
-                </motion.div>
-              )}
             </section>
           </div>
 
