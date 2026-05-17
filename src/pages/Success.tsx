@@ -17,7 +17,32 @@ export default function Success() {
   const [loading, setLoading] = useState(true);
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
 
+  const demo = searchParams.get('demo') === 'true';
+
   useEffect(() => {
+    if (demo) {
+      setOrder({
+        id: 'DEMO-123-456',
+        status: 'paid',
+        payment_method: 'google_pay',
+        total: 159.90,
+        customer_name: 'Cliente Teste',
+        customer_email: 'teste@exemplo.com',
+        order_items: [
+          { product_name: 'Camisa Fit Premium', quantity: 1, price: 99.90 },
+          { product_name: 'Shorts de Treino', quantity: 1, price: 60.00 }
+        ],
+        created_at: new Date().toISOString()
+      });
+      setSettings({
+        store_name: 'G Fit Life',
+        company_name: 'G Fit Life',
+        payment_methods: [{ type: 'google_pay', details: 'Aprovado via Google Pay' }]
+      });
+      setLoading(false);
+      return;
+    }
+
     if (!orderId) {
       setLoading(false);
       return;
