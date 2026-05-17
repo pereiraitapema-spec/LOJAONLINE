@@ -1214,6 +1214,7 @@ export default function Checkout() {
 
         if (!paymentResponse.success) {
           // Se falhou antes de criar, apenas mostramos o erro e paramos
+          console.error('❌ [CHECKOUT] Falha no processamento do pagamento:', paymentResponse.error);
           setProcessing(false);
           setShowPaymentErrorModal({ 
             isOpen: true, 
@@ -1232,12 +1233,13 @@ export default function Checkout() {
         const isAuthorized = positiveStatuses.includes(currentStatus);
 
         if (!isAuthorized) {
-          console.warn(`⚠️ [CHECKOUT] Pagamento não autorizado: Status extraído -> "${currentStatus}"`);
+          console.warn(`⚠️ [CHECKOUT] Pagamento com status não autorizado: "${currentStatus}"`);
           setProcessing(false);
           
           let failMessage = 'O pagamento foi recusado pelo banco ou pelo sistema de segurança. Por favor, revise os dados ou utilize outro cartão.';
           if (currentStatus === 'refused') failMessage = 'Pagamento Recusado: O banco emissor não autorizou a transação.';
           if (currentStatus === 'failed') failMessage = 'Falha no Pagamento: Houve um erro ao processar a transação com a operadora.';
+          if (currentStatus === 'canceled' || currentStatus === 'cancelled') failMessage = 'Pagamento Cancelado: A transação foi cancelada pelo gateway.';
           
           setShowPaymentErrorModal({ 
             isOpen: true, 
@@ -1247,8 +1249,14 @@ export default function Checkout() {
         }
       }
 
-      // 2. ONLY IF PAYMENT SUCCESS/PENDING, Create Order in Supabase
-      console.log('✅ Pagamento autorizado ou gerado. Criando pedido no banco...');
+      // 2. CRITICAL PRE-INSERT CHECK: ONLY IF PAYMENT SUCCESS/PENDING
+      if (!paymentResponse || !paymentResponse.success) {
+        console.error('🛑 [CHECKOUT] Abortando criação do pedido: Resposta do gateway inválida ou falha detectada tardiamente.');
+        setProcessing(false);
+        return;
+      }
+
+      console.log('✅ Pagamento verificado. Criando pedido no banco...');
 
       // Cálculo de comissão
       let affiliateId = null;
@@ -1282,7 +1290,8 @@ export default function Checkout() {
 
       const statusMap: Record<string, string> = {
         'paid': 'paid', 'authorized': 'paid', 'approved': 'paid', 'succeeded': 'paid', 'captured': 'paid', 'processing': 'paid',
-        'pending_analysis': 'pending', 'pending_review': 'pending', 'waiting_payment': 'pending', 'pending': 'pending'
+        'pending_analysis': 'pending', 'pending_review': 'pending', 'waiting_payment': 'pending', 'pending': 'pending',
+        'failed': 'failed', 'refused': 'failed', 'canceled': 'cancelled', 'cancelled': 'cancelled'
       };
       
       const orderStatus = statusMap[paymentResponse.status] || (finalTotal <= 0 ? 'paid' : 'pending');

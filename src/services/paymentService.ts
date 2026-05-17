@@ -172,6 +172,31 @@ const pagarmeProvider: PaymentProvider = {
       console.log('📡 Resposta do Proxy de Pagamento:', JSON.stringify(data, null, 2));
       
       if (response.ok) {
+        const status = (data.status || data.charges?.[0]?.status || data.charges?.[0]?.last_transaction?.status || '').toLowerCase();
+        
+        // Pagar.me V5 statuses that mean failure/refusal
+        const failureStatuses = ['failed', 'refused', 'canceled', 'denied'];
+        
+        if (failureStatuses.includes(status)) {
+          console.warn(`⚠️ Gateway retornou status de falha: ${status}`);
+          await logApiCall('pagarme', '/orders', duration, false, `Status de falha: ${status}`);
+          
+          let failMsg = 'O pagamento foi recusado pelo banco ou emissor. Verifique os dados do cartão.';
+          
+          // Tenta extrair mensagem de erro detalhada da transação
+          const gatewayMsg = data.charges?.[0]?.last_transaction?.gateway_response?.errors?.[0]?.message || 
+                            data.last_transaction?.gateway_response?.errors?.[0]?.message;
+          
+          if (gatewayMsg) failMsg = gatewayMsg;
+          
+          return { 
+            success: false, 
+            error: failMsg,
+            status: status,
+            payment_id: data.id
+          };
+        }
+
         console.log('✅ Pagamento processado com sucesso pelo gateway.');
         await logApiCall('pagarme', '/orders', duration, true);
         
