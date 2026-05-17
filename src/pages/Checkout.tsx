@@ -1226,7 +1226,7 @@ export default function Checkout() {
         // Validação Estrita de Status: Só prossegue se o status for positivo ou aguardando pagamento
         const positiveStatuses = [
           'paid', 'authorized', 'approved', 'succeeded', 'captured', 'processing', 
-          'pending', 'pending_analysis', 'pending_review', 'waiting_payment'
+          'pending', 'pending_analysis', 'pending_review', 'waiting_payment', 'in_analysis'
         ];
         
         const currentStatus = (paymentResponse.status || '').toLowerCase();
@@ -1290,8 +1290,8 @@ export default function Checkout() {
 
       const statusMap: Record<string, string> = {
         'paid': 'paid', 'authorized': 'paid', 'approved': 'paid', 'succeeded': 'paid', 'captured': 'paid', 'processing': 'paid',
-        'pending_analysis': 'pending', 'pending_review': 'pending', 'waiting_payment': 'pending', 'pending': 'pending',
-        'failed': 'failed', 'refused': 'failed', 'canceled': 'cancelled', 'cancelled': 'cancelled'
+        'pending_analysis': 'pending', 'pending_review': 'pending', 'waiting_payment': 'pending', 'pending': 'pending', 'in_analysis': 'pending',
+        'failed': 'failed', 'refused': 'failed', 'canceled': 'cancelled', 'cancelled': 'cancelled', 'denied': 'failed', 'voided': 'cancelled', 'declined': 'failed'
       };
       
       const orderStatus = statusMap[paymentResponse.status] || (finalTotal <= 0 ? 'paid' : 'pending');

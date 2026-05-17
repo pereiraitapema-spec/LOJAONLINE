@@ -175,7 +175,7 @@ const pagarmeProvider: PaymentProvider = {
         const status = (data.status || data.charges?.[0]?.status || data.charges?.[0]?.last_transaction?.status || '').toLowerCase();
         
         // Pagar.me V5 statuses that mean failure/refusal
-        const failureStatuses = ['failed', 'refused', 'canceled', 'denied'];
+        const failureStatuses = ['failed', 'refused', 'canceled', 'cancelled', 'denied', 'voided', 'declined'];
         
         if (failureStatuses.includes(status)) {
           console.warn(`⚠️ Gateway retornou status de falha: ${status}`);
