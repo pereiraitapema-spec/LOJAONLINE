@@ -1132,7 +1132,7 @@ export default function Checkout() {
     setProcessing(true);
 
     try {
-      // 0. Create Account if requested
+      // 0. Create Account if requested (antes do pgto para ter o user_id se necessário)
       let currentUserId = user?.id;
       if (createAccount && !user) {
         const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -1159,273 +1159,14 @@ export default function Checkout() {
         if (authData.user) {
           setUser(authData.user);
         }
-        toast.success('Conta criada com sucesso! Você receberá um e-mail de confirmação.');
-      }
-      // 0. Check for Affiliate Code or Coupon
-      let affiliateId = null;
-      let commissionValue = 0;
-      let commissionRate = 0;
-      
-      if (affiliateCoupon) {
-        affiliateId = affiliateCoupon.affiliate_id;
-        // Buscar taxa de comissão do afiliado do cupom
-        const { data: affData } = await supabase
-          .from('affiliates')
-          .select('commission_rate')
-          .eq('id', affiliateId)
-          .maybeSingle();
-        commissionRate = affData?.commission_rate || 0;
-      } else {
-        const affiliateCode = localStorage.getItem('affiliate_code');
-        if (affiliateCode) {
-          const { data: affiliate } = await supabase
-            .from('affiliates')
-            .select('id, commission_rate')
-            .eq('code', affiliateCode)
-            .maybeSingle();
-          
-          if (affiliate) {
-            affiliateId = affiliate.id;
-            commissionRate = affiliate.commission_rate || 0;
-          }
-        }
-      }
-      
-      if (affiliateId) {
-        // Calculate commission per item based on the best rate for each product
-        commissionValue = cart.reduce((acc, item) => {
-          const unitPrice = item.product.discount_price || item.product.price;
-          const productSpecificRate = item.product.affiliate_commission;
-          
-          // Se o produto tiver uma comissão específica (mesmo que 0), ela PREVALECE sobre a do afiliado
-          // Mas aqui a regra de negócio costuma ser Math.max para incentivar o afiliado
-          // O usuário reclamou que não está calculando certo, vamos usar Math.max para garantir o melhor ganho
-          let effectiveRate = Math.max(commissionRate || 0, productSpecificRate || 0);
-          
-          // Se for 0 em ambos, usamos o padrão de 20%
-          if (effectiveRate === 0) effectiveRate = 20;
-
-          // If an affiliate coupon is used, deduct half of the discount percentage from the commission rate
-          if (affiliateCoupon) {
-            const commissionDeduction = affiliateCoupon.discount_percentage / 2;
-            effectiveRate = Math.max(0, effectiveRate - commissionDeduction);
-          }
-
-          // Safety cap: Never exceed 50% unless explicitly allowed (for now, hard cap at 50%)
-          if (effectiveRate > 50) {
-            console.warn(`⚠️ Taxa de comissão excessiva detectada (${effectiveRate}%). Limitando a 50%.`);
-            effectiveRate = 50;
-          }
-          
-          const itemCommission = (unitPrice * effectiveRate / 100) * item.quantity;
-          console.log(`💰 Cálculo Comissão: Item=${item.product.name}, Preço=${unitPrice}, Taxa=${effectiveRate}%, Qtd=${item.quantity}, Comissão=${itemCommission}`);
-          
-          // Commission = (Unit Price * Rate / 100) * Quantity
-          return acc + itemCommission;
-        }, 0);
-        
-        // Ensure commissionValue is a clean number
-        commissionValue = Number(commissionValue.toFixed(2));
       }
 
-      // 1. Create Order in Supabase
-      const orderPayload = {
-        user_id: currentUserId || null, // Use the newly created or existing user ID
-        affiliate_id: affiliateId,
-        commission_value: commissionValue,
-        customer_name: customer.name,
-        customer_email: customer.email,
-        customer_phone: customer.phone,
-        customer_document: customer.document,
-        status: 'pending',
-        discount_value: totalDiscount,
-        total: finalTotal,
-        subtotal: cartTotal,
-        shipping_cost: shippingCost,
-        payment_method: paymentMethod === 'pagarme' ? pagarmeMethod : paymentMethod,
-        shipping_method: `${currentShipping?.carrierName || 'Padrão'} - ${currentShipping?.name || 'Padrão'}`,
-        shipping_address: {
-          ...shipping,
-          tipo_frete: currentShipping?.name,
-          valor_frete: shippingCost,
-          prazo_frete: currentShipping?.deadline,
-          transportadora: currentShipping?.carrierName,
-          cep_destinatario: shipping.cep
-        },
-        tracking_code: currentShipping?.id === 'balcao' ? 'CLIENTE BUSCA NA EMPRESA' : null
-      };
-
-      console.log('🚀 Tentando criar pedido no Supabase com os seguintes dados:', JSON.stringify(orderPayload, null, 2));
-
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .insert([orderPayload])
-        .select()
-        .single();
-
-      if (orderError) {
-        console.error('❌ Erro ao criar pedido no Supabase:', orderError);
-        console.error('⚠️ DICA: Verifique se todas as colunas existem na tabela "orders" e se as políticas RLS permitem a inserção.');
-        throw orderError;
-      }
-      
-      console.log('✅ Pedido criado com sucesso no Supabase:', orderData);
-      
-      const rollbackFailedOrder = async (errorMessage: string) => {
-        try {
-          console.log('🔄 Desfazendo pedido e itens (Falha Pgto) Cancelamento #', orderData.id);
-          
-          // 1. Estorna o estoque visualmente nos logs
-          const rollbackLogs = cart.map(item => ({
-            product_id: item.product.id,
-            change_amount: item.quantity,
-            reason: `Estorno (Falha Pgto) #${orderData.id.split('-')[0].toUpperCase()}`
-          }));
-          await supabase.from('inventory_logs').insert(rollbackLogs);
-
-          // 2. Restaura o estoque real nos produtos
-          for (const item of cart) {
-            const { data: prod } = await supabase.from('products').select('stock').eq('id', item.product.id).single();
-            if (prod) {
-              await supabase.from('products').update({ stock: prod.stock + item.quantity }).eq('id', item.product.id);
-            }
-          }
-
-          // 3. Apaga o pedido (RLS deve permitir delete se status for pending)
-          console.log('🗑️ Tentando exclusão definitiva do pedido:', orderData.id);
-          
-          // Tenta deletar logs de inventário primeiro
-          try {
-             await supabase.from('inventory_logs').delete().filter('reason', 'ilike', `%#${orderData.id.split('-')[0]}%`);
-          } catch (e) {
-             console.warn('⚠️ Falha ao limpar logs de inventário:', e);
-          }
-
-          const { error: delItemsErr } = await supabase.from('order_items').delete().eq('order_id', orderData.id);
-          const { error: delOrderErr } = await supabase.from('orders').delete().eq('id', orderData.id);
-          
-          if (delOrderErr || delItemsErr) {
-            console.warn('⚠️ Delete falhou (RLS?), forçando status cancelled no banco:', { delOrderErr, delItemsErr });
-            const { error: updErr } = await supabase.from('orders').update({ 
-               status: 'cancelled', 
-               payment_status: 'failed',
-               notes: `Cancelamento Automático: Falha no pagamento -> ${errorMessage.substring(0, 150)}`
-            }).eq('id', orderData.id);
-            
-            if (updErr) {
-              console.error('❌ Falha crítica: Não foi possível nem excluir nem cancelar o pedido no banco.', updErr);
-            }
-          } else {
-            console.log('✅ Pedido e itens excluídos com sucesso após falha.');
-          }
-        } catch (e) {
-          console.error('❌ Erro crítico no rollback:', e);
-        }
-        setShowPaymentErrorModal({ isOpen: true, message: errorMessage });
-        setProcessing(false);
-      };
-      
-      // Atualizar perfil do usuário com os dados do checkout
-      if (currentUserId) {
-        console.log('🔄 Atualizando perfil do usuário:', currentUserId);
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            full_name: customer.name,
-            phone: customer.phone.replace(/\D/g, ''),
-            document: customer.document.replace(/\D/g, '')
-          })
-          .eq('id', currentUserId);
-        
-        if (profileError) {
-          console.error('❌ Erro ao atualizar perfil:', profileError);
-        } else {
-          console.log('✅ Perfil atualizado com sucesso!');
-        }
-      }
-      
-      // Marcar como lead quente ao realizar pedido e salvar informações de compra
-      leadService.updateStatus('quente', {
-        product: cart.map(i => i.product.name).join(', '),
-        value: finalTotal,
-        email: customer.email,
-        name: customer.name
-      });
-
-      // 1.1 Mark abandoned cart as recovered
-      if (abandonedCartId) {
-        await supabase
-          .from('abandoned_carts')
-          .update({ status: 'recovered' })
-          .eq('id', abandonedCartId);
-      }
-
-      // 2. Create Order Items
-      const orderItems = cart.map(item => ({
-        order_id: orderData.id,
-        product_id: item.product.id,
-        quantity: item.quantity,
-        price: item.product.discount_price || item.product.price,
-        product_name: item.product.name
-      }));
-
-      console.log('🚀 Tentando criar itens do pedido no Supabase:', JSON.stringify(orderItems, null, 2));
-
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
-
-      if (itemsError) {
-        console.error('❌ Erro ao criar itens do pedido no Supabase:', itemsError);
-        throw itemsError;
-      }
-      
-      console.log('✅ Itens do pedido criados com sucesso.');
-
-      // 2.1 Update Inventory Logs and Product Stock
-      const inventoryLogs = cart.map(item => ({
-        product_id: item.product.id,
-        change_amount: -item.quantity,
-        reason: `Venda Pedido #${orderData.id.split('-')[0].toUpperCase()}`
-      }));
-
-      console.log('🚀 Tentando criar logs de inventário no Supabase:', JSON.stringify(inventoryLogs, null, 2));
-
-      const { error: inventoryError } = await supabase
-        .from('inventory_logs')
-        .insert(inventoryLogs);
-
-      if (inventoryError) {
-        console.error('❌ Erro ao criar logs de inventário no Supabase:', inventoryError);
-      }
-
-      // Update stock for each product
-      for (const item of cart) {
-        try {
-          const { data: currentProduct } = await supabase
-            .from('products')
-            .select('stock')
-            .eq('id', item.product.id)
-            .single();
-          
-          if (currentProduct) {
-            await supabase
-              .from('products')
-              .update({ stock: Math.max(0, currentProduct.stock - item.quantity) })
-              .eq('id', item.product.id);
-          }
-        } catch (stockError) {
-          console.error(`❌ Erro ao atualizar estoque do produto ${item.product.id}:`, stockError);
-        }
-      }
-
-      // 3. Process Payment Gateway
-      console.log('🚀 [DEBUG CHECKOUT] Iniciando processamento de pagamento...');
+      // 1. Process Payment Gateway FIRST
+      console.log('🚀 [CHECKOUT] Iniciando processamento de pagamento antes de criar o pedido...');
       
       let paymentResponse: any = null;
-      let finalTrackingCode: string | null = null;
+      const tempOrderId = 'TEMP-' + Math.random().toString(36).substring(7).toUpperCase();
 
-      // SE O TOTAL FOR ZERO (Cupom de 100%), BYPASS GATEWAY
       if (finalTotal <= 0) {
         console.log('🎁 Pedido com 100% de desconto. Pulando gateway.');
         paymentResponse = { 
@@ -1434,271 +1175,219 @@ export default function Checkout() {
           payment_id: 'FREE_ORDER_' + Date.now()
         };
       } else {
-        // Melhorar seleção de gateway
-        let activeGateway = gateways.find(g => g.id === selectedGateway);
+        const activeGateway = gateways.find(g => g.id === selectedGateway) || gateways[0];
         
-        // Se o gateway não foi encontrado, usamos o primeiro disponível como tentativa final
-        if (!activeGateway && gateways.length > 0) {
-            activeGateway = gateways[0];
+        if (!activeGateway) {
+          throw new Error('Nenhum gateway de pagamento disponível.');
         }
-        
-        console.log('🔍 [DEBUG CHECKOUT] Gateway ativo:', activeGateway);
-        
-        if (activeGateway) {
-          console.log('✅ [DEBUG CHECKOUT] Gateway encontrado, processando...');
-          
-          try {
-            // Validação de CPF/CNPJ
-            const document = customer.document.replace(/\D/g, '');
-            if (!document) {
-              console.error('❌ [DEBUG CHECKOUT] CPF/CNPJ obrigatório.');
-              toast.error('CPF/CNPJ é obrigatório para o pagamento.');
-              setProcessing(false);
-              return;
-            }
 
-            // Processamento para Cartão, Pix ou Boleto
-            paymentResponse = await paymentService.processPayment(activeGateway.provider, {
-              items: cart.map(item => ({
-                price: item.product.discount_price || item.product.price,
-                product_name: item.product.name,
-                quantity: item.quantity,
-                product_id: item.product.id
-              })),
-              customer_name: customer.name,
-              customer_email: customer.email,
-              customer_phone: customer.phone.replace(/\D/g, ''),
-              customer_document: document.replace(/\D/g, ''),
-              shipping_address: {
-                ...shipping,
-                street: shipping.street.substring(0, 100).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-                city: shipping.city.substring(0, 50).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-                neighborhood: shipping.neighborhood.substring(0, 50).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-              },
-              shipping_cost: shippingCost,
-              shipping_method: currentShipping?.name,
-              payment_method: pagarmeMethod || paymentMethod,
-              card_number: cardData.number.replace(/\D/g, ''),
-              card_name: cardData.name.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
-              card_document: cardData.billing_document.replace(/\D/g, ''),
-              expiry: cardData.expiry,
-              cvv: cardData.cvv,
-              installments: cardData.installments,
-              order_id: orderData.id
-            }, activeGateway.config);
+        paymentResponse = await paymentService.processPayment(activeGateway.provider, {
+          items: cart.map(item => ({
+            price: item.product.discount_price || item.product.price,
+            product_name: item.product.name,
+            quantity: item.quantity,
+            product_id: item.product.id
+          })),
+          customer_name: customer.name,
+          customer_email: customer.email,
+          customer_phone: customer.phone.replace(/\D/g, ''),
+          customer_document: customer.document.replace(/\D/g, ''),
+          shipping_address: {
+            ...shipping,
+            street: shipping.street?.substring(0, 100).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+            city: shipping.city?.substring(0, 50).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+            neighborhood: shipping.neighborhood?.substring(0, 50).normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+          },
+          shipping_cost: shippingCost,
+          shipping_method: currentShipping?.name,
+          payment_method: pagarmeMethod || paymentMethod,
+          card_number: cardData.number.replace(/\D/g, ''),
+          card_name: cardData.name.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+          card_document: cardData.billing_document.replace(/\D/g, '') || customer.document.replace(/\D/g, ''),
+          expiry: cardData.expiry,
+          cvv: cardData.cvv,
+          installments: cardData.installments,
+          order_id: tempOrderId
+        }, activeGateway.config);
 
-            console.log('📡 Resposta do processamento de pagamento:', paymentResponse);
+        console.log('📡 Resposta do Gateway:', paymentResponse);
 
-            if (!paymentResponse.success) {
-              throw new Error(paymentResponse.error || 'Erro ao processar pagamento com Pagar.me');
-            }
-            
-            // ... resto do processamento (Webhook, Cartão salvo) ...
-            // (Mantenho a lógica original aqui dentro)
-            
-            // Webhook feedback
-            console.log('🔄 [DEBUG CHECKOUT] Aguardando confirmação via Webhook para atualizar status.');
-            
-            // 4. Comunicar com CepCerto para gerar etiqueta (Assíncrono e Resiliente)
-            try {
-              toast.success('Pedido processado com sucesso!');
-            } catch (err: any) {
-              console.error('Erro ao mostrar toast pos-pagamento:', err);
-            }
-
-            if (paymentMethod === 'credit_card' && paymentResponse.charges?.[0]?.last_transaction?.card?.id) {
-              try {
-                const card = paymentResponse.charges[0].last_transaction.card;
-                await supabase.from('saved_cards').insert({
-                  user_id: currentUserId,
-                  card_id: card.id,
-                  brand: card.brand,
-                  last_four_digits: card.last_four_digits
-                });
-              } catch (cardErr) {
-                console.warn('⚠️ Erro ao salvar cartão (não crítico):', cardErr);
-              }
-            }
-          } catch (err: any) {
-            console.error('❌ Erro no processamento de pagamento:', err);
-            await rollbackFailedOrder(`Erro no pagamento: ${err.message}`);
-            return;
-          }
-        } else {
-          console.error('❌ Nenhum gateway de pagamento ativo configurado.');
-          toast.error('Nenhum gateway de pagamento ativo configurado.');
+        if (!paymentResponse.success) {
+          // Se falhou antes de criar, apenas mostramos o erro e paramos
           setProcessing(false);
+          setShowPaymentErrorModal({ 
+            isOpen: true, 
+            message: paymentResponse.error || 'Pagamento recusado pelo banco ou emissor. Verifique os dados do cartão ou tente outro método.' 
+          });
+          return;
+        }
+
+        // Verificação adicional de status reprovado/falho retornado pelo gateway
+        const isRefused = ['failed', 'refused', 'denied', 'reproved'].includes(paymentResponse.status?.toLowerCase());
+        if (isRefused) {
+          console.warn('⚠️ [ANTI-FRAUDE] Transação reprovada pelo gateway.');
+          setProcessing(false);
+          setShowPaymentErrorModal({ 
+            isOpen: true, 
+            message: 'O pagamento foi recusado pelo sistema de segurança (Anti-fraude) ou pelo banco. Por favor, revise os dados ou utilize outro cartão.' 
+          });
           return;
         }
       }
 
-      // Determine initial status based on payment method
-      // Se chegamos aqui, paymentResponse.success é true porque senão teria lançado erro antes
-      const isCreditCard = paymentMethod === 'credit_card' || (paymentMethod === 'pagarme' && pagarmeMethod === 'credit_card');
-      let initialStatus = isCreditCard ? 'paid' : 'pending';
+      // 2. ONLY IF PAYMENT SUCCESS/PENDING, Create Order in Supabase
+      console.log('✅ Pagamento autorizado ou gerado. Criando pedido no banco...');
 
-      // Se o provedor retornar um status específico, use-o com um mapeamento robusto
-      if (paymentResponse.status) {
-        console.log('📊 Status retornado pelo gateway:', paymentResponse.status);
-        const statusMap: Record<string, string> = {
-          'paid': 'paid',
-          'authorized': 'paid',
-          'approved': 'paid',
-          'succeeded': 'paid',
-          'captured': 'paid',
-          'processing': 'paid', // Se capturou cartão, consideramos pago
-          'pending_analysis': 'pending',
-          'pending_review': 'pending',
-          'waiting_payment': 'pending',
-          'pending': 'pending',
-          'failed': 'failed',
-          'refused': 'failed',
-          'denied': 'failed',
-          'canceled': 'canceled'
-        };
-        initialStatus = statusMap[paymentResponse.status] || initialStatus;
+      // Cálculo de comissão
+      let affiliateId = null;
+      let commissionValue = 0;
+      let commissionRate = 0;
+      
+      if (affiliateCoupon) {
+        affiliateId = affiliateCoupon.affiliate_id;
+        const { data: affData } = await supabase.from('affiliates').select('commission_rate').eq('id', affiliateId).maybeSingle();
+        commissionRate = affData?.commission_rate || 0;
+      } else {
+        const affiliateCode = localStorage.getItem('affiliate_code');
+        if (affiliateCode) {
+          const { data: affiliate } = await supabase.from('affiliates').select('id, commission_rate').eq('code', affiliateCode).maybeSingle();
+          if (affiliate) {
+            affiliateId = affiliate.id;
+            commissionRate = affiliate.commission_rate || 0;
+          }
+        }
+      }
+      
+      if (affiliateId) {
+        commissionValue = Number(cart.reduce((acc, item) => {
+          const unitPrice = item.product.discount_price || item.product.price;
+          const productSpecificRate = item.product.affiliate_commission;
+          let effectiveRate = Math.max(commissionRate || 0, productSpecificRate || 0) || 20;
+          if (affiliateCoupon) effectiveRate = Math.max(0, effectiveRate - (affiliateCoupon.discount_percentage / 2));
+          return acc + ((unitPrice * Math.min(50, effectiveRate) / 100) * item.quantity);
+        }, 0).toFixed(2));
       }
 
-      // Update order status
-      const { error: updateError } = await supabase
+      const statusMap: Record<string, string> = {
+        'paid': 'paid', 'authorized': 'paid', 'approved': 'paid', 'succeeded': 'paid', 'captured': 'paid', 'processing': 'paid',
+        'pending_analysis': 'pending', 'pending_review': 'pending', 'waiting_payment': 'pending', 'pending': 'pending'
+      };
+      
+      const orderStatus = statusMap[paymentResponse.status] || (finalTotal <= 0 ? 'paid' : 'pending');
+
+      const { data: orderData, error: orderError } = await supabase
         .from('orders')
-        .update({ 
-          status: initialStatus, 
-          payment_status: initialStatus === 'paid' ? 'paid' : (initialStatus === 'failed' || initialStatus === 'canceled' ? 'failed' : 'pending'),
+        .insert([{
+          user_id: currentUserId || null,
+          affiliate_id: affiliateId,
+          commission_value: commissionValue,
+          customer_name: customer.name,
+          customer_email: customer.email,
+          customer_phone: customer.phone,
+          customer_document: customer.document,
+          status: orderStatus,
+          payment_status: orderStatus === 'paid' ? 'paid' : 'pending',
+          discount_value: totalDiscount,
+          total: finalTotal,
+          subtotal: cartTotal,
+          shipping_cost: shippingCost,
+          payment_method: pagarmeMethod || paymentMethod,
+          shipping_method: `${currentShipping?.carrierName || 'Padrão'} - ${currentShipping?.name || 'Padrão'}`,
+          shipping_address: { ...shipping, cep_destinatario: shipping.cep },
           payment_id: paymentResponse.payment_id,
           payment_url: paymentResponse.pix?.qr_code_url || paymentResponse.boleto?.url || paymentResponse.boleto?.pdf,
-          pix_code: paymentResponse.pix?.qr_code || paymentResponse.boleto?.barcode,
-          tracking_code: finalTrackingCode || null
-        })
-        .eq('id', orderData.id);
+          pix_code: paymentResponse.pix?.qr_code || paymentResponse.boleto?.barcode
+        }])
+        .select().single();
 
-      if (updateError) {
-        console.error('❌ Erro ao atualizar status do pedido:', updateError);
-      }
+      if (orderError) throw orderError;
 
-      // Se o status retornado for failed ou canceled, nós paramos o fluxo
-      if (initialStatus === 'failed' || initialStatus === 'canceled' || initialStatus === 'refused') {
-          console.error('❌ Pagamento foi recusado ou falhou no gateway.');
-          await rollbackFailedOrder(paymentResponse.error_message || 'Pagamento recusado pelo banco ou emissor. Verifique os dados do cartão ou tente outro método.');
-          return;
-      }
+      // 3. Create Items, Stock Adjustments and Automations
+      const orderItems = cart.map(item => ({
+        order_id: orderData.id,
+        product_id: item.product.id,
+        quantity: item.quantity,
+        price: item.product.discount_price || item.product.price,
+        product_name: item.product.name
+      }));
+      await supabase.from('order_items').insert(orderItems);
 
-      // Helper function to trigger tracking and webhooks
-      const triggerPostPurchaseActions = async () => {
-        // Salvar no localStorage para persistência na home
-        localStorage.setItem('last_order_id', orderData.id);
-        if (finalTrackingCode) {
-          localStorage.setItem('last_tracking_code', finalTrackingCode);
-          setTrackingCode(finalTrackingCode);
+      // Inventory & Stock
+      for (const item of cart) {
+        const { data: prod } = await supabase.from('products').select('stock').eq('id', item.product.id).single();
+        if (prod) {
+          await supabase.from('products').update({ stock: Math.max(0, prod.stock - item.quantity) }).eq('id', item.product.id);
+          await supabase.from('inventory_logs').insert([{ 
+            product_id: item.product.id, 
+            change_amount: -item.quantity, 
+            reason: `Venda Pedido #${orderData.id.split('-')[0].toUpperCase()}` 
+          }]);
         }
-
-        // Trigger automation for purchase complete
-        await automationService.trigger('new_order', {
-          order_id: orderData.id,
-          customer_email: customer.email,
-          customer_name: customer.name,
-          total: finalTotal,
-          items: cart.map(item => ({
-            name: item.product.name,
-            qty: item.quantity,
-            price: item.product.discount_price || item.product.price
-          })),
-          event: 'purchase_complete'
-        });
-
-        // Trigger Purchase Event
-        if (settings?.tracking_pixels) {
-          settings.tracking_pixels.forEach((pixel: any) => {
-            if (pixel.active && pixel.pixel_id) {
-              if (settings.debug_mode) {
-                console.log(`[DEBUG] Evento de pixel ${pixel.platform} disparado para ID ${pixel.pixel_id}`);
-                return;
-              }
-              if (pixel.platform === 'facebook' && (window as any).fbq) {
-                (window as any).fbq('track', 'Purchase', {
-                  value: finalTotal,
-                  currency: 'BRL'
-                });
-              } else if (pixel.platform === 'google_analytics' && (window as any).gtag) {
-                (window as any).gtag('event', 'purchase', {
-                  transaction_id: orderData.id,
-                  value: finalTotal,
-                  currency: 'BRL',
-                  items: cart.map(item => ({
-                    item_id: item.product.id,
-                    item_name: item.product.name,
-                    quantity: item.quantity,
-                    price: item.product.discount_price || item.product.price
-                  }))
-                });
-              }
-            }
-          });
-        }
-      };
-
-      if (paymentResponse.pix) {
-        console.log('✅ [DEBUG CHECKOUT] Dados do PIX recebidos:', paymentResponse.pix);
-        if (!paymentResponse.pix.qr_code && !paymentResponse.pix.qr_code_url) {
-          console.error('❌ [DEBUG CHECKOUT] Resposta do PIX veio vazia de dados essenciais.');
-          toast.error('O gateway gerou o PIX mas não retornou o código. Por favor, verifique se o PIX está ativado no seu painel Pagar.me.');
-        }
-        triggerPostPurchaseActions();
-        setPixData(paymentResponse.pix);
-        setCurrentOrderId(orderData.id);
-        setShowPixModal(true);
-        setProcessing(false);
-        // Clear cart anyway
-        localStorage.removeItem('cart_items');
-        setCart([]);
-        return;
       }
 
-      if (paymentResponse.boleto) {
-        triggerPostPurchaseActions();
-        setBoletoData(paymentResponse.boleto);
-        setCurrentOrderId(orderData.id);
-        setShowBoletoModal(true);
-        setProcessing(false);
-        // Clear cart anyway
-        localStorage.removeItem('cart_items');
-        setCart([]);
-        return;
+      // Success Logic
+      setCurrentOrderId(orderData.id);
+      
+      // Update profile
+      if (currentUserId) {
+        await supabase.from('profiles').update({
+          full_name: customer.name,
+          phone: customer.phone.replace(/\D/g, ''),
+          document: customer.document.replace(/\D/g, '')
+        }).eq('id', currentUserId);
       }
 
-      // 3.1 Se houver comissão e for pago, o saldo será refletido nos cálculos dinâmicos
-      // Removida atualização manual da coluna 'balance' para evitar desincronização e duplicidade.
-      // O saldo agora é calculado em tempo real: Sum(comissões) - Sum(pagamentos).
+      // Final Actions
+      if (abandonedCartId) await supabase.from('abandoned_carts').update({ status: 'recovered' }).eq('id', abandonedCartId);
+      
+      localStorage.setItem('last_order_id', orderData.id);
+      await automationService.trigger('new_order', {
+        order_id: orderData.id,
+        customer_email: customer.email,
+        customer_name: customer.name,
+        total: finalTotal
+      });
 
-      // Clear cart
+      // Clear Cart
       localStorage.removeItem('cart_items');
       setCart([]);
 
-      // 3.2 Se for cartão (pago na hora), mostrar modal de sucesso
-      if (initialStatus === 'paid') {
-        triggerPostPurchaseActions();
-        setCurrentOrderId(orderData.id);
+      // Trigger Tracking Pixels
+      if (settings?.tracking_pixels) {
+        settings.tracking_pixels.forEach((pixel: any) => {
+          if (pixel.active && pixel.pixel_id) {
+            if (pixel.platform === 'facebook' && (window as any).fbq) {
+              (window as any).fbq('track', 'Purchase', { value: finalTotal, currency: 'BRL' });
+            } else if (pixel.platform === 'google_analytics' && (window as any).gtag) {
+              (window as any).gtag('event', 'purchase', {
+                transaction_id: orderData.id,
+                value: finalTotal,
+                currency: 'BRL',
+                items: cart.map(item => ({
+                  item_id: item.product.id,
+                  item_name: item.product.name,
+                  quantity: item.quantity,
+                  price: item.product.discount_price || item.product.price
+                }))
+              });
+            }
+          }
+        });
+      }
+
+      if (orderStatus === 'paid') {
         setShowSuccessModal(true);
-        setProcessing(false);
-        return;
+      } else if (paymentMethod === 'pix' || pagarmeMethod === 'pix') {
+        setPixData(paymentResponse.pix);
+        setShowPixModal(true);
+      } else if (paymentMethod === 'boleto' || pagarmeMethod === 'boleto') {
+        setBoletoData(paymentResponse.boleto);
+        setShowBoletoModal(true);
       }
 
-      // Se estiver pendente (ex: análise de risco), avisar o usuário
-      if (initialStatus === 'pending' && isCreditCard) {
-        toast.success('Pedido recebido! Seu pagamento está em análise de segurança e será aprovado em breve.');
-        triggerPostPurchaseActions();
-        navigate(`/success?orderId=${orderData.id}`);
-        return;
-      }
-
-      toast.success('Pedido realizado com sucesso!');
-      triggerPostPurchaseActions();
-
-      // Redirect to success page
-      navigate(`/success?orderId=${orderData.id}`);
-      
     } catch (error: any) {
-      toast.error('Erro ao processar pagamento: ' + error.message);
+      console.error('❌ Erro crítico no checkout:', error);
+      toast.error(error.message || 'Erro ao processar checkout.');
     } finally {
       setProcessing(false);
     }
