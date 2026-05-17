@@ -1210,7 +1210,7 @@ export default function Checkout() {
           order_id: tempOrderId
         }, activeGateway.config);
 
-        console.log('📡 Resposta do Gateway:', paymentResponse);
+        console.log('📡 [CHECKOUT] Resposta do Gateway:', JSON.stringify(paymentResponse, null, 2));
 
         if (!paymentResponse.success) {
           // Se falhou antes de criar, apenas mostramos o erro e paramos
@@ -1222,14 +1222,26 @@ export default function Checkout() {
           return;
         }
 
-        // Verificação adicional de status reprovado/falho retornado pelo gateway
-        const isRefused = ['failed', 'refused', 'denied', 'reproved'].includes(paymentResponse.status?.toLowerCase());
-        if (isRefused) {
-          console.warn('⚠️ [ANTI-FRAUDE] Transação reprovada pelo gateway.');
+        // Validação Estrita de Status: Só prossegue se o status for positivo ou aguardando pagamento
+        const positiveStatuses = [
+          'paid', 'authorized', 'approved', 'succeeded', 'captured', 'processing', 
+          'pending', 'pending_analysis', 'pending_review', 'waiting_payment'
+        ];
+        
+        const currentStatus = (paymentResponse.status || '').toLowerCase();
+        const isAuthorized = positiveStatuses.includes(currentStatus);
+
+        if (!isAuthorized) {
+          console.warn(`⚠️ [CHECKOUT] Pagamento não autorizado: Status extraído -> "${currentStatus}"`);
           setProcessing(false);
+          
+          let failMessage = 'O pagamento foi recusado pelo banco ou pelo sistema de segurança. Por favor, revise os dados ou utilize outro cartão.';
+          if (currentStatus === 'refused') failMessage = 'Pagamento Recusado: O banco emissor não autorizou a transação.';
+          if (currentStatus === 'failed') failMessage = 'Falha no Pagamento: Houve um erro ao processar a transação com a operadora.';
+          
           setShowPaymentErrorModal({ 
             isOpen: true, 
-            message: 'O pagamento foi recusado pelo sistema de segurança (Anti-fraude) ou pelo banco. Por favor, revise os dados ou utilize outro cartão.' 
+            message: failMessage 
           });
           return;
         }
