@@ -903,7 +903,6 @@ export default function Orders() {
         let query = supabase
           .from('orders')
           .select('*')
-          .not('status', 'in', ['failed', 'FAILED', 'canceled', 'CANCELED', 'cancelled', 'CANCELLED', 'refused', 'REFUSED', 'refusado', 'REFUSADO'])
           .order('created_at', { ascending: false });
 
         if (!userIsAdmin) {
