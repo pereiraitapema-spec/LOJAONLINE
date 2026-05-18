@@ -131,52 +131,53 @@ export default function Dashboard() {
         const leads = leadsRes.data || [];
         const labels = labelsRes.data || [];
 
-        // STRICT FILTERING: Only count orders that are actually paid or positive logistics status
-        const positiveStatuses = ['paid', 'processing', 'shipped', 'delivered', 'approved', 'authorized', 'captured', 'succeeded'];
-        const orders = rawOrders.filter(o => 
-          positiveStatuses.includes(o.status?.toLowerCase())
-        );
+        // STRICT FILTERING: Only count orders that are definitely paid or in final logistics stages
+        // We exclude 'processing' and 'authorized' to be ultra-conservative as per user request
+        const positiveStatuses = ['paid', 'shipped', 'delivered', 'approved', 'captured', 'succeeded'];
+        
+        const orders = rawOrders.filter(o => {
+          const status = (o.status || '').toLowerCase();
+          const isPositive = positiveStatuses.includes(status);
+          const hasTotal = (o.total || 0) > 0;
+          return isPositive && hasTotal;
+        });
 
-        console.log(`📊 [DASHBOARD] Pedidos totais no período: ${rawOrders.length}`);
-        console.log(`✅ [DASHBOARD] Pedidos filtrados (pagos): ${orders.length}`);
-        console.log(`❌ [DASHBOARD] Pedidos descartados (não pagos): ${rawOrders.length - orders.length}`);
+        console.log('📊 [DASHBOARD] Debug Stats:', {
+          total_raw: rawOrders.length,
+          total_filtered: orders.length,
+          revenue_total: orders.reduce((acc, o) => acc + o.total, 0),
+          excluded_statuses: [...new Set(rawOrders.filter(o => !positiveStatuses.includes(o.status?.toLowerCase())).map(o => o.status))]
+        });
 
         // Calculate Revenue
         const revenue = orders.reduce((acc, o) => acc + o.total, 0);
 
         // Calculate Costs
         const totalCommissions = orders.reduce((acc, o) => {
-          // Se o valor da comissão estiver faltando ou parecer excessivo (> 50% do total), 
-          // recalculamos com base na taxa do afiliado para garantir a precisão no dashboard.
           const aff = affiliates.find(a => a.id === o.affiliate_id);
           const rate = aff?.commission_rate || 20;
-          
-          // Se o valor armazenado for muito diferente do esperado (mais de 5% de margem), usamos o esperado
           const expected = (o.total * rate / 100);
           const current = o.commission_value || 0;
           
-          if (Math.abs(current - expected) > (o.total * 0.05)) {
+          // Use expected if stored value is missing or wildly different
+          if (current === 0 || Math.abs(current - expected) > (o.total * 0.1)) {
             return acc + expected;
           }
-          
           return acc + current;
         }, 0);
+
         const totalShipping = orders.reduce((acc, o) => {
-          // Busca o valor real da etiqueta se existir
           const label = labels.find(l => l.order_id === o.id);
           if (label && label.valor > 0) return acc + Number(label.valor);
-          
-          // Fallback: se não houver etiqueta, mas o cliente pagou frete, usamos esse valor como estimativa de custo
-          // (ou poderíamos usar um custo médio se o frete foi grátis)
           return acc + (o.shipping_cost || 0);
         }, 0);
         
-        // Calculate COGS (Cost of Goods Sold) based on items in the filtered orders
+        // Calculate COGS - Ensure it ONLY uses the filtered 'orders' list
         let calculatedCOGS = 0;
         orders.forEach(order => {
-          (order.order_items || []).forEach((item: any) => {
+          const items = order.order_items || [];
+          items.forEach((item: any) => {
             const product = products.find(p => p.id === item.product_id);
-            // Use actual cost_price if available, otherwise fallback to 40% of selling price
             const unitCost = product?.cost_price || (item.price * 0.4);
             calculatedCOGS += (item.quantity * unitCost);
           });
