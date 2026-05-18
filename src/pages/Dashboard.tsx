@@ -99,7 +99,7 @@ export default function Dashboard() {
         });
 
         // Fetch all necessary data for stats in parallel with a timeout
-        const fetchWithTimeout = async (promise: Promise<any>, timeout = 5000) => {
+        const fetchWithTimeout = async (promise: any, timeout = 5000) => {
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Timeout')), timeout)
           );
@@ -107,30 +107,39 @@ export default function Dashboard() {
         };
 
         const [ordersRes, productsRes, affiliatesRes, abandonedRes, leadsRes, labelsRes] = await Promise.all([
-          fetchWithTimeout(Promise.resolve(supabase.from('orders')
+          fetchWithTimeout(supabase.from('orders')
             .select('*, order_items(*)')
-            .in('status', ['paid', 'processing', 'shipped', 'delivered'])
             .gte('created_at', `${dateRange.start}T00:00:00Z`)
-            .lte('created_at', `${dateRange.end}T23:59:59Z`))),
-          fetchWithTimeout(Promise.resolve(supabase.from('products').select('*'))),
-          fetchWithTimeout(Promise.resolve(supabase.from('affiliates').select('*'))),
-          fetchWithTimeout(Promise.resolve(supabase.from('abandoned_carts')
+            .lte('created_at', `${dateRange.end}T23:59:59Z`)),
+          fetchWithTimeout(supabase.from('products').select('*')),
+          fetchWithTimeout(supabase.from('affiliates').select('*')),
+          fetchWithTimeout(supabase.from('abandoned_carts')
             .select('*')
             .gte('created_at', `${dateRange.start}T00:00:00Z`)
-            .lte('created_at', `${dateRange.end}T23:59:59Z`))),
-          fetchWithTimeout(Promise.resolve(supabase.from('leads').select('*'))),
-          fetchWithTimeout(Promise.resolve(supabase.from('shipping_labels')
+            .lte('created_at', `${dateRange.end}T23:59:59Z`)),
+          fetchWithTimeout(supabase.from('leads').select('*')),
+          fetchWithTimeout(supabase.from('shipping_labels')
             .select('valor, order_id')
             .gte('created_at', `${dateRange.start}T00:00:00Z`)
-            .lte('created_at', `${dateRange.end}T23:59:59Z`)))
+            .lte('created_at', `${dateRange.end}T23:59:59Z`))
         ]);
 
-        const orders = ordersRes.data || [];
+        const rawOrders = ordersRes.data || [];
         const products = productsRes.data || [];
         const affiliates = affiliatesRes.data || [];
         const abandoned = abandonedRes.data || [];
         const leads = leadsRes.data || [];
         const labels = labelsRes.data || [];
+
+        // STRICT FILTERING: Only count orders that are actually paid or positive logistics status
+        const positiveStatuses = ['paid', 'processing', 'shipped', 'delivered', 'approved', 'authorized', 'captured', 'succeeded'];
+        const orders = rawOrders.filter(o => 
+          positiveStatuses.includes(o.status?.toLowerCase())
+        );
+
+        console.log(`📊 [DASHBOARD] Pedidos totais no período: ${rawOrders.length}`);
+        console.log(`✅ [DASHBOARD] Pedidos filtrados (pagos): ${orders.length}`);
+        console.log(`❌ [DASHBOARD] Pedidos descartados (não pagos): ${rawOrders.length - orders.length}`);
 
         // Calculate Revenue
         const revenue = orders.reduce((acc, o) => acc + o.total, 0);
